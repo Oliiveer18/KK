@@ -522,14 +522,15 @@ MX.hit = (e, dmg, from, dx, dz, w) => {
   const tot = dmg; let rest = dmg;
   if (e.sh > 0) { const a = Math.min(e.sh, rest); e.sh -= a; rest -= a; e.bS.flash = 1; }                  // el escudo absorbe primero; el sobrante pasa a la vida en el mismo golpe
   if (rest > 0) { e.hp -= rest; e.bH.flash = 1; }
-  e.tgp.hp = e.hp; e.lastHurt = M.t; e.bShow = M.t;
+  e.tgp.hp = e.hp; e.lastHurt = M.t; e.bShow = M.t; e.lastSrc = w ? w.sid : null;
   if (from && (from.isPlayer || e.isPlayer)) popNum(e, tot); if (from) { e.lastAtt = from; e.lastAttT = M.t; }
-  if (e.isPlayer) { M.hurt = Math.min(1, M.hurt + dmg / 45); P.shake = Math.max(P.shake, .06 + Math.min(.14, dmg * .004)); rumble(70, .55, .4); }
+  if (e.isPlayer) { dmgDir(from, dmg); M.hurt = Math.min(1, M.hurt + dmg / 45); P.shake = Math.max(P.shake, .06 + Math.min(.14, dmg * .004)); rumble(70, .55, .4); }
   if (e.hp <= 0) kill(e, from, dx, dz); else if (hm) playSnd('HIT_marker', { vol: 1 });   // si la bala mata, suena solo el sonido de baja (HIT_kill)
 };
 function kill(v, killer, dx, dz) {
   if (!killer && v.lastAtt && M.t - v.lastAttT < 8 && v.lastAtt.team !== v.team) killer = v.lastAtt;     // fuego o explosión sin autor claro: cuenta quien le hirió hace poco
   v.dead = true; v.deaths++; v.hp = 0; v.tgp.hp = 0; v.respT = RESPAWN + (v.isPlayer ? 0 : rnd() * .8); v.inv = 0;
+  addFeed(killer && killer !== v ? killer : null, v, v.lastSrc);
   if (killer && killer !== v && killer.team !== v.team) { killer.kills++; M.score[killer.team]++; if (killer.isPlayer) playSnd('HIT_kill') || playSnd('HIT_marker'); }          // bajas a compañeros y suicidios no puntúan
   for (let i = 0; i < 8; i++) spawn('red', _kp.set(v.p.x, .9, v.p.z), _kv.set((Math.random() - .5) * 4 + dx * 2, 1 + Math.random() * 3, (Math.random() - .5) * 4 + dz * 2), .5, .04, .04, .04, true, 8);
   if (v.isPlayer) { P.dead = true; playerCorpse(dx, dz); for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(200, .8, .6); }
@@ -607,6 +608,51 @@ function drawBar(b, e, dt) {
 }
 function placeBar(b, x, y, fl) { const [sc, jx] = b.el.dataset.s.split('|'); b.el.style.transform = 'translate(' + (x - b.w / 2 + +jx) + 'px,' + y + 'px) translateY(-100%) scale(' + sc + ')'; b.el.style.display = 'block'; }
 const PB = mkBar(210, 12, true); PB.num = true; PB.el.className = 'mxpb'; PB.el.style.transformOrigin = '0% 100%'; MX.PB = PB;
+/* ---- kill feed (arriba a la derecha, bajo los FPS): quién mató a quién, con arma; las tuyas llevan borde dorado y las que te matan, rojo. Se desvanece solo y no recibe toques ---- */
+{ const st = document.createElement('style'); st.textContent = '#mxFeed{right:var(--r);top:calc(var(--t) + 52px)}@media (orientation:landscape) and (max-height:520px){#mxFeed{top:calc(var(--t) + 30px) !important;font-size:11px !important}}'; document.head.appendChild(st); }
+const feedEl = document.createElement('div'); feedEl.id = 'mxFeed'; feedEl.style.cssText = 'position:absolute;display:flex;flex-direction:column;align-items:flex-end;gap:3px;font:700 12px system-ui,sans-serif;pointer-events:none;opacity:.96'; hud.appendChild(feedEl);
+const FEED = [], FEED_MAX = 5, FEED_T = 5;
+function addFeed(killer, v, src) {
+  const col = e => e.team ? '#ff6a5a' : '#5db4ff', nm = e => e.isPlayer ? 'TÚ' : e.id, tag = s => '<i style="font-style:normal;font-weight:600;font-size:10px;letter-spacing:.06em;padding:1px 5px;border-radius:4px;background:#ffffff1c;opacity:.8">' + s + '</i>';
+  const d = document.createElement('div'), ring = killer && killer.isPlayer ? '#ffd24acc' : v.isPlayer ? '#ff5a4acc' : '#ffffff14';
+  d.style.cssText = 'display:flex;align-items:center;gap:7px;padding:3px 9px;border-radius:6px;background:#0c1018bd;box-shadow:0 0 0 1px ' + ring + ',0 2px 8px #0008;white-space:nowrap;font-variant-numeric:tabular-nums';
+  d.innerHTML = (killer ? '<span style="color:' + col(killer) + '">' + nm(killer) + '</span>' + tag(src || '✸') : tag('✸')) + '<span style="color:' + col(v) + '">' + nm(v) + '</span>';
+  feedEl.appendChild(d); FEED.push({ d, t: 0 });
+  while (FEED.length > FEED_MAX) feedEl.removeChild(FEED.shift().d);
+}
+function updFeed(dt) {
+  for (let i = FEED.length - 1; i >= 0; i--) {
+    const f = FEED[i]; f.t += dt; if (f.t >= FEED_T) { feedEl.removeChild(f.d); FEED.splice(i, 1); continue; }
+    f.d.style.opacity = f.t < .15 ? f.t / .15 : f.t > FEED_T - .6 ? (FEED_T - f.t) / .6 : 1; f.d.style.transform = f.t < .15 ? 'translateX(' + (1 - f.t / .15) * 24 + 'px)' : '';
+  }
+}
+function clearFeed() { for (const f of FEED) feedEl.removeChild(f.d); FEED.length = 0; }
+/* ---- indicador de daño direccional: un arco rojo fino alrededor del jugador, hacia donde está quien dispara (la cámara no gira, así que el arriba de la pantalla es el norte del mapa). Uno por atacante, se refresca con cada impacto y se apaga en ~1,5 s ---- */
+const DIRS = new Map(), DIR_MAX = 3, DIR_T = 1.5, dirEl = document.createElement('div'); dirEl.style.cssText = 'position:absolute;inset:0;overflow:hidden;pointer-events:none'; hud.appendChild(dirEl);
+function dmgDir(from, dmg) {
+  if (!from || from.isPlayer || !from.p) return;
+  let d = DIRS.get(from.id);
+  if (!d) {
+    const el = document.createElement('div'); el.style.cssText = 'position:absolute;pointer-events:none;will-change:transform,opacity;filter:drop-shadow(0 0 5px #ff3b2f99)';
+    const a = 24 * Math.PI / 180, x = 96 * Math.sin(a), y = -96 * Math.cos(a);
+    el.innerHTML = '<svg viewBox="-100 -100 200 200" width="100%" height="100%"><path d="M' + (-x).toFixed(1) + ' ' + y.toFixed(1) + ' A96 96 0 0 1 ' + x.toFixed(1) + ' ' + y.toFixed(1) + '" fill="none" stroke="#ff3b2f" stroke-width="5" stroke-linecap="round"/></svg>';
+    dirEl.appendChild(el); d = { el, t: 0, from, k: 1 }; DIRS.set(from.id, d);
+    if (DIRS.size > DIR_MAX) { const k0 = DIRS.keys().next().value; dirEl.removeChild(DIRS.get(k0).el); DIRS.delete(k0); }
+  }
+  d.t = 0; d.from = from; d.k = clamp(.6 + dmg / 70, .6, 1);
+}
+function clearDirs() { for (const d of DIRS.values()) dirEl.removeChild(d.el); DIRS.clear(); }
+function updDirs(dt, dead) {
+  if (dead) { if (DIRS.size) clearDirs(); return; }
+  if (!DIRS.size) return;
+  _kp.set(P.pos.x, .9, P.pos.z).project(camera);
+  const cx = (_kp.x * .5 + .5) * innerWidth, cy = (-_kp.y * .5 + .5) * innerHeight, R = Math.min(innerWidth, innerHeight) * .3;
+  for (const [id, d] of DIRS) {
+    d.t += dt; if (d.t >= DIR_T) { dirEl.removeChild(d.el); DIRS.delete(id); continue; }
+    const ang = Math.atan2(d.from.p.x - P.pos.x, -(d.from.p.z - P.pos.z)), op = d.k * (d.t < .08 ? d.t / .08 : d.t < .6 ? 1 : (DIR_T - d.t) / (DIR_T - .6));
+    d.el.style.cssText += ';left:' + (cx - R).toFixed(1) + 'px;top:' + (cy - R).toFixed(1) + 'px;width:' + (2 * R).toFixed(1) + 'px;height:' + (2 * R).toFixed(1) + 'px;opacity:' + op.toFixed(3) + ';transform:rotate(' + ang.toFixed(4) + 'rad)';
+  }
+}
 /* ---- números de daño: aparecen, suben y se desvanecen; el tamaño crece con el daño y cada uno sale hacia un lado distinto ---- */
 const NUMS = []; let numSide = 1; const _np = new V3();
 function popNum(e, dmg) {
@@ -636,7 +682,7 @@ function endMatch(win) {
   endEl.style.display = 'flex'; $('mxRe').addEventListener('click', () => MX.restart()); $('mxRe').addEventListener('touchstart', e => { e.preventDefault(); MX.restart(); });
 }
 MX.restart = () => {
-  if (!M.over) return; M.over = false; M.win = -1; M.score = [0, 0]; endEl.style.display = 'none';
+  if (!M.over) return; clearFeed(); clearDirs(); M.over = false; M.win = -1; M.score = [0, 0]; endEl.style.display = 'none';
   for (const p of M.props.slice()) { scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); const j = props.indexOf(p); if (j >= 0) props.splice(j, 1); } M.props.length = 0; M.propQ.length = 0;
   for (const s of M.specs) placeProp(s, false);
   clouds.length = 0; FIRES.length = 0; for (const g of grens) { g.on = false; g.m.visible = false; } for (const b of BUL) { b.on = false; b.m.visible = false; }
@@ -692,7 +738,7 @@ MX.update = dt => {
   /* HUD */
   $('mxA').textContent = 'AZUL ' + M.score[0]; $('mxB').textContent = M.score[1] + ' ROJO';
   drawBar(PB, pl, dt); PB.el.style.transform = 'scale(' + (PB.el.dataset.s.split('|')[0]) + ') translateX(' + PB.el.dataset.s.split('|')[1] + 'px)';
-  updNums(dt);
+  updNums(dt); updFeed(dt); updDirs(dt, pl.dead);
   M.hurt = Math.max(0, M.hurt - dt * 1.6); $('mxHurt').style.opacity = clamp(M.hurt, 0, 1) * .85 + (pl.hp < 30 && !pl.dead ? .15 : 0);
   $('mxDead').style.opacity = pl.dead ? Math.min(.55, (RESPAWN - pl.respT) * 1.2) : 0;
   if (M.over) { M.endT += dt; const g = getPad(); if (g && M.endT > 1.5 && g.buttons[0] && g.buttons[0].pressed) MX.restart(); }

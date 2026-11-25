@@ -1,24 +1,29 @@
-# Estado — v0.3.9
+# Estado — v0.3.9 (25-11-2026)
 
-- `HIT_kill` integrado (1 toma de ElevenLabs, `originales/HIT_kill.wav`; manifiesto: inicio 0,015 s, recorte 0,3 s, fundido 0,06 s; `SND_VOL.HIT_kill = .75`). Medida: 0,49 s, silencio inicial de ~24 ms, cuerpo ~250 ms, espectro con mucho 500–1000 Hz y algo de 2–4 kHz (se oirá en altavoz de móvil). Al matar suena solo `HIT_kill` (sin `HIT_marker` encima; `MX.hit` solo pone el marker si la bala no mata). Pendiente: variantes (`_01/_02`) si se generan más tomas. No escuchado por mí.
+Todo lo de abajo está comprobado **solo con tests automáticos y capturas** (Chrome headless, sin GPU ni altavoces). El usuario lo prueba en iPhone con DualSense. Nada se ha escuchado ni visto en el dispositivo real.
 
-- `HIT_marker` integrado (1 toma de ElevenLabs, `assets/audio/originales/HIT_marker.wav`, manifiesto con recorte 0,15 s y fundido 0,05 s, `SND_VOL.HIT_marker = .6`). Medida: 0,49 s con transitorio a 0 ms, espectro 60–500 Hz (centroide ~196 Hz, casi sin agudos), cola a −30 dB a los 126 ms (recortada). Pendiente: 2 tomas más (`HIT_marker_02/03`; al añadirlas renombrar la actual a `_01`) y `HIT_kill`. No escuchado por mí; el usuario aún no lo ha probado.
+## Qué hay ahora
+- **Mapas** (menú de Options, en pausa): 1 Arena, 2 Polígono, 3 Partida 6 vs 6 a 100 bajas. De 1/2 a 3 al instante; de 3 a 1/2 recarga la página. También `?mapa=1|2|3`.
+- **Partida (mapa 3)**: bots con IA y A*, escudo 50 + vida 100, armería en la base azul, ranuras 2 principales + pistola, pantalla final con tabla por jugador y REVANCHA.
+- **HUD**: vida y escudo abajo a la izquierda (número grande, 5 segmentos de escudo, estado crítico con pulso); arma, munición, granadas y dash abajo a la derecha; kill feed arriba a la derecha (bajo los FPS); indicador de daño direccional (arco rojo hacia el atacante, ~1,5 s); barras pequeñas con rombo de equipo sobre los bots. Sin chuleta de controles ni texto de depuración en pantalla.
+- **Cámara**: horizontal con fov 45 (igual que escritorio); vertical ×1,4.
+- **Sonido de combate**: los impactos en personajes ya no hacen golpe metálico (solo suena el disparo); `HIT_marker` al dar a un rival (sonido de interfaz) y `HIT_kill` al matar (suena solo, sin el marker). Bucles (humo, fuego, fugas) se apagan al pausar.
+- **Publicación**: GitHub Pages desde `main`; subir con `git push origin HEAD:main`. Un despliegue puede fallar con error 500 de GitHub (pasó el 25-11); se relanza o se sube otro commit.
 
-- Sonido de impacto en personajes (mapa 3): quitado el golpe metálico (`IMP_target`) cuando una bala da a un jugador o bot; ahora solo suena el disparo. Preparado el «hit» del jugador: `HIT_marker` al entrar una bala suya en un rival y `HIT_kill` al matar (con respaldo a `HIT_marker`); **sin muestras todavía → silencio** hasta que el usuario genere los WAV con ElevenLabs. Test `tests/hit_sonido.py`. Solo automático.
+## Audio de combate (medidas)
+- `HIT_marker` (1 toma): 0,49 s, golpe grave y mate (60–500 Hz, centroide ~196 Hz, casi sin agudos), recortado a 0,15 s, `SND_VOL` .6. Riesgo: en el altavoz del iPhone puede oírse flojo; si pasa, generar tomas con más clic (2–4 kHz).
+- `HIT_kill` (1 toma): 0,49 s, silencio inicial ~24 ms, cuerpo ~250 ms, mucho 500–1000 Hz; inicio 0,015 s, recorte 0,3 s, `SND_VOL` .75.
+- Pendiente: más variantes de ambos (al añadirlas, renombrar a `_01`, `_02`…).
 
-- Barra de los bots más pequeña (60 px, vida 4 px, segmentos de escudo 2 px, rombo 5 px) y más separada de la cabeza (punto de anclaje a 2,3 m, baja algo al agacharse). Solo automático.
+## Pendiente (ver `docs/PENDIENTE.md`)
+Críticos de cabeza, ambiente del mapa 3, sonidos propios de partida, rareza de armas, volúmenes a oído, modelos Meshy, gatillos adaptativos (WebHID).
 
-- HUD: vida y escudo abajo a la izquierda (número de vida primero, escudo al lado); arma, munición, granadas y dash abajo a la derecha. Quitada la chuleta de controles de la pantalla (`#help` oculto por CSS; los controles siguen en `docs/CONTROLES.md`). Solo automático (`tests/barras.py`).
+## Tests (todos deben dar 0 fallos / sin errores)
+`partida`, `partida_armas`, `partida_escudo`, `horizontal`, `barras`, `feed_dano`, `hit_sonido`, `sonidos_bucles`, `audio.py index.html`, `audio_mundo.py index.html`, `balistica`, `granadas`, `pasos`.
 
-- Barras de vida/escudo rediseñadas (solo visual, mismos colores y reglas): escudo en 5 segmentos inclinados, vida con chaflán, brillo y marcas cada 25, números grandes con icono de escudo, pulso rojo bajo 30 HP, destello al romperse el escudo; barra de bots más pequeña con rombo de equipo y fundido. Código en `mkBar`/`drawBar` de `src/partida.js`; test `tests/barras.py` (capturas en /tmp). Solo automático; sin ver en iPhone.
+---
 
-- Sonidos en bucle (humo, fuego, fugas): con el menú abierto (pausa) seguían sonando; ahora se apagan con fundido y vuelven al cerrar. Test nuevo `tests/sonidos_bucles.py` (sin bucles huérfanos tras 2,5 min de partida con bots). Solo automático; sin probar a oído.
-
-- 25-11: dos despliegues de Pages fallaron con error 500 de GitHub y el reintento se quedó en cola; se forzó un despliegue nuevo con este commit de docs.
-
-- Cámara horizontal: quitado el campo ampliado ×1,05 (fov 47,3 → 45, igual que escritorio). Personaje 8,1 % → 8,5 % de la altura. Solo automático. La vertical (×1,4) no cambia.
-
-- v0.3.9: selector de mapa en el menú de Options (pausa el juego). Probado solo en automático (cambio 1↔2↔3, recarga desde 3, navegación con mando simulado); sin probar en iPhone con DualSense.
+# Histórico
 
 ## Estado al cierre del 25-11-2026 (v0.3.8)
 - Mapa 3: partida 6 vs 6 a 100 bajas (`src/partida.js`), escudo 50 + vida 100, barras profesionales y números de daño, bots con IA y A*, armería en la base azul, ranuras 2 principales + pistola (△ tocar / mantener). Tests: `partida.py`, `partida_armas.py`, `partida_escudo.py`, `horizontal.py`.

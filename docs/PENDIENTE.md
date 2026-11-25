@@ -1,6 +1,7 @@
 # Propuestas pendientes (índice) — NO empezar ninguna sin que el usuario la pida
 
-- Mapa 3: probar a mano (mando/móvil), ajustar dificultad, ambiente y tamaño; marcador/HUD mejorables; sonidos propios de partida (ElevenLabs).
+- Mapa 3: probar a mano (mando/móvil), ajustar dificultad, ambiente y tamaño; sonidos propios de partida (ElevenLabs). Hecho en v0.3.9: HUD (barras, kill feed, daño direccional), tabla de resultados, selector de mapa, `HIT_marker`/`HIT_kill`.
+- Sonidos de combate: más variantes de `HIT_marker` y `HIT_kill` (renombrar a `_01`, `_02`…); si el marker no se oye en el altavoz del iPhone, tomas con más clic (2–4 kHz). Críticos de cabeza (zona de cabeza en impactos).
 
 Todas están aplazadas; son propuestas, no tareas en curso.
 1. **Sonidos de movimiento:** aterrizaje/frenada tras el dash (2 variantes), roce de ropa y equipo (2), 3.ª toma de paso opcional; pasos por superficie más adelante. El usuario genera los audios; hay que darle el prompt y la duración de cada uno.

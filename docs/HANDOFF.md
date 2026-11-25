@@ -1,4 +1,4 @@
-# Traspaso a una nueva sesión — v0.3.8
+# Traspaso a una nueva sesión — v0.3.9
 
 Lee esto primero. Resume lo necesario para seguir sin perder contexto.
 
@@ -49,7 +49,10 @@ Prototipo de shooter 3D en el navegador, sin assets externos (personaje procedur
 - Trucos de prueba: `update(1/60)` y `window.__n++` a mano; para tiempo de juego en lugar de real, sobrescribir `performance.now` (ver `pasos.py`); `window.__b/__a` y `navigator.getGamepads` para el mando; llamar a `update` en el mismo `evaluate` que el cambio de entrada (el bucle real corre en paralelo). Con muchas pruebas de física `boxes.length=0` evita obstáculos. En una cadena de JS con varias sentencias usa una función flecha anónima: Playwright trata una cadena con `function` como función a llamar.
 - Hacer copia de seguridad del fuente antes de cambios grandes.
 
-## Estado y decisiones (v0.2.2)
+## Estado y decisiones
+Estado actual (v0.3.9): ver `docs/ESTADO.md` (cabecera) y `docs/ARQUITECTURA.md` (sección v0.3.x). Reglas añadidas por el usuario el 25-11: sin chuleta ni texto de depuración en pantalla; vida y escudo abajo a la izquierda, arma y munición abajo a la derecha; al dañar personajes solo suena el disparo (el «hit» del jugador va aparte, sonidos de ElevenLabs aprobados uno a uno); las propuestas deben ser cosas que hago yo, no tareas para el usuario. Histórico de v0.2.2 a continuación.
+
+### v0.2.2
 Hecho en esta versión (detalle en `docs/CHANGELOG.md`, estado en `docs/ESTADO.md`, arquitectura en `docs/ARQUITECTURA.md`):
 - 10 armas con sonido, balística profesional con alcances a escala de pantalla (tabla `BAL`), equilibrio pasos 2 y 3 (el paso 4 lo descartó el usuario), pista de práctica a 30 m.
 - Rendimiento invisible para Mac + diagnóstico con clic en el cuadro de FPS (GPU, lógica, dibujo, llamadas, resolución). En Mac a pantalla casi completa: GPU 13,3 → 8,5 ms; a pantalla muy grande ~14 ms/40 FPS (sin más mejoras posibles sin bajar calidad; el usuario dijo que lo deja).
