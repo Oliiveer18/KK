@@ -231,15 +231,21 @@ const rig = {
 };
 
 /* ---------- aspecto: paletas de facción y equipo visible (casco, chaleco, mochila) ----------
-   Piezas modulares colgadas de las mallas del rig (heredan la pose: la animación no cambia). Cada pieza del equipo tiene 3 niveles (1 ligero, 2 medio, 3 pesado; 0 = sin pieza).
+   Criterio de color: uniforme apagado y poco saturado (tela), equipo oscuro neutro y UN color vivo de facción (acento) solo en las zonas que se leen desde arriba
+   (franja del casco, hombreras, banda del pecho, mochila, hebilla); piel y guantes aparte. Así el equipo se ve serio y la facción se reconoce de lejos.
+   Equipo en piezas modulares colgadas de las mallas del rig (heredan la pose: la animación no cambia). Niveles: 0 sin pieza, 1 ligero, 2 medio, 3 pesado.
    Las piezas de cada punto del cuerpo se fusionan en una malla por material para no multiplicar las llamadas de dibujo. */
 const FAC = [
-  { name: 'Azul', body: 0x3d6fb6, limb: 0x2c3f63, trim: 0x8fd0ff, gear: 0x232f46 },
-  { name: 'Rojo', body: 0xb6453d, limb: 0x5a2a28, trim: 0xff9a88, gear: 0x452220 },
-  { name: 'Ámbar', body: 0xc98a2e, limb: 0x5c4218, trim: 0xffd98a, gear: 0x43330f },
-  { name: 'Violeta', body: 0x7a4db0, limb: 0x3a2a58, trim: 0xcfb0ff, gear: 0x2d2243 }];
-const FACM = FAC.map(f => { const m = c => new THREE.MeshStandardMaterial({ color: c, roughness: .65, flatShading: true }); return { body: m(f.body), limb: m(f.limb), trim: m(f.trim), gear: m(f.gear) }; });
-const DRESS_DEF = { helmet: 2, vest: 2, pack: 1 };
+  { name: 'Azul', uni: 0x3d4b66, pants: 0x2a3347, gear: 0x20262f, acc: 0x2f9bff, trim: 0xa8d8ff },
+  { name: 'Rojo', uni: 0x62403d, pants: 0x3f2a28, gear: 0x282020, acc: 0xff4a38, trim: 0xffb3a6 },
+  { name: 'Ámbar', uni: 0x6c5d3a, pants: 0x453c26, gear: 0x2a271c, acc: 0xffae1c, trim: 0xffe2a3 },
+  { name: 'Violeta', uni: 0x4f4468, pants: 0x362e48, gear: 0x252032, acc: 0xa062ff, trim: 0xdcc6ff }];
+const SKIN = [0xe2b898, 0xc78c66, 0x8e5c3d, 0xf1d0b4], HAIR = [0x2a1d14, 0x4a3524, 0x1b1b1d, 0x7a5a36];
+const mkM = (c, r, m) => new THREE.MeshStandardMaterial({ color: c, roughness: r === undefined ? .8 : r, metalness: m || 0, flatShading: true });
+const FACM = FAC.map(f => ({ uni: mkM(f.uni, .9), pants: mkM(f.pants, .9), gear: mkM(f.gear, .55, .25), acc: mkM(f.acc, .55), trim: mkM(f.trim, .6),
+  goggle: new THREE.MeshStandardMaterial({ color: new THREE.Color(f.acc).multiplyScalar(.45), roughness: .22, metalness: .5, flatShading: true }) }));
+const SKINM = SKIN.map(c => mkM(c, .85)), HAIRM = HAIR.map(c => mkM(c, .9)), KITW = mkM(0xf0f0ee, .7), KITR = mkM(0xd8342a, .7);
+const DRESS_DEF = { helmet: 2, vest: 2, pack: 1, kit: false, skin: 0 };
 const _IQ = new THREE.Quaternion(), _pv = new V3(), _sv = new V3();
 function mergeParts(list) {
   let nv = 0, ni = 0; const gs = list.map(p => { const g = p.geo.clone(); g.applyMatrix4(p.m); nv += g.attributes.position.count; ni += g.index.count; return g; });
@@ -248,9 +254,11 @@ function mergeParts(list) {
   const out = new THREE.BufferGeometry(); out.setAttribute('position', new THREE.BufferAttribute(pos, 3)); out.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); out.setIndex(new THREE.BufferAttribute(idx, 1)); return out;
 }
 function dress(R, fi, L) {
-  L = Object.assign({}, DRESS_DEF, L || {}); const M = FACM[fi % FACM.length];
+  L = Object.assign({}, DRESS_DEF, L || {}); const M = FACM[fi % FACM.length], SK = SKINM[L.skin % SKINM.length], HR = HAIRM[L.skin % HAIRM.length];
   if (R._gear) for (const h of R._gear) { h.parent.remove(h); h.traverse(o => { if (o.geometry && o.isMesh) o.geometry.dispose(); }); }
   R._gear = [];
+  R.torso.material = R.shoulder[0].material = R.shoulder[1].material = M.uni; R.pelvis.material = M.pants; R.head.material = SK; R.visor.material = M.goggle;   // colores base del cuerpo
+  for (let i = 0; i < 2; i++) { R.thigh[i].material = R.shin[i].material = R.knee[i].material = M.pants; R.upper[i].material = R.fore[i].material = M.uni; R.foot[i].material = R.hand[i].material = M.gear; }
   const jobs = new Map();                                                           // malla del rig -> Map(material -> piezas)
   const add = (target, geo, mat, sx, sy, sz, x, y, z) => {
     let mp = jobs.get(target); if (!mp) { mp = new Map(); jobs.set(target, mp); }
@@ -258,39 +266,53 @@ function dress(R, fi, L) {
     l.push({ geo, m: new THREE.Matrix4().compose(_pv.set(x, y, z), _IQ, _sv.set(sx, sy, sz)) });
   };
   const bx = (t, mat, w, h, d, x, y, z) => add(t, geoBox, mat, w, h, d, x, y, z), bl = (t, mat, w, h, d, x, y, z) => add(t, geoBall, mat, w, h, d, x, y, z);
-  const T = R.torso, v = L.vest, k = L.pack, H = R.visor, B = R.pelvis;
-  bx(T, M.limb, .09, .15, .09, 0, .31, 0);                                           // cuello
-  if (v >= 1) {                                                                     // chaleco: placas delantera y trasera, franja de facción y tirantes
-    const w = [0, .30, .34, .36][v], h = [0, .26, .31, .34][v], d = [0, .045, .055, .065][v];
+  const T = R.torso, v = L.vest, k = L.pack, H = R.visor, B = R.pelvis, hv = L.helmet;
+  bx(T, SK, .09, .15, .09, 0, .31, 0);                                              // cuello
+  bx(T, M.uni, .1, .07, .02, .1, -.02, .13);                                         // bolsillo de pecho (tela)
+  if (v >= 1) {                                                                     // chaleco portaplacas
+    const w = [0, .28, .33, .38][v], h = [0, .24, .30, .36][v], d = [0, .04, .055, .07][v];
     bx(T, M.gear, w, h, d, 0, .03, .125 + d / 2 - .01); bx(T, M.gear, w, h, d, 0, .03, -.125 - d / 2 + .01);
-    bx(T, M.trim, w * .92, .045, d + .008, 0, .13, .125 + d / 2 - .01);
-    bx(T, M.gear, .07, .1, .27, .12, .24, 0); bx(T, M.gear, .07, .1, .27, -.12, .24, 0);
-    if (v >= 2) { bx(T, M.gear, .04, .2, .27, .215, -.03, 0); bx(T, M.gear, .04, .2, .27, -.215, -.03, 0); }
-    if (v >= 3) { bx(T, M.gear, .22, .06, .13, 0, .275, 0); for (const x of [-.1, 0, .1]) bx(T, M.gear, .07, .1, .04, x, -.1, .125 + d + .015); bx(T, M.trim, .22, .02, .135, 0, .31, 0); }
+    bx(T, M.acc, w * [0, .6, .85, .92][v], .042, d + .008, 0, .13, .125 + d / 2 - .01);   // banda de facción
+    bx(T, M.gear, .06, .1, .27, .12, .24, 0); bx(T, M.gear, .06, .1, .27, -.12, .24, 0);  // tirantes
+    if (v >= 2) {
+      bx(T, M.gear, .04, .2, .27, .215, -.03, 0); bx(T, M.gear, .04, .2, .27, -.215, -.03, 0);   // fajín lateral
+      for (const x of [-.07, .07]) bx(T, M.gear, .06, .085, .04, x, -.09, .125 + d + .012);       // cargadores
+    }
+    if (v >= 3) {
+      bx(T, M.gear, .22, .06, .13, 0, .275, 0); bx(T, M.trim, .22, .018, .135, 0, .308, 0);       // collarín
+      bx(T, M.gear, .05, .09, .04, 0, -.09, .125 + d + .012); bx(T, M.gear, .1, .06, .035, 0, .0, .125 + d + .012);   // 3er cargador y bolsa de radio
+      bx(T, M.gear, .05, .26, .06, .2, .0, .0); bx(T, M.gear, .05, .26, .06, -.2, .0, .0);       // placas laterales
+    }
   }
   if (k >= 1) {                                                                     // mochila
-    const w = [0, .26, .30, .34][k], h = [0, .28, .34, .40][k], d = [0, .11, .15, .19][k], y = [0, .08, .06, .05][k], z = -.125 - d / 2 + .005;
-    bx(T, M.gear, w, h, d, 0, y, z); bx(T, M.trim, w * .86, .05, d * .82, 0, y + h / 2 + .02, z);
-    bx(T, M.gear, .05, .3, .015, .1, .08, .127); bx(T, M.gear, .05, .3, .015, -.1, .08, .127);
-    if (k >= 3) { bx(T, M.gear, .07, .15, d * .8, w / 2 + .035, y - .08, z); bx(T, M.gear, .07, .15, d * .8, -w / 2 - .035, y - .08, z); }
+    const w = [0, .24, .30, .34][k], h = [0, .26, .34, .40][k], d = [0, .1, .15, .19][k], y = [0, .08, .06, .05][k], z = -.125 - d / 2 + .005, ty = y + h / 2;
+    bx(T, M.gear, w, h, d, 0, y, z); bx(T, M.acc, w * .86, .05, d * .82, 0, ty + .02, z);    // cuerpo + rollo superior de facción
+    bx(T, M.gear, .05, .3, .015, .1, .08, .127); bx(T, M.gear, .05, .3, .015, -.1, .08, .127);   // correas por delante
+    if (k >= 2) bx(T, M.uni, w * .8, .12, .03, 0, y - h * .1, z - d / 2 - .01);       // bolsillo trasero
+    if (k >= 3) { bx(T, M.gear, .07, .15, d * .8, w / 2 + .035, y - .08, z); bx(T, M.gear, .07, .15, d * .8, -w / 2 - .035, y - .08, z); bx(T, M.gear, .014, .3, .014, .11, ty + .15, z); }   // bolsas laterales y antena
+    if (L.kit) {                                                                    // kit de reanimación: cruz roja sobre blanco, arriba y detrás de la mochila
+      bx(T, KITW, .12, .012, .12, 0, ty + .052, z); bx(T, KITR, .1, .016, .028, 0, ty + .054, z); bx(T, KITR, .028, .016, .1, 0, ty + .054, z);
+      bx(T, KITW, .13, .13, .012, 0, y, z - d / 2 - .012); bx(T, KITR, .1, .1, .014, 0, y, z - d / 2 - .014); bx(T, KITW, .084, .03, .016, 0, y, z - d / 2 - .016); bx(T, KITW, .03, .084, .016, 0, y, z - d / 2 - .016);
+    }
   }
-  bx(B, M.gear, .345, .05, .215, 0, .055, 0); bx(B, M.trim, .06, .04, .012, 0, .055, .11);        // cinturón con hebilla
+  bx(B, M.gear, .345, .05, .215, 0, .055, 0); bx(B, M.acc, .06, .04, .012, 0, .055, .11);   // cinturón con hebilla
   bx(B, M.gear, .07, .08, .05, .1, -.005, .125); bx(B, M.gear, .07, .08, .05, -.1, -.005, .125);
-  if (v >= 2) bx(B, M.gear, .04, .11, .06, .175, -.03, 0);
-  const h2 = L.helmet;
-  if (h2 >= 1) {                                                                    // casco: cúpula + franja de facción visible desde arriba
-    const dome = [0, [.14, .085, .15], [.152, .11, .16], [.158, .125, .17]][h2], dy = [0, .05, .045, .05][h2];
-    bl(H, M.gear, dome[0], dome[1], dome[2], 0, dy, -.1);
-    bx(H, M.trim, .035, .012, dome[2] * 1.5, 0, dy + dome[1] - .004, -.1);
-    if (h2 === 1) bx(H, M.gear, .2, .018, .06, 0, .035, .0);                          // visera de gorra
-    if (h2 >= 2) { bl(H, M.gear, .17, .018, .18, 0, 0, -.1); bx(H, M.gear, .03, .07, .08, .14, -.02, -.1); bx(H, M.gear, .03, .07, .08, -.14, -.02, -.1); }
-    if (h2 >= 3) { bx(H, M.gear, .15, .05, .03, 0, .04, .065); bx(H, M.gear, .2, .07, .03, 0, -.03, -.26); bx(H, M.trim, .012, .012, .18, .05, dy + dome[1] - .015, -.1); bx(H, M.trim, .012, .012, .18, -.05, dy + dome[1] - .015, -.1); }
+  if (v >= 2) bx(B, M.gear, .04, .11, .06, .175, -.03, 0);                           // funda
+  if (v >= 3) bx(B, M.gear, .14, .12, .03, 0, -.08, .115);                           // protección ingle
+  if (hv === 0) bl(H, HR, .135, .095, .145, 0, .05, -.107);                         // pelo
+  if (hv >= 1) {
+    const dome = [0, [.142, .085, .152], [.152, .11, .16], [.161, .128, .173]][hv], dy = [0, .05, .045, .05][hv], top = dy + dome[1], mat = hv === 1 ? M.uni : M.gear;
+    bl(H, mat, dome[0], dome[1], dome[2], 0, dy, -.1);
+    bx(H, M.acc, .035, .012, dome[2] * 1.5, 0, top - .004, -.1);                    // franja de facción (se ve desde arriba)
+    if (hv === 1) bx(H, M.uni, .2, .018, .06, 0, .035, .0);                          // gorra con visera
+    if (hv >= 2) { bl(H, M.gear, .17, .018, .18, 0, 0, -.1); bx(H, M.gear, .03, .07, .08, .14, -.02, -.1); bx(H, M.gear, .03, .07, .08, -.14, -.02, -.1); bx(H, M.acc, .06, .02, .012, 0, .062, .06); }
+    if (hv >= 3) { bx(H, M.gear, .04, .1, .1, .148, -.03, -.1); bx(H, M.gear, .04, .1, .1, -.148, -.03, -.1); bx(H, M.gear, .15, .03, .03, 0, -.045, .075); bx(H, M.gear, .2, .08, .03, 0, -.03, -.265); bx(H, M.acc, .02, .035, .2, 0, top + .015, -.1); }
   }
   for (let i = 0; i < 2; i++) {
-    if (v >= 2) bl(R.shoulder[i], M.body, v >= 3 ? .125 : .105, (v >= 3 ? .125 : .105) * .7, v >= 3 ? .125 : .105, 0, .02, 0);   // hombreras del color de la facción
+    if (v >= 2) { const q = v >= 3 ? .13 : .108; bl(R.shoulder[i], M.acc, q, q * .68, q, 0, .02, 0); if (v >= 3) bl(R.shoulder[i], M.gear, q * .8, q * .45, q * .8, 0, .06, 0); }   // hombreras de facción (+placa en pesado)
+    else bl(R.shoulder[i], M.acc, .098, .05, .098, 0, -.02, 0);                      // sin chaleco medio: brazalete de facción
     bl(R.knee[i], M.gear, .09, .075, .09, 0, 0, .012);                              // rodilleras
-    bx(R.foot[i], M.gear, .125, .06, .09, 0, 0, .095); bx(R.foot[i], M.limb, .115, .07, .11, 0, .065, -.06);   // puntera y caña de la bota
-    R.foot[i].material = M.gear; R.hand[i].material = M.gear;                      // botas y guantes oscuros
+    bx(R.foot[i], M.gear, .125, .06, .09, 0, 0, .095); bx(R.foot[i], M.gear, .115, .07, .11, 0, .065, -.06);   // puntera y caña de la bota
   }
   for (const [target, mp] of jobs) {
     const g = new THREE.Group(); g.scale.set(1 / target.scale.x, 1 / target.scale.y, 1 / target.scale.z);
@@ -2533,7 +2555,7 @@ function initBot(e) {
   e.R = { pelvis: mkm(geoBox, T.body, .32, .18, .2), torso: mkm(geoBox, T.body, .42, .5, .25), head: mkm(geoBall, T.limb, .13, .13, .13), visor: mkm(geoBox, T.acc, .17, .05, .1),
     thigh: pair(() => mkm(geoCyl, T.limb, .07, 1, .07)), shin: pair(() => mkm(geoCyl, T.limb, .06, 1, .06)), knee: pair(() => mkm(geoBall, T.limb, .07, .07, .07)), foot: pair(() => mkm(geoBox, T.acc, .12, .07, .27)),
     upper: pair(() => mkm(geoCyl, T.limb, .055, 1, .055)), fore: pair(() => mkm(geoCyl, T.limb, .05, 1, .05)), hand: pair(() => mkm(geoBall, T.acc, .06, .06, .06)), shoulder: pair(() => mkm(geoBall, T.body, .08, .08, .08)) };
-  dress(e.R, e.team);
+  dress(e.R, e.team, { skin: (e.id.charCodeAt(1) + e.team * 2) % 4 });
   e.bar = mkBar(60, 4); e.bar.el.style.display = 'none'; e.ring = new THREE.Mesh(RING_G, RING[e.team]); e.ring.rotation.x = -Math.PI / 2; e.ring.visible = false; scene.add(e.ring);
   e.flash = new THREE.Mesh(flashMesh.geometry, flashMesh.material); e.flash.visible = false; scene.add(e.flash);
   Object.assign(e, { gun: null, w: WP[0], wi: 0, ammo: 0, reloadT: -1, rp: 0, fireCd: 0, pause: 0, burst: 0, spread: 0, kick: 0, flashT: 0, gCount: 3, sCount: 2, gReg: 0, sReg: 0, gCd: rr(5, 12), sCd: 8, wantThrow: null, throwT: 0,
@@ -2596,6 +2618,38 @@ function bake(e, dx, dz) {                                                      
   const l = Math.hypot(dx, dz) || 1; e.fallAx.set(dz / l, 0, -dx / l); e.deadT = 0;
 }
 function unbake(e) { e.root.position.set(0, 0, 0); e.root.quaternion.identity(); }
+/* ---- abatido y reanimación (solo aspecto: sin reglas de juego todavía; lo activan MX.setDowned / MX.reviveFx) ----
+   Abatido = cae al suelo con el mismo giro que la baja, pero sigue ahí con un marcador (anillo ámbar que late + cruz flotante). Al reanimarle, un anillo de progreso y el cuerpo se incorpora. */
+const DWN_RING = new THREE.RingGeometry(.62, .78, 40), DWN_AMB = new THREE.MeshBasicMaterial({ color: 0xffb020, transparent: true, opacity: .8, side: THREE.DoubleSide, depthWrite: false }),
+  DWN_WHT = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .95, depthWrite: false }), DWN_RED = new THREE.MeshBasicMaterial({ color: 0xff4a38, transparent: true, opacity: .95, depthWrite: false }),
+  DWN_GRN = new THREE.MeshBasicMaterial({ color: 0x6dff9a, transparent: true, opacity: .9, side: THREE.DoubleSide, depthWrite: false });
+MX.setDowned = (e, on, dx, dz) => {
+  if (on === !!e.dwn || e.dead) return;
+  if (on) {
+    e.dwn = true; e.dwT = 0; bake(e, dx === undefined ? Math.sin(e.yaw) : dx, dz === undefined ? Math.cos(e.yaw) : dz);
+    const g = new THREE.Group(), ring = new THREE.Mesh(DWN_RING, DWN_AMB.clone()); ring.rotation.x = -Math.PI / 2; ring.position.y = .035; g.add(ring);
+    const cr = new THREE.Group(), pl = new THREE.Mesh(geoBox, DWN_WHT); pl.scale.set(.46, .46, .04); cr.add(pl);                    // placa blanca con cruz roja, inclinada hacia la cámara
+    for (const [w, h] of [[.36, .1], [.1, .36]]) { const m = new THREE.Mesh(geoBox, DWN_RED); m.scale.set(w, h, .03); m.position.z = .03; cr.add(m); }
+    cr.rotation.x = -.99; cr.position.y = 1.5; g.add(cr);
+    g.position.set(e.p.x, 0, e.p.z); scene.add(g); e.dwnFx = { g, ring, cr, prog: null, pm: null };
+  } else {
+    e.dwn = false; unbake(e); if (e.dwnFx) { scene.remove(e.dwnFx.g); e.dwnFx = null; }
+  }
+};
+MX.reviveFx = (e, p) => {                                                           // progreso de reanimación 0..1 (null = sin rescate)
+  const f = e.dwnFx; if (!f) return;
+  if (p === null || p === undefined) { if (f.pm) { f.g.remove(f.pm); f.pm = null; } f.prog = null; return; }
+  if (f.pm === null || f.prog === null || Math.abs(p - f.prog) > .015) {
+    if (f.pm) { f.g.remove(f.pm); f.pm.geometry.dispose(); }
+    f.pm = new THREE.Mesh(new THREE.RingGeometry(.82, .98, 40, 1, Math.PI / 2, -Math.PI * 2 * clamp(p, .001, 1)), DWN_GRN); f.pm.rotation.x = -Math.PI / 2; f.pm.position.y = .04; f.g.add(f.pm); f.prog = p;
+  }
+};
+function dwnTick(e, dt) {
+  e.dwT += dt; const k = smooth(e.dwT / .5); e.root.quaternion.setFromAxisAngle(e.fallAx, k * 1.3);
+  const f = e.dwnFx; if (!f) return;
+  f.g.position.set(e.p.x - e.fallAx.z * .9, 0, e.p.z + e.fallAx.x * .9); f.ring.material.opacity = .45 + .4 * (.5 + .5 * Math.sin(M.t * 5)); f.ring.scale.setScalar(1 + .06 * Math.sin(M.t * 5));
+  f.cr.position.y = 1.45 + .08 * Math.sin(M.t * 3);
+}
 
 /* ============================ IA DE LOS BOTS ============================ */
 function perceive(e) {
@@ -3003,6 +3057,8 @@ MX.update = dt => {
     if (e.dead) {
       e.respT -= dt; e.deadT += dt; const k = smooth(e.deadT / .55); e.root.quaternion.setFromAxisAngle(e.fallAx, k * 1.45); e.root.position.y = -smooth((e.deadT - 2.3) / .7) * .6;
       if (e.respT <= 0 && !M.over) respawn(e);
+    } else if (e.dwn) {
+      dwnTick(e, dt); e.v.set(0, 0, 0); e.ring.visible = false; e.flash.visible = false;                  // abatido: no actúa, queda tumbado con su marcador
     } else {
       if (!M.over) botTick(e, dt); else { e.v.set(0, 0, 0); e.fireCd -= dt; }
       e.ring.position.set(e.p.x, .03, e.p.z); e.ring.visible = true; e.ring.material = e.inv > 0 && Math.floor(M.t * 14) % 2 ? RING[e.team] : RING[e.team];
@@ -3010,7 +3066,7 @@ MX.update = dt => {
     }
     const near = Math.hypot(e.p.x - P.pos.x, e.p.z - P.pos.z) < 42, hid = e.team !== 0 && hiddenBySmoke(e.p.x, e.p.z);
     e.root.visible = near && !hid && (!e.dead || e.root.position.y > -.55); e.ring.visible = e.ring.visible && near && !hid;
-    if (!e.dead && e.root.visible) poseBot(e, dt);
+    if (!e.dead && !e.dwn && e.root.visible) poseBot(e, dt);
     if (!e.dead && e.root.visible && M.t - (e.bShow || -99) < 4) {                  // barra sobre la cabeza: solo tras recibir daño
       drawBar(e.bar, e, dt); _kp.set(e.p.x, 2.3 - e.crouch * .25, e.p.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight);
     } else e.bar.el.style.display = 'none';
