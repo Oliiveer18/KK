@@ -107,6 +107,26 @@ with sync_playwright() as p:
     r = ev("""(() => { const out = []; for (const k of OBJ.pickupKinds) { const q = OBJ.pickup(k, 0, 0); out.push(!!q && q.g.children.length >= 2); } for (let i = 0; i < 90; i++) update(1/60); const n = OBJ.pickups.length; for (const q of OBJ.pickups.slice()) OBJ.removePickup(q); const g = OBJ.rails(0, 0, 12, 0); return [out.every(Boolean), out.length, n, OBJ.pickups.length, g.children.length]; })()""")
     chk(r[0] and r[1] == 13 and r[2] == 13 and r[3] == 0 and r[4] >= 4, 'recogibles (13 clases) y raíles %s' % r)
 
+    # API del generador de mapas
+    r = ev("""(() => {
+      OBJ.gallery([]); const out = {}; boxes.length = 0;
+      const w = placeObject('wall2', 10, 5, .3, { fac: 2 }), g = placeObject('gate1', 0, 5, Math.PI / 2, { abierto: true }), c = placeObject('car', -10, 5, 3, {}), m = placeObject('bwallSolid', 20, 5, 0, { len: 2 });
+      out.w = [w.type, w.faction, Math.abs(w.hx - 1.6) < .1];                      // giro 0,3 -> 0: huella normal
+      out.g = [g.type, g.open, Math.abs(g.g.rotation.y - Math.PI / 2) < 1e-6];
+      out.c = [c.type, Math.abs(Math.abs(c.g.rotation.y) - Math.PI) < 1e-6, c.hz > c.hx];   // giro 3 -> π: sigue siendo el eje x largo? (π no cambia huella)
+      out.len = m.hx;                                                                 // tramo de 2 m
+      const bld = placeObject('mini', 40, 0, 0, { fac: 1 }); out.bld = [bld.isBuilding, bld.props.length > 10, OBJ.buildings.length];
+      out.none = placeObject('noexiste', 0, 0, 0); out.fp = [OBJ.footprint('wall2', 0), OBJ.footprint('wall2', Math.PI / 2), OBJ.footprint('mini', 0)];
+      OBJ.removeObject(w); out.removed = [props.includes(w), w.dead]; OBJ.removeObject(bld); out.bldGone = OBJ.buildings.length;
+      return out;
+    })()""")
+    chk(r['w'][0] == 'wall2' and r['w'][1] == 2 and r['w'][2], 'placeObject: tipo, facción y huella %s' % r['w'])
+    chk(r['g'][0] == 'gate1' and r['g'][1] is True and r['g'][2], 'placeObject: giro ajustado a π/2 y portón abierto %s' % r['g'])
+    chk(__import__('math').fabs(r['len'] - 1.0) < .05, 'placeObject: opción len (muro de edificio de 2 m) %s' % r['len'])
+    chk(r['bld'][0] and r['bld'][1] and r['bld'][2] == 1, 'placeObject: edificio por tipo %s' % r['bld'])
+    chk(r['none'] is None, 'placeObject: tipo desconocido devuelve null')
+    chk(r['fp'][0] and r['fp'][1]['hx'] == r['fp'][0]['hz'] and r['fp'][2]['hx'] > 5, 'footprint: giro intercambia ejes y edificio da su huella %s' % r['fp'])
+    chk(r['removed'] == [False, True] and r['bldGone'] == 0, 'removeObject: quita objetos y edificios')
     # no rompe el resto: galería completa y partida del mapa 3
     ev('OBJ.gallery()'); run(120)
     chk(ev('props.length') == 55, 'la galería completa coloca los 55 tipos')

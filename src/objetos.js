@@ -922,5 +922,40 @@
       for (const p of b.near) if (!p.dead) p.g.scale.y = 1 - .72 * b.cut;
     }
   }
+  /* ---------- API para el generador de mapas (src/mapa.js, src/mapa_distrito.js) ----------
+     placeObject(tipo, x, z, giro, opciones) → prop (objeto) o edificio, o null si el tipo no existe.
+       tipo      nombre de PSPEC/OBJ.types ('wall2', 'gate1', 'car', 'shelf'…) o de edificio ('mini', 'pharm', 'super').
+       x, z      centro en metros (mundo del juego).
+       giro      radianes; se ajusta al múltiplo de π/2 más cercano (la colisión es una caja alineada con los ejes). 0 = frente hacia +z (cámara).
+       opciones  { fac: 0..3 (color de facción), len: largo del tramo (solo 'bwallSolid', 'bwallGlass' y 'shopDoor'; los demás tipos tienen medida fija), param: {…} (otros parámetros de OBJ.place),
+                   abierto: true/false (puertas y portones; por defecto siguen su valor inicial) }.
+     No rechaza solapes: el generador decide (usa OBJ.footprint para medir). Devuelve el prop con `p.type`, `p.x`, `p.z`, `p.hx`, `p.hz`, `p.h`;
+     un edificio devuelve `{ kind, props, doors, group, … }` (`b.isBuilding === true`). Quitar: OBJ.removeObject(resultado). */
+  const snapRot = g => Math.round((g || 0) / (Math.PI / 2)) * (Math.PI / 2);
+  function placeObject(tipo, x, z, giro, opciones) {
+    const o = opciones || {}, fac = o.fac === undefined ? null : o.fac, rot = snapRot(giro);
+    if (BLD[tipo]) { const b = OBJ.building(tipo, x, z, rot, fac); if (b) b.isBuilding = true; return b; }
+    if (!SP[tipo]) { if (!OBJ._warned[tipo]) { OBJ._warned[tipo] = 1; console.warn('placeObject: tipo desconocido «' + tipo + '»'); } return null; }
+    const param = Object.assign({}, o.param || {}); if (o.len !== undefined) param.len = o.len;
+    const p = OBJ.place(tipo, x, z, rot, fac, Object.keys(param).length ? param : null);
+    if (o.abierto !== undefined && p.o && p.o.leaves) OBJ.setOpen(p, !!o.abierto, true);
+    return p;
+  }
+  /* medida de un tipo girado, sin colocarlo: { hx, hz, h } (semiancho en x y z del mundo tras el giro, y altura); un edificio da su huella exterior. Cacheada. */
+  const FPC = {};
+  OBJ.footprint = function (tipo, giro, opciones) {
+    const o = opciones || {}, rot = snapRot(giro), sw = Math.abs(Math.sin(rot)) > .5, key = tipo + '|' + (sw ? 1 : 0) + '|' + (o.len || '');
+    if (FPC[key]) return FPC[key];
+    let hx, hz, h;
+    if (BLD[tipo]) { const d = BLD[tipo]; hx = d.W / 2 + .3; hz = d.D / 2 + .3; h = 3.5; }
+    else if (SP[tipo]) { const g = new THREE.Group(), p0 = OBJ.param; OBJ.param = o.len !== undefined ? { len: o.len } : null; let b; try { b = SP[tipo].build(g); } finally { OBJ.param = p0; } hx = b.hx; hz = b.hz; h = b.h; }
+    else return null;
+    return (FPC[key] = sw ? { hx: hz, hz: hx, h } : { hx, hz, h });
+  };
+  OBJ.removeObject = function (r) {
+    if (!r) return; if (r.isBuilding) return OBJ.removeBuilding(r);
+    dropBoxes(r); scene.remove(r.g); const i = props.indexOf(r); if (i >= 0) props.splice(i, 1); r.dead = true;
+  };
+  OBJ.placeObject = placeObject; OBJ._warned = {}; window.placeObject = placeObject;
   if (/[?&]galeria=1/.test(location.search)) setTimeout(() => OBJ.gallery(), 400);
 })();

@@ -234,3 +234,12 @@ El usuario señaló que los locales eran demasiado pequeños para interactuar de
 - Pasillos de ≥ 2 m (la rejilla de navegación de los bots infla 0,62 m). Mobiliario nuevo: góndola de 3 y 4 m, vitrina, caja registradora, carro, banco de espera.
 - Medido (`tests/edificios.py`): se llega a pie a todo el interior libre desde 5 m fuera de la puerta, sin objetos solapados.
 - Pendiente: rendimiento (el supermercado son unos 44 objetos; fusionar geometría estática en la entrega 6), más detalle interior, otros locales (gasolinera con marquesina, clínica, estación), almacén trasero, uso por los bots (la navegación del mapa 3 es estática: hay que reconstruirla al colocar edificios) y que los cristales no corten la visión de los bots.
+
+## 15. API para el generador de mapas
+`placeObject(tipo, x, z, giro, opciones)` (global, también `OBJ.placeObject`), definida en `src/objetos.js`, que debe cargarse **antes** que `mapa.js` y `mapa_distrito.js`.
+- `tipo`: cualquiera de `OBJ.types` (`wall1`, `gate2`, `car`, `shelf`…) o de edificio (`mini`, `pharm`, `super`; lista en `OBJ.buildingKinds`). Tipo desconocido: avisa una vez y devuelve `null`.
+- `x, z`: centro en metros. `giro`: radianes, se ajusta al múltiplo de π/2 más cercano (la colisión es una caja alineada con los ejes); 0 = frente hacia +z.
+- `opciones`: `{ fac: 0..3, len, param, abierto }`. `len` solo vale para `bwallSolid`, `bwallGlass` y `shopDoor`. `abierto` abre o cierra puertas y portones al colocarlos.
+- Devuelve el prop (`p.type`, `p.x`, `p.z`, `p.hx`, `p.hz`, `p.h`) o, para un edificio, `{ isBuilding: true, kind, props, doors, group }`. No rechaza solapes.
+- `OBJ.footprint(tipo, giro, opciones)` → `{ hx, hz, h }` sin colocar nada (para que el generador reparta sin solapar). `OBJ.removeObject(resultado)` quita un objeto o un edificio.
+- Tras colocar o quitar objetos, las listas `props` y `boxes` del juego se actualizan solas; la navegación de los bots del mapa 3 es estática y hay que reconstruirla (`navBuild`) al terminar de colocar. `OBJ.on.push(f)` avisa de cada alta, rotura, apertura y alarma.
