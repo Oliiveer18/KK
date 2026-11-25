@@ -7,21 +7,26 @@
 (function () {
 const M = MX.M, MAXZ = 240, CONV_T = 8, RISE_T = 2.2;
 const TY = {
-  walker:   { hp: 70,  sc: 1,    dmg: 12, atkCd: 1.1, roam: .9,  chase: 2.4, sight: 14, lean: .38, arm: -1.15, hs: 1,    tw: 1,   r: .42 },
+  walker:   { hp: 70,  sc: 1,    dmg: 12, atkCd: 1.1, roam: .9,  chase: 2.4, sight: 14, lean: .5,  arm: -1.15, hs: 1,    tw: 1,   r: .42 },
   runner:   { hp: 45,  sc: .96,  dmg: 8,  atkCd: .7,  roam: 1.2, chase: 5.0, sight: 18, lean: .62, arm: -.5,   hs: .95,  tw: .9,  r: .38 },
   brute:    { hp: 320, sc: 1.32, dmg: 38, atkCd: 1.6, roam: 1.0, chase: 2.0, sight: 14, lean: .2,  arm: -.95,  hs: .85,  tw: 1.35, r: .62 },
   screamer: { hp: 60,  sc: 1,    dmg: 6,  atkCd: 1.0, roam: 1.0, chase: 2.3, sight: 15, lean: .08, arm: -.9,   hs: 1.25, tw: .92, r: .4 }
 };
 const NOISE_R = { P1: 24, P2: 32, S1: 28, S2: 30, F1: 36, F2: 48, E1: 40, E2: 40, H1: 42, H2: 55 };
 const rnd = Math.random, rr = (a, b) => a + (b - a) * rnd();
-const GEO = { box: new THREE.BoxGeometry(1, 1, 1), ball: new THREE.SphereGeometry(1, 8, 6), limb: (() => { const g = new THREE.CylinderGeometry(1, .8, 1, 6); g.translate(0, -.5, 0); return g; })() };
+const GEO = { box: new THREE.BoxGeometry(1, 1, 1), ball: new THREE.SphereGeometry(1, 8, 6), ballL: new THREE.SphereGeometry(1, 6, 5),
+  limb: (() => { const g = new THREE.CylinderGeometry(1, .78, 1, 6); g.translate(0, -.5, 0); return g; })(), hang: (() => { const g = new THREE.BoxGeometry(1, 1, 1); g.translate(0, -.5, 0); return g; })(),
+  spike: (() => { const g = new THREE.CylinderGeometry(.15, 1, 1, 5); g.translate(0, .5, 0); return g; })() };
 const mat = () => new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .92, flatShading: true });
-const PARTS = { tor: [GEO.box, MAXZ], hd: [GEO.ball, MAXZ], a0: [GEO.limb, MAXZ], a1: [GEO.limb, MAXZ], l0: [GEO.limb, MAXZ], l1: [GEO.limb, MAXZ], rag: [GEO.box, MAXZ], eye: [GEO.box, MAXZ * 2] };
-const IM = {};
+/* piezas: [geometría, instancias por zombi]. Cada pieza es UNA malla instanciada, así que añadir detalle no multiplica las llamadas de dibujo por zombi */
+const PARTS = { che: [GEO.box, 1], abd: [GEO.box, 1], pel: [GEO.box, 1], sho: [GEO.box, 1], nek: [GEO.limb, 1], hd: [GEO.ball, 1], jaw: [GEO.hang, 1], hair: [GEO.ballL, 1],
+  ua: [GEO.limb, 2], fa: [GEO.limb, 2], hn: [GEO.hang, 2], ul: [GEO.limb, 2], ll: [GEO.limb, 2], ft: [GEO.box, 2], rg: [GEO.hang, 2], wn: [GEO.box, 3], sk: [GEO.box, 2], ey: [GEO.box, 2], bn: [GEO.spike, 1], tm: [GEO.ballL, 1] };
+const IM = {}, MUL = {};
 for (const k in PARTS) {
-  const m = new THREE.InstancedMesh(PARTS[k][0], k === 'eye' ? new THREE.MeshBasicMaterial({ color: 0xffb84a }) : mat(), PARTS[k][1]);
-  m.frustumCulled = false; m.castShadow = k !== 'eye'; m.receiveShadow = false;
-  if (k !== 'eye') m.setColorAt(0, new THREE.Color(1, 1, 1));                      // crea el búfer de color con la capacidad completa (r128 usa count al crearlo)
+  const cap = MAXZ * PARTS[k][1]; MUL[k] = PARTS[k][1];
+  const m = new THREE.InstancedMesh(PARTS[k][0], k === 'ey' ? new THREE.MeshBasicMaterial({ color: 0xffb84a }) : mat(), cap);
+  m.frustumCulled = false; m.castShadow = k !== 'ey' && k !== 'sk' && k !== 'wn' && k !== 'hair'; m.receiveShadow = false;
+  if (k !== 'ey') m.setColorAt(0, new THREE.Color(1, 1, 1));                       // crea el búfer de color con la capacidad completa (r128 usa count al crearlo)
   m.count = 0; m.visible = false; scene.add(m); IM[k] = m;
 }
 const Z = [], FREE = [], HORDES = [], CONV = [];                                    // zombis (vivos y cuerpos), huecos libres, hordas, conversiones pendientes
@@ -41,19 +46,26 @@ function newZ(type, x, z, o) {
     path: null, pi: 0, pathT: -9, stuckT: 0, sx: x, sz: z, home: { x, z }, horde: null, lie: o.lie === undefined ? 0 : o.lie, riseT: o.rise ? 0 : -1, deadT: 0, stag: 0, scream: -1, screamCd: rr(3, 8), hx: x, hz: z, wait: 0, lastNoise: -9, noiseDelay: 0,
     rag: rnd() < .55, bare: rnd() < .4, gaitSpd: 0, brk: 0 };
   if (zb.riseT === 0) zb.st = 'rise';
-  // colores por pieza: uniforme de facción (convertidos) o ropa civil gastada
-  const skin = [0x8f9a82, 0x7f8c73, 0x9aa08a, 0x6f7d68][(rnd() * 4) | 0];
+  // rasgos: cada zombi es distinto (complexión, postura, heridas, pelo, ropa rota)
+  zb.build = rr(.88, 1.14); zb.slouch = rr(-.1, .12); zb.shR = rr(-.14, .14); zb.hs0 = rr(.92, 1.08); zb.hair = rnd() < .65; zb.bone = rnd() < .3; zb.bare = rnd() < .45; zb.twT = rr(2, 6); zb.tw0 = 0;
+  zb.wnd = [0, 1, 2].map(i => rnd() < (i === 0 ? .95 : i === 1 ? .7 : .45) ? { x: rr(-.16, .16), y: rr(-.08, .13), z: rnd() < .75 ? 1 : -1, w: rr(.07, .14), h: rr(.06, .12) } : null);
+  zb.rgF = rnd() < .75; zb.rgB = rnd() < .6; zb.shoes = rnd() < .6;
+  const SK = [0x6d7863, 0x5e6b57, 0x77796a, 0x546350, 0x706d5d, 0x605a68, 0x66735d], HR = [0x2a1d14, 0x3a2c20, 0x1b1b1d, 0x5a4a38, 0x6b6a66];
+  const skin = new THREE.Color(SK[(rnd() * SK.length) | 0]).multiplyScalar(rr(.85, 1.08)), hairC = new THREE.Color(HR[(rnd() * HR.length) | 0]);
   let torso, pants;
-  if (o.fac !== undefined) { torso = new THREE.Color(FAC[o.fac].uni).lerp(new THREE.Color(0x4d5a46), .35); pants = new THREE.Color(FAC[o.fac].pants).lerp(new THREE.Color(0x3d4638), .25); }
-  else { const P_ = [0x5d6368, 0x6b5b4a, 0x4e5a6b, 0x5f5648, 0x58616a, 0x6e6a58]; torso = new THREE.Color(P_[(rnd() * P_.length) | 0]).multiplyScalar(rr(.8, 1.1)); pants = new THREE.Color(P_[(rnd() * P_.length) | 0]).multiplyScalar(.7); }
-  const set = (k, c, i) => IM[k].setColorAt(i === undefined ? slot : i, _c.set(c));
-  set('tor', torso); set('hd', skin); set('a0', zb.bare ? new THREE.Color(skin) : torso); set('a1', rnd() < .5 ? new THREE.Color(skin) : torso); set('l0', pants); set('l1', pants); set('rag', torso.clone().multiplyScalar(.7));
+  if (o.fac !== undefined) { torso = new THREE.Color(FAC[o.fac].uni).lerp(new THREE.Color(0x4d5a46), .3); pants = new THREE.Color(FAC[o.fac].pants).lerp(new THREE.Color(0x3d4638), .25); torso.multiplyScalar(.78); pants.multiplyScalar(.8); zb.rgF = zb.rgB = true; }
+  else { const P_ = [0x4a5056, 0x57493a, 0x3c4756, 0x4b4337, 0x464f58, 0x58553f, 0x3a302c, 0x303c35]; torso = new THREE.Color(P_[(rnd() * P_.length) | 0]).multiplyScalar(rr(.7, 1.0)); pants = new THREE.Color(P_[(rnd() * P_.length) | 0]).multiplyScalar(.55); }
+  const dark = skin.clone().multiplyScalar(.55), blood = new THREE.Color(rnd() < .5 ? 0x5b1414 : 0x3b0d0d), shoe = new THREE.Color(0x2b2824);
+  const set = (k, j, c) => IM[k].setColorAt(slot * MUL[k] + j, _c.set(c));
+  set('che', 0, torso); set('abd', 0, zb.bare ? skin : torso.clone().multiplyScalar(.85)); set('pel', 0, pants); set('sho', 0, torso); set('nek', 0, skin); set('hd', 0, skin); set('jaw', 0, rnd() < .55 ? new THREE.Color(0x4a1616) : dark); set('hair', 0, hairC);
+  for (let s = 0; s < 2; s++) { const bareArm = rnd() < .45; set('ua', s, bareArm ? skin : torso); set('fa', s, rnd() < .6 ? skin : torso); set('hn', s, skin.clone().multiplyScalar(.92)); set('ul', s, pants); set('ll', s, rnd() < .35 ? skin : pants); set('ft', s, zb.shoes ? shoe : skin); set('rg', s, torso.clone().multiplyScalar(.72)); set('sk', s, 0x1a1a14); }
+  for (let s = 0; s < 3; s++) set('wn', s, blood); set('bn', 0, 0xd9d3bd); set('tm', 0, new THREE.Color(rnd() < .5 ? 0x93a05a : 0x7a8a45));
   Object.values(IM).forEach(m => { if (m.instanceColor) m.instanceColor.needsUpdate = true; });
   Z.push(zb); return zb;
 }
 function freeZ(z) {
   const i = Z.indexOf(z); if (i >= 0) Z.splice(i, 1); FREE.push(z.slot); _m1.makeScale(0, 0, 0);
-  for (const k of ['tor', 'hd', 'a0', 'a1', 'l0', 'l1', 'rag']) IM[k].setMatrixAt(z.slot, _m1); IM.eye.setMatrixAt(z.slot * 2, _m1); IM.eye.setMatrixAt(z.slot * 2 + 1, _m1);
+  for (const k in IM) for (let j = 0; j < MUL[k]; j++) IM[k].setMatrixAt(z.slot * MUL[k] + j, _m1);
   if (z.horde) { const h = z.horde; h.members = h.members.filter(m => m !== z); }
 }
 function newHorde(x, z, mix) {
@@ -176,34 +188,69 @@ function moveZ(z, dt) {
   z.stuckT += dt; if (z.stuckT > .6) { const mv = Math.hypot(z.p.x - z.sx, z.p.z - z.sz); z.stk = Math.hypot(z.v.x, z.v.z) > .5 && mv < .15 ? (z.stk || 0) + 1 : 0; z.sx = z.p.x; z.sz = z.p.z; z.stuckT = 0; if (z.stk >= 2 && z.st !== 'dorm') { z.needPath = true; z.path = null; } }
 }
 function pose(z, dt) {
-  const T = TY[z.type], s = z.sc, sp = Math.hypot(z.v.x, z.v.z);
+  const T = TY[z.type], s = z.sc, sp = Math.hypot(z.v.x, z.v.z), lerp = (a, b, k) => a + (b - a) * k;
   z.gaitSpd += (sp - z.gaitSpd) * Math.min(1, dt * 6); z.ph += dt * (2.2 + z.gaitSpd * (z.type === 'runner' ? 2.4 : 1.9));
-  const alive = z.st !== 'dead' && z.st !== 'rise', dorm = z.st === 'dorm', amp = clamp(z.gaitSpd / (T.chase * .8), 0, 1);
-  const lean = (dorm ? .62 : T.lean + amp * .12) + Math.sin(z.ph * .5 + z.seed * 6) * .05 + z.stag * .35 - (z.scream >= 0 ? .75 : 0);
-  const sink = z.st === 'dead' && z.deadT > 11 ? -(z.deadT - 11) * .3 : 0;
-  _e.set(z.lie * 1.5, z.yaw, Math.sin(z.ph * .5) * .05 * amp * (z.type === 'brute' ? 2.2 : 1), 'YXZ'); _q.setFromEuler(_e);
-  _m1.compose(_p.set(z.p.x, sink + (alive ? Math.abs(Math.sin(z.ph)) * .025 * amp : 0), z.p.z), _q, _s.set(s, s, s));        // base
-  const rot = (m, px, py, pz, rx, ry, rz) => { _e.set(rx, ry, rz, 'XYZ'); _q.setFromEuler(_e); m.compose(_p.set(px, py, pz), _q, _s.set(1, 1, 1)); return m; };
-  _m2.multiplyMatrices(_m1, rot(_m4, 0, .85, 0, lean, 0, 0));                         // columna (pivote en la cadera)
-  const part = (k, idx, parent, lx, ly, lz, rx, ry, rz, sx, sy, sz) => { _e.set(rx, ry, rz, 'XYZ'); _q.setFromEuler(_e); _m3.compose(_p.set(lx, ly, lz), _q, _s.set(sx, sy, sz)); _m4.multiplyMatrices(parent, _m3); IM[k].setMatrixAt(idx, _m4); };
-  const i = z.slot, tw = T.tw;
-  part('tor', i, _m2, 0, .3, 0, 0, 0, 0, .4 * tw, .52, .24 * (tw > 1 ? 1.15 : 1));
-  const hp = dorm ? .55 : (z.scream >= 0 ? -.7 : .22 + Math.sin(z.ph * .5 + 1) * .08);
-  const mh = _m5.copy(_m2).multiply(rot(_m4, 0, .62, 0, hp, Math.sin(z.ph * .25 + z.seed * 9) * .12, 0));
-  part('hd', i, mh, 0, .12, .04, 0, 0, 0, .12 * T.hs, .13 * T.hs, .125 * T.hs);
-  const atkP = z.atk < 0 ? 0 : z.atk, swing = Math.sin(z.ph) * amp, armB = dorm ? -.12 : (z.scream >= 0 ? -2.7 : T.arm);
-  const lerp = (a, b, k) => a + (b - a) * k;
-  let a0; if (z.atk >= 0) { const q = z.atk; a0 = q < .5 ? lerp(armB, -2.4, smoothS(q / .5)) : q < .7 ? lerp(-2.4, -.3, smoothS((q - .5) / .2)) : lerp(-.3, armB, smoothS((q - .7) / .3)); }   // levanta el brazo y golpea
-  else a0 = armB + swing * .35 + Math.sin(z.ph * .5 + z.seed * 5) * .1;
-  const a1 = armB + (z.type === 'runner' ? -swing * .8 : Math.sin(z.ph * .5 + 2 + z.seed * 5) * .12) + (z.limp ? .12 : 0);
-  part('a0', i, _m2, -.27 * tw, .52, 0, a0, 0, -.08, .09 * (tw > 1 ? 1.25 : 1), .6, .09 * (tw > 1 ? 1.25 : 1));
-  part('a1', i, _m2, .27 * tw, .52, 0, a1, 0, .08, .09 * (tw > 1 ? 1.25 : 1), z.bare ? .58 : .6, .09 * (tw > 1 ? 1.25 : 1));
-  const l0 = swing * .9 * (z.type === 'runner' ? 1.3 : 1), l1 = -swing * (z.limp ? .45 : .9) * (z.type === 'runner' ? 1.3 : 1) + (z.limp ? .12 * amp : 0);
-  part('l0', i, _m1, -.1 * tw, .85, 0, dorm ? 0 : l0, 0, 0, .12 * (tw > 1 ? 1.2 : 1), .82, .12 * (tw > 1 ? 1.2 : 1));
-  part('l1', i, _m1, .1 * tw, .85, 0, dorm ? 0 : l1, 0, 0, .12 * (tw > 1 ? 1.2 : 1), .82, .12 * (tw > 1 ? 1.2 : 1));
-  part('rag', i, _m2, 0, .12, -.13, .1, 0, 0, z.rag ? .3 : 0, .4, .02);
-  const ey = alive && !dorm ? .03 : 0; for (const sg of [-1, 1]) part('eye', i * 2 + (sg > 0 ? 1 : 0), mh, sg * .05 * T.hs, .15 * T.hs, .125 * T.hs, 0, 0, 0, ey, ey * .7, .02);
+  const alive = z.st !== 'dead' && z.st !== 'rise', dorm = z.st === 'dorm', amp = clamp(z.gaitSpd / (T.chase * .8), 0, 1), ph = z.ph, atk = z.atk >= 0, scr = z.scream >= 0;
+  z.twT -= dt; if (z.twT <= 0 && alive) { z.twT = rr(2.5, 7); z.tw0 = .35; } z.tw0 = Math.max(0, z.tw0 - dt);          // espasmo ocasional
+  const tw = z.tw0 > 0 ? Math.sin(z.tw0 * 60) * z.tw0 * .5 : 0, br = Math.sin(zt * (dorm ? 1.4 : 2.4) + z.seed * 9) * .02;
+  let lean = (dorm ? .66 : T.lean + amp * .12) + z.slouch + Math.sin(ph * .5 + z.seed * 6) * .05 + z.stag * .35 - (scr ? .75 : 0) + (atk ? .3 * Math.sin(Math.min(1, z.atk * 1.6) * Math.PI) : 0);
+  const sink = z.st === 'dead' && z.deadT > 11 ? -(z.deadT - 11) * .3 : 0, twist = Math.sin(ph * .5 + z.seed) * .22 * amp + tw * .4, roll = Math.sin(ph * .5) * .06 * amp * (z.type === 'brute' ? 2.4 : 1);
+  _e.set(z.lie * 1.5, z.yaw, roll, 'YXZ'); _q.setFromEuler(_e);
+  const B = _m1.compose(_p.set(z.p.x, sink + (alive ? Math.abs(Math.sin(ph)) * .03 * amp : 0), z.p.z), _q, _s.set(s, s, s));
+  const fr = (dst, parent, lx, ly, lz, rx, ry, rz) => { _e.set(rx, ry, rz, 'XYZ'); _q.setFromEuler(_e); _m4.compose(_p.set(lx, ly, lz), _q, _s.set(1, 1, 1)); return dst.multiplyMatrices(parent, _m4); };     // marco hijo (sin escala)
+  const put = (k, j, parent, lx, ly, lz, rx, ry, rz, sx, sy, sz) => { _e.set(rx, ry, rz, 'XYZ'); _q.setFromEuler(_e); _m3.compose(_p.set(lx, ly, lz), _q, _s.set(sx, sy, sz)); _m4.multiplyMatrices(parent, _m3); IM[k].setMatrixAt(z.slot * MUL[k] + j, _m4); };
+  const i = z.slot, wd = T.tw * z.build, big = T.tw > 1;
+  const S = fr(MS, B, 0, .87, 0, lean, twist * .4, 0);                                // columna lumbar (pivote en la cadera)
+  const C = fr(MC, S, 0, .36, 0, -.05 + tw * .3, twist, z.shR * .5);                     // pecho, con giro y hombros desiguales
+  put('pel', 0, B, 0, .8, 0, 0, 0, 0, .3 * wd, .17, .2 * (big ? 1.1 : 1));
+  put('abd', 0, S, 0, .14, 0, 0, 0, 0, (.28 + (z.type === 'brute' ? .1 : 0)) * wd, .24, .19 * (big ? 1.2 : 1));
+  put('che', 0, C, 0, .02, 0, 0, 0, 0, .39 * wd, .31, .23 * (big ? 1.15 : 1));
+  put('sho', 0, C, 0, .15, 0, 0, 0, z.shR, .46 * wd, .08, .18);
+  const hp = dorm ? .6 : (scr ? -.75 : .24 + Math.sin(ph * .5 + 1) * .09 + z.slouch * .5), hy = Math.sin(ph * .25 + z.seed * 9) * .14 + tw * .6, hr = Math.sin(ph * .33 + z.seed * 4) * .12 + (dorm ? .08 : .1);
+  const Hd = fr(MH, C, 0, .2, .02, hp, hy, hr);                                         // cabeza (cae hacia delante, bambolea)
+  put('nek', 0, C, 0, .15, .01, hp * .5, hy * .5, 0, .075 * (z.type === 'screamer' ? 1.35 : 1), .12, .075 * (z.type === 'screamer' ? 1.35 : 1));
+  const hs = T.hs * z.hs0, jawOpen = scr ? .85 : atk ? .55 + .2 * Math.sin(z.atk * 20) : dorm ? .06 : .16 + .07 * Math.sin(ph * 2 + z.seed * 3) + (z.stag > 0 ? .3 : 0);
+  put('hd', 0, Hd, 0, .09 * hs, .03, 0, 0, 0, .112 * hs, .125 * hs, .118 * hs);
+  put('jaw', 0, Hd, 0, .015 * hs, .075 * hs, jawOpen, 0, 0, .085 * hs, .045 * hs, .095 * hs);       // mandíbula que se abre
+  put('hair', 0, Hd, 0, .15 * hs, -.01, 0, 0, 0, z.hair ? .12 * hs : 0, .065 * hs, .125 * hs);
+  const ey = alive && !dorm ? 1 : 0;
+  for (let q = 0; q < 2; q++) { const sg = q ? 1 : -1; put('sk', q, Hd, sg * .045 * hs, .12 * hs, .11 * hs, 0, 0, 0, .05 * hs, .038 * hs, .02); put('ey', q, Hd, sg * .045 * hs, .12 * hs, .118 * hs, 0, 0, 0, .036 * ey, .024 * ey, .018); }
+  /* brazos: hombro, codo y mano; en reposo cuelgan, al perseguir se estiran hacia delante con el antebrazo caído */
+  const swing = Math.sin(ph) * amp, armB = dorm ? -.1 : (scr ? -2.6 : T.arm);
+  for (let q = 0; q < 2; q++) {
+    const sg = q ? 1 : -1, Sh = fr(MA, C, sg * (.24 * wd + (big ? .05 : 0)), .13, 0, 0, 0, 0);
+    let ua, fa, hd; const side = (q ? 1 : -1);
+    if (atk && q === 0) { const k = z.atk; ua = k < .5 ? lerp(armB, -2.4, smoothS(k / .5)) : k < .7 ? lerp(-2.4, -.3, smoothS((k - .5) / .2)) : lerp(-.3, armB, smoothS((k - .7) / .3)); fa = k < .5 ? -.2 : -.1; hd = -.3; }
+    else if (atk) { ua = lerp(armB, -1.5, Math.sin(Math.min(1, z.atk * 1.6) * Math.PI)); fa = -.5; hd = -.4; }
+    else if (z.type === 'runner') { ua = armB + (q ? -swing : swing) * 1.0; fa = -.7 - Math.abs(swing) * .4; hd = -.2; }
+    else if (dorm) { ua = -.12 + br * 4; fa = -.1; hd = .1; }
+    else { ua = armB + (q ? -swing : swing) * .3 + Math.sin(ph * .5 + z.seed * 5 + q) * .1 + (z.limp && q ? .15 : 0); fa = -.55 - Math.sin(ph * .5 + q * 2) * .12; hd = .35; }
+    const splay = side * (dorm ? .1 : .07 + (big ? .25 : 0)) - (scr ? side * .5 : 0);
+    const UA = fr(MB, Sh, 0, 0, 0, ua, 0, splay);
+    put('ua', q, UA, 0, 0, 0, 0, 0, 0, .085 * (big ? 1.35 : 1) * wd, .3, .085 * (big ? 1.35 : 1) * wd);
+    const El = fr(MD, UA, 0, -.3, 0, fa, 0, 0);
+    put('fa', q, El, 0, 0, 0, 0, 0, 0, .068 * (big ? 1.4 : 1), .28, .068 * (big ? 1.4 : 1));
+    put('hn', q, El, 0, -.28, 0, hd, 0, 0, .085 * (big ? 1.4 : 1), .1, .045 * (big ? 1.2 : 1));
+  }
+  /* piernas: muslo, rodilla y pie; arrastran el pie (cojera) y flexionan la rodilla al andar */
+  for (let q = 0; q < 2; q++) {
+    const sg = q ? 1 : -1, drag = z.limp && q === 1, sw = Math.sin(ph + (q ? Math.PI : 0)) * amp * (drag ? .45 : .85) * (z.type === 'runner' ? 1.3 : 1);
+    const th = dorm ? .05 : sw, kn = dorm ? .1 : Math.max(0, -Math.cos(ph + (q ? Math.PI : 0))) * amp * 1.1 + (drag ? .25 * amp : .1), ft = dorm ? 0 : (drag ? .55 * amp : -sw * .3);
+    const Hp = fr(MB2, B, sg * .1 * wd, .86, 0, th, 0, 0);
+    put('ul', q, Hp, 0, 0, 0, 0, 0, 0, .115 * (big ? 1.25 : 1) * wd, .43, .115 * (big ? 1.25 : 1) * wd);
+    const Kn = fr(MC2, Hp, 0, -.43, 0, kn, 0, 0);
+    put('ll', q, Kn, 0, 0, 0, 0, 0, 0, .09 * (big ? 1.25 : 1) * wd, .43, .09 * (big ? 1.25 : 1) * wd);
+    const An = fr(MD2, Kn, 0, -.43, 0, ft, 0, 0);
+    put('ft', q, An, 0, .02, .05, 0, 0, 0, .105 * (big ? 1.3 : 1), .065, .25 * (big ? 1.2 : 1));
+  }
+  /* harapos, heridas, hueso al aire y bultos según el tipo */
+  put('rg', 0, S, 0, .0, .1, .12 + roll, 0, 0, z.rgF ? .27 * wd : 0, .28, .02); put('rg', 1, S, 0, .0, -.1, -.1, 0, 0, z.rgB ? .27 * wd : 0, .3, .02);
+  for (let w = 0; w < 3; w++) { const d = z.wnd[w]; if (d) put('wn', w, C, d.x * wd, d.y, d.z * .125 * (big ? 1.15 : 1), 0, 0, 0, d.w, d.h, .02); else put('wn', w, C, 0, 0, 0, 0, 0, 0, 0, 0, 0); }
+  put('bn', 0, C, .18 * wd, .06, .02, 0, 0, -1.25, z.bone ? .03 : 0, .16, .03);
+  const tumor = z.type === 'brute' ? [S, 0, .13, .1, .2, .17, .15] : z.type === 'screamer' ? [C, 0, .16, .06, .1, .09, .09] : null;
+  if (tumor) put('tm', 0, tumor[0], tumor[1], tumor[2], tumor[3], 0, 0, 0, tumor[4], tumor[5], tumor[6]); else put('tm', 0, C, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
+const MS = new THREE.Matrix4(), MC = new THREE.Matrix4(), MH = new THREE.Matrix4(), MA = new THREE.Matrix4(), MB = new THREE.Matrix4(), MD = new THREE.Matrix4(), MB2 = new THREE.Matrix4(), MC2 = new THREE.Matrix4(), MD2 = new THREE.Matrix4();
 
 /* ---- ciclo ---- */
 MX.zom.init = () => {                                                               // reparto inicial: grupos locales dormidos y una horda itinerante
@@ -248,7 +295,7 @@ MX.zom.update = dt => {
     stepZ(z, dt); moveZ(z, dt); pose(z, dt);
   }
   let top = 0; for (const z of Z) top = Math.max(top, z.slot + 1); slotMax = top;
-  for (const k in IM) { const m = IM[k]; m.count = k === 'eye' ? slotMax * 2 : slotMax; m.visible = slotMax > 0; m.instanceMatrix.needsUpdate = true; }
+  for (const k in IM) { const m = IM[k]; m.count = slotMax * MUL[k]; m.visible = slotMax > 0; m.instanceMatrix.needsUpdate = true; }
   hudT -= dt; if (hudT <= 0) { hudT = .5; $('mxScore').textContent = 'Campaña · Facción azul · ☣ ' + MX.zom.count(); }
 };
 })();
