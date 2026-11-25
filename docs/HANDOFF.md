@@ -50,7 +50,7 @@ Prototipo de shooter 3D en el navegador, sin assets externos (personaje procedur
 - Hacer copia de seguridad del fuente antes de cambios grandes.
 
 ## Estado y decisiones
-Estado actual (v0.3.9): ver `docs/ESTADO.md` (cabecera) y `docs/ARQUITECTURA.md` (sección v0.3.x). Reglas añadidas por el usuario el 25-11: sin chuleta ni texto de depuración en pantalla; vida y escudo abajo a la izquierda, arma y munición abajo a la derecha; al dañar personajes solo suena el disparo (el «hit» del jugador va aparte, sonidos de ElevenLabs aprobados uno a uno); las propuestas deben ser cosas que hago yo, no tareas para el usuario; **no** quiere indicador de daño direccional (retirado). Histórico de v0.2.2 a continuación.
+Estado actual (v0.3.9): ver `docs/ESTADO.md` (cabecera) y `docs/ARQUITECTURA.md` (sección v0.3.x). Reglas añadidas por el usuario el 25-11: sin chuleta ni texto de depuración en pantalla; vida y escudo abajo a la izquierda, arma y munición abajo a la derecha; al dañar personajes solo suena el disparo (el «hit» del jugador va aparte, sonidos de ElevenLabs aprobados uno a uno); las propuestas deben ser cosas que hago yo, no tareas para el usuario; **no** quiere indicador de daño direccional (retirado) ni que los caídos se conviertan en zombis (retirado). Histórico de v0.2.2 a continuación.
 
 ### Decisiones del usuario sobre equipo y vida (25-11, para el modo de facciones; sin implementar)
 - Equipo en 3 huecos: casco, chaleco y mochila; 3 niveles (ligero, medio, pesado), visibles en el personaje.

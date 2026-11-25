@@ -351,7 +351,7 @@ function dwnTick(e, dt) {
 function perceive(e) {
   let best = null, bs = 1e9;
   if (MX.zom) for (const o of MX.zom.list) {                                         // los zombis también son amenaza para los bots
-    if (o.dead || o.st === 'rise') continue;
+    if (o.dead) continue;
     const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.hypot(dx, dz); if (d > 24) continue;
     if (d > 5 && Math.abs(angDiff(e.yaw, Math.atan2(dx, dz))) > 1.25) continue;
     if (!segClear(e.p.x, e.p.z, o.p.x, o.p.z, null, null, true) || smokeBlock(e.p.x, e.p.z, o.p.x, o.p.z)) continue;
@@ -657,7 +657,6 @@ function kill(v, killer, dx, dz) {
   for (let i = 0; i < 8; i++) spawn('red', _kp.set(v.p.x, .9, v.p.z), _kv.set((Math.random() - .5) * 4 + dx * 2, 1 + Math.random() * 3, (Math.random() - .5) * 4 + dz * 2), .5, .04, .04, .04, true, 8);
   if (v.isPlayer) { P.dead = true; if (!corpseP) playerCorpse(dx, dz); for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(200, .8, .6); }
   else { if (wasDown) v.deadT = .55; else bake(v, dx, dz); v.ring.visible = false; v.flash.visible = false; v.wantThrow = null; }
-  if (MX.onDeath) MX.onDeath(v);
   if (!MX.campaign && (M.score[0] >= GOAL || M.score[1] >= GOAL)) endMatch(M.score[0] >= GOAL ? 0 : 1);
 }
 const _kp = new V3(), _kv = new V3();
@@ -762,6 +761,7 @@ function popNum(e, dmg) {
   d.textContent = Math.round(dmg); hud.appendChild(d); numSide = -numSide;
   NUMS.push({ d, e, t: 0, ox: numSide * (14 + Math.random() * 16), wx: e.p.x, wz: e.p.z, mine });
 }
+MX.popNum = popNum;
 function updNums(dt) {
   for (let i = NUMS.length - 1; i >= 0; i--) {
     const n = NUMS[i]; n.t += dt; if (n.t > 1) { n.d.remove(); NUMS.splice(i, 1); continue; }

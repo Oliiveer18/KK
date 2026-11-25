@@ -826,7 +826,7 @@ function updateBullets(dt) {
     const L = [];                                                                    // colisión continua: todo lo que cruza el tramo recorrido en este fotograma
     for (const bx of boxes) { if (bx.prop && (bx.prop === b.cover || b.passed.has(bx.prop))) continue; const r = rayBox2(b.ox, b.oz, b.dx, b.dz, bx); if (r && r[0] <= d1 && r[1] >= d0) L.push({ t: Math.max(r[0], d0), t2: r[1], bx }); }
     for (const tg of targets) { if (tg.hp <= 0) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, tg.g.position.x, tg.g.position.z, .42); if (tc >= d0 && tc <= d1) L.push({ t: tc, tg }); }
-    if (MX.on && MX.zom) for (const z of MX.zom.list) { if (z.dead || z.st === 'rise') continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, z.p.x, z.p.z, z.r); if (tc >= d0 && tc <= d1) L.push({ t: tc, zom: z }); }   // zombis (campaña)
+    if (MX.on && MX.zom) for (const z of MX.zom.list) { if (z.dead) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, z.p.x, z.p.z, z.r); if (tc >= d0 && tc <= d1) L.push({ t: tc, zom: z }); }   // zombis (campaña)
     if (MX.on) for (const e of MX.ents) { if (e.dead || e.inv > 0 || e.team === (b.own ? b.own.team : 0)) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, e.p.x, e.p.z, .36); if (tc >= d0 && tc <= d1) L.push({ t: tc, ent: e }); }   // jugadores y bots de la partida
     L.sort((a, c) => a.t - c.t);
     let ended = false;

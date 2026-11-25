@@ -15,7 +15,7 @@ with sync_playwright() as p:
     chk(r['n'] >= 30 and r['dorm'] > 5 and r['horde'] >= 15, 'población inicial: zombis locales dormidos y una horda')
     chk(r['types'] == 'brute,runner,screamer,walker', 'están los 4 tipos (caminante, corredor, pesado, gritón)')
     # escenario controlado: sin bots, sin zombis iniciales
-    SETUP = '''()=>{boxes.length=0;const E=MX.ents;window.E=E;MX.M.over=false;MX.zom.clearConv();for(const z of MX.zom.list.slice()){z.dead=true;z.st="dead";z.deadT=99}
+    SETUP = '''()=>{boxes.length=0;const E=MX.ents;window.E=E;MX.M.over=false;for(const z of MX.zom.list.slice()){z.dead=true;z.st="dead";z.deadT=99}
       for(const e of E){e.dwn=false;e.dead=false;e.hp=100;e.sh=50;e.inv=0;e.vis=false;e.revived=false;e.lastHurt=-99;if(e.bot){e.fireCd=1e9;e.p.set(40+Math.random(),0,40)}}
       P.pos.set(0,0,0);window.Zs=(ty,x,z,st)=>{const q=MX.zom.spawn(ty,x,z,{st:st||"dorm"});return q}}'''
     def run(n): ev('()=>{for(let i=0;i<%d;i++){for(const e of E) if(e.bot){e.fireCd=1e9}; update(1/60)}}' % n)
@@ -39,14 +39,22 @@ with sync_playwright() as p:
     ev('()=>{for(let i=0;i<6;i++)MX.zom.hit(q,60,MX.pl,1,0,WP[MX.WI.F1])}'); chk(ev('()=>q.dead&&q.st==="dead"'), 'varios impactos lo matan')
     # los zombis no puntúan
     chk(ev('()=>MX.M.score.reduce((a,b)=>a+b,0)') == 0 or True, 'los zombis no cuentan en el marcador')
-    # conversión de un combatiente caído
+    # los combatientes caídos NO se convierten en zombis
     ev(SETUP); run(2); n0 = ev('MX.zom.count()')
     ev('()=>{const e=E[2];e.dead=false;e.dwn=false;e.hp=100;e.sh=0;e.inv=0;e.p.set(-30,0,-20);e.revived=true;MX.hit(e,500,E[8],1,0,WP[MX.WI.F1])}'); run(60 * 2)
-    chk(ev('()=>E[2].dead'), 'el combatiente muere (reaparecerá)')
-    chk(ev('MX.zom.count()') == n0, 'aún no es zombi (infección en curso)')
-    run(int(60 * 6.5))
-    d = ev('()=>({n:MX.zom.count(),conv:MX.zom.list.filter(z=>z.converted).length,st:MX.zom.list.filter(z=>z.converted).map(z=>z.st)})'); print('conversión:', d)
-    chk(d['conv'] >= 1 and d['n'] == n0 + 1, 'a los 8 s el caído se levanta como zombi (uniforme de su facción)')
+    chk(ev('()=>E[2].dead'), 'el combatiente muere (reaparecerá en su base)')
+    run(60 * 12)
+    chk(ev('MX.zom.count()') == n0, 'no se convierte en zombi: la población no aumenta (%d)' % n0)
+    # barras de vida de los zombis
+    ev(SETUP); run(2)
+    ev('()=>{window.qb=Zs("brute",6,0,"dorm");P.pos.set(0,0,0);MX.zom.hit(qb,60,MX.pl,1,0,WP[MX.WI.F1])}'); ev('for(let i=0;i<20;i++) update(1/60)')
+    nb = ev("()=>[...document.querySelectorAll('div')].filter(d=>d.style.display==='block'&&d.style.width==='74px').length")
+    chk(nb == 1, 'tras recibir daño, el zombi muestra su barra de vida (pesado = barra ancha)')
+    sc = ev("()=>{const el=[...document.querySelectorAll('div')].find(d=>d.style.display==='block'&&d.style.width==='74px');return el?el.querySelectorAll('div')[2].style.transform:''}")
+    print('relleno de la barra:', sc)
+    run(60 * 6)
+    nb = ev("()=>[...document.querySelectorAll('div')].filter(d=>d.style.display==='block'&&d.style.width==='74px').length")
+    chk(nb == 0, 'la barra se oculta a los 4 s sin daño')
     # tipos: pesado rompe objetos, gritón despierta a los dormidos
     ev(SETUP); run(2)
     ev('()=>{window.s=Zs("screamer",0,0,"chase");s.tgt=E[0];s.tgtT=MX.M.t;s.screamCd=.1;P.pos.set(12,0,0);window.far=Zs("walker",-30,0);window.d1=Zs("walker",30,30)}'); run(60 * 7)
