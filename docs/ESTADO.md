@@ -9,6 +9,8 @@ Comprobado en Chromium mediante Playwright: arranque por botón, selector y URL,
 
 Todo lo de abajo está comprobado **solo con tests automáticos y capturas** (Chrome headless, sin GPU ni altavoces). El usuario lo prueba en iPhone con DualSense. Nada se ha escuchado ni visto en el dispositivo real.
 
+- Sin anillos de equipo bajo los personajes (decisión del usuario): la facción se reconoce por los colores. Los anillos de abatido (ámbar) y de infección (verde) se mantienen.
+
 ## Campaña: zombis (rama `claude/abatido-campana`)
 4 tipos (caminante, corredor, pesado, gritón), zombis locales dormidos + horda itinerante, ruido (disparos, explosiones, gritos), conversión de los combatientes caídos en zombis con su uniforme, bots que los combaten, repoblación automática. Ver `docs/ZOMBIS.md`. Test `tests/zombis.py` (19 comprobaciones). En 100 s de partida con 16 bots no hay errores ni atascos; los bots eliminan a los zombis con rapidez en este mapa pequeño (queda por equilibrar jugando). Solo automático, sin probar en iPhone; sin sonidos de zombi todavía.
 

@@ -3179,7 +3179,7 @@ MX.update = dt => {
       dwnTick(e, dt); e.v.set(0, 0, 0); e.ring.visible = false; e.flash.visible = false;                  // abatido: no actúa, queda tumbado con su marcador
     } else {
       if (!M.over) botTick(e, dt); else { e.v.set(0, 0, 0); e.fireCd -= dt; }
-      e.ring.position.set(e.p.x, .03, e.p.z); e.ring.visible = true; e.ring.material = e.inv > 0 && Math.floor(M.t * 14) % 2 ? RING[e.team] : RING[e.team];
+      e.ring.visible = false;                                                      // sin anillos bajo los personajes: la facción se reconoce por los colores del equipo
       e.flash.visible = e.flashT > 0 && !!e.gun; if (e.flash.visible) { const dx = Math.sin(e.yaw), dz = Math.cos(e.yaw); e.flash.position.set(e.p.x + dx * (.7 + e.w.muz * .3), 1.1 - e.crouch * .25, e.p.z + dz * (.7 + e.w.muz * .3)); e.flash.quaternion.setFromUnitVectors(UP, _kv.set(dx, 0, dz)); }
     }
     const near = Math.hypot(e.p.x - P.pos.x, e.p.z - P.pos.z) < 42, hid = e.team !== 0 && hiddenBySmoke(e.p.x, e.p.z);
