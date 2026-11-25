@@ -284,7 +284,7 @@ MX.zom.init = () => {                                                           
   const sp = []; for (const t of [0, 1, 2, 3]) for (const s of (M.spawn[t] || [])) sp.push(s);
   const okp = (x, z) => sp.every(s => Math.hypot(s.x - x, s.z - z) > 16);
   const pts = (MX.HOT || []).filter(h => okp(h[0], h[1])); let n = 0;
-  for (const h of pts) { if (n >= 9) break; const c = 2 + ((rnd() * 2) | 0); for (let i = 0; i < c; i++) { newZ(rnd() < .15 ? 'runner' : 'walker', h[0] + rr(-3, 3), h[1] + rr(-3, 3)); } n++; }
+  for (const h of pts) { if (n >= 16) break; const c = 3 + ((rnd() * 3) | 0); for (let i = 0; i < c; i++) { newZ(rnd() < .15 ? 'runner' : 'walker', h[0] + rr(-3, 3), h[1] + rr(-3, 3)); } n++; }
   const start = pts.length ? pts[(rnd() * pts.length) | 0] : [0, 0];
   newHorde(start[0], start[1], ['walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'runner', 'runner', 'runner', 'brute', 'screamer']);
   for (const h of HORDES) h.roamPts = pts;
@@ -305,7 +305,7 @@ const farFromAll = (x, z, R) => M.ents.every(e => e.dead || Math.hypot(e.p.x - x
 function restock() {
   const alive = MX.zom.count(), pts = (MX.HOT || []).filter(h => farFromAll(h[0], h[1], 17));
   if (!pts.length) return;
-  if (alive < 60) { const h = pts[(rnd() * pts.length) | 0], c = 3 + ((rnd() * 2) | 0); for (let i = 0; i < c; i++) newZ(rnd() < .15 ? 'runner' : 'walker', h[0] + rr(-3, 3), h[1] + rr(-3, 3)); }
+  if (alive < 90) { const h = pts[(rnd() * pts.length) | 0], c = 3 + ((rnd() * 2) | 0); for (let i = 0; i < c; i++) newZ(rnd() < .15 ? 'runner' : 'walker', h[0] + rr(-3, 3), h[1] + rr(-3, 3)); }
   const live = HORDES.some(h => h.members.some(m => !m.dead)); hordeGone = live ? 0 : hordeGone + 3;
   if (hordeGone > 24 && alive < 150) { hordeGone = 0; const h = pts[(rnd() * pts.length) | 0], mix = ['walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'runner', 'runner', 'runner', 'brute']; if (rnd() < .4) mix.push('screamer'); const hd = newHorde(h[0], h[1], mix); hd.roamPts = MX.HOT; }
 }

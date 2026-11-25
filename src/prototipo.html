@@ -573,7 +573,7 @@ function collide(p, r, pk) {
 const keys = {}; let mode = 'kb', started = false;
 const mouse = { x: innerWidth / 2, y: innerHeight / 2, down: false, rdown: false };
 const flags = { reload: false, dash: false, crouch: false, swap: false };
-function begin() { if (started) return; started = true; $('start').style.display = 'none'; try { if (matchMedia('(pointer:coarse)').matches && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); } catch (e) {} initAudio(); if (MX.want) MX.start(); else if (!RANGE.built && !/mapa=1/.test(location.search)) rangeToggle(); LIGHTS.warm = true; }   // arranca en el polígono (Share / F2 para salir); el botón «Mapa 3» arranca la partida 6 vs 6
+function begin() { if (started) return; started = true; $('start').style.display = 'none'; try { if (matchMedia('(pointer:coarse)').matches && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); } catch (e) {} initAudio(); if (MX.want) MX.start(); else if (!RANGE.built && !/mapa=1/.test(location.search)) rangeToggle(); warmAll(); }   // arranca en el polígono (Share / F2 para salir); el botón «Mapa 3» arranca la partida 6 vs 6
 addEventListener('keydown', e => {
   if (e.repeat) return; keys[e.code] = true; mode = 'kb'; begin();
   if (e.code === 'KeyR') flags.reload = true;
@@ -682,14 +682,19 @@ function onsetOf(b) {
 }
 function loadSamples() {
   if (typeof SOUND_DATA === 'undefined') return;
-  for (const name of Object.keys(SOUND_DATA)) {
-    SOUND_DATA[name].forEach(b64 => {
+  const Q = []; for (const name of Object.keys(SOUND_DATA)) SOUND_DATA[name].forEach(b64 => Q.push([name, b64]));
+  const next = () => {                                                              // por tandas de ~6 ms y repartidas en el tiempo: ninguna tarea larga que trabe el juego
+    const t0 = performance.now();
+    while (Q.length && performance.now() - t0 < 6) {
+      const q = Q.shift();
       try {
-        const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-        decodeAudio(u.buffer).then(b => { b._off = onsetOf(b); (SND.buf[name] = SND.buf[name] || []).push(b); SND.loaded++; }).catch(() => { });
+        const bin = atob(q[1]), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+        decodeAudio(u.buffer).then(b => { b._off = onsetOf(b); (SND.buf[q[0]] = SND.buf[q[0]] || []).push(b); SND.loaded++; }).catch(() => { });
       } catch (e) { }
-    });
-  }
+    }
+    if (Q.length) setTimeout(next, 0);
+  };
+  next();
 }
 function initAudio() {
   try {
@@ -913,7 +918,7 @@ function chooseMap(n) {
   if (n === curMap()) { closeMenu(); return; }
   if (MX.on) { location.href = location.pathname + '?mapa=' + n; return; }              // el mapa 3 transforma la escena: para salir se recarga la página
   closeMenu();
-  if (n === 3 || n === 4 || n === 5) { MX.campaign = n >= 4; MX.district = n === 5; if (RANGE.on) rangeToggle(); MX.want = true; MX.start(); }
+  if (n === 3 || n === 4 || n === 5) { MX.campaign = n >= 4; MX.district = n === 5; if (RANGE.on) rangeToggle(); MX.want = true; MX.start(); warmAll(); }
   else if ((n === 2) !== RANGE.on) rangeToggle();
 }
 function renderMenu() {
@@ -991,17 +996,17 @@ const landRing = new THREE.Mesh(new THREE.RingGeometry(.94, 1, 40), new THREE.Me
 landRing.rotation.x = -Math.PI / 2; landRing.scale.set(4.6, 4.6, 4.6); landRing.visible = false; scene.add(landRing);
 const boomLight = new THREE.PointLight(0xffa050, 0, 16, 2); scene.add(boomLight);
 /* luces puntuales (fogonazo y explosión): con intensidad 0 no aportan nada, pero el shader las calcula en cada píxel. Se apagan (visible=false) mientras valen 0
-   y se encienden al usarse. Para que el cambio no provoque tirones, se precompilan las 4 combinaciones de luces (un frame de calentamiento, dentro del bucle). */
-const LIGHTS = { warm: true };
-function lightsSync() {
-  if (LIGHTS.warm) {
-    LIGHTS.warm = false; const vis = [];
-    scene.traverse(o => { vis.push([o, o.visible]); o.visible = true; });
-    [[1, 1], [1, 0], [0, 1], [0, 0]].forEach(c => { muzzleLight.visible = !!c[0]; boomLight.visible = !!c[1]; renderer.render(scene, camera); });
-    vis.forEach(v => { v[0].visible = v[1]; });
-  }
-  muzzleLight.visible = muzzleLight.intensity > 0; boomLight.visible = boomLight.intensity > 0;
+   y se encienden al usarse. Cambiar el número de luces obliga a recompilar los shaders, así que warmAll() los precompila TODOS (aunque estén fuera de cámara)
+   para las 4 combinaciones de luces y sube todas las geometrías a la GPU con un único dibujo, antes de empezar a jugar: sin tirones al disparar ni al entrar en zonas nuevas. */
+function warmAll() {
+  const st = [], mv = muzzleLight.visible, bv = boomLight.visible;
+  scene.traverse(o => { st.push([o, o.visible, o.frustumCulled]); o.visible = true; o.frustumCulled = false; });
+  [[1, 1], [1, 0], [0, 1], [0, 0]].forEach(c => { muzzleLight.visible = !!c[0]; boomLight.visible = !!c[1]; renderer.compile(scene, camera); });
+  muzzleLight.visible = true; boomLight.visible = true; renderer.render(scene, camera);                 // sube buffers y compila los shaders de sombra
+  st.forEach(v => { v[0].visible = v[1]; v[0].frustumCulled = v[2]; }); muzzleLight.visible = mv; boomLight.visible = bv;
 }
+const LIGHTS = { warm: false };
+function lightsSync() { muzzleLight.visible = muzzleLight.intensity > 0; boomLight.visible = boomLight.intensity > 0; }
 const booms = [];
 for (let i = 0; i < 3; i++) {
   const ring = new THREE.Mesh(new THREE.RingGeometry(.8, 1, 32), new THREE.MeshBasicMaterial({ color: 0xffb060, transparent: true, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2;
