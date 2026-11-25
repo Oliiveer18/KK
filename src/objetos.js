@@ -597,10 +597,10 @@
   def('bwallSolid', { name: 'Muro de edificio', cat: 'Edificios' }, {
     mat: 'block', hp: 520, push: false, mass: 80, fric: 9, build: g => {
       const out = [], pr = PAR(), L = pr.len || 4, T = .3, H = pr.H || 3.2, wm = pr.wall || PLASTER_W, n = Math.max(1, Math.round(L / 2));
-      bx(g, out, OM.anth, L, .35, T + .04, 0, .175, 0, false);
+      bx(g, out, pr.base || OM.anth, L, .35, T + .04, 0, .175, 0, false);
       for (let i = 0; i < n; i++) { tx(g, out, wm, 1, L / n - .01, H - .5, T, -L / 2 + (i + .5) * L / n, .35 + (H - .5) / 2 - .075, 0, true); }
-      bx(g, out, OM.concL, L + .02, .15, T + .1, 0, H - .075, 0, false);
-      if (pr.brand) bx(g, out, pr.brand, L, .05, T + .06, 0, .38, 0, false);
+      bx(g, out, pr.cap || OM.concP, L + .02, .15, T + .1, 0, H - .075, 0, false); if (pr.cap) bx(g, out, pr.cap, L + .02, .06, T + .16, 0, H - .22, 0, false);
+      if (pr.brand) { bx(g, out, pr.brand, L, .1, T + .06, 0, .42, 0, false); if (H > 3) bx(g, out, pr.brand, L, .08, T + .06, 0, 2.5, 0, false); }
       return { out, hx: L / 2, hz: T / 2 + .03, h: H };
     }
   });
@@ -609,9 +609,9 @@
     mat: 'glass', hp: 400, push: false, mass: 60, fric: 9, pen: .85, alarm: true, noiseOnBreak: 0, build: g => {
       const out = [], pr = PAR(), L = pr.len || 3.5, T = .3, win = !!pr.win, H = pr.H || 3.2, TOP = win ? H : 2.55, n = Math.max(1, Math.round(L / (win ? 1.4 : 1.8))), pw = (L - .12) / n, wm = pr.wall || PLASTER_W, glassPcs = [];
       const y0 = win ? .9 : .5, y1 = win ? 2.2 : 2.45, gh = y1 - y0;
-      if (win) { bx(g, out, OM.anth, L, .3, T + .04, 0, .15, 0, false); tx(g, out, wm, 1, L, y0 - .3, T, 0, .3 + (y0 - .3) / 2, 0, true); tx(g, out, wm, 1, L, TOP - y1, T, 0, y1 + (TOP - y1) / 2, 0, true); }
-      else { bx(g, out, OM.anth, L, .3, T + .04, 0, .15, 0, false); tx(g, out, wm, 1, L, .2, T, 0, .4, 0, true); }
-      if (pr.brand && !win) bx(g, out, pr.brand, L, .05, T + .06, 0, .3, 0, false);
+      if (win) { bx(g, out, pr.base || OM.anth, L, .3, T + .04, 0, .15, 0, false); tx(g, out, wm, 1, L, y0 - .3, T, 0, .3 + (y0 - .3) / 2, 0, true); tx(g, out, wm, 1, L, TOP - y1, T, 0, y1 + (TOP - y1) / 2, 0, true); }
+      else { bx(g, out, pr.base || OM.anth, L, .3, T + .04, 0, .15, 0, false); tx(g, out, wm, 1, L, .2, T, 0, .4, 0, true); }
+      if (pr.brand && !win) bx(g, out, pr.brand, L, .1, T + .06, 0, .42, 0, false);
       for (let i = 0; i < n; i++) { bx(g, out, OM.glassT, pw - .05, gh - .05, .03, -L / 2 + .06 + (i + .5) * pw, (y0 + y1) / 2, 0, true); glassPcs.push(out[out.length - 1]); }
       for (let i = 0; i <= n; i++) bx(g, out, win ? OM.white : OM.alu, .06, gh, .12, -L / 2 + .06 + i * pw, (y0 + y1) / 2, 0, false);
       bx(g, out, win ? OM.white : OM.alu, L, .07, .12, 0, y0, 0, false); bx(g, out, win ? OM.white : OM.alu, L, .08, .14, 0, y1 + (win ? 0 : .0), 0, false);
@@ -695,6 +695,7 @@
       const out = [], H = PAR().H || 4.6;
       bx(g, out, OM.anth, .6, .3, .6, 0, .15, 0, false); tx(g, out, OM.concL, 1, .42, H - .4, .42, 0, .3 + (H - .4) / 2, 0, false); bx(g, out, OM.anth, .56, .14, .56, 0, H - .07, 0, false);
       bx(g, out, OM.yellow, .44, .22, .44, 0, 1.0, 0, false); bx(g, out, OM.ironD, .445, .22, .445, 0, 1.22, 0, false);
+      if (PAR().brand) { bx(g, out, PAR().brand, .45, .7, .45, 0, H - .75, 0, false); bx(g, out, PAR().brand, .45, .5, .45, 0, 2.1, 0, false); }
       return { out, hx: .3, hz: .3, h: H };
     }
   });
@@ -978,48 +979,49 @@
     if (cross) { x.fillStyle = '#2fb866'; const cx = cw / 2 - label.length * fs * .34 - ch * .2, cyy = ch / 2, a = ch * .3, b = ch * .1; x.fillRect(cx - b, cyy - a, 2 * b, 2 * a); x.fillRect(cx - a, cyy - b, 2 * a, 2 * b); }
     const t = new THREE.CanvasTexture(c); t.anisotropy = 4; m.map = t; return m;
   }
+  const PLC = {}; function plasterColor(hex) { return PLC[hex] || (PLC[hex] = tm(TEX.plaster, hex, .95, 0, DIRT)); }
   const OMW = tm(TEX.plaster, 0xb4b8bc, .95, 0, DIRT);
   const shopOps = d => { const ex = d.W / 2 + .3, span = ex - .9, door = d.door, wl = span - door / 2; return [{ at: -(door / 2 + wl / 2), w: wl, type: 'glass' }, { at: 0, w: door, type: 'shopDoor' }, { at: door / 2 + wl / 2, w: wl, type: 'glass' }]; };
   const BLD = {
-    mini: { name: 'Minimarket', W: 10, D: 7, door: 1.8, front: 'shop', sign: ['MINIMARKET', 'ABIERTO 24 H', '#d8321f', '#ffffff'], brand: 0xd8321f,
+    mini: { pal: [{ wall: 0xf7c53c, base: 0x9c2a1d, cap: 0xffffff, roof: 0x8f3326 }, { wall: 0xf2b134, base: 0xb3261e, cap: 0xffffff, roof: 0x6e2a22 }], name: 'Minimarket', W: 10, D: 7, door: 1.8, front: 'shop', sign: ['MINIMARKET', 'ABIERTO 24 H', '#d8321f', '#ffffff'], brand: 0xd8321f,
       fix: P_ => { for (let i = 0; i < 4; i++) P_('fridge', -3.6 + i * 2.4, -3.05, 0); P_('gondola3', -2.7, -.2, 0); P_('gondola3', 2.7, -.2, 0); P_('checkout', 3.95, 1.6, Math.PI / 2); P_('palletBoxes', -3.4, 2.55, 0); P_('shelf', -4.6, 1.2, Math.PI / 2); P_('supplyMat', 4.3, 3.15, 0); P_('supplyAmmo', 3.5, 3.15, 0); P_('wheelie', -4.5, -1.2, 0); } },
-    pharm: { name: 'Farmacia', W: 10, D: 7, door: 1.8, front: 'shop', sign: ['FARMACIA', 'MEDICAMENTOS · SALUD', '#ffffff', '#1a6b3c', true], brand: 0x2fb866, floorTint: 0xe9f5ec, crossFlag: true,
+    pharm: { pal: [{ wall: 0xffffff, base: 0x1f8a52, cap: 0x2fb866, roof: 0x1f6b43 }, { wall: 0xa8e6bc, base: 0x1f7a49, cap: 0xffffff, roof: 0x1f6b43 }], name: 'Farmacia', W: 10, D: 7, door: 1.8, front: 'shop', sign: ['FARMACIA', 'MEDICAMENTOS · SALUD', '#ffffff', '#1a6b3c', true], brand: 0x2fb866, floorTint: 0xe9f5ec, crossFlag: true,
       fix: P_ => { for (let i = 0; i < 4; i++) P_('pharmaCab', -3.9 + i * 1.2, -3.2, 0); P_('counter', -3.0, -1.3, 0); P_('counter', -.5, -1.3, 0); P_('shelf', 3.85, -3.2, 0); P_('supplyMed', 1.4, -3.2, 0); P_('supplyMed', 2.25, -3.2, 0); P_('gondola3', -2.9, 1.4, 0); P_('gondola3', 2.9, 1.4, 0); P_('waitSeat', -4.6, -.2, Math.PI / 2); P_('cot', 4.3, -1.0, 0); } },
-    super: { name: 'Supermercado', W: 18, D: 12, door: 2.4, front: 'shop', sign: ['SUPERMERCADO', 'FRESCOS · OFERTAS', '#f08a12', '#ffffff'], brand: 0xf08a12,
+    super: { pal: [{ wall: 0xf5a93a, base: 0xa5481a, cap: 0xffffff, roof: 0x7a3a22 }, { wall: 0xe8c36a, base: 0x8a3a18, cap: 0xf08a12, roof: 0x6a2f1c }], name: 'Supermercado', W: 18, D: 12, door: 2.4, front: 'shop', sign: ['SUPERMERCADO', 'FRESCOS · OFERTAS', '#f08a12', '#ffffff'], brand: 0xf08a12,
       fix: P_ => { for (let i = 0; i < 6; i++) P_('fridge', -6.0 + i * 2.4, -5.55, 0); for (const z of [-2.4, .2]) for (const x of [-4.6, 4.6]) P_('gondola4', x, z, 0); for (const z of [-3.5, -1.0, 1.5]) P_('shelf', -8.6, z, Math.PI / 2); P_('fridge', 8.55, -3.0, -Math.PI / 2); P_('fridge', 8.55, -.4, -Math.PI / 2); P_('palletBoxes', -6.5, 3.6, 0); P_('palletBoxes', -4.8, 3.6, 0); for (let i = 0; i < 4; i++) P_('cart', -8.2 + i * .7, 5.1, 0); for (const x of [3.5, 6.0]) P_('checkout', x, 3.8, Math.PI / 2); for (let i = 0; i < 3; i++) P_(['supplyMat', 'supplyAmmo', 'supplyMed'][i], 8.3 - i * .85, 5.3, 0); } },
-    gasshop: { name: 'Tienda de gasolinera', W: 9, D: 6, door: 1.8, front: 'shop', sign: ['GASOLINERA', 'TIENDA · 24 H', '#1f5fa8', '#ffffff'], brand: 0x1f5fa8,
+    gasshop: { pal: [{ wall: 0xffffff, base: 0x1f5fa8, cap: 0xd8321f, roof: 0x1c4a86 }, { wall: 0xf7e46a, base: 0x174a85, cap: 0xffffff, roof: 0x1c3f6e }], name: 'Tienda de gasolinera', W: 9, D: 6, door: 1.8, front: 'shop', sign: ['GASOLINERA', 'TIENDA · 24 H', '#1f5fa8', '#ffffff'], brand: 0x1f5fa8,
       fix: P_ => { for (let i = 0; i < 3; i++) P_('fridge', -2.5 + i * 2.5, -2.55, 0); P_('gondola3', -2.3, .3, 0); P_('checkout', 3.3, 1.7, Math.PI / 2); P_('supplyMat', -3.7, 2.45, 0); P_('wheelie', 4.0, -1.0, 0); } },
-    gascanopy: { name: 'Marquesina de gasolinera', W: 14, D: 9, mode: 'open', floor: 'asphalt', roof: 'canopy', roofH: 4.8, sign: ['GASOLINERA', null, '#1f5fa8', '#ffffff'], brand: 0x1f5fa8, fp: { hx: 7.3, hz: 4.8 },
+    gascanopy: { name: 'Marquesina de gasolinera', W: 14, D: 9, mode: 'open', floor: 'asphalt', roofCol: 0xf2f6ff, roof: 'canopy', roofH: 4.8, sign: ['GASOLINERA', null, '#1f5fa8', '#ffffff'], brand: 0x1f5fa8, fp: { hx: 7.3, hz: 4.8 },
       pillars: [[-6.2, -3.8, 4.8], [6.2, -3.8, 4.8], [-6.2, 3.8, 4.8], [6.2, 3.8, 4.8]],
       extra: (b, mesh) => { for (const x of [-3, 3]) { mesh(geoBox, OM.concP, 1.3, .2, 5.4, x, .1, 0); mesh(geoBox, OM.yellow, 1.32, .04, .12, x, .21, 2.62); mesh(geoBox, OM.yellow, 1.32, .04, .12, x, .21, -2.62); } },
       fix: P_ => { for (const x of [-3, 3]) for (const z of [-1.5, 1.5]) P_('pump', x, z, 0); P_('wheelie', -6.2, 0, 0); } },
-    clinic: { name: 'Clínica', W: 14, D: 9, door: 2.4, front: 'shop', sign: ['CLÍNICA', 'URGENCIAS · CONSULTAS', '#ffffff', '#16706b', true], brand: 0x2a9a94, floorTint: 0xe6f4f3, crossFlag: true,
+    clinic: { pal: [{ wall: 0x74cdc4, base: 0x1a7872, cap: 0xffffff, roof: 0x176660 }, { wall: 0xffffff, base: 0x2a9a94, cap: 0x2a9a94, roof: 0x176660 }], name: 'Clínica', W: 14, D: 9, door: 2.4, front: 'shop', sign: ['CLÍNICA', 'URGENCIAS · CONSULTAS', '#ffffff', '#16706b', true], brand: 0x2a9a94, floorTint: 0xe6f4f3, crossFlag: true,
       partitions: [{ vertical: false, fixed: -.2, from: -7.15, to: 7.15, ops: [{ at: -4.6, w: 2, type: 'door' }, { at: 0, w: 2, type: 'door' }, { at: 4.6, w: 2, type: 'door' }] }, { vertical: true, fixed: -2.25, from: -4.5, to: -.35, ops: [] }, { vertical: true, fixed: 2.25, from: -4.5, to: -.35, ops: [] }],
       fix: P_ => { P_('counter', -4.6, 2.7, 0); P_('counter', -2.1, 2.7, 0); P_('waitSeat', 6.4, 1.5, -Math.PI / 2); P_('waitSeat', 6.4, 3.3, -Math.PI / 2); P_('cot', -5.9, -2.9, 0); P_('pharmaCab', -3.3, -4.2, 0); P_('cot', 1.4, -2.9, 0); P_('pharmaCab', -1.2, -4.2, 0); P_('cot', 5.9, -2.6, 0); P_('pharmaCab', 3.5, -4.2, 0); P_('supplyMed', 6.3, -4.2, 0); P_('supplyMed', -4.4, -4.2, 0); } },
-    station: { name: 'Estación', W: 16, D: 8, door: 2.4, front: 'shop', sign: ['ESTACIÓN', 'TRENES · CERCANÍAS', '#2f4f86', '#ffffff'], brand: 0x2f4f86, floorTint: 0xd6d6d0, fp: { hx: 9.3, hz: 11 },
+    station: { pal: [{ wall: 0xe09a55, base: 0x24396b, cap: 0xf5dfa8, roof: 0x28407a }, { wall: 0xc9784a, base: 0x1c2f5a, cap: 0xf0d9a0, roof: 0x2c3d6a }], name: 'Estación', W: 16, D: 8, door: 2.4, front: 'shop', sign: ['ESTACIÓN', 'TRENES · CERCANÍAS', '#2f4f86', '#ffffff'], brand: 0x2f4f86, floorTint: 0xd6d6d0, fp: { hx: 9.3, hz: 11 },
       walls: { back: [{ at: -3, w: 2, type: 'shopDoor' }, { at: 3, w: 2, type: 'shopDoor' }] },
       pillars: [[-7.5, -6.6, 3.8], [0, -6.6, 3.8], [7.5, -6.6, 3.8]],
       extra: (b, mesh, add, rails) => { mesh(geoBox, OM.concP, 18, .14, 5.2, 0, .07, -6.9); mesh(geoBox, OM.yellow, 18, .03, .2, 0, .15, -8.9); rails(0, -10.4, 20); b.platformRoof = { cx: 0, cz: -6.9, w: 18.6, d: 5.6, h: 3.8 }; },
       fix: P_ => { P_('counter', -5.6, 1.0, 0); P_('counter', -3.0, 1.0, 0); P_('locker', 6.6, -3.4, 0); P_('locker', -6.6, -3.4, 0); P_('waitSeat', 4.8, 1.8, 0); P_('waitSeat', 6.6, 1.8, 0); P_('bench', -4.0, -5.7, 0); P_('bench', 4.0, -5.7, 0); P_('floodlight', -8.3, -8.6, 0); P_('floodlight', 8.3, -8.6, 0); P_('board', -1.2, -3.6, 0); } },
-    house: { name: 'Vivienda', W: 9, D: 7, H: 2.9, floor: 'wood', roof: 'gable', cutaway: true, wallMat: [OM.plasterT, OM.plasterP, OM.plasterY, OM.plaster], brand: 0x8a5a36,
+    house: { name: 'Vivienda', W: 9, D: 7, H: 2.9, floor: 'wood', roof: 'gable', cutaway: true, brand: 0x8a5a36, pal: [{ wall: 0x7fc4bd, base: 0x3a6a66, cap: 0xffffff }, { wall: 0xe9a0b0, base: 0x8a4a5a, cap: 0xffffff }, { wall: 0xf0cf70, base: 0x8a6a1c, cap: 0xffffff }, { wall: 0xefe4cc, base: 0x8a5a36, cap: 0xb8412e }, { wall: 0x9fb8dc, base: 0x34507a, cap: 0xffffff }],
       walls: { front: [{ at: -1.0, w: 2.4, type: 'win' }, { at: 2.5, w: 2.0, type: 'door' }], left: [{ at: -1.0, w: 2.4, type: 'win' }], right: [{ at: -1.5, w: 2.4, type: 'win' }], back: [{ at: -.5, w: 2.4, type: 'win' }] },
       fix: P_ => { P_('tvUnit', -3.2, -3.2, 0); P_('sofa', -3.2, -1.0, Math.PI); P_('kitchenUnit', 2.8, -3.15, 0); P_('table', 2.8, -.6, 0); P_('bed', -3.4, 2.1, 0); P_('wardrobe', -1.0, 3.0, Math.PI); } },
-    market: { name: 'Mercado cubierto', W: 16, D: 10, mode: 'open', floor: 'concrete', roof: 'canopy', roofH: 4.2, sign: ['MERCADO', null, '#2f7a4a', '#ffffff'], brand: 0x2f7a4a, fp: { hx: 8.3, hz: 5.3 },
+    market: { name: 'Mercado cubierto', W: 16, D: 10, mode: 'open', floor: 'concrete', floorTint: 0xc9b48a, roofCol: 0xf3e2b4, roof: 'canopy', roofH: 4.2, sign: ['MERCADO', null, '#2f7a4a', '#ffffff'], brand: 0x2f7a4a, fp: { hx: 8.3, hz: 5.3 },
       pillars: [[-7.4, -4.4, 4.2], [0, -4.4, 4.2], [7.4, -4.4, 4.2], [-7.4, 4.4, 4.2], [0, 4.4, 4.2], [7.4, 4.4, 4.2]],
       fix: P_ => { for (const x of [-5, 0, 5]) { P_('stall', x, -2.9, 0); P_('stall', x, 2.9, Math.PI); } P_('palletBoxes', -6.6, .2, 0); P_('palletBoxes', 6.6, .2, 0); } },
-    substation: { name: 'Subestación eléctrica', W: 14, D: 10, mode: 'open', floor: 'gravel', roof: 'none', solid: 'chainFence', cutaway: false, brand: 0xe9b928, fp: { hx: 7.4, hz: 5.4 },
+    substation: { name: 'Subestación eléctrica', W: 14, D: 10, mode: 'open', floor: 'gravel', floorTint: 0xe0c89c, roof: 'none', solid: 'chainFence', cutaway: false, brand: 0xe9b928, fp: { hx: 7.4, hz: 5.4 },
       walls: { front: [{ at: 0, w: 4.2, type: 'slideGate' }], back: [], left: [], right: [] },
       fix: P_ => { for (const x of [-3.5, 3.5]) P_('transformer', x, -1.6, 0); for (const x of [-2, 0, 2]) P_('switchCab', x, -4.1, 0); P_('floodlight', -6.0, 3.6, 0); } },
-    warehouse: { name: 'Nave logística', W: 22, D: 14, H: 5.2, floor: 'concrete', roof: 'flat', wallMat: [OMW], brand: 0xe07a2a, cutaway: true,
+    warehouse: { pal: [{ wall: 0x7ea0c4, base: 0xc2561a, cap: 0xe9b928, roof: 0x4a5f78 }, { wall: 0x93b27a, base: 0x3f5f2f, cap: 0xe9b928, roof: 0x3f5a3a }], name: 'Nave logística', W: 22, D: 14, H: 5.2, floor: 'concrete', roof: 'flat', wallMat: [OMW], brand: 0xe07a2a, cutaway: true,
       walls: { front: [{ at: -6, w: 4.5, type: 'rollDoor', H: 4 }, { at: 0, w: 2, type: 'door' }, { at: 6, w: 4.5, type: 'rollDoor', H: 4 }] },
       fix: P_ => { for (let i = 0; i < 6; i++) P_('palletRack', -7.5 + i * 3, -5.9, 0); for (let i = 0; i < 4; i++) P_('palletRack', -7.5 + i * 3, -2.7, 0); P_('forklift', 6.5, -2.0, Math.PI / 2); P_('palletBoxes', 4.2, -.2, 0); P_('palletBoxes', 8.2, 1.8, 0); P_('cage', -8.5, 3.2, 0); P_('cage', -6.9, 3.2, 0); P_('supplyMat', -9.8, 0.5, 0); P_('supplyAmmo', -9.8, -.6, 0); } }
   };
   OBJ.buildingKinds = Object.keys(BLD);
   /* techos: plano con peto y equipos · a dos aguas con tejas · marquesina */
   function mkRoofMat(c) { const m = sm(c, .95); m.transparent = true; return m; }
-  function flatRoof(b, W, D, H, ex) { const g = new THREE.Group(), m = mkRoofMat(0xc9c9c4), w = W + 2 * .3 + .3, dd = D + 2 * .3 + .3;
+  function flatRoof(b, W, D, H, col, par) { const g = new THREE.Group(), m = mkRoofMat(col || 0xc9c9c4), w = W + 2 * .3 + .3, dd = D + 2 * .3 + .3;
     const rf = new THREE.Mesh(geoBox, m); rf.scale.set(w, .25, dd); rf.position.set(0, H + .125, 0); rf.castShadow = rf.receiveShadow = true; g.add(rf);
-    for (const [px, pz, sx, sz] of [[0, dd / 2, w, .16], [0, -dd / 2, w, .16], [w / 2, 0, .16, dd], [-w / 2, 0, .16, dd]]) { const q = new THREE.Mesh(geoBox, OM.concP); q.scale.set(sx, .3, sz); q.position.set(px, H + .3, pz); q.castShadow = true; g.add(q); }
+    for (const [px, pz, sx, sz] of [[0, dd / 2, w, .16], [0, -dd / 2, w, .16], [w / 2, 0, .16, dd], [-w / 2, 0, .16, dd]]) { const q = new THREE.Mesh(geoBox, par || OM.concP); q.scale.set(sx, .3, sz); q.position.set(px, H + .3, pz); q.castShadow = true; g.add(q); }
     for (const [ax, az, sx] of [[-W / 4, -D / 4, 1.1], [W / 4 + .5, D / 5, .9], [W / 4 - 1.2, -D / 4, .9]]) { const u = new THREE.Mesh(geoBox, OM.steelL); u.scale.set(sx, .6, sx * .7); u.position.set(ax, H + .55, az); u.castShadow = true; g.add(u); const f = new THREE.Mesh(geoCyl16, OM.ironD); f.scale.set(sx * .36, .04, sx * .36); f.position.set(ax, H + .87, az); g.add(f); }
     return { g, slab: rf, rect: { x0: -W / 2 - .1, x1: W / 2 + .1, z0: -D / 2 - .1, z1: D / 2 + .1 } }; }
   function gableRoof(b, W, D, H, wm) { const g = new THREE.Group(), rise = Math.min(1.9, D * .24), ov = .45, hd = D / 2 + ov, sl = Math.hypot(hd, rise), ang = Math.atan2(rise, hd), tt = TEX.tile.clone(); tt.needsUpdate = true; tt.wrapS = tt.wrapT = THREE.RepeatWrapping; tt.repeat.set((W + .8) / .5, sl / .5);
@@ -1030,7 +1032,7 @@
     const sh = new THREE.Shape(); sh.moveTo(-D / 2, 0); sh.lineTo(D / 2, 0); sh.lineTo(0, rise); sh.lineTo(-D / 2, 0);
     for (const sg of [-1, 1]) { const eg = new THREE.ExtrudeGeometry(sh, { depth: .3, bevelEnabled: false }), e = new THREE.Mesh(eg, wm.clone ? sm(0xe6e0d0, .95) : wm); e.rotation.y = Math.PI / 2; e.position.set(sg * (W / 2 + .3) + (sg > 0 ? 0 : 0), H, 0); e.position.x = sg > 0 ? W / 2 : -W / 2 - .3; e.castShadow = true; b.group.add(e); }
     return { g, slab: first, rect: { x0: -W / 2 - .1, x1: W / 2 + .1, z0: -D / 2 - .1, z1: D / 2 + .1 } }; }
-  function canopyRoof(b, d, cx, cz, w, dd, h) { const g = new THREE.Group(), m = mkRoofMat(0xdcdcd6), br = sm(d.brand, .5);
+  function canopyRoof(b, d, cx, cz, w, dd, h) { const g = new THREE.Group(), m = mkRoofMat(d.roofCol || 0xdcdcd6), br = sm(d.brand, .5);
     const rf = new THREE.Mesh(geoBox, m); rf.scale.set(w, .3, dd); rf.position.set(cx, h, cz); rf.castShadow = rf.receiveShadow = true; g.add(rf);
     for (const [px, pz, sx, sz] of [[cx, cz + dd / 2, w + .02, .3], [cx, cz - dd / 2, w + .02, .3], [cx + w / 2, cz, .3, dd + .02], [cx - w / 2, cz, .3, dd + .02]]) { const q = new THREE.Mesh(geoBox, br); q.scale.set(sx, .45, sz); q.position.set(px, h - .02, pz); q.castShadow = true; g.add(q); }
     for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) { const lp = new THREE.Mesh(geoBox, OM.lamp); lp.scale.set(1.2, .04, .4); lp.position.set(cx + (i - 1.5) * w / 4, h - .17, cz + (j - .5) * dd / 2.6); g.add(lp); }
@@ -1040,7 +1042,8 @@
     const d = BLD[kind]; if (!d) return null; rot = rot || 0; fac = fac === undefined ? null : fac;
     const W = d.W, D = d.D, H = d.H || 3.2, T = .3, c = Math.cos(rot), s = Math.sin(rot), open = d.mode === 'open', cutaway = d.cutaway !== false && !open;
     const b = { kind, name: d.name, x, z, rot, W, D, H, props: [], walls: [], near: [], doors: [], roofs: [], cut: 0, inside: false, group: new THREE.Group() };
-    const wp = (lx, lz) => [x + lx * c + lz * s, z - lx * s + lz * c], wallM = Array.isArray(d.wallMat) ? pick(d.wallMat) : (d.wallMat || PLASTER_W), brand = sm(d.brand || 0x888888, .5), pr = { wall: wallM, brand, H };
+    const pal = d.pal ? pick(d.pal) : null, wp = (lx, lz) => [x + lx * c + lz * s, z - lx * s + lz * c], wallM = pal ? plasterColor(pal.wall) : (Array.isArray(d.wallMat) ? pick(d.wallMat) : (d.wallMat || PLASTER_W)), brand = sm(pal && pal.brand !== undefined ? pal.brand : (d.brand || 0x888888), .5), pr = { wall: wallM, brand, H };
+    if (pal) { pr.base = sm(pal.base, .7); pr.cap = sm(pal.cap, .8); }
     b.group.position.set(x, 0, z); b.group.rotation.y = rot; scene.add(b.group);
     const add = (type, lx, lz, lrot, param) => { const [wx, wz] = wp(lx, lz), p = OBJ.place(type, wx, wz, rot + (lrot || 0), fac, param); b.props.push(p); return p; };
     const mesh = (geo, mat, sx, sy, sz, px, py, pz) => { const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.position.set(px, py, pz); m.castShadow = true; m.receiveShadow = true; b.group.add(m); return m; };
@@ -1066,20 +1069,21 @@
       runOps(-ex, ex, fz, false, d.front === 'shop' ? shopOps(d) : (wl.front || []), false);
       for (const pt of (d.partitions || [])) runOps(pt.from, pt.to, pt.fixed, pt.vertical, pt.ops || [], true);
     }
-    for (const pl of (d.pillars || [])) add('pillar', pl[0], pl[1], 0, { H: pl[2] });
+    for (const pl of (d.pillars || [])) add('pillar', pl[0], pl[1], 0, { H: pl[2], brand });
     d.fix((type, lx, lz, lrot, param) => add(type, lx, lz, lrot, param));
     const roofs = b.roofs, addRoof = r => { b.group.add(r.g); r.cut = 0; roofs.push(r); };
     if (d.front === 'shop') {                                                                                         // friso, rótulo iluminado y línea de marca
-      const span = ex - .9, wm = sm(0xe6e6e0, .95); b.fascia = new THREE.Group(); b.group.add(b.fascia); const mf = (...a) => { const m = mesh(...a); b.group.remove(m); b.fascia.add(m); return m; };
+      const span = ex - .9, wm = pal ? sm(pal.wall, .9) : sm(0xe6e6e0, .95); b.fascia = new THREE.Group(); b.group.add(b.fascia); const mf = (...a) => { const m = mesh(...a); b.group.remove(m); b.fascia.add(m); return m; };
       mf(geoBox, wm, span * 2, .65, T + .1, 0, H - .325, fz); mf(geoBox, brand, span * 2, .06, T + .12, 0, 2.55, fz);
       const sw = Math.min(span * 2 - .6, 6.2), sg = bigSign(d.sign[0], d.sign[1], d.sign[2], d.sign[3], d.sign[4], sw / .52); const sign = mf(geoBox, sg, sw, .52, .05, 0, 2.9, fz + T / 2 + .08); sign.castShadow = false; mf(geoBox, OM.anth, sw + .12, .6, .1, 0, 2.9, fz + T / 2 + .03);
       if (d.crossFlag) for (const [sx, sy] of [[.22, .95], [.95, .22]]) { const q = new THREE.Mesh(geoBox, OM.ledG); q.scale.set(sx, sy, .16); q.position.set(-ex - .02, 2.35, fz + .1); b.group.add(q); }
     }
     if (d.roof === 'canopy') addRoof(canopyRoof(b, d, 0, 0, W, D, d.roofH || 4.5));
     else if (d.roof === 'gable') addRoof(gableRoof(b, W, D, H, wallM));
-    else if (!open && d.roof !== 'none') addRoof(flatRoof(b, W, D, H));
+    else if (!open && d.roof !== 'none') addRoof(flatRoof(b, W, D, H, pal ? pal.roof : 0xc9c9c4, pal ? pr.cap : null));
     if (d.extra) d.extra(b, mesh, add, (rx, rz, len) => { const rg = OBJ.rails(0, 0, len, 0); scene.remove(rg); rg.position.set(rx, 0, rz); b.group.add(rg); });
     if (b.platformRoof) { const pr2 = b.platformRoof; addRoof(canopyRoof(b, Object.assign({}, d, { sign: null }), pr2.cx, pr2.cz, pr2.w, pr2.d, pr2.h)); }
+    if (pal && !open && d.roof !== 'canopy') for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const dp = mesh(geoCyl16, OM.ironD, .045, H, .045, sx * (W / 2 + T + .02), H / 2, sz * (D / 2 + T + .02)); dp.castShadow = false; }
     b.zHalf = (Math.abs(c) * D + Math.abs(s) * W) / 2; b.fp = d.fp || { hx: W / 2 + .3, hz: D / 2 + .3 }; OBJ.buildings.push(b); return b;
   };
   const inRect = (b, x, zz, r) => { const dx = x - b.x, dz = zz - b.z, lx = dx * Math.cos(b.rot) - dz * Math.sin(b.rot), lz = dx * Math.sin(b.rot) + dz * Math.cos(b.rot); return lx > r.x0 && lx < r.x1 && lz > r.z0 && lz < r.z1; };

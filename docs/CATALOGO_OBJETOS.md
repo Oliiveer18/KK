@@ -257,6 +257,8 @@ El usuario señaló que los locales eran demasiado pequeños para interactuar de
 - Los edificios abiertos (marquesinas, mercado) ocultan su cubierta al entrar. La estación tiene una segunda cubierta sobre el andén. La vivienda tiene cubierta a dos aguas.
 - Pendiente: rendimiento (el supermercado son unos 44 objetos y la nave unos 38; fusionar geometría estática en la entrega 6), más detalle interior, bloques de pisos (varias plantas), refugios de facción, uso por los bots (la navegación del mapa 3 es estática: hay que reconstruirla al colocar edificios) y que los cristales no corten la visión de los bots.
 
+- **Color exterior** (25-11): cada edificio elige una paleta al crearse (`pal` en `BLD`: fachada, zócalo, remate, cubierta). Fachadas saturadas (amarillo, menta, naranja, turquesa, ocre, azul), cubiertas rojas, verdes y azules, zócalo y remate del color de la marca, bajantes, y suelos cálidos en los espacios abiertos. Las 5 viviendas usan paletas de colores distintos.
+
 ## 15. API para el generador de mapas
 `placeObject(tipo, x, z, giro, opciones)` (global, también `OBJ.placeObject`), definida en `src/objetos.js`, que debe cargarse **antes** que `mapa.js` y `mapa_distrito.js`.
 - `tipo`: cualquiera de `OBJ.types` (`wall1`, `gate2`, `car`, `shelf`…) o de edificio (`mini`, `pharm`, `super`; lista en `OBJ.buildingKinds`). Tipo desconocido: avisa una vez y devuelve `null`.
