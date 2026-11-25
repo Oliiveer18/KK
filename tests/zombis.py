@@ -40,10 +40,10 @@ with sync_playwright() as p:
     chk(ev('()=>MX.M.score.reduce((a,b)=>a+b,0)') == 0 or True, 'los zombis no cuentan en el marcador')
     # conversión de un combatiente caído
     ev(SETUP); run(2); n0 = ev('MX.zom.count()')
-    ev('()=>{const e=E[2];e.dead=false;e.dwn=false;e.hp=100;e.sh=0;e.inv=0;e.p.set(-30,0,-20);e.revived=true;MX.hit(e,500,E[8],1,0,WP[MX.WI.F1])}'); run(60 * 3)
+    ev('()=>{const e=E[2];e.dead=false;e.dwn=false;e.hp=100;e.sh=0;e.inv=0;e.p.set(-30,0,-20);e.revived=true;MX.hit(e,500,E[8],1,0,WP[MX.WI.F1])}'); run(60 * 2)
     chk(ev('()=>E[2].dead'), 'el combatiente muere (reaparecerá)')
     chk(ev('MX.zom.count()') == n0, 'aún no es zombi (infección en curso)')
-    run(60 * 6)
+    run(int(60 * 6.5))
     d = ev('()=>({n:MX.zom.count(),conv:MX.zom.list.filter(z=>z.converted).length,st:MX.zom.list.filter(z=>z.converted).map(z=>z.st)})'); print('conversión:', d)
     chk(d['conv'] >= 1 and d['n'] == n0 + 1, 'a los 8 s el caído se levanta como zombi (uniforme de su facción)')
     # tipos: pesado rompe objetos, gritón despierta a los dormidos
