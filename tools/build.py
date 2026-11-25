@@ -18,6 +18,7 @@ import consistencia as cons
 AUDIO = RAIZ / 'assets' / 'audio'
 TAG_THREE = '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>'
 TAG_SONIDOS = '<script src="sonidos.js"></script>'
+TAG_OBJETOS = '<script src="objetos.js"></script>'
 TAG_PARTIDA = '<script src="partida.js"></script>'
 TAG_ZOMBIS = '<script src="zombis.js"></script>'
 
@@ -163,11 +164,14 @@ def main():
     three = (RAIZ / 'src' / 'three.min.r128.js').read_text(encoding='utf-8')
     partida = (RAIZ / 'src' / 'partida.js').read_text(encoding='utf-8')
     zombis = (RAIZ / 'src' / 'zombis.js').read_text(encoding='utf-8')
+    objetos = (RAIZ / 'src' / 'objetos.js').read_text(encoding='utf-8')
+    if '</script' in objetos:
+        raise SystemExit('src/objetos.js no puede contener </script')
     if '</script' in zombis:
         raise SystemExit('src/zombis.js no puede contener </script')
     if '</script' in partida:
         raise SystemExit('src/partida.js no puede contener </script')
-    salida = fuente.replace(TAG_THREE, '<script>' + three + '</script>').replace(TAG_SONIDOS, '<script>' + js + '</script>').replace(TAG_PARTIDA, '<script>' + partida + '</script>').replace(TAG_ZOMBIS, '<script>' + zombis + '</script>')
+    salida = fuente.replace(TAG_THREE, '<script>' + three + '</script>').replace(TAG_SONIDOS, '<script>' + js + '</script>').replace(TAG_OBJETOS, '<script>' + objetos + '</script>').replace(TAG_PARTIDA, '<script>' + partida + '</script>').replace(TAG_ZOMBIS, '<script>' + zombis + '</script>')
     (RAIZ / 'index.html').write_text(salida, encoding='utf-8')
     print(f'sonidos.js {len(js)/1024:.0f} KB, index.html {len(salida)/1024:.0f} KB')
 
