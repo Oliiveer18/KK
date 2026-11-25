@@ -69,6 +69,9 @@
     wood: sm(0xd9a066, .9), woodF: sm(0xa8743f, .9), woodD: sm(0x6a4228, .9), woodG: sm(0xa59882, .95), card: sm(0xc19a62, .95), sack: sm(0xcdae72, 1), lumber: sm(0xe0b274, .9), soil: sm(0x4f3b28, 1), rope: sm(0xc8aa72, 1),
     leaf: sm(0x57a04a, .85), leafD: sm(0x3a7a35, .9), bloom: sm(0xf2c94c, .8), bloomP: sm(0xe56fa0, .8),
     blueP: sm(0x3466a8, .5, .4), grey: sm(0x8a8d92, .7, .2),
+    anth: sm(0x2c3036, .5, .5), alu: sm(0x8e969f, .4, .7), concL: tm(TEX.plaster, 0xcfcfca, .95, 0, DIRT), plasterG: tm(TEX.plaster, 0xe4e4e0, .95, 0, DIRT),
+    glassT: new THREE.MeshStandardMaterial({ color: 0x86c8d2, roughness: .06, metalness: .3, transparent: true, opacity: .4, depthWrite: false, flatShading: true, side: THREE.DoubleSide }),
+    ledG: new THREE.MeshBasicMaterial({ color: 0x35d97a }), ledR: new THREE.MeshBasicMaterial({ color: 0xff4a3a }),
     glass: new THREE.MeshStandardMaterial({ color: 0xaad8ff, roughness: .08, metalness: .25, transparent: true, opacity: .34, depthWrite: false, flatShading: true, side: THREE.DoubleSide }),
     lamp: new THREE.MeshBasicMaterial({ color: 0xfff2c0 }), lampOff: new THREE.MeshBasicMaterial({ color: 0x3a3a3a }),
     screen: new THREE.MeshBasicMaterial({ color: 0x9fe8b0 }), medCross: new THREE.MeshBasicMaterial({ color: 0xd8342a })
@@ -103,6 +106,11 @@
   const facOf = () => (OBJ.fac === null || OBJ.fac === undefined) ? null : OBJ.fac;
   const accent = (g, out, w, h, d, x, y, z, loose) => { const f = facOf(); return bx(g, out, f === null ? OM.cloth : FACMAT[f], w, h, d, x, y, z, loose); };
   const trim = (g, out, w, h, d, x, y, z, loose) => { const f = facOf(); return bx(g, out, f === null ? OM.cream : FACTRIM[f], w, h, d, x, y, z, loose); };
+  /* franjas de facción: una línea principal con dos filetes finos del color claro, a ras de la superficie (como en el borde del techo de las torres) */
+  function lines(g, out, len, x, y, z, face, tilt) {
+    const set = (m) => { if (tilt) m.rotation.x = tilt; return m; }, d = .03;
+    set(accent(g, out, len, .09, d, x, y, z + face * d / 2, false)); set(trim(g, out, len, .022, d + .004, x, y + .075, z + face * d / 2, false)); set(trim(g, out, len, .022, d + .004, x, y - .075, z + face * d / 2, false));
+  }
   const flag = (g, out, x, y0, z, hgt) => { bx(g, out, OM.woodD, .05, hgt, .05, x, y0 + hgt / 2, z, false); const f = accent(g, out, .85, .5, .03, x + .45, y0 + hgt - .3, z, true); trim(g, out, .85, .1, .035, x + .45, y0 + hgt - .1, z, true); return f; };
 
   /* hoja con bisagra: sus piezas se mueven alrededor de (hx, hz) y siguen siendo piezas normales (saltan al romperse) */
@@ -125,7 +133,8 @@
       const tip = mkPiece(g, out, TIP8, m, .19, .36, .19, x - lean * hh * .5, hh + .05 + .18, 0, true, [.38, .36, .38]); tip.rotation.z = lean;
     }
     for (const y of [.55, 1.5]) { bx(g, out, OM.woodD, L, .14, .1, 0, y, -.22, false); bx(g, out, OM.rope, L - .05, .06, .04, 0, y - .05, .2, false); bx(g, out, OM.rope, L - .05, .06, .04, 0, y + .09, .2, false); }
-    accent(g, out, L - .1, .22, .04, 0, 1.88, .205, true); accent(g, out, .14, .34, .03, L / 2 - .42, 1.6, .215, true); accent(g, out, .14, .26, .03, L / 2 - .62, 1.65, .215, true);
+    bx(g, out, OM.woodD, L, .2, .08, 0, 1.88, .24, false); bx(g, out, OM.woodD, L, .2, .08, 0, 1.88, -.24, false);   // viga de remate pintada con las líneas de la facción
+    lines(g, out, L - .1, 0, 1.88, .28, 1); lines(g, out, L - .1, 0, 1.88, -.28, -1);
     return { out, hx: L / 2, hz: .3, h: H + .45 };
   }
   function wall2(g) {
@@ -135,7 +144,8 @@
     for (const s of [-1, 1]) for (let k = 0; k < 5; k++) tx(g, out, k % 2 ? OM.stoneD : OM.stone, 1, k % 2 ? .6 : .48, .42, T + .06, s * (L / 2 - (k % 2 ? .3 : .24)), .32 + .21 + k * .42, 0, true);
     for (const s of [-1, 1]) rot(mkPiece(g, out, geoBox, OM.tileP, L + .1, .07, .4, 0, H + .15, s * .18, true, [L, .07, .4]), -s * .5, 0, 0);       // remate de tejas a dos aguas
     bx(g, out, OM.woodD, L + .1, .1, .1, 0, H + .26, 0, false);
-    accent(g, out, 2.0, .16, .02, 0, 1.92, T / 2 + .012, true); trim(g, out, 2.0, .04, .025, 0, 2.04, T / 2 + .013, true);
+    bx(g, out, OM.woodD, L - 1.0, .2, .03, 0, 2.0, T / 2 + .015, false); bx(g, out, OM.woodD, L - 1.0, .2, .03, 0, 2.0, -T / 2 - .015, false);   // friso de madera con las líneas de la facción
+    lines(g, out, L - 1.1, 0, 2.0, T / 2 + .03, 1); lines(g, out, L - 1.1, 0, 2.0, -T / 2 - .03, -1);
     return { out, hx: L / 2, hz: T / 2 + .08, h: H + .32 };
   }
   function wall3(g) {
@@ -148,7 +158,7 @@
     for (const [y, h] of [[.76, .9], [1.79, .94]]) for (const s of [-1, 1]) tx(g, out, OM.plate, 1.25, 1.1, h, .12, s * .58, y, 0, true);
     for (const z of [-1, 1]) tx(g, out, OM.hazard, 3, L - .8, .13, .02, 0, .22, z * .125, false);
     for (let i = 0; i < 8; i++) spike(g, out, OM.steelL, .07, .3, -L / 2 + .55 + i * .3, 2.3 + .22, 0, true);
-    accent(g, out, 2.1, .26, .02, 0, 1.28, .135, true); trim(g, out, 2.1, .05, .025, 0, 1.43, .137, true);
+    lines(g, out, L - .9, 0, 2.3, .115, 1); lines(g, out, L - .9, 0, 2.3, -.115, -1);          // líneas de facción en la viga superior
     return { out, hx: L / 2, hz: .31, h: H + .4 };
   }
   const WALLS = [null, wall1, wall2, wall3], wallHp = [0, 250, 600, 1100], wallMat = [0, 'wood', 'block', 'metal'];
@@ -169,7 +179,9 @@
       if (style === 'wood') { rot(log(g, out, BARK[1], .16, iw + .5, 0, H + .06, 0, false), 0, 0, Math.PI / 2); }
       else if (style === 'stone') { tx(g, out, OM.stone, 1, iw + .1, .5, pw - .06, 0, H + .02, 0, false); tx(g, out, OM.stoneD, 1, iw + .2, .1, pw + .1, 0, H + .31, 0, false); mkPiece(g, out, geoBox, OM.tileP, iw + .24, .07, .5, 0, H + .42, .17, true, [iw, .07, .5]).rotation.x = -.5; mkPiece(g, out, geoBox, OM.tileP, iw + .24, .07, .5, 0, H + .42, -.17, true, [iw, .07, .5]).rotation.x = .5; }
       else { bx(g, out, OM.ironD, iw + .1, .28, .26, 0, H - .06, 0, false); tx(g, out, OM.hazard, 3, iw, .13, .03, 0, H - .06, .14, false); }
-      if (style !== 'iron') { accent(g, out, .8, 1.15, .03, 0, H - .72, .17, true); trim(g, out, .8, .09, .035, 0, H - .16, .17, true); trim(g, out, .5, .09, .035, 0, H - 1.0, .175, true); }   // estandarte de facción bajo el dintel
+      if (style === 'wood') { bx(g, out, OM.woodD, iw, .2, .05, 0, H - .22, .1, false); lines(g, out, iw - .1, 0, H - .22, .125, 1); }          // friso bajo el dintel con las líneas de la facción
+      else if (style === 'stone') lines(g, out, iw - .2, 0, H + .02, pw / 2 - .06 + .0, 1);
+      else lines(g, out, iw - .2, 0, H - .06, .13, 1);
       const lfs = [];
       for (const s of [-1, 1]) {
         const i0 = out.length, hx = s * (hw - pw), cx = s * (hw - pw - lw / 2), mid = hy / 2 + .06;
@@ -188,7 +200,7 @@
           tx(g, out, OM.plate, 1.25, lw - .2, hy - .3, .06, cx, mid, 0, true);
           rot(bx(g, out, OM.iron, .1, Math.hypot(lw, hy - .3) * .95, .08, cx, mid, .05, true), 0, 0, s * Math.atan2(lw, hy - .3));
           if (!inner) { rot(bx(g, out, OM.iron, .1, Math.hypot(lw, hy - .3) * .95, .08, cx, mid, .05, true), 0, 0, -s * Math.atan2(lw, hy - .3)); tx(g, out, OM.hazard, 3, lw - .2, .14, .03, cx, .42, .04, true); for (let k = 0; k < 3; k++) spike(g, out, OM.steelL, .05, .22, cx + (k - 1) * lw * .3, hy + .18, 0, true); }
-          accent(g, out, lw - .2, .22, .02, cx, hy * .62, .045, true); bx(g, out, OM.steelL, .08, .3, .06, hx - s * (lw - .24), hy * .5, .08, true);
+          bx(g, out, OM.steelL, .08, .3, .06, hx - s * (lw - .24), hy * .5, .08, true);
         }
         lfs.push(leaf(out, i0, hx, 0, s));
       }
@@ -261,7 +273,7 @@
       }
       for (const z of [-1, 1]) for (const [y, k] of [[.4, 1], [1.2, -1]]) rot(bx(g, out, wood ? OM.woodD : OM.ironD, S - .3, .09, .07, 0, y + .45, z * (hs - .16), true), 0, 0, k * .55);
       for (const x of [-1, 1]) bx(g, out, wood ? OM.woodD : OM.ironD, .07, .09, S - .3, x * (hs - .16), 1.0, 0, true);
-      bx(g, out, wood ? OM.woodF : OM.ironD, S, .14, S, 0, DY, 0, true); accent(g, out, S - .1, .2, .04, 0, DY - .02, hs + .03, true); trim(g, out, S - .1, .05, .045, 0, DY + .1, hs + .03, true);
+      bx(g, out, wood ? OM.woodF : OM.ironD, S, .14, S, 0, DY, 0, true); lines(g, out, S - .1, 0, DY - .02, hs + .01, 1);
       for (let k = 0; k < 4; k++) tx(g, out, wood ? OM.boardsW : OM.plate, 2, S - .1, .03, .5, 0, DY + .085, -hs + .35 + k * .6, true);
       if (style === 'iron') for (const [w, d, x, z] of [[S, .12, 0, hs - .06], [.12, S - .2, -hs + .06, 0], [.12, S - .2, hs - .06, 0]]) tx(g, out, OM.plate, 1.25, w, .8, d, x, DY + .5, z, true);
       else { for (let k = 0; k < 4; k++) bx(g, out, OM.sack, 1.1, .3, .45, -.65 + (k % 2) * 1.3, DY + .22, hs - .3, true); bx(g, out, OM.sack, 1.2, .3, .45, 0, DY + .5, hs - .3, true); }
@@ -270,7 +282,7 @@
       rot(tx(g, out, style === 'stone' ? OM.tile : style === 'iron' ? OM.plate : OM.corr, 2, S + .5, .07, S + .6, 0, DY + 1.55, 0, true), .13, 0, 0);
       for (let k = 0; k < 7; k++) bx(g, out, wood ? OM.woodF : OM.iron, .55, .05, .1, 0, .3 + k * .32, -hs - .08, true);
       for (const x of [-.3, .3]) bx(g, out, wood ? OM.woodF : OM.iron, .07, DY + .2, .07, x, (DY + .2) / 2, -hs - .08, true);
-      flag(g, out, hs - .25, DY + 1.6, -hs + .15, 1.0);
+      lines(g, out, S + .3, 0, DY + 1.34, hs + .3, 1, .13); lines(g, out, S + .3, 0, DY + 1.76, -hs - .3, -1, .13);   // líneas de facción en el borde del techo
       return { out, hx: hs, hz: hs + .1, h: DY + 1.6, seats: [{ lx: 0, lz: -.2, y: DY + .09 }] };
     };
   }
@@ -335,18 +347,19 @@
       return { out, hx: L / 2 + .1, hz: D / 2 + .1, h: 2.65 };
     }
   });
-  def('kiosk', { name: 'Quiosco', cat: 'Mobiliario urbano' }, {
-    mat: 'wood', hp: 200, push: false, mass: 70, fric: 9, build: g => {
-      const out = [], W = 2.4, D = 2.0, H = 2.3, wallM = pick([OM.plasterT, OM.plasterP, OM.plasterY]), cA = pick(['#c0392b', '#2a9a94', '#d9a21f']);
-      tx(g, out, wallM, 1, W, H, .08, 0, H / 2, -D / 2 + .04, true); for (const s of [-1, 1]) tx(g, out, wallM, 1, .08, H, D, s * (W / 2 - .04), H / 2, 0, true);
-      tx(g, out, wallM, 1, W, .8, .08, 0, .4, D / 2 - .04, true); tx(g, out, wallM, 1, W, .5, .08, 0, H - .25, D / 2 - .04, true);
-      bx(g, out, OM.woodD, W + .06, .08, .5, 0, 1.2, D / 2 + .2, true);
-      for (const s of [-1, 1]) bx(g, out, OM.woodF, .1, .85, .08, s * (W / 2 - .1), 1.2, D / 2 - .04, true);
-      bx(g, out, OM.corr, W + .3, .06, D + .5, 0, H + .05, .1, true);
-      rot(tx(g, out, tm(stripeTex(cA, '#f2efe6'), 0xffffff, .85), 2.4, W + .1, .05, .8, 0, 1.95, D / 2 + .45, true), .45, 0, 0);
-      bx(g, out, OM.card, .5, .35, .3, -.7, 1.4, D / 2 + .15, true); bx(g, out, OM.red, .4, .25, .3, .1, 1.35, D / 2 + .15, true); bx(g, out, OM.yellow, .3, .35, .3, .6, 1.38, D / 2 + .15, true);
-      bx(g, out, OM.cream, 1.2, .3, .04, 0, H - .25, D / 2 + .01, true); bx(g, out, paint(PAINTS[1]), 1.1, .2, .045, 0, H - .25, D / 2 + .02, true);
-      return { out, hx: W / 2 + .15, hz: D / 2 + .45, h: H + .1 };
+  def('kiosk', { name: 'Quiosco de prensa', cat: 'Mobiliario urbano' }, {
+    mat: 'metal', hp: 200, push: false, mass: 70, fric: 9, build: g => {
+      const out = [], W = 2.4, D = 1.8, H = 2.4, bc = paint(pick([0x2f6a45, 0x2f4f86, 0x8a2f26, 0x2c3036]));
+      bx(g, out, OM.anth, W + .1, .2, D + .1, 0, .1, 0, false);
+      bx(g, out, bc, W, H - .3, .06, 0, .2 + (H - .3) / 2, -D / 2 + .03, true); for (const s of [-1, 1]) bx(g, out, bc, .06, H - .3, D, s * (W / 2 - .03), .2 + (H - .3) / 2, 0, true);
+      bx(g, out, bc, W, .85, .06, 0, .2 + .425, D / 2 - .03, true); bx(g, out, bc, W, .55, .06, 0, H - .3 + .2 - .275, D / 2 - .03, true);   // frente con ventana de despacho
+      bx(g, out, OM.alu, W + .1, .06, .55, 0, 1.12, D / 2 + .2, true);                                                              // repisa del mostrador
+      bx(g, out, OM.glass, W - .5, .1, .02, 0, 1.45, D / 2 - .01, true);
+      bx(g, out, OM.anth, W + .3, .14, D + .3, 0, H, 0, true); bx(g, out, OM.yellow, W + .3, .05, .02, 0, H - .1, D / 2 + .16, true);   // techo plano y canto
+      for (let k = 0; k < 4; k++) bx(g, out, [OM.red, OM.yellow, OM.blueP, OM.green][k], .22, .3, .04, -.75 + k * .5, 1.35, D / 2 + .1, true);   // revistas
+      bx(g, out, OM.white, 1.1, .32, .05, 0, H - .38, D / 2 + .02, true); bx(g, out, bc, 1.0, .22, .055, 0, H - .38, D / 2 + .03, true); bx(g, out, OM.ledG, .5, .05, .06, 0, H - .38, D / 2 + .035, true);   // rótulo iluminado
+      bx(g, out, OM.cream, .7, 1.1, .03, W / 2 + .02, 1.1, 0.0, true);
+      return { out, hx: W / 2 + .1, hz: D / 2 + .45, h: H + .1 };
     }
   });
   const binBuild = (dump) => g => {
@@ -466,11 +479,11 @@
     }
   });
   def('stall', { name: 'Puesto de mercado', cat: 'Comercio y transporte' }, {
-    mat: 'wood', hp: 100, push: false, mass: 40, fric: 9, build: g => {
-      const out = [], W = 2.6, D = 1.3, H = 2.3, pairs = [['#b8412e', '#f2efe6'], ['#2a8f8a', '#f2efe6'], ['#d9a21f', '#f2efe6'], ['#3a63a0', '#f2efe6']], pr = pick(pairs);
-      for (const s of [-1, 1]) for (const z of [-1, 1]) bx(g, out, OM.woodF, .1, H, .1, s * (W / 2 - .05), H / 2, z * (D / 2 - .05), z < 0);
-      tx(g, out, OM.boardsW, 2, W, .85, D - .3, 0, .43, .08, true); bx(g, out, OM.woodD, W + .1, .06, D - .2, 0, .88, .08, true);
-      rot(tx(g, out, tm(stripeTex(pr[0], pr[1]), 0xffffff, .85), 2.4, W + .3, .05, D + .6, 0, H - .05, 0, true), .16, 0, 0);
+    mat: 'metal', hp: 100, push: false, mass: 40, fric: 9, build: g => {
+      const out = [], W = 2.6, D = 1.3, H = 2.3, cv = pick([OM.white, OM.cream, OM.blueP, OM.green]);
+      for (const s of [-1, 1]) for (const z of [-1, 1]) bx(g, out, OM.alu, .05, H, .05, s * (W / 2 - .05), H / 2, z * (D / 2 - .05), z < 0);
+      bx(g, out, OM.alu, W, .8, D - .4, 0, .4, .1, true); bx(g, out, OM.white, W + .06, .05, D - .3, 0, .82, .1, true);                // mesa
+      rot(bx(g, out, cv, W + .3, .05, D + .6, 0, H - .05, 0, true), .14, 0, 0); bx(g, out, cv, W + .3, .22, .04, 0, H - .21, D / 2 + .32, true);   // carpa lisa con faldón
       for (let k = 0; k < 5; k++) bx(g, out, [OM.red, OM.yellow, OM.orange, OM.leaf, OM.pink][k], .38, .2, .3, -.9 + k * .45, 1.0, .1, true);
       for (let k = 0; k < 3; k++) mkPiece(g, out, geoBall, [OM.red, OM.orange, OM.leafD][k], .16, .14, .16, -.5 + k * .45, 1.2, .1, true, [.3, .3, .3]);
       return { out, hx: W / 2 + .15, hz: D / 2 + .3, h: H };
@@ -488,25 +501,48 @@
       return { out, hx: W / 2, hz: .09, h: H };
     }
   });
-  function shopFront(label, bg, fg, cross, awn) {
+  /* Locales de hoy: fachada de aluminio y vidrio, rótulo iluminado, parapeto plano, aire acondicionado en la azotea. Un cuerpo con volumen (fondo 2,2 m) y techo plano. */
+  function signTex(label, sub, bg, fg, cross) {
+    return new THREE.MeshBasicMaterial({ map: mkTex(512, (x, s) => {
+      x.fillStyle = bg; x.fillRect(0, 0, s, s); const y0 = s * .375, hh = s * .25; x.fillStyle = 'rgba(255,255,255,.12)'; x.fillRect(0, y0, s, hh * .45);
+      x.fillStyle = fg; x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = '900 ' + Math.round(cl((cross ? 380 : 440) / (label.length * .68), 34, 76)) + 'px sans-serif'; x.fillText(label, s / 2 + (cross ? 36 : 0), y0 + hh * (sub ? .38 : .5));
+      if (sub) { x.font = '700 30px sans-serif'; x.fillText(sub, s / 2 + (cross ? 36 : 0), y0 + hh * .8); }
+      if (cross) { x.fillStyle = '#2fb866'; const cx = 70, cyy = y0 + hh / 2, a = 26, b = 9; x.fillRect(cx - b, cyy - a, 2 * b, 2 * a); x.fillRect(cx - a, cyy - b, 2 * a, 2 * b); }
+    }) });
+  }
+  function shopFront(o) {
     return g => {
-      const out = [], W = 4.4, H = 3.0, hw = W / 2;
-      tx(g, out, OM.brick, 1.25, W, .8, .34, 0, .4, 0, true); tx(g, out, OM.plaster, 1, W, .5, .38, 0, H - .25, 0, false);
-      for (const s of [-1, 0, 1]) tx(g, out, OM.plaster, 1, .22, H, .36, s * (hw - .11), H / 2, 0, false);
-      const glassPcs = []; for (const s of [-1, 1]) { bx(g, out, OM.glass, hw - .3, 1.6, .03, s * (hw / 2 - .02), 1.6, 0, true); glassPcs.push(out[out.length - 1]); }
-      bx(g, out, OM.ironD, W - .3, .08, .06, 0, 2.42, 0, false); bx(g, out, OM.ironD, .06, 1.62, .06, 0, 1.6, 0, false);
-      rot(tx(g, out, tm(stripeTex(awn, '#f2efe6'), 0xffffff, .85), 2.4, W - .2, .05, .7, 0, 2.5, .5, true), .5, 0, 0);               // toldo con los colores de la tienda
-      const sm2 = new THREE.MeshBasicMaterial({ map: mkTex(256, (x, s) => { x.fillStyle = bg; x.fillRect(0, 0, s, s); x.strokeStyle = fg; x.lineWidth = 5; x.strokeRect(10, s * .375 + 6, s - 20, s * .25 - 12); x.fillStyle = fg; x.font = 'bold 36px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(label, s / 2, s / 2 + 3); }) });
-      sm2.map.wrapS = sm2.map.wrapT = THREE.ClampToEdgeWrapping;
-      const sign = bx(g, out, sm2, 2.6, .46, .06, 0, H - .25, .21, true); sign.geometry = sign.geometry.clone(); const uv = sign.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setY(i, uv.getY(i) * .25 + .375);
-      if (cross) { bx(g, out, OM.green, .36, .1, .05, 1.9, H - .25, .22, true); bx(g, out, OM.green, .1, .36, .05, 1.9, H - .25, .22, true); }
-      bx(g, out, OM.yellow, 1.0, .4, .02, hw / 2, 1.5, .02, true); bx(g, out, OM.red, .6, .3, .02, -hw / 2, 1.2, .02, true);    // carteles de oferta en el cristal
-      const beacon = new THREE.Mesh(geoBall, new THREE.MeshBasicMaterial({ color: 0x551111 })); beacon.scale.set(.1, .1, .1); beacon.position.set(-hw + .25, H + .1, 0); g.add(beacon);
-      return { out, hx: hw, hz: .2, h: H, beacon, glassPcs };
+      const out = [], W = o.W, D = 2.2, H = 3.2, hw = W / 2, dw = o.door, pw = (W - .6 - dw) / 2, glassPcs = [];
+      const wallM = o.wall || OM.plasterG;
+      bx(g, out, OM.anth, W, .42, D, 0, .21, 0, false);                                                           // zócalo oscuro
+      tx(g, out, wallM, 1, W, H - .42, .12, 0, .42 + (H - .42) / 2, -D / 2 + .06, false);                         // fachada trasera y laterales
+      for (const s of [-1, 1]) tx(g, out, wallM, 1, .3, H - .42, D, s * (hw - .15), .42 + (H - .42) / 2, 0, false);
+      bx(g, out, OM.concL, W + .24, .18, D + .24, 0, H + .09, 0, false);                                          // losa de cubierta con peto
+      bx(g, out, o.brand, W + .26, .05, .03, 0, .42, D / 2 + .005, false);                                        // línea de color de la marca sobre el zócalo
+      for (const s of [-1, 1]) { const px = s * (dw / 2 + pw / 2); bx(g, out, OM.glassT, pw - .06, 2.0, .03, px, 1.45, D / 2 - .02, true); glassPcs.push(out[out.length - 1]); }   // escaparates
+      for (const s of [-1, 1]) { bx(g, out, OM.glassT, dw / 2 - .08, 2.0, .03, s * (dw / 4), 1.45, D / 2 - .02, true); glassPcs.push(out[out.length - 1]); }   // hojas de la puerta
+      for (const x of [-hw + .3, -dw / 2 - pw, -dw / 2, 0, dw / 2, dw / 2 + pw, hw - .3]) bx(g, out, OM.alu, .06, 2.1, .1, x, 1.45, D / 2 - .02, false);   // montantes de aluminio
+      for (const y of [.45, 2.47]) bx(g, out, OM.alu, W - .5, .07, .1, 0, y, D / 2 - .02, false);
+      for (const s of [-1, 1]) bx(g, out, OM.steelL, .03, .55, .04, s * .07, 1.15, D / 2 + .01, true);              // tiradores
+      bx(g, out, OM.anth, W - .5, .14, .14, 0, 2.58, D / 2 - .05, false);                                         // cajón de la persiana
+      const sg = signTex(o.label, o.sub, o.bg, o.fg, o.cross); sg.map.wrapS = sg.map.wrapT = THREE.ClampToEdgeWrapping;
+      bx(g, out, OM.anth, W - .3, .62, .16, 0, 2.9, D / 2 - .04, false);
+      const sign = bx(g, out, sg, W - .42, .5, .03, 0, 2.9, D / 2 + .05, true); sign.geometry = sign.geometry.clone(); const uv = sign.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setY(i, uv.getY(i) * .25 + .375);
+      bx(g, out, OM.white, .7, .04, .01, -hw / 2 - .2, 1.2, D / 2 + .0, true); bx(g, out, o.brand, .7, .22, .01, hw / 2 + .2, 1.5, D / 2 + .0, true);   // vinilos en el cristal
+      bx(g, out, OM.ledG, .34, .1, .03, dw / 2 + .22, 2.05, D / 2 + .02, true);                                      // cartel ABIERTO
+      bx(g, out, OM.dark, .1, .1, .16, -hw + .12, 2.35, D / 2 + .1, true);                                         // cámara de seguridad
+      for (const [x, z, w, h] of [[-hw / 2, -.2, .9, .6], [hw / 2 - .2, .2, .7, .5]]) { bx(g, out, OM.steelL, w, h, w * .8, x, H + .18 + h / 2, z, true); cy(g, out, OM.ironD, w * .32, .04, x, H + .18 + h + .01, z, true); }   // equipos de aire en la azotea
+      if (o.crossFlag) { bx(g, out, OM.ledG, .2, .9, .14, -hw - .02, 2.35, D / 2 - .5, true); bx(g, out, OM.ledG, .9, .2, .14, -hw - .02, 2.35, D / 2 - .5, true); }   // cruz verde de bandera
+      const beacon = new THREE.Mesh(geoBall, new THREE.MeshBasicMaterial({ color: 0x551111 })); beacon.scale.set(.1, .1, .1); beacon.position.set(hw - .25, H + .24, D / 2 - .2); g.add(beacon);
+      return { out, hx: hw + .08, hz: D / 2 + .15, h: H + .2, beacon, glassPcs };
     };
   }
-  def('shopFront', { name: 'Escaparate de tienda', cat: 'Sonido y visibilidad', alarm: true, note: 'Alarma de tienda: al romper un cristal suena y atrae infectados' }, { mat: 'block', hp: 300, push: false, mass: 80, fric: 9, alarm: true, build: shopFront('TIENDA', '#b8412e', '#fff4d6', false, '#d9a21f') });
-  def('pharmFront', { name: 'Escaparate de farmacia', cat: 'Sonido y visibilidad', alarm: true }, { mat: 'block', hp: 300, push: false, mass: 80, fric: 9, alarm: true, build: shopFront('FARMACIA', '#2c7a4a', '#f2fff4', true, '#2c7a4a') });
+  const SHOPS = {
+    shopFront: ['Minimarket', { W: 4.6, door: 1.4, label: 'MINIMARKET', sub: 'ABIERTO 24 H', bg: '#d8321f', fg: '#ffffff', brand: sm(0xd8321f, .5), wall: OM.plasterG }],
+    pharmFront: ['Farmacia', { W: 4.6, door: 1.4, label: 'FARMACIA', sub: 'MEDICAMENTOS · SALUD', bg: '#ffffff', fg: '#1a6b3c', brand: sm(0x2fb866, .5), wall: OM.plasterG, cross: true, crossFlag: true }],
+    superFront: ['Supermercado', { W: 6.6, door: 2.2, label: 'SUPERMERCADO', sub: 'FRESCOS · OFERTAS', bg: '#f08a12', fg: '#ffffff', brand: sm(0xf08a12, .5), wall: OM.plasterG }]
+  };
+  for (const k in SHOPS) def(k, { name: 'Local: ' + SHOPS[k][0], cat: 'Sonido y visibilidad', alarm: true, note: 'Alarma de tienda: al romper un cristal suena y atrae infectados' }, { mat: 'block', hp: 380, push: false, mass: 90, fric: 9, alarm: true, build: shopFront(SHOPS[k][1]) });
 
   def('floodlight', { name: 'Foco de patio', cat: 'Sonido y visibilidad', note: 'Apagarlo o romperlo oculta la zona (efecto de visión: entrega 2)' }, {
     mat: 'metal', hp: 80, push: false, mass: 20, fric: 9, build: g => {
@@ -521,12 +557,14 @@
   });
   def('pump', { name: 'Surtidor de gasolinera', cat: 'Sonido y visibilidad', note: 'Gasolinera: punto reconocible de abastecimiento (sin transporte de bidones)' }, {
     mat: 'metal', hp: 120, push: false, mass: 40, fric: 9, fluid: 'fuel', build: g => {
-      const out = [];
-      tx(g, out, OM.stoneD, 1, .9, .14, .7, 0, .07, 0, false); bx(g, out, OM.red, .6, 1.5, .4, 0, .89, 0, true); bx(g, out, OM.white, .64, .26, .44, 0, 1.7, 0, true); bx(g, out, OM.dark, .5, .2, .08, 0, 1.4, .21, true); bx(g, out, OM.screen, .38, .1, .02, 0, 1.4, .26, true);
-      bx(g, out, OM.yellow, .6, .08, .42, 0, 1.0, 0, true); bx(g, out, OM.white, .62, .16, .02, 0, .5, .21, true); bx(g, out, OM.blueP, .62, .08, .02, 0, .36, .21, true);
-      for (const s of [-1, 1]) { bx(g, out, OM.ironD, .06, .5, .06, s * .36, 1.0, .08, true); bx(g, out, OM.dark, .14, .3, .08, s * .4, .8, .2, true); }
-      bx(g, out, OM.steelL, .5, .02, .02, 0, 1.55, .21, true); bx(g, out, OM.rust, .14, .3, .02, -.2, .55, .212, true);
-      return { out, hx: .45, hz: .35, h: 1.85 };
+      const out = [], br = pick([sm(0xd8321f, .5), sm(0x1f7a46, .5), sm(0x2f5fa8, .5)]);
+      bx(g, out, OM.concL, 1.0, .16, .75, 0, .08, 0, false); bx(g, out, OM.yellow, 1.0, .04, .02, 0, .1, .385, false);              // isleta con borde amarillo
+      bx(g, out, OM.white, .62, 1.55, .38, 0, .94, 0, true); bx(g, out, br, .64, .12, .4, 0, 1.78, 0, true); bx(g, out, br, .64, .06, .4, 0, .2, 0, true);
+      bx(g, out, OM.anth, .46, .26, .06, 0, 1.45, .2, true); bx(g, out, OM.ledG, .34, .1, .02, 0, 1.47, .235, true);                // pantalla digital
+      for (let k = 0; k < 3; k++) bx(g, out, [OM.green, OM.dark, OM.red][k], .12, .12, .03, -.16 + k * .16, 1.15, .2, true);        // botones de combustible
+      for (const s of [-1, 1]) { bx(g, out, OM.anth, .08, .34, .1, s * .37, .95, .12, true); bx(g, out, OM.dark, .04, .3, .04, s * .37, .72, .18, true); }
+      bx(g, out, OM.ledG, .5, .03, .03, 0, 1.87, .16, true); bx(g, out, OM.steelL, .5, .02, .02, 0, 1.6, .205, true);
+      return { out, hx: .5, hz: .38, h: 1.9 };
     }
   });
 

@@ -14,7 +14,7 @@ Prototipo jugable en el navegador, **sin modelos ni animaciones prefabricadas**:
 | `index.html` | Juego completo, autocontenido (esto es lo que se publica) |
 | `src/prototipo.html` | Código fuente editable (carga Three.js desde CDN) |
 | `src/three.min.r128.js` | Three.js r128 (se incrusta en `index.html`) |
-| `src/objetos.js` | Objetos de campaña (48 tipos, recogibles, raíles); ver `docs/CATALOGO_OBJETOS.md` |
+| `src/objetos.js` | Objetos de campaña (49 tipos, recogibles, raíles); ver `docs/CATALOGO_OBJETOS.md` |
 | `src/sonidos.js` | Audio incrustado (generado por `tools/build.py`, no editar a mano) |
 | `assets/audio/` | Sonidos originales (`originales/`) y `manifest.json` con recorte, fundido y nivel de cada uno |
 | `tools/build.py` | Procesa el audio, genera `src/sonidos.js` y regenera `index.html` |

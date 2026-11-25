@@ -12,14 +12,14 @@ with sync_playwright() as p:
     pg.goto('file://' + os.path.abspath('index.html')); pg.wait_for_timeout(1500); ev = pg.evaluate
     ev('begin()'); pg.wait_for_timeout(300)
     run = lambda n: ev('for(let i=0;i<%d;i++) update(1/60)' % n)
-    n = ev('OBJ.types.length'); chk(n == 48, 'hay 48 tipos de objeto (%d)' % n)
+    n = ev('OBJ.types.length'); chk(n == 49, 'hay 49 tipos de objeto (%d)' % n)
 
     rows = ev('OBJ.measure()')
     bad = [r['type'] for r in rows if not (r['w'] > .2 and r['d'] > .1 and r['h'] > .1 and r['pieces'] >= 3)]
     chk(not bad, 'todos tienen huella, altura y piezas coherentes ' + str(bad))
     big = [r['type'] for r in rows if r['pieces'] > 90]
     chk(not big, 'ninguno pasa de 90 piezas (coste de dibujo) ' + str(big))
-    print('  piezas totales de los 48 tipos:', sum(r['pieces'] for r in rows), '· máximo', max(r['pieces'] for r in rows))
+    print('  piezas totales de los 49 tipos:', sum(r['pieces'] for r in rows), '· máximo', max(r['pieces'] for r in rows))
 
     r = ev("""(() => {
       const out = {};
@@ -77,7 +77,7 @@ with sync_playwright() as p:
       const loud = calls.length; for (let i = 0; i < 60 * 17; i++) update(1/60);
       const out = [g0, g1, on, n, loud >= 2, OBJ.alarms.length, p.alarmOn, p.dead]; MX.zom.noise = nz; return out;
     })()""")
-    chk(r[0] == 2 and r[1] == 1 and r[2] and r[3] == 1 and r[4] and r[5] == 0 and not r[6] and not r[7], 'escaparate: un impacto rompe un cristal, salta la alarma (ruido repetido) y se apaga a los 20 s %s' % r)
+    chk(r[0] >= 2 and r[1] == r[0] - 1 and r[2] and r[3] == 1 and r[4] and r[5] == 0 and not r[6] and not r[7], 'escaparate: un impacto rompe un cristal, salta la alarma (ruido repetido) y se apaga a los 20 s %s' % r)
 
     # foco: sin lámpara no hay luz
     r = ev("""(() => { OBJ.gallery(['floodlight']); const p = props[0], v0 = p.o.glow.visible; launchPiece(p, p.o.lamp, 0, 0, 1, 1); update(1/60); return [v0, p.o.glow.visible]; })()""")
@@ -109,7 +109,7 @@ with sync_playwright() as p:
 
     # no rompe el resto: galería completa y partida del mapa 3
     ev('OBJ.gallery()'); run(120)
-    chk(ev('props.length') == 48, 'la galería completa coloca los 48 tipos')
+    chk(ev('props.length') == 49, 'la galería completa coloca los 49 tipos')
     if len(sys.argv) > 1:
         pg.screenshot(path=os.path.join(sys.argv[1], 'galeria.png'))
     b.close()
