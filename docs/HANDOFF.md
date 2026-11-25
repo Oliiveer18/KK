@@ -52,6 +52,13 @@ Prototipo de shooter 3D en el navegador, sin assets externos (personaje procedur
 ## Estado y decisiones
 Estado actual (v0.3.9): ver `docs/ESTADO.md` (cabecera) y `docs/ARQUITECTURA.md` (sección v0.3.x). Reglas añadidas por el usuario el 25-11: sin chuleta ni texto de depuración en pantalla; vida y escudo abajo a la izquierda, arma y munición abajo a la derecha; al dañar personajes solo suena el disparo (el «hit» del jugador va aparte, sonidos de ElevenLabs aprobados uno a uno); las propuestas deben ser cosas que hago yo, no tareas para el usuario; **no** quiere indicador de daño direccional (retirado). Histórico de v0.2.2 a continuación.
 
+### Decisiones del usuario sobre equipo y vida (25-11, para el modo de facciones; sin implementar)
+- Equipo en 3 huecos: casco, chaleco y mochila; 3 niveles (ligero, medio, pesado), visibles en el personaje.
+- Vida: **100 sin ninguna equipación y hasta 200 en total**, repartida entre las equipaciones (propuesta de Claude: casco +10/+20/+30 y chaleco +25/+50/+70, máximo +100; la mochila da capacidad de carga, no vida). Sustituye al esquema actual de escudo 50 + vida 100 del mapa 3, que se mantiene mientras no exista el equipo.
+- **Al morir se pierde todo** el equipo (queda en el cuerpo; una compañía podría recuperarlo, a decidir con el diseño).
+- Sin recetas de fabricación; el equipo se consigue en tiendas, farmacias, taller y almacén y se mejora en el refugio.
+- El aspecto de los personajes se construye con piezas modulares (casco, chaleco, mochila) para que el equipo se vea sin rehacer el personaje. Pendiente de cerrar con GPT: regeneración de la vida del equipo y recuperación del equipo caído.
+
 ### v0.2.2
 Hecho en esta versión (detalle en `docs/CHANGELOG.md`, estado en `docs/ESTADO.md`, arquitectura en `docs/ARQUITECTURA.md`):
 - 10 armas con sonido, balística profesional con alcances a escala de pantalla (tabla `BAL`), equilibrio pasos 2 y 3 (el paso 4 lo descartó el usuario), pista de práctica a 30 m.
