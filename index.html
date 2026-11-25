@@ -166,7 +166,7 @@ const border = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeome
 border.position.y = 0.15; scene.add(border);
 
 /* ---------- partida 6 vs 6 (mapa 3): ganchos hacia src/partida.js; con MX.on = false todo funciona como antes ---------- */
-const MX = { on: false, want: false, campaign: false, rev: false, revCtx: false, foes: [], ents: [] };
+const MX = { on: false, want: false, campaign: false, district: false, rev: false, revCtx: false, foes: [], ents: [] };
 const WORLD = { x: 39, z: 39 };                                                    // límites jugables (mapa 3 los cambia)
 /* ---------- obstáculos (AABB) ---------- */
 const boxes = [], OBST = [];
@@ -602,6 +602,7 @@ if (window.visualViewport) visualViewport.addEventListener('resize', fitView);
 if (!matchMedia('(pointer:coarse)').matches) setTimeout(begin, 6000);   // en táctil espera a que elijas el modo (si no, a los 6 s arrancaba solo el polígono)   // se cierra solo
 if (/partida|mapa=3/.test(location.search + location.hash)) MX.want = true;
 if (new URLSearchParams(location.search).get('mapa') === '4') MX.want = MX.campaign = true;
+if (new URLSearchParams(location.search).get('mapa') === '5') MX.want = MX.campaign = MX.district = true;   // distrito (M1)
 for (const event of ['pointerdown', 'touchstart', 'click']) {
   for (const id of ['goMatch', 'goCampaign']) {
     $(id).addEventListener(event, () => {
@@ -913,13 +914,13 @@ function updateHelp() {
     '<b>Teclado</b> WASD mover · ratón girar · clic izq. disparar · clic der. apuntar · R recargar · C agacharse · Q arma · G granada · H humo · Espacio dash (mantén = más largo) · Shift correr · P/Esc configurar mando';
 }
 /* ---- selector de mapa (arriba del menú de Options; el juego está en pausa mientras está abierto) ---- */
-const MAPS = [[1, 'Mapa 1 · Arena'], [2, 'Mapa 2 · Polígono de pruebas'], [3, 'Mapa 3 · Partida 6 vs 6'], [4, 'Campaña · cuatro facciones']], NM = MAPS.length;
-const curMap = () => MX.on ? (MX.campaign ? 4 : 3) : RANGE.on ? 2 : 1;
+const MAPS = [[1, 'Mapa 1 · Arena'], [2, 'Mapa 2 · Polígono de pruebas'], [3, 'Mapa 3 · Partida 6 vs 6'], [4, 'Campaña · cuatro facciones'], [5, 'Distrito (M1) · mapa grande']], NM = MAPS.length;
+const curMap = () => MX.on ? (MX.district ? 5 : MX.campaign ? 4 : 3) : RANGE.on ? 2 : 1;
 function chooseMap(n) {
   if (n === curMap()) { closeMenu(); return; }
   if (MX.on) { location.href = location.pathname + '?mapa=' + n; return; }              // el mapa 3 transforma la escena: para salir se recarga la página
   closeMenu();
-  if (n === 3 || n === 4) { MX.campaign = n === 4; if (RANGE.on) rangeToggle(); MX.want = true; MX.start(); }
+  if (n === 3 || n === 4 || n === 5) { MX.campaign = n >= 4; MX.district = n === 5; if (RANGE.on) rangeToggle(); MX.want = true; MX.start(); }
   else if ((n === 2) !== RANGE.on) rangeToggle();
 }
 function renderMenu() {
@@ -3305,6 +3306,120 @@ requestAnimationFrame(frame);
 })();
 </script>
 <script>"use strict";
+/* ===================== MAPA POR DATOS (distrito de la campaña) =====================
+   Generador: convierte una descripción (src/mapa_distrito.js) en la escena. Suelos, calles con marcas, aceras, plazas, aparcamientos y refugios provisionales se
+   dibujan fusionados por material (muy pocas llamadas de dibujo); edificios y objetos se colocan con placeObject (src/objetos.js, que debe cargarse antes).
+   Convenciones: x hacia la derecha, z hacia la cámara (norte = z negativo). Un edificio con giro 0 tiene la puerta hacia +z. */
+(function () {
+const MAPA = window.MAPA = { data: {}, built: null };
+const MA = {}; const mat = c => MA[c] || (MA[c] = new THREE.MeshStandardMaterial({ color: c, roughness: .95, flatShading: true }));
+/* superficies: color y altura de la cara superior (las más altas tapan a las más bajas: sin parpadeo) */
+const SURF = { asphalt: [0x35383e, .01], grass: [0x56713f, .02], dirt: [0x6c5a44, .03], concrete: [0x85827c, .05], cobble: [0x7a6d60, .07], refuge: [0x6c685f, .06], sidewalk: [0x9d9b92, .13] };
+const MARK = { white: 0xdbd8cb, yellow: 0xe3b942 };
+const _q = new THREE.Quaternion(), _p = new V3(), _s = new V3();
+const mkBox = (x, y, z, w, h, d) => ({ m: new THREE.Matrix4().compose(_p.set(x, y, z), _q, _s.set(w, h, d)) });
+function flush(group, buckets) {                                                      // una malla por material (en trozos de ≤1500 cajas para no pasar de 65k vértices)
+  for (const c in buckets) { const L = buckets[c]; for (let i = 0; i < L.length; i += 1500) { const m = new THREE.Mesh(mergeParts(L.slice(i, i + 1500).map(b => ({ geo: geoBox, m: b.m }))), mat(+c)); m.receiveShadow = true; m.castShadow = false; group.add(m); } }
+}
+MAPA.build = function (D) {
+  MAPA.clear(); const group = new THREE.Group(); scene.add(group); const B = {}, add = (c, x, y, z, w, h, d) => (B[c] || (B[c] = [])).push(mkBox(x, y, z, w, h, d));
+  const rect = (t, x, z, w, d) => add(SURF[t][0], x, SURF[t][1] / 2, z, w, SURF[t][1], d), mark = (c, x, z, w, d) => add(MARK[c], x, .0145, z, w, .006, d);
+  const out = { half: D.half, spawns: [[], [], [], []], hot: (D.hot || []).slice(), walls: [], props: [], buildings: [], rails: [], group };
+  if (D.ground) OBJ.setGround(SURF[D.ground][0]);
+  for (const s of D.surfaces || []) rect(s.t, s.x, s.z, s.w, s.d);
+  /* calles: asfalto, aceras a ambos lados, marcas centrales y de borde, pasos de cebra; se cortan donde se cruzan */
+  const roads = D.roads || [], SW = 3.2;
+  const crossings = r => roads.filter(o => o !== r && o.axis !== r.axis && o.c >= r.a0 && o.c <= r.a1 && r.c >= o.a0 && r.c <= o.a1);
+  for (const r of roads) {
+    const X = r.axis === 'x', len = r.a1 - r.a0, mid = (r.a0 + r.a1) / 2, cr = crossings(r);
+    if (X) rect('asphalt', mid, r.c, len, r.w); else rect('asphalt', r.c, mid, r.w, len);
+    const gaps = cr.map(o => [o.c - o.w / 2, o.c + o.w / 2]).sort((a, b) => a[0] - b[0]), segs = []; let cur = r.a0;     // tramos entre cruces
+    for (const g of gaps) { if (g[0] > cur) segs.push([cur, g[0]]); cur = Math.max(cur, g[1]); } if (cur < r.a1) segs.push([cur, r.a1]);
+    for (const [a, b] of segs) {
+      const L = b - a, m = (a + b) / 2;
+      for (const sg of [-1, 1]) { const o = sg * (r.w / 2 + SW / 2); if (X) rect('sidewalk', m, r.c + o, L, SW); else rect('sidewalk', r.c + o, m, SW, L); }
+      for (const sg of [-1, 1]) { const o = sg * (r.w / 2 - .35); if (X) mark('white', m, r.c + o, L, .16); else mark('white', r.c + o, m, .16, L); }          // bordes
+      const dbl = r.w >= 10;                                                                                                                       // avenidas: doble línea amarilla; calles: discontinua blanca
+      if (dbl) { for (const sg of [-1, 1]) { if (X) mark('yellow', m, r.c + sg * .22, L, .14); else mark('yellow', r.c + sg * .22, m, .14, L); } }
+      else for (let t = a + 1.5; t < b - 3; t += 8) { if (X) mark('white', t + 1.5, r.c, 3, .16); else mark('white', r.c, t + 1.5, .16, 3); }
+    }
+    for (const o of cr) for (const sg of [-1, 1]) { const at = o.c + sg * (o.w / 2 + 1.4);                                                       // pasos de cebra a cada lado del cruce
+      for (let k = -r.w / 2 + .8; k <= r.w / 2 - .7; k += 1.05) { if (X) mark('white', at, r.c + k, 1.5, .55); else mark('white', r.c + k, at, .55, 1.5); } }
+  }
+  for (const k of D.lots || []) {                                                       // aparcamientos: hormigón con plazas marcadas
+    rect('concrete', k.x, k.z, k.w, k.d);
+    for (let i = 0; i <= Math.floor(k.w / 3); i++) { const x = k.x - k.w / 2 + 1.5 + i * 3; if (x < k.x + k.w / 2 - .5) { mark('white', x, k.z - k.d / 2 + 3.2, .12, 5.2); mark('white', x, k.z + k.d / 2 - 3.2, .12, 5.2); } }
+  }
+  /* refugios provisionales (muros bajos de bloque y un hueco de portón; la geometría definitiva es la Entrega 2) */
+  const wallBox = (x, z, w, d, h, fac) => { const FM = FACM[fac % FACM.length];
+    const m = new THREE.Mesh(geoBox, FM.uni); m.scale.set(w, h, d); m.position.set(x, h / 2, z); m.castShadow = m.receiveShadow = true; group.add(m);
+    const c = new THREE.Mesh(geoBox, FM.acc); c.scale.set(w + .1, .14, d + .1); c.position.set(x, h + .07, z); c.receiveShadow = true; group.add(c);
+    const bx = { x, z, hx: w / 2, hz: d / 2, h, wall: true }; boxes.push(bx); out.walls.push(bx); };
+  for (const R of D.refuges || []) {
+    rect('refuge', R.x, R.z, R.w, R.d); const T = .8, H = 3, g = R.gate, hw = R.w / 2, hd = R.d / 2;
+    const side = (nx, nz, len, horiz, gateHere) => {                                  // lado con o sin hueco de portón
+      if (!gateHere) { horiz ? wallBox(R.x + nx, R.z + nz, len, T, H, R.fac) : wallBox(R.x + nx, R.z + nz, T, len, H, R.fac); return; }
+      const half = (len - g) / 2; for (const sg of [-1, 1]) { const o = sg * (g / 2 + half / 2); horiz ? wallBox(R.x + nx + o, R.z + nz, half, T, H, R.fac) : wallBox(R.x + nx, R.z + nz + o, T, half, H, R.fac); }
+    };
+    side(0, -hd, R.w, true, R.face === 'n'); side(0, hd, R.w, true, R.face === 's'); side(-hw, 0, R.d, false, R.face === 'w'); side(hw, 0, R.d, false, R.face === 'e');
+    const dir = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] }[R.face], yaw = Math.atan2(dir[0], dir[1]);
+    { const cx = R.x + dir[0] * (hw - 7), cz = R.z + dir[1] * (hd - 7); for (let i = 0; i < 6; i++) out.spawns[R.fac].push({ x: dir[1] ? cx + (i - 2.5) * 4 : cx, z: dir[1] ? cz : cz + (i - 2.5) * 4, yaw }); }      // 6 puntos de aparición dentro, cerca del portón
+    const e = placeObject('emblem' + R.fac, R.x + dir[0] * (hw + .1), R.z + dir[1] * (hd + .1), Math.atan2(dir[0], dir[1]), { fac: R.fac }); if (e) out.props.push(e);
+  }
+  flush(group, B);
+  for (const r of D.rails || []) out.rails.push(OBJ.rails(r.x, r.z, r.len, r.ry || 0));
+  for (const b of D.buildings || []) { const r = placeObject(b.k, b.x, b.z, b.rot || 0, { fac: b.fac }); if (r) out.buildings.push(r); }
+  for (const o of D.objects || []) { const r = placeObject(o.t, o.x, o.z, o.g || 0, o.o); if (r) out.props.push(r); }
+  MAPA.built = out; return out;
+};
+MAPA.clear = function () {
+  const b = MAPA.built; if (!b) return; scene.remove(b.group); b.group.traverse(o => { if (o.geometry && o.isMesh) o.geometry.dispose(); });
+  for (const r of b.rails) scene.remove(r); for (const x of b.buildings) OBJ.removeObject(x); for (const p of b.props) OBJ.removeObject(p);
+  for (const w of b.walls) { const i = boxes.indexOf(w); if (i >= 0) boxes.splice(i, 1); } MAPA.built = null;
+};
+})();
+</script>
+<script>"use strict";
+/* ===================== DATOS DEL DISTRITO (sector de prueba M1: 250 × 250 m) =====================
+   Cuadrícula de calles (x e z = −70, 0, +70), un refugio provisional por esquina (Azul NO, Rojo NE, Ámbar SO, Violeta SE), plaza al noreste del cruce central,
+   tiendas sobre la Avenida Mayor, gasolinera, aparcamiento y una vía. Norte = z negativo. Se amplía por sectores (M2/M3). */
+(function () {
+const fp = (k, g) => OBJ.footprint(k, g || 0, {});
+MAPA.data.M1 = function () {
+  const SW = 3.2, AV = 12, CALLE = 8, half = 125;
+  const D = { half, ground: 'grass', roads: [], surfaces: [], lots: [], refuges: [], buildings: [], objects: [], rails: [], hot: [] };
+  D.roads.push({ axis: 'x', c: 0, a0: -half, a1: half, w: AV }, { axis: 'z', c: 0, a0: -half, a1: half, w: 9 });                         // Avenida Mayor y Calle Central
+  for (const c of [-70, 70]) D.roads.push({ axis: 'x', c, a0: -half, a1: half, w: CALLE }, { axis: 'z', c, a0: -half, a1: half, w: CALLE });   // calles perimetrales
+  /* refugios (provisionales): portón hacia la calle más cercana */
+  D.refuges.push({ fac: 0, x: -98, z: -98, w: 44, d: 40, face: 's', gate: 8 }, { fac: 1, x: 98, z: -98, w: 44, d: 40, face: 's', gate: 8 },
+                 { fac: 2, x: -98, z: 98, w: 44, d: 40, face: 'n', gate: 8 }, { fac: 3, x: 98, z: 98, w: 44, d: 40, face: 'n', gate: 8 });
+  /* tiendas en la acera norte de la Avenida Mayor (puerta hacia +z, a la avenida) */
+  const front = AV / 2 + SW + .3, put = (k, x, side, fac) => { const f = fp(k), D_ = f.hz, z = side * (front + D_); D.buildings.push({ k, x, z, rot: side < 0 ? 0 : Math.PI, fac }); return [x, z]; };
+  const s1 = put('super', -38, -1), s2 = put('pharm', -9, -1), s3 = put('mini', 22, 1);
+  D.hot.push([s1[0], -6], [s2[0], -6], [s3[0], 6]);
+  /* plaza al noreste del cruce central */
+  D.surfaces.push({ t: 'cobble', x: 36, z: -37, w: 44, d: 44 });
+  D.objects.push({ t: 'bench', x: 24, z: -26 }, { t: 'bench', x: 48, z: -26 }, { t: 'planter', x: 26, z: -48, g: 0 }, { t: 'planter', x: 46, z: -48 }, { t: 'kiosk', x: 36, z: -50 }, { t: 'busStop', x: 12, z: -8.5 },
+                 { t: 'bench', x: 24, z: -50 }, { t: 'floodlight', x: 36, z: -36 });
+  D.hot.push([36, -37]);
+  /* gasolinera al sureste */
+  D.surfaces.push({ t: 'concrete', x: 40, z: 38, w: 36, d: 24 });
+  D.objects.push({ t: 'pump', x: 30, z: 36 }, { t: 'pump', x: 38, z: 36 }, { t: 'pump', x: 46, z: 36 }, { t: 'kiosk', x: 50, z: 46 }, { t: 'car', x: 34, z: 44, g: Math.PI / 2 }, { t: 'dumpster', x: 56, z: 30 });
+  D.hot.push([40, 38]);
+  /* aparcamiento al suroeste */
+  D.lots.push({ x: -36, z: 40, w: 40, d: 24 });
+  D.objects.push({ t: 'car', x: -48, z: 36, g: Math.PI / 2 }, { t: 'car', x: -42, z: 44, g: Math.PI / 2 }, { t: 'car', x: -30, z: 36, g: Math.PI / 2 }, { t: 'car', x: -24, z: 44, g: Math.PI / 2 },
+                 { t: 'wheelie', x: -56, z: 30 }, { t: 'dumpster', x: -54, z: 52 }, { t: 'pallet', x: -16, z: 52 });
+  D.hot.push([-36, 40]);
+  /* una vía al sur, entre los dos refugios del sur */
+  D.surfaces.push({ t: 'dirt', x: 0, z: 100, w: 120, d: 10 });
+  D.rails.push({ x: 0, z: 100, len: 120, ry: 0 });
+  D.hot.push([0, 100], [0, -70], [0, 70], [-70, 0], [70, 0], [-70, -70], [70, -70], [-70, 70], [70, 70], [0, 0]);
+  return D;
+};
+})();
+</script>
+<script>"use strict";
 /* ===================== PARTIDA 6 vs 6 · MAPA 3 =====================
    Módulo cargado después del juego: comparte su ámbito global (P, W, WP, boxes, props, scene, spawnBullet, explode...).
    Con MX.on = false no hace nada: los mapas 1 (arena original) y 2 (polígono de pruebas) quedan intactos.
@@ -3349,7 +3464,24 @@ function placeProp(spec, checkEnts) {
   if (checkEnts) for (const e of M.ents) if (!e.dead && Math.hypot(e.p.x - spec.x, e.p.z - spec.z) < 1.6) return null;
   const p = addProp(spec.type, spec.x, spec.z, spec.rot || 0); p.spec = spec; M.props.push(p); return p;
 }
+function navResize(half) {                                                          // reajusta la malla de navegación al tamaño del mundo (distrito)
+  NV.w = NV.h = Math.ceil(half * 2 + 8); NV.ox = NV.oz = -NV.w / 2; NV.n = NV.w * NV.h; NV.bl = new Uint8Array(NV.n);
+  AS.g = new Float32Array(NV.n); AS.par = new Int32Array(NV.n); AS.st = new Uint8Array(NV.n);
+}
+function buildDistrict() {                                                           // campaña sobre el distrito generado por MAPA (src/mapa.js + mapa_distrito.js)
+  for (const o of OBST) { o.m.visible = false; const i = boxes.indexOf(o.bx); if (i >= 0) boxes.splice(i, 1); }
+  for (const p of props.slice()) { scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); }
+  props.length = 0; for (const tg of targets) scene.remove(tg.g); targets.length = 0;
+  grid.visible = false;                                                             // la cuadrícula de referencia de la arena no se usa en el distrito
+  const D = MAPA.build(MAPA.data.M1());
+  WORLD.x = WORLD.z = D.half - .6; border.scale.set(WORLD.x / 40, 1, WORLD.z / 40); ground.scale.set(Math.max(1, (D.half * 2 + 20) / 120), Math.max(1, (D.half * 2 + 20) / 120), 1);
+  for (const w of D.walls) M.walls.push(w);
+  for (let tm = 0; tm < 4; tm++) M.spawn[tm] = D.spawns[tm].map(s => ({ x: s.x, z: s.z, yaw: s.yaw }));
+  HOT.length = 0; for (const h of D.hot) HOT.push(h);
+  navResize(D.half); navBuild();
+}
 function buildMap() {
+  if (MX.district) return buildDistrict();
   /* se aparta la arena original (mapa 1) y los blancos: aquí los rivales son los bots */
   for (const o of OBST) { o.m.visible = false; const i = boxes.indexOf(o.bx); if (i >= 0) boxes.splice(i, 1); }
   for (const p of props.slice()) { scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); }

@@ -43,7 +43,24 @@ function placeProp(spec, checkEnts) {
   if (checkEnts) for (const e of M.ents) if (!e.dead && Math.hypot(e.p.x - spec.x, e.p.z - spec.z) < 1.6) return null;
   const p = addProp(spec.type, spec.x, spec.z, spec.rot || 0); p.spec = spec; M.props.push(p); return p;
 }
+function navResize(half) {                                                          // reajusta la malla de navegación al tamaño del mundo (distrito)
+  NV.w = NV.h = Math.ceil(half * 2 + 8); NV.ox = NV.oz = -NV.w / 2; NV.n = NV.w * NV.h; NV.bl = new Uint8Array(NV.n);
+  AS.g = new Float32Array(NV.n); AS.par = new Int32Array(NV.n); AS.st = new Uint8Array(NV.n);
+}
+function buildDistrict() {                                                           // campaña sobre el distrito generado por MAPA (src/mapa.js + mapa_distrito.js)
+  for (const o of OBST) { o.m.visible = false; const i = boxes.indexOf(o.bx); if (i >= 0) boxes.splice(i, 1); }
+  for (const p of props.slice()) { scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); }
+  props.length = 0; for (const tg of targets) scene.remove(tg.g); targets.length = 0;
+  grid.visible = false;                                                             // la cuadrícula de referencia de la arena no se usa en el distrito
+  const D = MAPA.build(MAPA.data.M1());
+  WORLD.x = WORLD.z = D.half - .6; border.scale.set(WORLD.x / 40, 1, WORLD.z / 40); ground.scale.set(Math.max(1, (D.half * 2 + 20) / 120), Math.max(1, (D.half * 2 + 20) / 120), 1);
+  for (const w of D.walls) M.walls.push(w);
+  for (let tm = 0; tm < 4; tm++) M.spawn[tm] = D.spawns[tm].map(s => ({ x: s.x, z: s.z, yaw: s.yaw }));
+  HOT.length = 0; for (const h of D.hot) HOT.push(h);
+  navResize(D.half); navBuild();
+}
 function buildMap() {
+  if (MX.district) return buildDistrict();
   /* se aparta la arena original (mapa 1) y los blancos: aquí los rivales son los bots */
   for (const o of OBST) { o.m.visible = false; const i = boxes.indexOf(o.bx); if (i >= 0) boxes.splice(i, 1); }
   for (const p of props.slice()) { scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); }

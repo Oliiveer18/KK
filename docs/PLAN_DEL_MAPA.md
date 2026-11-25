@@ -35,7 +35,7 @@ Cubre la Entrega 6 del plan («distrito completo», ~1 km²) y lo que hay que co
 ## 3. Cuándo (en tandas de trabajo; 1 tanda ≈ 1 sesión)
 | Hito | Qué se podrá probar | Tandas | Depende de |
 |---|---|---|---|
-| M1 · Motor del mapa | Generador por datos, suelos, calles con marcas, aceras, raíles, techo y paredes transparentes, un sector de 250×250 con 3 edificios; tests y capturas | 1–2 | — |
+| M1 · Motor del mapa (**hecho en la rama `claude/mapa-m1`**) | Generador por datos, suelos, calles con marcas, aceras, raíles, techo y paredes transparentes, un sector de 250×250 con 3 edificios; tests y capturas | 1–2 | — |
 | M2 · Cuatro sectores (500×500) | Navegación y carga por sectores, zombis y horda por sectores, tienda y gasolinera con interior, entrada «Campaña · distrito» en el menú | 2 | M1 |
 | Entrega 2 · Refugio de referencia | Un refugio con piezas definitivas, defendible desde dentro, brechas y rutas recalculadas; se replica en los 4 | 2–3 | M1 y los objetos de la otra sesión |
 | M3 · Distrito completo | Los 16 sectores con todos los lugares de la tabla, población de zombis y horda, 4 refugios | 3–4 | M2 y Entrega 2 |
