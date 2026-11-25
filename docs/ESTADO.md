@@ -1,5 +1,7 @@
 # Estado — v0.3.9
 
+- Barra de los bots más pequeña (60 px, vida 4 px, segmentos de escudo 2 px, rombo 5 px) y más separada de la cabeza (punto de anclaje a 2,3 m, baja algo al agacharse). Solo automático.
+
 - HUD: vida y escudo abajo a la izquierda (número de vida primero, escudo al lado); arma, munición, granadas y dash abajo a la derecha. Quitada la chuleta de controles de la pantalla (`#help` oculto por CSS; los controles siguen en `docs/CONTROLES.md`). Solo automático (`tests/barras.py`).
 
 - Barras de vida/escudo rediseñadas (solo visual, mismos colores y reglas): escudo en 5 segmentos inclinados, vida con chaflán, brillo y marcas cada 25, números grandes con icono de escudo, pulso rojo bajo 30 HP, destello al romperse el escudo; barra de bots más pequeña con rombo de equipo y fundido. Código en `mkBar`/`drawBar` de `src/partida.js`; test `tests/barras.py` (capturas en /tmp). Solo automático; sin ver en iPhone.

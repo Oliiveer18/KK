@@ -2462,7 +2462,7 @@ function initBot(e) {
   e.R = { pelvis: mkm(geoBox, T.body, .32, .18, .2), torso: mkm(geoBox, T.body, .42, .5, .25), head: mkm(geoBall, T.limb, .13, .13, .13), visor: mkm(geoBox, T.acc, .17, .05, .1),
     thigh: pair(() => mkm(geoCyl, T.limb, .07, 1, .07)), shin: pair(() => mkm(geoCyl, T.limb, .06, 1, .06)), knee: pair(() => mkm(geoBall, T.limb, .07, .07, .07)), foot: pair(() => mkm(geoBox, T.acc, .12, .07, .27)),
     upper: pair(() => mkm(geoCyl, T.limb, .055, 1, .055)), fore: pair(() => mkm(geoCyl, T.limb, .05, 1, .05)), hand: pair(() => mkm(geoBall, T.acc, .06, .06, .06)), shoulder: pair(() => mkm(geoBall, T.body, .08, .08, .08)) };
-  e.bar = mkBar(84, 6); e.bar.el.style.display = 'none'; e.ring = new THREE.Mesh(RING_G, RING[e.team]); e.ring.rotation.x = -Math.PI / 2; e.ring.visible = false; scene.add(e.ring);
+  e.bar = mkBar(60, 4); e.bar.el.style.display = 'none'; e.ring = new THREE.Mesh(RING_G, RING[e.team]); e.ring.rotation.x = -Math.PI / 2; e.ring.visible = false; scene.add(e.ring);
   e.flash = new THREE.Mesh(flashMesh.geometry, flashMesh.material); e.flash.visible = false; scene.add(e.flash);
   Object.assign(e, { gun: null, w: WP[0], wi: 0, ammo: 0, reloadT: -1, rp: 0, fireCd: 0, pause: 0, burst: 0, spread: 0, kick: 0, flashT: 0, gCount: 3, sCount: 2, gReg: 0, sReg: 0, gCd: rr(5, 12), sCd: 8, wantThrow: null, throwT: 0,
     st: 'push', goal: null, path: null, pi: 0, needPath: false, pathT: -9, thinkT: rnd() * .12, tgt: null, vis: false, canShoot: false, dT: 99, seenT: -99, reactT: 0, leadK: 1, ls: { x: 0, z: 0 }, err: 0, errT: 0,
@@ -2803,10 +2803,10 @@ function mkBar(w, h, num) {                                                     
     b.shT = mk('font:700 13px/1 system-ui,sans-serif;color:#5ac8ff;display:flex;gap:4px;align-items:center;text-shadow:0 1px 4px #000', top);
     b.shT.innerHTML = '<svg viewBox="0 0 12 12" width="12" height="12" style="fill:#5ac8ff"><path d="M6 0l5 2v4c0 3-2.2 4.8-5 6C3.2 10.8 1 9 1 6V2z"/></svg><span></span>';
     b.shN = b.shT.lastChild;
-  } else b.pip = mk('width:6px;height:6px;margin:0 auto 3px;transform:rotate(45deg);box-shadow:0 0 0 1px #000a;background:#888', el);
+  } else b.pip = mk('width:5px;height:5px;margin:0 auto 3px;transform:rotate(45deg);box-shadow:0 0 0 1px #000a;background:#888', el);
   b.sRow = mk('display:flex;gap:' + (num ? 3 : 2) + 'px;margin-bottom:' + (num ? 3 : 2) + 'px', el);
   for (let k = 0; k < SEGN; k++) {
-    const sp = mk('flex:1;height:' + (num ? 5 : 3) + 'px;transform:skewX(-22deg);background:#0b0f18b8;box-shadow:inset 0 0 0 1px #ffffff1a;position:relative;overflow:hidden', b.sRow);
+    const sp = mk('flex:1;height:' + (num ? 5 : 2) + 'px;transform:skewX(-22deg);background:#0b0f18b8;box-shadow:inset 0 0 0 1px #ffffff1a;position:relative;overflow:hidden', b.sRow);
     const c = mk('position:absolute;inset:0;background:#ff9440;transform-origin:0 50%', sp), f = mk('position:absolute;inset:0;background:linear-gradient(#9be4ff,#3aa9e6);transform-origin:0 50%', sp);
     b.segs.push({ c, f });
   }
@@ -2919,7 +2919,7 @@ MX.update = dt => {
     e.root.visible = near && !hid && (!e.dead || e.root.position.y > -.55); e.ring.visible = e.ring.visible && near && !hid;
     if (!e.dead && e.root.visible) poseBot(e, dt);
     if (!e.dead && e.root.visible && M.t - (e.bShow || -99) < 4) {                  // barra sobre la cabeza: solo tras recibir daño
-      drawBar(e.bar, e, dt); _kp.set(e.p.x, 2.0, e.p.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight);
+      drawBar(e.bar, e, dt); _kp.set(e.p.x, 2.3 - e.crouch * .25, e.p.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight);
     } else e.bar.el.style.display = 'none';
     if (e.team === 1 && !e.dead) { e.tgp.g.visible = e.root.visible; MX.foes.push(e.tgp); }
   }
