@@ -1,5 +1,7 @@
 # Estado — v0.3.9
 
+- Sonido de impacto en personajes (mapa 3): quitado el golpe metálico (`IMP_target`) cuando una bala da a un jugador o bot; ahora solo suena el disparo. Preparado el «hit» del jugador: `HIT_marker` al entrar una bala suya en un rival y `HIT_kill` al matar (con respaldo a `HIT_marker`); **sin muestras todavía → silencio** hasta que el usuario genere los WAV con ElevenLabs. Test `tests/hit_sonido.py`. Solo automático.
+
 - Barra de los bots más pequeña (60 px, vida 4 px, segmentos de escudo 2 px, rombo 5 px) y más separada de la cabeza (punto de anclaje a 2,3 m, baja algo al agacharse). Solo automático.
 
 - HUD: vida y escudo abajo a la izquierda (número de vida primero, escudo al lado); arma, munición, granadas y dash abajo a la derecha. Quitada la chuleta de controles de la pantalla (`#help` oculto por CSS; los controles siguen en `docs/CONTROLES.md`). Solo automático (`tests/barras.py`).

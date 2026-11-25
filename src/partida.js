@@ -516,8 +516,9 @@ function regen(e, dt) {                                                         
   if (M.t - e.lastHurt <= SH_DELAY) return;
   if (e.sh < SH) e.sh = Math.min(SH, e.sh + SH_RATE * dt); else if (e.hp < HP) { e.hp = Math.min(HP, e.hp + HP_RATE * dt); e.tgp.hp = e.hp; }
 }
-MX.hit = (e, dmg, from, dx, dz) => {
+MX.hit = (e, dmg, from, dx, dz, w) => {
   if (e.dead || e.inv > 0 || M.over || dmg <= 0) return;
+  if (w && from && from.isPlayer && !e.isPlayer && e.team !== from.team) playSnd('HIT_marker', { vol: 1 });   // «hit» de confirmación: solo cuando una bala del jugador entra en un rival (sin muestra = silencio)
   const tot = dmg; let rest = dmg;
   if (e.sh > 0) { const a = Math.min(e.sh, rest); e.sh -= a; rest -= a; e.bS.flash = 1; }                  // el escudo absorbe primero; el sobrante pasa a la vida en el mismo golpe
   if (rest > 0) { e.hp -= rest; e.bH.flash = 1; }
@@ -529,7 +530,7 @@ MX.hit = (e, dmg, from, dx, dz) => {
 function kill(v, killer, dx, dz) {
   if (!killer && v.lastAtt && M.t - v.lastAttT < 8 && v.lastAtt.team !== v.team) killer = v.lastAtt;     // fuego o explosión sin autor claro: cuenta quien le hirió hace poco
   v.dead = true; v.deaths++; v.hp = 0; v.tgp.hp = 0; v.respT = RESPAWN + (v.isPlayer ? 0 : rnd() * .8); v.inv = 0;
-  if (killer && killer !== v && killer.team !== v.team) { killer.kills++; M.score[killer.team]++; }          // bajas a compañeros y suicidios no puntúan
+  if (killer && killer !== v && killer.team !== v.team) { killer.kills++; M.score[killer.team]++; if (killer.isPlayer) playSnd('HIT_kill') || playSnd('HIT_marker'); }          // bajas a compañeros y suicidios no puntúan
   for (let i = 0; i < 8; i++) spawn('red', _kp.set(v.p.x, .9, v.p.z), _kv.set((Math.random() - .5) * 4 + dx * 2, 1 + Math.random() * 3, (Math.random() - .5) * 4 + dz * 2), .5, .04, .04, .04, true, 8);
   if (v.isPlayer) { P.dead = true; playerCorpse(dx, dz); for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(200, .8, .6); }
   else { bake(v, dx, dz); v.ring.visible = false; v.flash.visible = false; v.wantThrow = null; }

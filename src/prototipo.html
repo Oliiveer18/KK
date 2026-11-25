@@ -710,9 +710,10 @@ function spawnBullet(x, y, z, dx, dz, w, own) {
   b.on = true; b.ox = x; b.oz = z; b.y = y; b.dx = dx; b.dz = dz; b.d = 0; b.age = 0; b.w = w; b.v = w.bal.v * (1 + (Math.random() - .5) * .05); b.dm = w.dmg; b.own = own || null; b.cover = own ? own.cover : P.cover; b.passed.clear(); b.pel = w.pellets > 1;
   const th = b.pel ? .01 : w.dmg >= 80 ? .026 : .018; b.m.scale.set(th, 1, th); b.m.position.set(x, y, z); b.m.visible = true;
 }
-function bulletEnd(b, t, red) {                                                      // chispas + sonido en el punto de impacto contra pared o blanco
+function bulletEnd(b, t, red, quiet) {                                                      // chispas + sonido en el punto de impacto contra pared o blanco
   tmp.set(b.ox + b.dx * t, b.y, b.oz + b.dz * t); const hx = tmp.x, hz = tmp.z;
-  playAt(red ? 'IMP_target' : 'IMP_block', hx, hz); if (!red && Math.random() < .15) later(.06, () => playAt('IMP_ricochet', hx, hz, { vol: .7 }));
+  if (!quiet) playAt(red ? 'IMP_target' : 'IMP_block', hx, hz);   // quiet = impacto en un personaje de la partida: sin golpe metálico (solo suena el disparo; el «hit» del jugador va en MX.hit)
+  if (!red && Math.random() < .15) later(.06, () => playAt('IMP_ricochet', hx, hz, { vol: .7 }));
   for (let i = 0; i < 6; i++) spawn(red ? 'red' : 'spark', tmp, tmp2.set((Math.random() - .5) * 5 - b.dx * 2, Math.random() * 4, (Math.random() - .5) * 5 - b.dz * 2), .35, .04, .04, .04, true, 8);
 }
 function updateBullets(dt) {
@@ -727,7 +728,7 @@ function updateBullets(dt) {
     let ended = false;
     for (const h of L) {
       const fall = bFall(b.w, h.t);
-      if (h.ent) { b.d = h.t; bulletEnd(b, h.t, true); MX.hit(h.ent, b.dm * fall, b.own || MX.pl, b.dx, b.dz, b.w); ended = true; break; }
+      if (h.ent) { b.d = h.t; bulletEnd(b, h.t, true, true); MX.hit(h.ent, b.dm * fall, b.own || MX.pl, b.dx, b.dz, b.w); ended = true; break; }
       if (h.tg) { const dm = b.dm * fall; b.d = h.t; bulletEnd(b, h.t, true); h.tg.hp -= dm; h.tg.flash = 1; if (h.tg.hp <= 0) h.tg.dead = 0; popDmg(h.tg, dm, h.t, fall, b.age); ended = true; break; }
       if (!h.bx.prop) { b.d = h.t; bulletEnd(b, h.t, false); ended = true; break; }
       const pr = h.bx.prop;
