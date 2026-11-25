@@ -26,3 +26,12 @@ Dibujo instanciado: 20 mallas para todos los zombis (pecho, abdomen, pelvis, hom
 
 ## Pendiente / a probar jugando
 Equilibrio (vida, daño, velocidades, cuántos zombis, la horda), infestación de refugios, puertas y brechas, simulación simplificada de grupos lejanos (LOD), pesado de más objetos, sonidos.
+
+## Obstáculos y movimiento (v0.3.10)
+- Rodeo inmediato: antes de avanzar miran 1,5 m por delante en la malla de navegación y, si hay obstáculo, giran hacia el lado libre (cada zombi tiene su lado). Si el objetivo está tapado (`MX.lineFree`), piden ruta A* ya, sin esperar a atascarse.
+- Atasco detectado en 0,6 s (antes 1,2 s). La animación de andar sigue el avance real (`z.mv`): ya no caminan quietos.
+- Cola de rutas justa: los que se quedan sin turno de A* acumulan prioridad (`z.starve`) y pasan antes.
+- Sin ruta posible: golpean lo que tengan pegado (14 de daño, el pesado 45).
+- La malla de navegación se rehace al instante con cualquier evento de `OBJ.on` (abrir, cerrar, romper, colocar), no sólo cada 0,5 s.
+- Corredor flanquea al acercarse; gritón se frena a 9 m; al perder al objetivo van a donde iba, no a donde estaba.
+- Test: `tests/zombis_obstaculos.py` (muro de 18 m, 40 zombis, paso que se abre). Sin probar: flanqueo, gritón y golpeo sin ruta (no tienen test propio), nada en iPhone.

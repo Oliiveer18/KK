@@ -123,12 +123,22 @@ function alertNear(z, tgt) {
 
 
 /* ---- IA ---- */
-function pathTo(z, x, zz) { if (astar <= 0) return false; astar--; z.path = MX.findPath(z.p.x, z.p.z, x, zz); z.pi = 0; z.pathT = M.t; return !!z.path; }
+let extraA = 0;
+function pathFail(z) { z.noPath = M.t; }
+function pathTo(z, x, zz) { if (astar > 0) astar--; else if (z.starve >= 3 && extraA < 3) extraA++; else { z.starve = (z.starve || 0) + 1; return false; } z.starve = 0; z.path = MX.findPath(z.p.x, z.p.z, x, zz); z.pi = 0; z.pathT = M.t; if (!z.path) pathFail(z); return !!z.path; }
 function steer(z, tx, tz, spd, dt) {                                                // avanza hacia un punto (o por su camino); devuelve la distancia que queda
   let gx = tx, gz = tz;
   if (z.path && z.pi < z.path.length) { const w = z.path[z.pi]; if (Math.hypot(w.x - z.p.x, w.z - z.p.z) < .9) z.pi++; if (z.pi < z.path.length) { gx = z.path[z.pi].x; gz = z.path[z.pi].z; } else z.path = null; }
-  const dx = gx - z.p.x, dz = gz - z.p.z, d = Math.hypot(dx, dz) || 1;
-  z.v.x += (dx / d * spd - z.v.x) * Math.min(1, dt * 5); z.v.z += (dz / d * spd - z.v.z) * Math.min(1, dt * 5);
+  let dx = gx - z.p.x, dz = gz - z.p.z; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+  if (MX.navAt) {                                                                   // mira por delante y rodea el obstáculo sin esperar a atascarse
+    const L = Math.min(1.5, d);
+    if (!MX.navAt(z.p.x + dx * L, z.p.z + dz * L) || !MX.navAt(z.p.x + dx * L * .5, z.p.z + dz * L * .5)) {
+      const sgn = z.side || (z.side = rnd() < .5 ? 1 : -1); 
+      rodeo: for (const a of [.6, 1.2, 1.9, 2.5]) for (const sg of [sgn, -sgn]) { const c = Math.cos(a * sg), n = Math.sin(a * sg), rx = dx * c - dz * n, rz = dx * n + dz * c; if (MX.navAt(z.p.x + rx * 1.5, z.p.z + rz * 1.5) && MX.navAt(z.p.x + rx * .7, z.p.z + rz * .7)) { dx = rx; dz = rz; break rodeo; } }
+      if (!z.path && d > 1.5) z.needPath = true;                                   // línea tapada: ruta ya, no tras 1,2 s quieto
+    }
+  }
+  z.v.x += (dx * spd - z.v.x) * Math.min(1, dt * 5); z.v.z += (dz * spd - z.v.z) * Math.min(1, dt * 5);
   return Math.hypot(tx - z.p.x, tz - z.p.z);
 }
 function pickTarget(z) {
@@ -145,10 +155,11 @@ function stepZ(z, dt) {
     if (t && z.st !== 'chase' && z.st !== 'attack') { z.tgt = t; z.st = 'chase'; z.tgtT = M.t; alertNear(z, t); playAt('ZOM_alert', z.p.x, z.p.z, { gap: 400 }); }
     else if (t && z.tgt !== t && (!z.tgt || z.tgt.dead || Math.hypot(t.p.x - z.p.x, t.p.z - z.p.z) < Math.hypot(z.tgt.p.x - z.p.x, z.tgt.p.z - z.p.z) - 2)) z.tgt = t;
     if (t) z.tgtT = M.t;
+    if ((z.st === 'chase') && z.tgt && !z.path && MX.lineFree && !MX.lineFree(z.p, z.tgt.p) && Math.hypot(z.tgt.p.x - z.p.x, z.tgt.p.z - z.p.z) > 3) z.needPath = true;   // objetivo tras un obstáculo: ruta ya
   }
   let spd = 0;
   if (z.st === 'chase' || z.st === 'attack') {
-    const t = z.tgt; if (!t || t.dead && !t.dwn || M.t - z.tgtT > 5 || Math.hypot(t.p.x - z.p.x, t.p.z - z.p.z) > 30) { z.st = 'invest'; z.hx = t ? t.p.x : z.p.x; z.hz = t ? t.p.z : z.p.z; z.tgt = null; z.path = null; z.wait = 0; return; }
+    const t = z.tgt; if (!t || t.dead && !t.dwn || M.t - z.tgtT > 5 || Math.hypot(t.p.x - z.p.x, t.p.z - z.p.z) > 30) { z.st = 'invest'; z.hx = t ? t.p.x + (t.v ? clamp(t.v.x, -6, 6) * 1.5 : 0) : z.p.x; z.hz = t ? t.p.z + (t.v ? clamp(t.v.z, -6, 6) * 1.5 : 0) : z.p.z; z.tgt = null; z.path = null; z.wait = 0; return; }
     const dx = t.p.x - z.p.x, dz = t.p.z - z.p.z, d = Math.hypot(dx, dz); z.yaw = Math.atan2(dx, dz);
     z.atkCd -= dt;
     if (d < z.r + .75) {                                                            // a distancia de golpe
@@ -157,14 +168,18 @@ function stepZ(z, dt) {
       if (z.atk >= 0) { z.atk += dt / .6; if (z.atk >= .5 && !z.hitDone) { z.hitDone = true; if (d < z.r + 1.0) { MX.hit(t, T.dmg, null, dx, dz, null, 'ZOM'); playAt('ZOM_attack', z.p.x, z.p.z, { gap: 150 }); } } if (z.atk >= 1) { z.atk = -1; z.hitDone = false; } }
       if (z.type === 'brute') bruteSmash(z);
     } else {
+      if (z.noPath !== undefined && M.t - z.noPath < 6 && (z.stk || 0) >= 2) bruteSmash(z, 14);                 // sin ruta y pegado a algo: lo golpea hasta abrir paso
       z.st = 'chase'; z.atk = -1; z.hitDone = false;
-      if (z.needPath && d > 2.5 && pathTo(z, t.p.x, t.p.z)) z.needPath = false;
-      steer(z, t.p.x, t.p.z, T.chase, dt); spd = T.chase;
+      if (z.needPath && d > 1.5 && pathTo(z, t.p.x, t.p.z)) z.needPath = false;
+      let gx = t.p.x, gz = t.p.z, sp = T.chase;
+      if (z.type === 'runner' && d > 3 && d < 11) { const k = (z.seed > .5 ? 1 : -1) * Math.min(2.2, d * .3); gx += dz / d * k; gz -= dx / d * k; }                 // el corredor flanquea
+      if (z.type === 'screamer' && d < 9 && d > 3) sp = T.chase * .25;                                                                               // el gritón no se lanza: se queda atrás gritando
+      steer(z, gx, gz, sp, dt); spd = sp;
       if (z.type === 'screamer' && d > 4 && d < 20) { z.screamCd -= dt; if (z.screamCd <= 0 && z.scream < 0) { z.scream = 0; z.screamCd = rr(7, 12); } }
     }
   } else if (z.st === 'invest') {
     const d = steer(z, z.hx, z.hz, T.chase * .55, dt); spd = T.chase * .55;
-    if (z.needPath && d > 3 && pathTo(z, z.hx, z.hz)) z.needPath = false;
+    if (z.needPath && d > 2 && pathTo(z, z.hx, z.hz)) z.needPath = false;
     if (d < 1.6) { z.wait += dt; z.v.x *= .8; z.v.z *= .8; spd = 0; if (z.wait > 3) { z.st = z.horde ? 'wander' : (rnd() < .5 ? 'wander' : 'dorm'); z.wait = 0; z.path = null; } }
   } else if (z.st === 'wander') {
     if (z.horde) { const h = z.horde, gx = (h.curX === undefined ? h.tx : h.curX) + Math.sin(z.seed * 40) * 2.8, gz = (h.curZ === undefined ? h.tz : h.curZ) + Math.cos(z.seed * 40) * 2.8, far = d0(z, gx, gz) > 7;
@@ -177,10 +192,10 @@ function stepZ(z, dt) {
   else if (z.st === 'chase') z.yaw = Math.atan2((z.tgt ? z.tgt.p.x : z.p.x + z.v.x) - z.p.x, (z.tgt ? z.tgt.p.z : z.p.z + z.v.z) - z.p.z);
 }
 const d0 = (z, x, zz) => Math.hypot(x - z.p.x, zz - z.p.z);
-function bruteSmash(z) {                                                            // el pesado revienta lo que tenga delante (cajas, vallas, barriles)
+function bruteSmash(z, dmg) {                                                            // el pesado revienta lo que tenga delante (cajas, vallas, barriles)
   if (z.smashT !== undefined && M.t - z.smashT < 1.2) return; z.smashT = M.t;
   const fx = Math.sin(z.yaw), fz = Math.cos(z.yaw);
-  for (const p of props) { if (p.dead || !p.type) continue; const d = Math.hypot(p.x - (z.p.x + fx), p.z - (z.p.z + fz)); if (d < 1.4 + Math.max(p.hx, p.hz)) { damageProp(p, 45, p.x, p.z, fx, fz, 'melee'); break; } }
+  for (const p of props) { if (p.dead || !p.type) continue; const d = Math.hypot(p.x - (z.p.x + fx), p.z - (z.p.z + fz)); if (d < 1.4 + Math.max(p.hx, p.hz)) { damageProp(p, dmg || 45, p.x, p.z, fx, fz, 'melee'); break; } }
 }
 
 /* ---- movimiento, separación y pose ---- */
@@ -188,11 +203,13 @@ function moveZ(z, dt) {
   if (z.st === 'dead') return;
   const k = gk(z.p.x, z.p.z); let sx = 0, sz = 0;
   for (let ox = -1; ox <= 1; ox++) for (let oz = -1; oz <= 1; oz++) { const a = grid.get(gk(z.p.x + ox * 1.6, z.p.z + oz * 1.6)); if (!a) continue; for (const o of a) { if (o === z) continue; const dx = z.p.x - o.p.x, dz = z.p.z - o.p.z, d = Math.hypot(dx, dz), m = (z.r + o.r) * .9; if (d < m && d > 1e-3) { sx += dx / d * (m - d); sz += dz / d * (m - d); } } }
+  const ox0 = z.p.x, oz0 = z.p.z;
   z.p.x += (z.v.x + sx * 2.5) * dt; z.p.z += (z.v.z + sz * 2.5) * dt; collide(z.p, z.r * .85, 2.6);
-  z.stuckT += dt; if (z.stuckT > .6) { const mv = Math.hypot(z.p.x - z.sx, z.p.z - z.sz); z.stk = Math.hypot(z.v.x, z.v.z) > .5 && mv < .15 ? (z.stk || 0) + 1 : 0; z.sx = z.p.x; z.sz = z.p.z; z.stuckT = 0; if (z.stk >= 2 && z.st !== 'dorm') { z.needPath = true; z.path = null; } }
+  z.mv = Math.hypot(z.p.x - ox0, z.p.z - oz0) / Math.max(dt, 1e-3);
+  z.stuckT += dt; if (z.stuckT > .3) { const mv = Math.hypot(z.p.x - z.sx, z.p.z - z.sz); z.stk = Math.hypot(z.v.x, z.v.z) > .5 && mv < .08 ? (z.stk || 0) + 1 : 0; z.sx = z.p.x; z.sz = z.p.z; z.stuckT = 0; if (z.stk >= 2 && z.st !== 'dorm') { z.needPath = true; z.path = null; } }
 }
 function pose(z, dt) {
-  const T = TY[z.type], s = z.sc, sp = Math.hypot(z.v.x, z.v.z), lerp = (a, b, k) => a + (b - a) * k;
+  const T = TY[z.type], s = z.sc, sp = Math.min(Math.hypot(z.v.x, z.v.z), (z.mv === undefined ? 9 : z.mv) * 1.15 + .15), lerp = (a, b, k) => a + (b - a) * k;
   z.gaitSpd += (sp - z.gaitSpd) * Math.min(1, dt * 6); z.ph += dt * (2.2 + z.gaitSpd * (z.type === 'runner' ? 2.4 : 1.9));
   const alive = z.st !== 'dead', dorm = z.st === 'dorm', amp = clamp(z.gaitSpd / (T.chase * .8), 0, 1), ph = z.ph, atk = z.atk >= 0, scr = z.scream >= 0;
   z.twT -= dt; if (z.twT <= 0 && alive) { z.twT = rr(2.5, 7); z.tw0 = .35; } z.tw0 = Math.max(0, z.tw0 - dt);          // espasmo ocasional
@@ -325,7 +342,7 @@ MX.zom.place = () => {                                                          
   for (const { z, b, w } of barList) { _bp.set(z.hdx, z.hdy + z.hdr + BAR_GAP, z.hdz).project(camera); b.el.style.display = _bp.z > 1 ? 'none' : 'block'; b.el.style.transform = 'translate(' + ((_bp.x * .5 + .5) * innerWidth - w / 2) + 'px,' + ((-_bp.y * .5 + .5) * innerHeight) + 'px) translateY(-100%)'; }
 };
 MX.zom.update = dt => {
-  if (!MX.campaign || !M.built) return; dt = Math.min(dt, .05); zt += dt; astar = 3;
+  if (!MX.campaign || !M.built) return; dt = Math.min(dt, .05); zt += dt; astar = 3; extraA = 0;
   popT -= dt; if (popT <= 0) { popT = 3; if (!MX.zom.noRestock) restock(); }
   for (const h of HORDES) stepHorde(h, dt);
   grid.clear(); for (const z of Z) { if (z.dead) continue; const k = gk(z.p.x, z.p.z); let a = grid.get(k); if (!a) { a = []; grid.set(k, a); } a.push(z); }

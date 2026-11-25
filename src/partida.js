@@ -156,6 +156,7 @@ function navBuild() {
     }
   }
 }
+if (window.OBJ && OBJ.on) OBJ.on.push(() => { M.navT = 0; });                    // puertas, brechas y objetos nuevos: la malla se rehace en el siguiente fotograma
 const navAt = (x, z) => { const ix = Math.floor((x - NV.ox) / NV.cs), iz = Math.floor((z - NV.oz) / NV.cs); return ix < 0 || iz < 0 || ix >= NV.w || iz >= NV.h ? false : !NV.bl[iz * NV.w + ix]; };
 const cellOf = (x, z) => { const ix = clamp(Math.floor((x - NV.ox) / NV.cs), 0, NV.w - 1), iz = clamp(Math.floor((z - NV.oz) / NV.cs), 0, NV.h - 1); return iz * NV.w + ix; };
 function nearestFree(c) {
@@ -202,7 +203,7 @@ function findPath(sx, sz, gx, gz) {
   while (i < pts.length - 1) { let j = pts.length - 1; while (j > i + 1 && !lineFree(pts[i], pts[j])) j--; out.push(pts[j]); i = j; }
   return out.length ? out : [{ x: gx, z: gz }];
 }
-MX.findPath = findPath; MX.HOT = HOT;
+MX.findPath = findPath; MX.navAt = navAt; MX.lineFree = lineFree; MX.HOT = HOT;
 
 /* ---- visibilidad: línea libre entre dos puntos (ignorando, si se pide, los objetos bajos: se ve por encima de ellos) y humo ---- */
 function segClear(ax, az, bx, bz, ign1, ign2, lowIgnore) {
