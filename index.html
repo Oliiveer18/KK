@@ -2582,7 +2582,7 @@ function initBot(e) {
   e.R = { pelvis: mkm(geoBox, T.body, .32, .18, .2), torso: mkm(geoBox, T.body, .42, .5, .25), head: mkm(geoBall, T.limb, .13, .13, .13), visor: mkm(geoBox, T.acc, .17, .05, .1),
     thigh: pair(() => mkm(geoCyl, T.limb, .07, 1, .07)), shin: pair(() => mkm(geoCyl, T.limb, .06, 1, .06)), knee: pair(() => mkm(geoBall, T.limb, .07, .07, .07)), foot: pair(() => mkm(geoBox, T.acc, .12, .07, .27)),
     upper: pair(() => mkm(geoCyl, T.limb, .055, 1, .055)), fore: pair(() => mkm(geoCyl, T.limb, .05, 1, .05)), hand: pair(() => mkm(geoBall, T.acc, .06, .06, .06)), shoulder: pair(() => mkm(geoBall, T.body, .08, .08, .08)) };
-  dress(e.R, e.team, { skin: (e.id.charCodeAt(1) + e.team * 2) % 4 });
+  e.skin = (e.id.charCodeAt(1) + e.team * 2) % 4; dress(e.R, e.team, { skin: e.skin });
   e.bar = mkBar(60, 4); e.bar.el.style.display = 'none'; e.ring = new THREE.Mesh(RING_G, RING[e.team]); e.ring.rotation.x = -Math.PI / 2; e.ring.visible = false; scene.add(e.ring);
   e.flash = new THREE.Mesh(flashMesh.geometry, flashMesh.material); e.flash.visible = false; scene.add(e.flash);
   Object.assign(e, { gun: null, w: WP[0], wi: 0, ammo: 0, reloadT: -1, rp: 0, fireCd: 0, pause: 0, burst: 0, spread: 0, kick: 0, flashT: 0, gCount: 3, sCount: 2, gReg: 0, sReg: 0, gCd: rr(5, 12), sCd: 8, wantThrow: null, throwT: 0,
@@ -2889,7 +2889,7 @@ function pickSpawn(team) {
   return c[0].s;
 }
 function respawn(e) {
-  const s = pickSpawn(e.team); e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = SH; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e);
+  const s = pickSpawn(e.team); e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = SH; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); syncKit(e);
   if (e.isPlayer) return respawnPlayer(e);
   unbake(e); setWeapon(e, pickWeaponIdx()); e.gCount = 3; e.sCount = 2; e.st = 'push'; e.goal = null; e.path = null; e.tgt = null; e.vis = false; e.reactT = 0; e.canShoot = false; e.wantThrow = null; e.holdT = 0;
   e.crouch = e.crouchT = 0; e.kick = 0; e.fireCd = rr(.2, .6); e.pause = 0; e.burst = 0; e.gCd = rr(4, 10); e.sCd = 6; e.walk = 0; e.stuckN = 0; e.nudge = 0; e.py = 1.1; e.thinkT = rnd() * .12; e.ring.visible = true; e.root.visible = true;
@@ -2915,6 +2915,10 @@ function regen(e, dt) {                                                         
   if (e.sh < SH) e.sh = Math.min(SH, e.sh + SH_RATE * dt); else if (e.hp < HP) { e.hp = Math.min(HP, e.hp + HP_RATE * dt); e.tgp.hp = e.hp; }
 }
 /* ---- campaña: abatido y reanimación (reglas del diseño: una reanimación por vida, kit de un solo uso, un solo rescatador por caído, el daño al rescatador lo interrumpe) ---- */
+function syncKit(e) {                                                                // la cruz roja de la mochila se ve mientras se lleva un kit (solo campaña)
+  const want = !!(MX.campaign && e.kits > 0); if (e.kitShown === want) return; e.kitShown = want;
+  dress(e.isPlayer ? rig : e.R, e.team, { skin: e.isPlayer ? 0 : e.skin, kit: want });
+}
 const canDown = e => MX.campaign && !e.revived && !M.over && M.ents.some(o => o !== e && o.team === e.team && !o.dead && !o.dwn);   // sin aliados en pie no hay a quien esperar
 function endRescueOn(t) { if (t.rescuer) { if (t.rescuer.rt === t) t.rescuer.rt = null; t.rescuer = null; } t.revP = 0; MX.reviveFx(t, null); }
 function cancelRescue(by) { const t = by.rt; if (t) { if (t.rescuer === by) { t.rescuer = null; t.revP = 0; MX.reviveFx(t, null); } by.rt = null; } }
@@ -2925,7 +2929,7 @@ function goDown(e, dx, dz) {
   dwnFxMake(e);
 }
 function revive(t, by) {                                                           // completada: gasta el kit, vuelve con vida parcial y no puede volver a ser reanimado en esta vida
-  by.kits--; if (by.rt === t) by.rt = null;
+  by.kits--; syncKit(by); if (by.rt === t) by.rt = null;
   t.dwn = false; t.revived = true; t.rescuer = null; t.revP = 0; t.hp = REV_HP; t.sh = 0; t.bH.fill = t.bH.chunk = REV_HP; t.bS.fill = t.bS.chunk = 0; t.tgp.hp = REV_HP; t.inv = .8; t.lastHurt = M.t;
   dwnFxClear(t);
   if (t.isPlayer) { if (corpseP) { scene.remove(corpseP); corpseP = null; } for (const m of RL) m.visible = true; weapon.visible = true; P.vel.set(0, 0, 0); }
