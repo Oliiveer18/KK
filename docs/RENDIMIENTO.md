@@ -15,3 +15,5 @@ Lógica 4–5 ms/fotograma; dibujo CPU 4–9 ms; 80–611 llamadas de dibujo seg
 3. Congelar matrices (`matrixAutoUpdate=false`) de lo estático: `updateMatrixWorld` es ~20 % de la lógica.
 4. LOD y carga por sectores (M2) para el distrito grande.
 5. Reutilizar (pool) las piezas al destruir muchos objetos a la vez (25 a la vez: pico de 65 ms).
+
+- Kill feed (v0.3.14): 5 filas reutilizadas y animadas con la Web Animations API (sólo opacity/transform en capa propia) en vez de crear/destruir DOM y escribir estilos cada fotograma; las sombras difuminadas ya no se repintan por fotograma.

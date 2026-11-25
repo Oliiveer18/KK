@@ -790,22 +790,32 @@ const PB = mkBar(210, 12, true); PB.num = true; PB.el.className = 'mxpb'; PB.el.
 /* ---- kill feed (arriba a la derecha, bajo los FPS): quién mató a quién, con arma; las tuyas llevan borde dorado y las que te matan, rojo. Se desvanece solo y no recibe toques ---- */
 { const st = document.createElement('style'); st.textContent = '#mxFeed{right:var(--r);top:calc(var(--t) + 52px)}@media (orientation:landscape) and (max-height:520px){#mxFeed{top:calc(var(--t) + 30px) !important;font-size:11px !important}}'; document.head.appendChild(st); }
 const feedEl = document.createElement('div'); feedEl.id = 'mxFeed'; feedEl.style.cssText = 'position:absolute;display:flex;flex-direction:column;align-items:flex-end;gap:3px;font:700 12px system-ui,sans-serif;pointer-events:none;opacity:.96'; hud.appendChild(feedEl);
-const FEED = [], FEED_MAX = 5, FEED_T = 5;
+/* Filas reutilizadas (sin crear ni destruir DOM por baja) y animadas por el compositor con la Web Animations API (sólo opacity/transform en una capa propia):
+   el navegador no vuelve a pintar las sombras difuminadas de cada fila en cada fotograma, que es lo que bajaba los FPS cuando caían muchas bajas seguidas. */
+const FEED_MAX = 5, FEED_T = 5000, FEED = [], FEED_POOL = [];
+const FEED_KF = [{ opacity: 0, transform: 'translateX(24px)', offset: 0 }, { opacity: 1, transform: 'none', offset: .03 }, { opacity: 1, transform: 'none', offset: .88 }, { opacity: 0, transform: 'none', offset: 1 }];
+for (let i = 0; i < FEED_MAX; i++) {
+  const d = document.createElement('div'), k = document.createElement('span'), t = document.createElement('i'), v = document.createElement('span');
+  d.style.cssText = 'display:none;align-items:center;gap:7px;padding:3px 9px;border-radius:6px;background:#0c1018bd;white-space:nowrap;font-variant-numeric:tabular-nums;will-change:transform,opacity;backface-visibility:hidden';
+  t.style.cssText = 'font-style:normal;font-weight:600;font-size:10px;letter-spacing:.06em;padding:1px 5px;border-radius:4px;background:#ffffff1c;opacity:.8';
+  d.append(k, t, v); feedEl.appendChild(d); FEED_POOL.push({ d, k, t, v, a: null });
+}
+function feedHide(r) { if (r.a) { r.a.onfinish = null; r.a.cancel(); r.a = null; } r.d.style.display = 'none'; const i = FEED.indexOf(r); if (i >= 0) FEED.splice(i, 1); }
 function addFeed(killer, v, src) {
-  const col = e => teamColor(e.team), nm = e => e.isPlayer ? 'TÚ' : e.id, tag = s => '<i style="font-style:normal;font-weight:600;font-size:10px;letter-spacing:.06em;padding:1px 5px;border-radius:4px;background:#ffffff1c;opacity:.8">' + s + '</i>';
-  const d = document.createElement('div'), ring = killer && killer.isPlayer ? '#ffd24acc' : v.isPlayer ? '#ff5a4acc' : '#ffffff14';
-  d.style.cssText = 'display:flex;align-items:center;gap:7px;padding:3px 9px;border-radius:6px;background:#0c1018bd;box-shadow:0 0 0 1px ' + ring + ',0 2px 8px #0008;white-space:nowrap;font-variant-numeric:tabular-nums';
-  d.innerHTML = (killer ? '<span style="color:' + col(killer) + '">' + nm(killer) + '</span>' + tag(src || '✸') : src === 'ZOM' ? '<span style="color:#9fd37a">ZOMBI</span>' : tag('✸')) + '<span style="color:' + col(v) + '">' + nm(v) + '</span>';
-  feedEl.appendChild(d); FEED.push({ d, t: 0 });
-  while (FEED.length > FEED_MAX) feedEl.removeChild(FEED.shift().d);
+  const col = e => teamColor(e.team), nm = e => e.isPlayer ? 'TÚ' : e.id;
+  let r = FEED_POOL.find(x => !FEED.includes(x)); if (!r) { r = FEED[0]; feedHide(r); }                  // sin hueco libre: se reutiliza la fila más antigua
+  const ring = killer && killer.isPlayer ? '#ffd24acc' : v.isPlayer ? '#ff5a4acc' : '#ffffff14';
+  r.d.style.boxShadow = '0 0 0 1px ' + ring + ',0 2px 8px #0008';
+  if (killer) { r.k.style.display = ''; r.k.style.color = col(killer); r.k.textContent = nm(killer); r.t.style.display = ''; r.t.textContent = src || '✸'; }
+  else if (src === 'ZOM') { r.k.style.display = ''; r.k.style.color = '#9fd37a'; r.k.textContent = 'ZOMBI'; r.t.style.display = 'none'; }
+  else { r.k.style.display = 'none'; r.t.style.display = ''; r.t.textContent = '✸'; }
+  r.v.style.color = col(v); r.v.textContent = nm(v);
+  r.d.style.display = 'flex'; feedEl.appendChild(r.d); FEED.push(r);                                  // la más reciente abajo
+  if (r.d.animate) { r.a = r.d.animate(FEED_KF, { duration: FEED_T, easing: 'linear', fill: 'both' }); r.a.onfinish = () => feedHide(r); }
+  else r.to = setTimeout(() => feedHide(r), FEED_T);
 }
-function updFeed(dt) {
-  for (let i = FEED.length - 1; i >= 0; i--) {
-    const f = FEED[i]; f.t += dt; if (f.t >= FEED_T) { feedEl.removeChild(f.d); FEED.splice(i, 1); continue; }
-    f.d.style.opacity = f.t < .15 ? f.t / .15 : f.t > FEED_T - .6 ? (FEED_T - f.t) / .6 : 1; f.d.style.transform = f.t < .15 ? 'translateX(' + (1 - f.t / .15) * 24 + 'px)' : '';
-  }
-}
-function clearFeed() { for (const f of FEED) feedEl.removeChild(f.d); FEED.length = 0; }
+function updFeed() { }
+function clearFeed() { for (const r of FEED.slice()) feedHide(r); }
 /* ---- números de daño: aparecen, suben y se desvanecen; el tamaño crece con el daño y cada uno sale hacia un lado distinto ---- */
 const NUMS = []; let numSide = 1; const _np = new V3();
 function popNum(e, dmg) {
