@@ -39,21 +39,28 @@ with sync_playwright() as p:
     ev('()=>{for(let i=0;i<6;i++)MX.zom.hit(q,60,MX.pl,1,0,WP[MX.WI.F1])}'); chk(ev('()=>q.dead&&q.st==="dead"'), 'varios impactos lo matan')
     # los zombis no puntúan
     chk(ev('()=>MX.M.score.reduce((a,b)=>a+b,0)') == 0 or True, 'los zombis no cuentan en el marcador')
-    # barras de vida: misma colocación en combatientes y zombis (centradas sobre la entidad, base 0,5 m sobre la coronilla, sin rombo en los zombis)
+    # barras de vida: la base de cada barra queda 0,5 m sobre la coronilla REAL (cabeza, no pies) y centrada en ella, en combatientes y en los 4 tipos de zombi, mirando a cualquier lado
     ev(SETUP); run(2)
-    ev('()=>{const a=E.find(x=>x.bot&&x.team===0);a.dead=false;a.inv=0;a.fireCd=1e9;a.p.set(-3,0,0);a.vis=false;window.ca=a;window.zq=Zs("walker",3,0,"dorm");zq.noiseDelay=1e9;zq.yaw=0;P.pos.set(0,0,4);MX.hit(a,5,E[4],1,0,WP[MX.WI.F1]);MX.zom.hit(zq,5,MX.pl,1,0,WP[MX.WI.F1])}')
-    ev('()=>{for(let i=0;i<45;i++){for(const e of E) if(e.bot&&e.team!==0){e.dead=true;e.respT=1e9} ca.v.set(0,0,0);ca.p.set(-3,0,0);update(1/60)}}')
-    r2 = ev('''()=>{const bars=[...document.querySelectorAll('div')].filter(d=>d.style.position==='absolute'&&d.style.display!=='none'&&d.style.opacity!==''&&+d.style.opacity>.5&&d.children.length>=1&&/translate\\(/.test(d.style.transform)&&d.style.willChange.includes('opacity'));
-      const out=[];for(const el of bars){const q=el.getBoundingClientRect();out.push({cx:q.left+q.width/2,bottom:q.bottom,w:q.width,pip:!!el.querySelector('div[style*="rotate(45deg)"]')})}
-      const pr=(x,y,z)=>{const v=new THREE.Vector3(x,y,z).project(camera);return [(v.x*.5+.5)*innerWidth,(-v.y*.5+.5)*innerHeight]};
-      return {bars:out,ca:pr(-3,0,0),zq:pr(3,0,0),caX:pr(ca.p.x,2.3-ca.crouch*.25,ca.p.z)[0],anchorC:pr(ca.p.x,2.3-ca.crouch*.25,ca.p.z)[1],zqX:(()=>{const ht=(.87+.65*Math.cos(zq.st==='dorm'?.66:.5)+.13)*zq.sc;return pr(zq.p.x,ht+.5,zq.p.z)[0]})(),zAnchor:(()=>{const ht=(.87+.65*Math.cos(zq.st==='dorm'?.66:.5)+.13)*zq.sc;return pr(zq.p.x,ht+.5,zq.p.z)[1]})()}}''')
-    print('barras:', r2)
-    chk(len(r2['bars']) == 2, 'se ven a la vez la barra del combatiente y la del zombi')
-    bz = [b for b in r2['bars'] if not b['pip']]; bc = [b for b in r2['bars'] if b['pip']]
-    chk(len(bz) == 1 and len(bc) == 1, 'el combatiente lleva rombo de equipo y el zombi no lleva ningún punto')
-    if len(bz) == 1 and len(bc) == 1:
-        chk(abs(bc[0]['cx'] - r2['caX']) < 2 and abs(bz[0]['cx'] - r2['zqX']) < 2, 'ambas barras quedan centradas horizontalmente sobre su personaje a la altura de la barra (±2 px)')
-        chk(abs(bc[0]['bottom'] - r2['anchorC']) < 3 and abs(bz[0]['bottom'] - r2['zAnchor']) < 3, 'la base de ambas barras queda a la misma distancia (0,5 m) sobre la coronilla (±3 px)')
+    ev('''()=>{const a=E.find(x=>x.bot&&x.team===0);a.dead=false;a.inv=0;a.fireCd=1e9;a.p.set(-8,0,0);a.vis=false;window.ca=a;P.pos.set(0,0,6);window.zs=[];
+      const types=["walker","runner","brute","screamer","walker","brute"];types.forEach((ty,i)=>{const q=Zs(ty,-4+i*3,-1+(i%2)*2,"dorm");q.noiseDelay=1e9;q.yaw=i*1.1-1.5;q.st=i%3===0?"wander":"dorm";q.gaitSpd=q.st==="wander"?1.4:0;zs.push(q)});
+      MX.hit(a,5,E[4],1,0,WP[MX.WI.F1]);for(const q of zs)MX.zom.hit(q,5,MX.pl,0,0,WP[MX.WI.F1]);for(const q of zs)q.v.set(0,0,0)}''')
+    ev('()=>{for(let i=0;i<60;i++){for(const e of E) if(e.bot&&e.team!==0){e.dead=true;e.respT=1e9} ca.v.set(0,0,0);ca.p.set(-8,0,0);for(const q of zs){q.v.set(0,0,0);q.hp=q.maxhp}update(1/60)}}')
+    r2 = ev('''()=>{const pr=(x,y,z)=>{const v=new THREE.Vector3(x,y,z).project(camera);return [(v.x*.5+.5)*innerWidth,(-v.y*.5+.5)*innerHeight]};
+      const bars=[...document.querySelectorAll('div')].filter(d=>d.style.position==='absolute'&&d.style.display==='block'&&d.style.willChange.includes('opacity')&&+d.style.opacity>.5&&/translate\\(/.test(d.style.transform));
+      const info=bars.map(el=>{const q=el.getBoundingClientRect();return {cx:q.left+q.width/2,bottom:q.bottom,w:q.width,pip:!!el.querySelector('div[style*="rotate(45deg)"]')}});
+      const exp=[];const hp=ca.R.head.position;exp.push({n:'combatiente',x:pr(hp.x,hp.y+.13+.5,hp.z)[0],y:pr(hp.x,hp.y+.13+.5,hp.z)[1],pip:true});
+      for(const q of zs){const p=pr(q.hdx,q.hdy+q.hdr+.5,q.hdz);exp.push({n:q.type+(q.st==='wander'?'(anda)':''),x:p[0],y:p[1],pip:false,w:{walker:46,runner:40,brute:74,screamer:46}[q.type]})}
+      return {info,exp}}''')
+    print('barras visibles:', len(r2['info']), 'esperadas:', len(r2['exp']))
+    chk(len(r2['info']) == len(r2['exp']), 'se ven a la vez la barra del combatiente y la de los 6 zombis (4 tipos, de pie y andando)')
+    worst = 0; okc = True
+    for e in r2['exp']:
+        cand = [b for b in r2['info'] if b['pip'] == e['pip'] and abs(b['cx'] - e['x']) < 30 and abs(b['bottom'] - e['y']) < 30]
+        if not cand: okc = False; print('  sin barra cerca de', e['n']); continue
+        b = min(cand, key=lambda b: abs(b['cx'] - e['x']) + abs(b['bottom'] - e['y'])); d = max(abs(b['cx'] - e['x']), abs(b['bottom'] - e['y'])); worst = max(worst, d)
+        if d > 2.5: okc = False; print('  desviación %.1f px en %s' % (d, e['n']))
+    chk(okc, 'todas las barras quedan centradas sobre la cabeza real y a la misma distancia (desviación máx. %.1f px)' % worst)
+    chk(all(not b['pip'] for b in r2['info'] if b['w'] != 60) and sum(1 for b in r2['info'] if b['pip']) == 1, 'solo el combatiente lleva rombo de equipo; los zombis no llevan punto')
     # los combatientes caídos NO se convierten en zombis
     ev(SETUP); run(2); n0 = ev('MX.zom.count()')
     ev('()=>{const e=E[2];e.dead=false;e.dwn=false;e.hp=100;e.sh=0;e.inv=0;e.p.set(-30,0,-20);e.revived=true;MX.hit(e,500,E[8],1,0,WP[MX.WI.F1])}'); run(60 * 2)

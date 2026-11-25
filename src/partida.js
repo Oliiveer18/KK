@@ -811,7 +811,7 @@ MX.start = () => {
 };
 MX.placeBars = () => {                                                              // se llama tras mover la cámara: así la barra no se retrasa un fotograma respecto al personaje
   camera.updateMatrixWorld();
-  for (const e of M.ents) { if (e.isPlayer || !e.barOn) continue; _kp.set(e.p.x, 1.8 - e.crouch * .25 + .5, e.p.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight); }   // base de la barra 0,5 m sobre la coronilla (igual que los zombis)
+  for (const e of M.ents) { if (e.isPlayer || !e.barOn) continue; const hp = e.R.head.position; _kp.set(hp.x, hp.y + .13 + .5, hp.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight); }   // base de la barra 0,5 m sobre la coronilla (igual que los zombis)
 };
 MX.update = dt => {
   if (!M.built) return; dt = Math.min(dt, .05); M.t += dt; M.budget = 2;
