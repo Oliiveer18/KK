@@ -5,7 +5,7 @@ Todo lo de abajo está comprobado **solo con tests automáticos y capturas** (Ch
 ## Qué hay ahora
 - **Mapas** (menú de Options, en pausa): 1 Arena, 2 Polígono, 3 Partida 6 vs 6 a 100 bajas. De 1/2 a 3 al instante; de 3 a 1/2 recarga la página. También `?mapa=1|2|3`.
 - **Partida (mapa 3)**: bots con IA y A*, escudo 50 + vida 100, armería en la base azul, ranuras 2 principales + pistola, pantalla final con tabla por jugador y REVANCHA.
-- **HUD**: vida y escudo abajo a la izquierda (número grande, 5 segmentos de escudo, estado crítico con pulso); arma, munición, granadas y dash abajo a la derecha; kill feed arriba a la derecha (bajo los FPS); indicador de daño direccional (arco rojo hacia el atacante, ~1,5 s); barras pequeñas con rombo de equipo sobre los bots. Sin chuleta de controles ni texto de depuración en pantalla.
+- **HUD**: vida y escudo abajo a la izquierda (número grande, 5 segmentos de escudo, estado crítico con pulso); arma, munición, granadas y dash abajo a la derecha; kill feed arriba a la derecha (bajo los FPS); barras pequeñas con rombo de equipo sobre los bots. Sin chuleta de controles ni texto de depuración en pantalla.
 - **Cámara**: horizontal con fov 45 (igual que escritorio); vertical ×1,4.
 - **Sonido de combate**: los impactos en personajes ya no hacen golpe metálico (solo suena el disparo); `HIT_marker` al dar a un rival (sonido de interfaz) y `HIT_kill` al matar (suena solo, sin el marker). Bucles (humo, fuego, fugas) se apagan al pausar.
 - **Publicación**: GitHub Pages desde `main`; subir con `git push origin HEAD:main`. Un despliegue puede fallar con error 500 de GitHub (pasó el 25-11); se relanza o se sube otro commit.
@@ -19,7 +19,7 @@ Todo lo de abajo está comprobado **solo con tests automáticos y capturas** (Ch
 Críticos de cabeza, ambiente del mapa 3, sonidos propios de partida, rareza de armas, volúmenes a oído, modelos Meshy, gatillos adaptativos (WebHID).
 
 ## Tests (todos deben dar 0 fallos / sin errores)
-`partida`, `partida_armas`, `partida_escudo`, `horizontal`, `barras`, `feed_dano`, `hit_sonido`, `sonidos_bucles`, `audio.py index.html`, `audio_mundo.py index.html`, `balistica`, `granadas`, `pasos`.
+`partida`, `partida_armas`, `partida_escudo`, `horizontal`, `barras`, `feed_dano` (kill feed), `hit_sonido`, `sonidos_bucles`, `audio.py index.html`, `audio_mundo.py index.html`, `balistica`, `granadas`, `pasos`.
 
 ---
 

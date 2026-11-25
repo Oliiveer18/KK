@@ -5,7 +5,7 @@
 - Mapas 1 (arena) y 2 (polígono) y paso a mapa 3: al instante. Desde el mapa 3 a 1/2 se recarga la página (hay que tocar la pantalla para empezar). También por URL: `?mapa=1|2|3`.
 
 ## Mapa 3 (partida 6 vs 6)
-- Pantalla: vida y escudo abajo a la izquierda; arma, munición, granadas y dash abajo a la derecha; kill feed arriba a la derecha (tus bajas con borde dorado); un arco rojo señala de dónde te disparan. Ya no hay chuleta de controles en pantalla: están aquí.
+- Pantalla: vida y escudo abajo a la izquierda; arma, munición, granadas y dash abajo a la derecha; kill feed arriba a la derecha (tus bajas con borde dorado). Ya no hay chuleta de controles en pantalla: están aquí.
 - △/Q: tocar = alternar las 2 principales; mantener (≥0,3 s) = pistola, mantener otra vez = volver a la principal.
 - Armería en la base azul (izquierda): pisar una peana equipa el arma; pad verde = munición completa.
 - Tras terminar: REVANCHA (botón o ✕ del mando).
