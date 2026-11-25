@@ -59,10 +59,11 @@ ZONES=[('casco',470,440,215,170,20,24,60,'old'),
        ('oeste_s',110,630,85,75,0,-6,66,'sub'),('centro_n',390,150,60,70,0,30,66,'sub'),('sur_e',720,540,60,50,0,-14,64,'old')]
 svg=[]
 A=svg.append
-A('<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -20 1040 1040" width="1700" height="1700" font-family="Helvetica,Arial,sans-serif">')
+A('<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -20 1040 1290" width="1700" height="2110" font-family="Helvetica,Arial,sans-serif">')
 A('<defs><clipPath id="c"><rect x="0" y="0" width="1000" height="1000"/></clipPath>'
   '<pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><line x1="0" y1="0" x2="0" y2="6" stroke="#9fb27a" stroke-width="1.4" opacity=".5"/></pattern></defs>')
 A('<rect x="-20" y="-20" width="1040" height="1040" fill="#14130f"/>')
+A('<rect x="-40" y="-40" width="1100" height="1400" fill="#14130f"/>')
 A('<g clip-path="url(#c)">')
 A('<rect width="1000" height="1000" fill="#6f7258"/>')
 # campos de cultivo
@@ -245,7 +246,52 @@ for nm,x,y,col in REF:
     A('<rect x="%d" y="%d" width="44" height="34" fill="#d9d2c0" stroke="%s" stroke-width="4"/>'%(x-22,y-17,col))
     A('<rect x="%d" y="%d" width="14" height="14" fill="%s"/>'%(x-7,y-7,col))
     A('<text x="%d" y="%d" font-size="13" font-weight="800" fill="%s" text-anchor="middle" stroke="#0b0a08" stroke-width="4" paint-order="stroke">REFUGIO %s</text>'%(x,y+50,col,nm))
-A('<rect width="1000" height="1000" fill="#0b0d0f" opacity=".18"/>')
+
+# ================= CAPA TÁCTICA / ESTRATÉGICA =================
+A('<g>')
+# influencia de cada facción (zona de partida)
+for nm,x,y,col in REF:
+    A('<circle cx="%d" cy="%d" r="165" fill="%s" opacity=".10"/>'%(x,y,col)); A('<circle cx="%d" cy="%d" r="165" fill="none" stroke="%s" stroke-width="1.5" stroke-dasharray="3 6" opacity=".7"/>'%(x,y,col))
+# ejes de avance
+def route(pts,col,w=3,dash=None,arrow=True):
+    pl=smooth(pts)
+    A('<path d="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="round" %s opacity=".95"/>'%(d(pl),col,w,('stroke-dasharray="%s"'%dash) if dash else ''))
+    if arrow:
+        (x1,y1),(x2,y2)=pl[-6],pl[-1]; a=math.atan2(y2-y1,x2-x1)
+        A('<path d="M%.0f,%.0f l%.0f,%.0f l%.0f,%.0f z" fill="%s"/>'%(x2,y2,-12*math.cos(a-.45),-12*math.sin(a-.45),-12*math.cos(a+.45)+12*math.cos(a-.45),-12*math.sin(a+.45)+12*math.sin(a-.45),col))
+FAST='#ff5a48'; COVER='#7fd1ff'; FLANK='#8fe070'
+# kill-lane de la avenida (larga, expuesta, rápida)
+A('<path d="%s" fill="none" stroke="#ff5a48" stroke-width="26" opacity=".16" stroke-linecap="round"/>'%d(avenue[8:50]))
+route([(150,170),(230,255),(320,350),(420,430),(480,470)],COVER)          # azul → plaza por calles locales
+route([(160,110),(260,200),(300,330)],FLANK,3,'8 6')                         # azul flanco por bosque y parque
+route([(870,190),(800,300),(700,410),(540,480)],COVER)                       # rojo → plaza
+route([(930,240),(985,360),(960,480),(880,560)],FLANK,3,'8 6')               # rojo flanco por el bosque este
+route([(170,830),(260,760),(400,650),(500,520)],COVER)                       # ámbar → plaza
+route([(60,780),(30,620),(60,540)],FLANK,3,'8 6')                            # ámbar flanco oeste
+route([(840,810),(730,720),(600,640),(520,560)],COVER)                       # violeta → plaza (por naves y estación)
+route([(900,890),(980,800),(1000,640)],FLANK,3,'8 6')                        # violeta flanco por campos
+route([(140,470),(300,478),(470,490)],FAST); route([(880,420),(760,410),(540,480)],FAST)   # avenida desde oeste y este
+# horda itinerante (recorrido) y nidos
+A('<path d="%s" fill="none" stroke="#c78bff" stroke-width="3" stroke-dasharray="2 7" stroke-linecap="round" opacity=".95"/>'%d(smooth([(500,60),(470,200),(480,330),(500,470),(520,600),(510,740),(520,880)])))
+def zom(x,y,r=22,n=7):
+    A('<circle cx="%d" cy="%d" r="%d" fill="#7ad04c" opacity=".16" stroke="#7ad04c" stroke-width="1.2" stroke-dasharray="3 3"/>'%(x,y,r))
+    for i in range(n):
+        a=random.random()*6.28; rr=random.random()*r*.8; A('<circle cx="%.0f" cy="%.0f" r="2.6" fill="#9be36a" stroke="#1c2a12" stroke-width=".6"/>'%(x+math.cos(a)*rr,y+math.sin(a)*rr))
+for (x,y,r,n) in [(300,600,30,7),(610,560,26,6),(760,260,26,6),(420,780,30,8),(220,380,26,6),(590,270,24,6),(940,620,24,5),(330,990,24,5)]: zom(x,y,r,n)
+# puntos fuertes: muro + portón en accesos, torres
+def wallgate(x,y,ang,lv=1):
+    A('<g transform="translate(%d,%d) rotate(%d)"><rect x="-26" y="-4" width="20" height="8" fill="#b08a55" stroke="#15130f" stroke-width="1.2"/><rect x="-5" y="-5" width="10" height="10" fill="#e8c26a" stroke="#15130f" stroke-width="1.2"/><rect x="6" y="-4" width="20" height="8" fill="#b08a55" stroke="#15130f" stroke-width="1.2"/></g>'%(x,y,ang))
+def tower(x,y):
+    A('<path d="M%d,%d l9,16 l-18,0 z" fill="#e8c26a" stroke="#15130f" stroke-width="1.6"/><circle cx="%d" cy="%d" r="30" fill="none" stroke="#e8c26a" stroke-width="1" stroke-dasharray="2 4" opacity=".7"/>'%(x,y-9,x,y))
+for (x,y,a) in [(225,235,35),(840,262,-40),(255,770,-35),(765,770,40),(345,370,40),(690,420,-35),(440,640,-35),(600,640,25)]: wallgate(x,y,a)
+for (x,y) in [(180,150),(870,220),(190,800),(830,800),(500,455),(655,375),(540,665),(790,425)]: tower(x,y)
+# numeración de objetivos
+OBJ=[(1,500,505,'Plaza + clínica'),(2,430,395,'Iglesia · casco'),(3,660,380,'Supermercado'),(4,790,432,'Gasolinera'),(5,540,672,'Estación'),(6,670,795,'Naves de carga'),(7,385,305,'Parque · lago'),(8,210,880,'Colegio')]
+for n,x,y,nm in OBJ:
+    A('<circle cx="%d" cy="%d" r="14" fill="#f0e6c8" stroke="#15130f" stroke-width="2.5"/><text x="%d" y="%d" font-size="16" font-weight="900" fill="#15130f" text-anchor="middle">%d</text>'%(x,y,x,y+5.5,n))
+A('</g>')
+
+A('<rect width="1000" height="1000" fill="#0b0d0f" opacity=".12"/>')
 A('<defs><radialGradient id="vg" cx="50%" cy="50%" r="72%"><stop offset="55%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".72"/></radialGradient>'
   '<linearGradient id="fog" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9aa3a0" stop-opacity=".30"/><stop offset=".45" stop-color="#9aa3a0" stop-opacity="0"/><stop offset="1" stop-color="#9aa3a0" stop-opacity=".22"/></linearGradient></defs>')
 A('<rect width="1000" height="1000" fill="url(#fog)"/><rect width="1000" height="1000" fill="url(#vg)"/>')
@@ -254,7 +300,7 @@ A('</g>')
 def lab(x,y,t,size=14,col='#d8d2c0',w=700,anchor='middle',rot=0):
     A('<text x="%.0f" y="%.0f" font-size="%d" font-weight="%d" fill="%s" text-anchor="%s" stroke="#17160f" stroke-width="3.5" paint-order="stroke" transform="rotate(%d %.0f %.0f)">%s</text>'%(x,y,size,w,col,anchor,rot,x,y,t))
 lab(300,495,'AVENIDA MAYOR',13,rot=-4); lab(545,255,'CALLE CENTRAL',12,rot=88)
-lab(500,508,'Plaza del Mercado (campamento)',11); lab(660,343,'Supermercado saqueado',12); lab(805,455,'Gasolinera (incendiada)',11); lab(408,447,'Clínica',11)
+lab(560,525,'Plaza del Mercado',11); lab(660,343,'Supermercado saqueado',12); lab(805,455,'Gasolinera (incendiada)',11); lab(408,447,'Clínica',11)
 lab(540,653,'Estación',12); lab(660,853,'Naves · patio de carga',12); lab(430,377,'Iglesia (campanario caído)',10); lab(380,355,'Parque (estanque seco)',11)
 lab(130,722,'Ferrocarril',11,'#5d5a54'); lab(395,560,'Casco antiguo · zona cero',13,w=800)
 lab(260,235,'Residencial «colina»',12); lab(860,255,'Fábrica abandonada',12); lab(150,935,'Colegio y viviendas',12); lab(860,935,'Granjas y silos',12)
@@ -265,6 +311,25 @@ lab(60,95,'Bosque',12,'#4c6b3c'); lab(960,365,'Bosque',12,'#4c6b3c')
 A('<g transform="translate(40,985)"><rect x="0" y="0" width="200" height="6" fill="#d8d2c0"/><rect x="0" y="0" width="100" height="6" fill="#fff" stroke="#d8d2c0"/><text x="0" y="-5" font-size="12" font-weight="700">0 m</text><text x="92" y="-5" font-size="12" font-weight="700">100</text><text x="190" y="-5" font-size="12" font-weight="700">200 m</text></g>')
 A('<g transform="translate(960,60)"><path d="M0,-30 L9,10 L0,2 L-9,10 Z" fill="#d8d2c0"/><text x="-5" y="-36" font-size="16" font-weight="800">N</text></g>')
 A('<rect x="0" y="0" width="1000" height="1000" fill="none" stroke="#d8d2c0" stroke-width="3"/>')
-A('<g font-size="12" fill="#d8d2c0" transform="translate(700,985)"><text x="0" y="0" fill="#ff6a52" font-weight="800">✕ barricada / corte</text><text x="125" y="0" fill="#ff9a3a" font-weight="800">● incendio</text><text x="200" y="0" fill="#c9b24a" font-weight="800">┄ cuarentena</text></g>')
+A('<g font-size="12" fill="#d8d2c0" transform="translate(2000,2000)"><text x="0" y="0" fill="#ff6a52" font-weight="800">✕ barricada / corte</text><text x="125" y="0" fill="#ff9a3a" font-weight="800">● incendio</text><text x="200" y="0" fill="#c9b24a" font-weight="800">┄ cuarentena</text></g>')
+
+# ---- panel de leyenda ----
+A('<g transform="translate(0,1040)" font-size="13" fill="#e6e0cf">')
+A('<text x="0" y="12" font-size="18" font-weight="800">LECTURA TÁCTICA</text>')
+def L(x,y,sym,txt): A('<g transform="translate(%d,%d)">%s<text x="26" y="4" font-size="13">%s</text></g>'%(x,y,sym,txt))
+L(0,42,'<line x1="0" y1="0" x2="20" y2="0" stroke="#7fd1ff" stroke-width="3"/>','Eje cubierto: calles y edificios, ritmo medio')
+L(0,68,'<line x1="0" y1="0" x2="20" y2="0" stroke="#ff5a48" stroke-width="3"/>','Eje rápido y expuesto: avenida (línea de tiro larga)')
+L(0,94,'<line x1="0" y1="0" x2="20" y2="0" stroke="#8fe070" stroke-width="3" stroke-dasharray="6 4"/>','Flanco: bosque y campo, lento y silencioso')
+L(0,120,'<line x1="0" y1="0" x2="20" y2="0" stroke="#c78bff" stroke-width="3" stroke-dasharray="2 6"/>','Recorrido de la horda itinerante')
+L(0,146,'<circle r="8" fill="#7ad04c" opacity=".5"/>','Nido de zombis dormidos (se despiertan con el ruido)')
+L(0,172,'<circle r="8" fill="#f0e6c8" stroke="#15130f" stroke-width="2"/>','Objetivos capturables o disputados (números)')
+L(500,42,'<rect x="-2" y="-4" width="8" height="8" fill="#b08a55"/><rect x="7" y="-4" width="6" height="8" fill="#e8c26a"/><rect x="14" y="-4" width="8" height="8" fill="#b08a55"/>','Muro + portón mejorable (madera → piedra → hierro)')
+L(500,68,'<path d="M10,-8 l9,16 l-18,0 z" fill="#e8c26a"/>','Torre ocupable: vigía y fuego sobre la calle')
+L(500,94,'<g stroke="#ff6a52" stroke-width="3"><line x1="1" y1="-6" x2="15" y2="8"/><line x1="1" y1="8" x2="15" y2="-6"/></g>','Corte / barricada: se refuerza, se abre o se revienta')
+L(500,120,'<rect x="0" y="-3" width="16" height="7" rx="2" fill="#5a3f35"/>','Coches y objetos empujables: cobertura móvil')
+L(500,146,'<circle r="9" fill="#4aa0ff" opacity=".25" stroke="#4aa0ff" stroke-dasharray="3 5"/>','Zona de partida de cada facción (~165 m)')
+L(500,172,'<circle r="9" fill="#ff7a1a" opacity=".6"/>','Incendio / zona quemada (bloquea o canaliza el paso)')
+A('</g>')
+
 A('</svg>')
 open('/tmp/claude-0/prof/map/mapa.svg','w').write('\n'.join(svg))

@@ -69,3 +69,15 @@ Imagen: `docs/img/mapa_propuesta_1km.png` (generada con `tools/boceto_mapa.py`; 
 - Ambientación: atascos congelados de coches abandonados en las arterias, barricadas y cortes (cuellos de botella y rutas obligadas), zonas quemadas e incendios con columnas de humo, cráter, helicóptero caído, puesto militar abandonado, valla de cuarentena, supermercado saqueado, gasolinera incendiada, iglesia con el campanario caído, plaza convertida en campamento, vegetación invadiendo el asfalto, niebla y paleta apagada (luz fría y sucia, acentos naranja de fuego).
 - Refugios fuera de las esquinas exactas: colina residencial (azul), fábrica abandonada (rojo), colegio y viviendas (ámbar), granjas y silos (violeta).
 Pendiente de aprobar. Implementarlo exige que `mapa.js` admita calles curvas (polilíneas/splines), niebla/atmósfera y objetos de ambientación (coches, barricadas, restos); es parte de M2.
+
+### Diseño táctico y estratégico (26-11; el mapa se diseña para el juego, no sólo para verse bien)
+Todo lo del boceto son objetos interactivos reales de `objetos.js` (muros y portones `wall1-3`/`gate1-3`, torres `tower1-3`, coches y cajas empujables, ventanas rompibles con alarma, edificios recorribles) y se coloca con `placeObject`.
+- **Cuatro facciones, tres relaciones:** cada refugio tiene dos vecinos (esquinas contiguas) y un rival en diagonal; los frentes se cruzan en el centro (plaza + clínica, objetivo 1) y en los corredores (supermercado 3, gasolinera 4, estación 5, naves 6).
+- **Tres tipos de eje por refugio hacia el centro:** cubierto (calles y edificios, ritmo medio), rápido y expuesto (la avenida: línea de tiro larga de ~250 m, con coches empujables como cobertura móvil) y flanco (bosque y campo: lento, silencioso, pero con nidos de zombis).
+- **Visión limitada:** como los bots (y tú) sólo veis lo de la pantalla (~±10–13 m), las calles locales no pasan de ~60–80 m rectos y hay esquinas, patios y edificios cada pocas decenas de metros: los combates son de 20–50 m. Sólo la avenida es larga a propósito.
+- **Cuellos de botella reales:** cada eje cubierto pasa por un corte (muro + portón) que se refuerza (madera → piedra → hierro), se abre, se cierra o se revienta; el bando que lo tiene decide quién pasa. Las barricadas ✕ cierran calles laterales y obligan a rodear.
+- **Puntos fuertes:** torres ocupables en cruces y junto a cada refugio (vigía y fuego sobre la calle); cada refugio se defiende con un cuello de unos 120 m.
+- **Riesgo y recompensa:** los edificios con más botín (supermercado, farmacia, clínica, gasolinera) tienen escaparates con alarma: entrar rompiendo hace ruido y atrae a los zombis; hacerlo en silencio por la puerta es más lento.
+- **Zombis como tercer actor:** nidos dormidos repartidos entre los ejes y una horda itinerante que recorre la Calle Central de norte a sur; el ruido de combate la desvía hacia donde se pelea.
+- **Mapa por capas de lectura:** zonas de partida (~165 m), tierra de nadie, objetivos numerados, rutas de flanqueo. Los sectores lejanos se simplifican (M2) sin perder esto.
+Imagen: `docs/img/mapa_propuesta_1km.png` (con la leyenda táctica).
