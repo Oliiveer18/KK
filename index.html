@@ -2401,7 +2401,7 @@ function buildMap() {
   for (const z of [-9.5, -6.5, -3.6, 3.6, 6.5, 9.5]) { M.spawn[0].push({ x: -40.2, z, yaw: Math.PI / 2 }); M.spawn[1].push({ x: 40.2, z, yaw: -Math.PI / 2 }); }
   if (MX.campaign) {
     for (const [team, z] of [[2, -26], [3, 26]]) {
-      floorRect(0, z, 12, 6, FAC[team].body);
+      floorRect(0, z, 12, 6, new THREE.Color(FAC[team].acc).multiplyScalar(.4).getHex());
       M.spawn[team] = [-4, -2, 2, 4].map(x => ({ x, z, yaw: z < 0 ? 0 : Math.PI }));
     }
   }
@@ -2559,7 +2559,7 @@ function pickWeaponIdx() { let tot = 0; for (const w of WP) tot += WW[w.sid] || 
 
 // El equipo visible y los colores proceden de las paletas compartidas con el jugador.
 for (let team = TM.length; team < FAC.length; team++) {
-  TM.push({ body: FACM[team].body, limb: FACM[team].limb, acc: FACM[team].trim });
+  TM.push({ body: FACM[team].uni, limb: FACM[team].pants, acc: FACM[team].trim });
   const ring = RING[1].clone();
   ring.color.setHex(FAC[team].trim);
   RING.push(ring);
