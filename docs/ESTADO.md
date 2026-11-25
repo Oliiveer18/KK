@@ -1,5 +1,12 @@
 # Estado — v0.3.9 (25-11-2026)
 
+## Primera tanda de campaña (rama de desarrollo)
+
+La pantalla inicial y el selector de mapas ofrecen «Campaña · cuatro facciones». También se entra con `?mapa=4`. En el escenario de prueba hay cuatro grupos de cuatro combatientes, con el jugador en Azul y quince bots. Se reutilizan los personajes y las armas actuales. Cada facción tiene una zona de reaparición. El combate continúa al superar las 100 bajas. Los refugios de campaña, los frentes persistentes y los infectados quedan para las siguientes entregas.
+
+Comprobado en Chromium mediante Playwright: arranque por botón, selector y URL, cuatro facciones, dieciséis identificadores únicos y entrada al mapa 3 con doce combatientes. Pendiente de jugar en iPhone con DualSense.
+
+
 Todo lo de abajo está comprobado **solo con tests automáticos y capturas** (Chrome headless, sin GPU ni altavoces). El usuario lo prueba en iPhone con DualSense. Nada se ha escuchado ni visto en el dispositivo real.
 
 ## Qué hay ahora
