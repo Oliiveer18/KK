@@ -1,5 +1,7 @@
 # Estado — v0.3.9 (25-11-2026)
 
+- Facción Roja saturada (uniforme granate `0x8c3030`, acento `0xff3b2e`): se lee claramente roja y no marrón. Botón táctil de reanimar/reaparecer = mantener RECARG. (`T.relHeld` → `MX.rev`). Sonidos de zombi: eventos cableados, pendientes de los audios del usuario. Variantes de `HIT_*`: aplazadas por el usuario.
+
 ## Primera tanda de campaña (rama de desarrollo)
 
 La pantalla inicial y el selector de mapas ofrecen «Campaña · cuatro facciones». También se entra con `?mapa=4`. En el escenario de prueba hay cuatro grupos de cuatro combatientes, con el jugador en Azul y quince bots. Se reutilizan los personajes y las armas actuales. Cada facción tiene una zona de reaparición. El combate continúa al superar las 100 bajas. Los refugios de campaña, los frentes persistentes y los infectados quedan para las siguientes entregas.

@@ -237,7 +237,7 @@ const rig = {
    Las piezas de cada punto del cuerpo se fusionan en una malla por material para no multiplicar las llamadas de dibujo. */
 const FAC = [
   { name: 'Azul', uni: 0x3d4b66, pants: 0x2a3347, gear: 0x20262f, acc: 0x2f9bff, trim: 0xa8d8ff },
-  { name: 'Rojo', uni: 0x62403d, pants: 0x3f2a28, gear: 0x282020, acc: 0xff4a38, trim: 0xffb3a6 },
+  { name: 'Rojo', uni: 0x8c3030, pants: 0x4a2321, gear: 0x2a1d1d, acc: 0xff3b2e, trim: 0xff9c8c },   // rojo claramente rojo (uniforme granate saturado), sin acercarse al marrón/ámbar
   { name: 'Ámbar', uni: 0x6c5d3a, pants: 0x453c26, gear: 0x2a271c, acc: 0xffae1c, trim: 0xffe2a3 },
   { name: 'Violeta', uni: 0x4f4468, pants: 0x362e48, gear: 0x252032, acc: 0xa062ff, trim: 0xdcc6ff }];
 const SKIN = [0xe2b898, 0xc78c66, 0x8e5c3d, 0xf1d0b4], HAIR = [0x2a1d14, 0x4a3524, 0x1b1b1d, 0x7a5a36];
@@ -642,7 +642,8 @@ tl.addEventListener('pointerup', tUp); tl.addEventListener('pointercancel', tUp)
 tl.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
 for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('bDash').addEventListener(ev, () => { T.dh = false; });
 $('bDash').addEventListener('pointerdown', e => { T.dh = true; mode = 'touch'; T.last = performance.now(); begin(); flags.dash = true; e.preventDefault(); e.stopPropagation(); });
-$('bRel').addEventListener('pointerdown', e => { mode = 'touch'; T.last = performance.now(); begin(); flags.reload = true; e.preventDefault(); e.stopPropagation(); });
+$('bRel').addEventListener('pointerdown', e => { mode = 'touch'; T.last = performance.now(); begin(); flags.reload = true; T.relHeld = true; e.preventDefault(); e.stopPropagation(); });   // mantener RECARG. = reanimar a un aliado o, abatido, reaparecer (como □ en el mando)
+for (const ev_ of ['pointerup', 'pointercancel', 'pointerleave']) $('bRel').addEventListener(ev_, () => { T.relHeld = false; });
 for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('bCrouch').addEventListener(ev, () => { T.crh = false; });
 $('bCrouch').addEventListener('pointerdown', e => { T.crh = true; mode = 'touch'; T.last = performance.now(); begin(); flags.crouch = true; e.preventDefault(); e.stopPropagation(); });
 $('bSwap').addEventListener('pointerdown', e => { mode = 'touch'; T.last = performance.now(); begin(); flags.swap = true; T.swh = true; e.preventDefault(); e.stopPropagation(); });
@@ -2093,6 +2094,7 @@ function update(dt) {
     }
     if (W.swapT >= .36) W.swapT = -1;
   }
+  if (T.relHeld) MX.rev = true;                                                      // táctil: RECARG. mantenido
   if (MX.on && MX.revCtx) flags.reload = false;                                      // junto a un aliado abatido, recargar/mantener □ es reanimar: no se recarga el arma
   if (flags.reload && !reloading && W.swapT < 0 && P.gState === 0 && W.ammo < W.max) { W.reload = 0; W.dropped = false; W.rp = 0; }
   flags.reload = false;

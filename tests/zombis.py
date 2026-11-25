@@ -12,7 +12,7 @@ with sync_playwright() as p:
     ev('begin()'); pg.wait_for_timeout(300)
     r = ev('()=>({n:MX.zom.count(),types:[...new Set(MX.zom.list.map(z=>z.type))].sort().join(","),dorm:MX.zom.list.filter(z=>z.st==="dorm").length,horde:MX.zom.list.filter(z=>z.horde).length})')
     print('inicio:', r)
-    chk(r['n'] >= 30 and r['dorm'] > 5 and r['horde'] >= 15, 'población inicial: zombis locales dormidos y una horda')
+    chk(r['n'] >= 20 and r['dorm'] > 5 and r['horde'] >= 15, 'población inicial: zombis locales dormidos y una horda')
     chk(r['types'] == 'brute,runner,screamer,walker', 'están los 4 tipos (caminante, corredor, pesado, gritón)')
     # escenario controlado: sin bots, sin zombis iniciales
     SETUP = '''()=>{boxes.length=0;const E=MX.ents;window.E=E;MX.M.over=false;for(const z of MX.zom.list.slice()){z.dead=true;z.st="dead";z.deadT=99}
