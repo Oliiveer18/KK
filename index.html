@@ -3429,6 +3429,7 @@ requestAnimationFrame(frame);
     if (d.extra) d.extra(b, mesh, add, (rx, rz, len) => { const rg = OBJ.rails(0, 0, len, 0); scene.remove(rg); rg.position.set(rx, 0, rz); b.group.add(rg); });
     if (b.platformRoof) { const pr2 = b.platformRoof; addRoof(canopyRoof(b, Object.assign({}, d, { sign: null }), pr2.cx, pr2.cz, pr2.w, pr2.d, pr2.h)); }
     if (pal && !open && d.roof !== 'canopy') for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const dp = mesh(geoCyl16, OM.ironD, .045, H, .045, sx * (W / 2 + T + .02), H / 2, sz * (D / 2 + T + .02)); dp.castShadow = false; }
+    b.roof = b.roofs.length ? b.roofs[0].g : null;                                                                          // alias de compatibilidad (tests/mapa.py): el techo principal
     b.zHalf = (Math.abs(c) * D + Math.abs(s) * W) / 2; b.fp = d.fp || { hx: W / 2 + .3, hz: D / 2 + .3 }; OBJ.buildings.push(b); return b;
   };
   const inRect = (b, x, zz, r) => { const dx = x - b.x, dz = zz - b.z, lx = dx * Math.cos(b.rot) - dz * Math.sin(b.rot), lz = dx * Math.sin(b.rot) + dz * Math.cos(b.rot); return lx > r.x0 && lx < r.x1 && lz > r.z0 && lz < r.z1; };

@@ -49,6 +49,9 @@ Prototipo de shooter 3D en el navegador, sin assets externos (personaje procedur
 - Trucos de prueba: `update(1/60)` y `window.__n++` a mano; para tiempo de juego en lugar de real, sobrescribir `performance.now` (ver `pasos.py`); `window.__b/__a` y `navigator.getGamepads` para el mando; llamar a `update` en el mismo `evaluate` que el cambio de entrada (el bucle real corre en paralelo). Con muchas pruebas de física `boxes.length=0` evita obstáculos. En una cadena de JS con varias sentencias usa una función flecha anónima: Playwright trata una cadena con `function` como función a llamar.
 - Hacer copia de seguridad del fuente antes de cambios grandes.
 
+## Objetos y edificios
+Lee `docs/OBJETOS_TRASPASO.md` (68 tipos, 11 edificios recorribles, `placeObject`, decisiones del usuario ya aplicadas y pendientes por entrega).
+
 ## Estado y decisiones
 Estado actual (v0.3.9): ver `docs/ESTADO.md` (cabecera) y `docs/ARQUITECTURA.md` (sección v0.3.x). Reglas añadidas por el usuario el 25-11: sin chuleta ni texto de depuración en pantalla; vida y escudo abajo a la izquierda, arma y munición abajo a la derecha; al dañar personajes solo suena el disparo (el «hit» del jugador va aparte, sonidos de ElevenLabs aprobados uno a uno); las propuestas deben ser cosas que hago yo, no tareas para el usuario; **no** quiere indicador de daño direccional (retirado) ni que los caídos se conviertan en zombis (retirado). Reanimar y reaparecer estando abatido se hacen **manteniendo □** (mando). Histórico de v0.2.2 a continuación.
 

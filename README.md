@@ -22,6 +22,7 @@ Prototipo jugable en el navegador, **sin modelos ni animaciones prefabricadas**:
 | `docs/CHANGELOG.md` | Historial de cambios |
 | `docs/ESTADO.md` | Estado, qué se ha verificado y qué falta |
 | `docs/PENDIENTE.md` | Propuestas pendientes (gatillos y vibración), sin implementar |
+| `docs/OBJETOS_TRASPASO.md` | Traspaso de objetos y edificios: qué hay, decisiones aplicadas, API y pendientes por entrega |
 | `docs/CATALOGO_OBJETOS.md` | Catálogo de objetos y ubicaciones de la campaña, con su implementación |
 | `docs/HANDOFF.md` | Traspaso a una nueva sesión: reglas, flujo y estado |
 | `docs/ARQUITECTURA.md` | Cómo está hecho el código |
