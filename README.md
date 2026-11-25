@@ -14,7 +14,7 @@ Prototipo jugable en el navegador, **sin modelos ni animaciones prefabricadas**:
 | `index.html` | Juego completo, autocontenido (esto es lo que se publica) |
 | `src/prototipo.html` | Código fuente editable (carga Three.js desde CDN) |
 | `src/three.min.r128.js` | Three.js r128 (se incrusta en `index.html`) |
-| `src/objetos.js` | Objetos de campaña (55 tipos, recogibles, raíles); ver `docs/CATALOGO_OBJETOS.md` |
+| `src/objetos.js` | Objetos de campaña (68 tipos, recogibles, raíles); ver `docs/CATALOGO_OBJETOS.md` |
 | `src/sonidos.js` | Audio incrustado (generado por `tools/build.py`, no editar a mano) |
 | `assets/audio/` | Sonidos originales (`originales/`) y `manifest.json` con recorte, fundido y nivel de cada uno |
 | `tools/build.py` | Procesa el audio, genera `src/sonidos.js` y regenera `index.html` |
@@ -22,6 +22,7 @@ Prototipo jugable en el navegador, **sin modelos ni animaciones prefabricadas**:
 | `docs/CHANGELOG.md` | Historial de cambios |
 | `docs/ESTADO.md` | Estado, qué se ha verificado y qué falta |
 | `docs/PENDIENTE.md` | Propuestas pendientes (gatillos y vibración), sin implementar |
+| `docs/OBJETOS_TRASPASO.md` | Traspaso de objetos y edificios: qué hay, decisiones aplicadas, API y pendientes por entrega |
 | `docs/CATALOGO_OBJETOS.md` | Catálogo de objetos y ubicaciones de la campaña, con su implementación |
 | `docs/HANDOFF.md` | Traspaso a una nueva sesión: reglas, flujo y estado |
 | `docs/ARQUITECTURA.md` | Cómo está hecho el código |

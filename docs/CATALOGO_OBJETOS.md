@@ -1,6 +1,6 @@
 # Catálogo de objetos y ubicaciones de la campaña
 
-Fuente: `GUERRA_DE_FACCIONES.md` §3, §5 y §6 (rama `docs/diseno-guerra-facciones`) más lo ya existente en `src/prototipo.html` (`PSPEC`). Las filas marcadas **(propuesta)** no están en el diseño: son mías para cubrir huecos y se pueden quitar. **Estado:** las tablas 2 a 7 están construidas en `src/objetos.js` (55 tipos de objeto, 13 recogibles y raíles); ver la sección 11. Los edificios completos (§8) y la lógica de inventario siguen pendientes.
+Fuente: `GUERRA_DE_FACCIONES.md` §3, §5 y §6 (rama `docs/diseno-guerra-facciones`) más lo ya existente en `src/prototipo.html` (`PSPEC`). Las filas marcadas **(propuesta)** no están en el diseño: son mías para cubrir huecos y se pueden quitar. **Estado:** las tablas 2 a 7 están construidas en `src/objetos.js` (68 tipos de objeto, 13 recogibles y raíles); ver la sección 11. Los edificios completos (§8) y la lógica de inventario siguen pendientes.
 
 Leyenda de comportamiento: **Fijo** (no se mueve), **Empujable**, **Rompible** (vida y fases de daño como los actuales), **Reparable** (conserva nivel), **Recogible** (va al inventario).
 
@@ -124,7 +124,7 @@ Reserva única de **materiales**; unidad = 1 «lote». Un lote = una caja de sum
 - Todo se ajusta con partidas; no hay valores validados.
 
 ## 11. Implementación (`src/objetos.js`)
-Los 55 tipos se crean con el mismo sistema que las cajas y barriles (piezas reales, vida por material, huella 2D en `boxes`, marcas de bala, fases de daño y restos con física). Medido con `OBJ.measure()`:
+Los 68 tipos se crean con el mismo sistema que las cajas y barriles (piezas reales, vida por material, huella 2D en `boxes`, marcas de bala, fases de daño y restos con física). Medido con `OBJ.measure()`:
 
 | Tipo | Nombre | Material | Vida | Huella (m) | Alto | Piezas |
 |---|---|---|---|---|---|---|
@@ -154,7 +154,7 @@ Los 55 tipos se crean con el mismo sistema que las cajas y barriles (piezas real
 | `cage` | Jaula metálica | metal | 110 | 1.2×0.8 | 1.7 | 37 |
 | `counter` | Mostrador | wood | 130 | 2.48×0.75 | 1.35 | 10 |
 | `shelf` | Estantería | metal | 90 | 2.2×0.55 | 1.9 | 38 |
-| `locker` | Taquilla | metal | 80 | 1.56×0.5 | 1.91 | 17 |
+| `locker` | Taquilla | metal | 80 | 1.56×0.5 | 1.91 | 15 |
 | `pharmaCab` | Armario de farmacia | metal | 70 | 1.16×0.49 | 1.98 | 28 |
 | `supplyMat` | Caja de materiales | wood | 40 | 0.8×0.55 | 0.55 | 7 |
 | `supplyAmmo` | Caja de munición | wood | 45 | 0.8×0.55 | 0.55 | 8 |
@@ -175,7 +175,7 @@ Los 55 tipos se crean con el mismo sistema que las cajas y barriles (piezas real
 | `emblem2` | Emblema de facción Ámbar | block | 260 | 3×0.66 | 2.9 | 15 |
 | `emblem3` | Emblema de facción Violeta | block | 260 | 3×0.66 | 2.9 | 15 |
 | `bwallSolid` | Muro de edificio | block | 520 | 4×0.36 | 3.2 | 4 |
-| `bwallGlass` | Escaparate de edificio | glass | 400 | 3.5×0.36 | 2.55 | 10 |
+| `bwallGlass` | Escaparate / ventana de edificio | glass | 400 | 3.5×0.36 | 2.55 | 10 |
 | `shopDoor` | Puerta de local | glass | 200 | 1.8×0.2 | 2.5 | 15 |
 | `gondola3` | Góndola de tienda (3 m) | metal | 130 | 3×0.9 | 1.78 | 40 |
 | `gondola4` | Góndola de tienda (4 m) | metal | 150 | 4×0.9 | 1.78 | 48 |
@@ -183,6 +183,19 @@ Los 55 tipos se crean con el mismo sistema que las cajas y barriles (piezas real
 | `checkout` | Caja registradora | metal | 120 | 2×0.9 | 1.35 | 10 |
 | `cart` | Carro de compra | metal | 30 | 0.6×1.05 | 0.95 | 24 |
 | `waitSeat` | Banco de espera | metal | 80 | 1.8×0.55 | 1 | 9 |
+| `pillar` | Pilar de hormigón | block | 450 | 0.6×0.6 | 4.6 | 5 |
+| `sofa` | Sofá | wood | 80 | 2×0.9 | 1 | 8 |
+| `bed` | Cama | wood | 90 | 1.58×2.12 | 0.95 | 7 |
+| `table` | Mesa con sillas | wood | 70 | 1.4×1.95 | 1.2 | 15 |
+| `wardrobe` | Armario | wood | 90 | 1.36×0.64 | 2.06 | 6 |
+| `kitchenUnit` | Cocina | wood | 110 | 2.8×0.65 | 1.9 | 16 |
+| `tvUnit` | Mueble con televisor | wood | 60 | 1.4×0.45 | 1.35 | 4 |
+| `chainFence` | Valla metálica | metal | 80 | 3.5×0.16 | 1.9 | 6 |
+| `transformer` | Transformador | metal | 320 | 2.9×2.2 | 2.4 | 20 |
+| `switchCab` | Armario eléctrico | metal | 120 | 1.2×0.7 | 2.2 | 9 |
+| `palletRack` | Estantería de palés | metal | 200 | 3×1.1 | 4.2 | 35 |
+| `forklift` | Carretilla elevadora | metal | 200 | 1.44×2.7 | 2.1 | 18 |
+| `rollDoor` | Puerta enrollable industrial | metal | 160 | 4.5×0.38 | 4.3 | 26 |
 
 Novedades que aporta además de los modelos:
 - **Material nuevo `glass`** (cristal: pen 0,85, rotura inmediata, esquirlas y grietas en las marcas de bala).
@@ -192,14 +205,14 @@ Novedades que aporta además de los modelos:
 - **Persiana y cristalera** hacen ruido (`noiseOnMove` 30 m / `noiseOnBreak` 40 m).
 - **Recogibles** (`OBJ.pickup(clase, x, z)`): material, munición, botiquín, kit de reanimación, y casco, chaleco y mochila en 3 niveles. Solo son el modelo; recoger y guardar llega con el inventario.
 - **Raíles** (`OBJ.rails(x, z, largo, giro)`), decoración sin colisión.
-- **Galería de pruebas**: `index.html?galeria=1` coloca los 55 tipos en filas; `OBJ.gallery([tipos])` coloca los que se pidan.
+- **Galería de pruebas**: `index.html?galeria=1` coloca los 68 tipos en filas; `OBJ.gallery([tipos])` coloca los que se pidan.
 - **Contenido**: `OBJ.contents(p)` devuelve la lista de lo que lleva (`loot`) cada caja o armario; sin lógica de inventario todavía.
 - **Eventos** (`OBJ.on.push(f)`): `add`, `open`, `close`, `break`, `alarm`; para que la navegación dinámica de la entrega 2 invalide rutas.
 
 Límites conocidos (a resolver en las entregas indicadas):
 - El juego colisiona en 2D: pasarela, escalera, puesto elevado y cristaleras son sólidos o dejan ver como una caja. La altura transitable, ocupar el puesto y la visión real a través de aberturas son de la **entrega 2** (los modelos ya llevan `seats` y el ancho de los pasos).
 - Las **aspilleras** a ras de suelo del diseño no se han hecho: necesitan huecos reales en la colisión (entrega 2).
-- Rendimiento: cada pieza es una malla. Los 55 tipos suman 1387 piezas (máximo 64 por objeto). Un distrito entero con cientos de objetos necesitará fusionar la geometría de lo intacto (entrega 6); medir en el iPhone antes.
+- Rendimiento: cada pieza es una malla. Los 68 tipos suman 1560 piezas (máximo 64 por objeto). Un distrito entero con cientos de objetos necesitará fusionar la geometría de lo intacto (entrega 6); medir en el iPhone antes.
 - Los sonidos nuevos (`IMP_glass`, `ALARM_loop`, rotura de cada tipo) no existen todavía: callan hasta que el usuario los genere. Las roturas reutilizan los sonidos de caja, barrera y bloques.
 - Edificios completos (tiendas, clínica, estación, viviendas, puentes), la colocación en el mapa y el uso por el mando/bots no están hechos.
 
@@ -220,20 +233,31 @@ La puerta interior del portón nivel 3 (`gateInner`, 400) es de hierro. Todos ll
 Paleta cálida y saturada (la luz del juego es fría y apaga los colores), texturas procedurales (madera con vetas y clavos, sillería irregular, planchas con óxido, ladrillo, chapa oxidada, tejas), suciedad y musgo en la base por color de vértice, colores propios por objeto (puertas, taquillas, contenedores y coches de distintos colores) y rótulos iluminados de tienda. `OBJ.setGround(hex)` permite probar otro color de suelo sin cambiar el juego.
 
 ## 14. Edificios recorribles (25-11)
-El usuario señaló que los locales eran demasiado pequeños para interactuar dentro. Las fachadas de una sola pieza se sustituyen por **edificios completos con interior** (`OBJ.building(tipo, x, z, giro, facción)`; `OBJ.buildingKinds` = `mini`, `pharm`, `super`):
+El usuario señaló que los locales eran demasiado pequeños para interactuar dentro. Las fachadas de una sola pieza se sustituyen por **edificios completos con interior** (`OBJ.building(tipo, x, z, giro, facción)`; lista en `OBJ.buildingKinds`):
 
 | Edificio | Interior | Puerta | Contenido |
 |---|---|---|---|
 | Minimarket | 10 × 7 m | 1,8 m | 4 vitrinas frigoríficas, 2 góndolas, caja, palé con cajas, estantería, cajas de suministros |
 | Farmacia | 10 × 7 m | 1,8 m | 4 armarios, 2 mostradores con acceso al trasero, 2 góndolas, sala de espera, camilla, cajas médicas, cruz verde de bandera |
-| Supermercado | 18 × 12 m | 2,4 m | 8 vitrinas, 4 góndolas de 4 m, 3 estanterías, 2 cajas, 4 carros, palés, cajas de suministros |
+| Supermercado `super` | 18 × 12 m | 2,4 m | 8 vitrinas, 4 góndolas de 4 m, 3 estanterías, 2 cajas, 4 carros, palés, cajas de suministros |
+| Tienda de gasolinera `gasshop` | 9 × 6 m | 1,8 m | 3 vitrinas, góndola, caja, cajas de suministros |
+| Marquesina de gasolinera `gascanopy` | 14 × 9 m, abierta | — | cubierta de 4,8 m con rótulo y luces, 4 pilares, 2 isletas con 4 surtidores |
+| Clínica `clinic` | 14 × 9 m | 2,4 m | recepción, sala de espera, 3 consultas con puerta (camilla y armario), cruz verde de bandera |
+| Estación `station` | 16 × 8 m + andén | 2,4 m | taquillas, bancos, consignas, tablón, 2 puertas al andén con marquesina de 18 m, bancos, focos y vías |
+| Vivienda `house` | 9 × 7 m | 2,0 m | cubierta a dos aguas con tejas, ventanas, salón (sofá y televisor), cocina con mesa, cama y armario; color de fachada al azar |
+| Mercado cubierto `market` | 16 × 10 m, abierto | — | cubierta de 4,2 m, 6 pilares, 6 puestos con carpa lisa de colores y palés |
+| Subestación `substation` | 14 × 10 m, vallada | portón corredizo 4,2 m | valla metálica, 2 transformadores, 3 armarios eléctricos, foco |
+| Nave logística `warehouse` | 22 × 14 m, 5,2 m de alto | 2 puertas enrollables de 4,5 m + puerta | 10 estanterías de palés, carretilla, palés con cajas, jaulas |
 
 - Cada edificio está hecho de muros (`bwallSolid`, tramos de ≤ 4 m), escaparates (`bwallGlass`, cristales independientes con alarma) y una puerta de cristal (`shopDoor`, abierta al crearlo). Todo es destructible: una brecha abre un acceso real.
 - Suelo de baldosa, luz cálida interior, friso con rótulo iluminado de la marca, línea de color, cubierta plana con peto y equipos de aire.
 - **Recorte de cámara:** al entrar, el techo y el friso se ocultan y los muros del lado de la cámara se recortan al 28 % (su colisión y su vida no cambian); al salir vuelven.
 - Pasillos de ≥ 2 m (la rejilla de navegación de los bots infla 0,62 m). Mobiliario nuevo: góndola de 3 y 4 m, vitrina, caja registradora, carro, banco de espera.
 - Medido (`tests/edificios.py`): se llega a pie a todo el interior libre desde 5 m fuera de la puerta, sin objetos solapados.
-- Pendiente: rendimiento (el supermercado son unos 44 objetos; fusionar geometría estática en la entrega 6), más detalle interior, otros locales (gasolinera con marquesina, clínica, estación), almacén trasero, uso por los bots (la navegación del mapa 3 es estática: hay que reconstruirla al colocar edificios) y que los cristales no corten la visión de los bots.
+- Los edificios abiertos (marquesinas, mercado) ocultan su cubierta al entrar. La estación tiene una segunda cubierta sobre el andén. La vivienda tiene cubierta a dos aguas.
+- Pendiente: rendimiento (el supermercado son unos 44 objetos y la nave unos 38; fusionar geometría estática en la entrega 6), más detalle interior, bloques de pisos (varias plantas), refugios de facción, uso por los bots (la navegación del mapa 3 es estática: hay que reconstruirla al colocar edificios) y que los cristales no corten la visión de los bots.
+
+- **Color exterior** (25-11): cada edificio elige una paleta al crearse (`pal` en `BLD`: fachada, zócalo, remate, cubierta). Fachadas saturadas (amarillo, menta, naranja, turquesa, ocre, azul), cubiertas rojas, verdes y azules, zócalo y remate del color de la marca, bajantes, y suelos cálidos en los espacios abiertos. Las 5 viviendas usan paletas de colores distintos.
 
 ## 15. API para el generador de mapas
 `placeObject(tipo, x, z, giro, opciones)` (global, también `OBJ.placeObject`), definida en `src/objetos.js`, que debe cargarse **antes** que `mapa.js` y `mapa_distrito.js`.
