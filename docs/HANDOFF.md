@@ -1,4 +1,4 @@
-# Traspaso a una nueva sesión — v0.2.2
+# Traspaso a una nueva sesión — v0.3.8
 
 Lee esto primero. Resume lo necesario para seguir sin perder contexto.
 
@@ -26,14 +26,19 @@ Prototipo de shooter 3D en el navegador, sin assets externos (personaje procedur
 - Fuente editable: `src/prototipo.html` (Three.js por CDN). Juego publicable: `index.html` (autocontenido).
 - Regenerar `index.html`: `python3 tools/build.py` (procesa `assets/audio/manifest.json`, genera `src/sonidos.js` y sustituye las etiquetas de Three.js y `sonidos.js` por su contenido). Para añadir un sonido: copiar el WAV a `assets/audio/originales/`, añadir su entrada al manifiesto (variantes: `ID_01`, `ID_02`...) y, si hace falta, su nivel en `SND_VOL`.
 - Documentos: `docs/` (CHANGELOG, ESTADO, ARQUITECTURA, CONTROLES, PENDIENTE). Pruebas: `tests/`.
-- Al terminar cada tanda: actualizar docs, regenerar `index.html`, tests, publicar (ver Publicación) y rehacer el zip (`prototipo-shooter-v0.3.8.zip`).
+- Al terminar cada tanda: actualizar docs, regenerar `index.html`, pasar los tests y subir a `main` (ver Publicación). Ya no se hacen zips: todo va por GitHub.
 - Flujo de sonidos: el usuario va enviando cada audio; yo lo mido, lo integro en el proyecto y le doy el siguiente prompt en el mismo mensaje.
 
 ## Publicación (desde 25-11-2026)
 - **El juego se publica en GitHub Pages**, no en el artefacto: repositorio https://github.com/Oliiveer18/KK (rama `main`), juego en https://oliiveer18.github.io/KK/ (mapa 3 directo: `?mapa=3`). El usuario prueba ahí (iPhone + DualSense). **No publiques más artefactos** salvo que lo pida (orden del 25-11).
-- El repositorio contiene TODO el proyecto (`src/`, `tools/`, `tests/`, `docs/`, `assets/`, `VERSION`) y, en la raíz, `index.html` generado + `manifest.json` + `icon-*.png` (copias de `web/`). Al empezar una sesión: `git clone --depth 1 https://github.com/Oliiveer18/KK`, trabaja ahí o en copia, y empuja al terminar cada tanda: `index.html` regenerado con `python3 -I tools/build.py` + cambios de código + docs. Para empujar hace falta que la sesión tenga el repo añadido con permiso de escritura (la app de Claude en GitHub ya está instalada en la cuenta del usuario).
-- Al copiar `web/*` a la raíz del repositorio tras cada build, no se pierden manifest ni iconos. Rehacer también el zip de entregas (`prototipo-shooter-vX.Y.Z.zip`) en `/mnt/user-data/outputs`.
+- El repositorio contiene TODO el proyecto (`src/`, `tools/`, `tests/`, `docs/`, `assets/`, `VERSION`) y, en la raíz, `index.html` generado + `manifest.json` + `icon-*.png` (copias de `web/`). Al empezar una sesión: `git clone --depth 1 https://github.com/Oliiveer18/KK`, trabaja ahí o en copia, y empuja al terminar cada tanda: `index.html` regenerado con `python3 -I tools/build.py` + cambios de código + docs. El usuario autorizó (25-11) subir **directamente a `main`**, aunque la sesión indique otra rama de trabajo. Para empujar hace falta que la sesión tenga el repo añadido con permiso de escritura (la app de Claude en GitHub ya está instalada en la cuenta del usuario).
+- Al copiar `web/*` a la raíz del repositorio tras cada build, no se pierden manifest ni iconos. Ya no se rehace ningún zip.
 - iPhone: los mandos NO se detectan en apps añadidas a la pantalla de inicio en modo standalone (bug WebKit 214336). Por eso el juego no lleva `apple-mobile-web-app-capable` y el manifest es `display: browser`: el acceso directo abre Safari. No los vuelvas a poner. Pantalla completa en iPhone: Aa → Ocultar barra de herramientas (horizontal).
+
+## Entorno de trabajo (sesión en la nube)
+- Dependencias: `ffmpeg`, `numpy`, `google-chrome` ya están; falta `playwright` de Python: `pip install -q playwright` (no instalar navegadores; los tests usan `/usr/bin/google-chrome`).
+- Ejecutar siempre con `python3 -I`. Comprobación rápida tras un cambio: `python3 -I tools/build.py` y luego `tests/partida.py`, `partida_armas.py`, `partida_escudo.py`, `horizontal.py` (+ `balistica.py`/`granadas.py`/`audio.py index.html` si se toca eso). Los tests leen `index.html` desde la raíz del repo.
+- Subida: `git add -A && git commit && git push origin HEAD:main`.
 
 ## Pruebas (cómo se hacen)
 - Playwright + Chrome headless (`/usr/bin/google-chrome`, args `--no-sandbox --use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader --ignore-gpu-blocklist`). Ver `tests/chk.py` (detecta errores de carga).
