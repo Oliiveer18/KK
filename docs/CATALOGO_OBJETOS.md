@@ -1,6 +1,6 @@
 # Catálogo de objetos y ubicaciones de la campaña
 
-Fuente: `GUERRA_DE_FACCIONES.md` §3, §5 y §6 (rama `docs/diseno-guerra-facciones`) más lo ya existente en `src/prototipo.html` (`PSPEC`). Las filas marcadas **(propuesta)** no están en el diseño: son mías para cubrir huecos y se pueden quitar. **Estado:** las tablas 2 a 7 están construidas en `src/objetos.js` (49 tipos de objeto, 13 recogibles y raíles); ver la sección 11. Los edificios completos (§8) y la lógica de inventario siguen pendientes.
+Fuente: `GUERRA_DE_FACCIONES.md` §3, §5 y §6 (rama `docs/diseno-guerra-facciones`) más lo ya existente en `src/prototipo.html` (`PSPEC`). Las filas marcadas **(propuesta)** no están en el diseño: son mías para cubrir huecos y se pueden quitar. **Estado:** las tablas 2 a 7 están construidas en `src/objetos.js` (55 tipos de objeto, 13 recogibles y raíles); ver la sección 11. Los edificios completos (§8) y la lógica de inventario siguen pendientes.
 
 Leyenda de comportamiento: **Fijo** (no se mueve), **Empujable**, **Rompible** (vida y fases de daño como los actuales), **Reparable** (conserva nivel), **Recogible** (va al inventario).
 
@@ -124,7 +124,7 @@ Reserva única de **materiales**; unidad = 1 «lote». Un lote = una caja de sum
 - Todo se ajusta con partidas; no hay valores validados.
 
 ## 11. Implementación (`src/objetos.js`)
-Los 49 tipos se crean con el mismo sistema que las cajas y barriles (piezas reales, vida por material, huella 2D en `boxes`, marcas de bala, fases de daño y restos con física). Medido con `OBJ.measure()`:
+Los 55 tipos se crean con el mismo sistema que las cajas y barriles (piezas reales, vida por material, huella 2D en `boxes`, marcas de bala, fases de daño y restos con física). Medido con `OBJ.measure()`:
 
 | Tipo | Nombre | Material | Vida | Huella (m) | Alto | Piezas |
 |---|---|---|---|---|---|---|
@@ -154,7 +154,7 @@ Los 49 tipos se crean con el mismo sistema que las cajas y barriles (piezas real
 | `cage` | Jaula metálica | metal | 110 | 1.2×0.8 | 1.7 | 37 |
 | `counter` | Mostrador | wood | 130 | 2.48×0.75 | 1.35 | 10 |
 | `shelf` | Estantería | metal | 90 | 2.2×0.55 | 1.9 | 38 |
-| `locker` | Taquilla | metal | 80 | 1.56×0.5 | 1.91 | 15 |
+| `locker` | Taquilla | metal | 80 | 1.56×0.5 | 1.91 | 17 |
 | `pharmaCab` | Armario de farmacia | metal | 70 | 1.16×0.49 | 1.98 | 28 |
 | `supplyMat` | Caja de materiales | wood | 40 | 0.8×0.55 | 0.55 | 7 |
 | `supplyAmmo` | Caja de munición | wood | 45 | 0.8×0.55 | 0.55 | 8 |
@@ -162,9 +162,6 @@ Los 49 tipos se crean con el mismo sistema que las cajas y barriles (piezas real
 | `car` | Coche abandonado | metal | 320 | 4.3×1.8 | 1.5 | 32 |
 | `stall` | Puesto de mercado | metal | 100 | 2.9×1.9 | 2.3 | 16 |
 | `glassPane` | Cristalera | glass | 22 | 2×0.18 | 2.2 | 10 |
-| `shopFront` | Local: Minimarket | block | 380 | 4.76×2.5 | 3.4 | 32 |
-| `pharmFront` | Local: Farmacia | block | 380 | 4.76×2.5 | 3.4 | 34 |
-| `superFront` | Local: Supermercado | block | 380 | 6.76×2.5 | 3.4 | 32 |
 | `floodlight` | Foco de patio | metal | 80 | 0.5×0.5 | 4.5 | 8 |
 | `pump` | Surtidor de gasolinera | metal | 120 | 1×0.76 | 1.9 | 16 |
 | `storeMat` | Módulo de almacén: materiales | wood | 160 | 1.96×0.7 | 2.1 | 47 |
@@ -177,6 +174,15 @@ Los 49 tipos se crean con el mismo sistema que las cajas y barriles (piezas real
 | `emblem1` | Emblema de facción Rojo | block | 260 | 3×0.66 | 2.9 | 15 |
 | `emblem2` | Emblema de facción Ámbar | block | 260 | 3×0.66 | 2.9 | 15 |
 | `emblem3` | Emblema de facción Violeta | block | 260 | 3×0.66 | 2.9 | 15 |
+| `bwallSolid` | Muro de edificio | block | 520 | 4×0.36 | 3.2 | 4 |
+| `bwallGlass` | Escaparate de edificio | glass | 400 | 3.5×0.36 | 2.55 | 10 |
+| `shopDoor` | Puerta de local | glass | 200 | 1.8×0.2 | 2.5 | 15 |
+| `gondola3` | Góndola de tienda (3 m) | metal | 130 | 3×0.9 | 1.78 | 40 |
+| `gondola4` | Góndola de tienda (4 m) | metal | 150 | 4×0.9 | 1.78 | 48 |
+| `fridge` | Vitrina frigorífica | metal | 140 | 2.4×0.8 | 2.05 | 64 |
+| `checkout` | Caja registradora | metal | 120 | 2×0.9 | 1.35 | 10 |
+| `cart` | Carro de compra | metal | 30 | 0.6×1.05 | 0.95 | 24 |
+| `waitSeat` | Banco de espera | metal | 80 | 1.8×0.55 | 1 | 9 |
 
 Novedades que aporta además de los modelos:
 - **Material nuevo `glass`** (cristal: pen 0,85, rotura inmediata, esquirlas y grietas en las marcas de bala).
@@ -186,14 +192,14 @@ Novedades que aporta además de los modelos:
 - **Persiana y cristalera** hacen ruido (`noiseOnMove` 30 m / `noiseOnBreak` 40 m).
 - **Recogibles** (`OBJ.pickup(clase, x, z)`): material, munición, botiquín, kit de reanimación, y casco, chaleco y mochila en 3 niveles. Solo son el modelo; recoger y guardar llega con el inventario.
 - **Raíles** (`OBJ.rails(x, z, largo, giro)`), decoración sin colisión.
-- **Galería de pruebas**: `index.html?galeria=1` coloca los 49 tipos en filas; `OBJ.gallery([tipos])` coloca los que se pidan.
+- **Galería de pruebas**: `index.html?galeria=1` coloca los 55 tipos en filas; `OBJ.gallery([tipos])` coloca los que se pidan.
 - **Contenido**: `OBJ.contents(p)` devuelve la lista de lo que lleva (`loot`) cada caja o armario; sin lógica de inventario todavía.
 - **Eventos** (`OBJ.on.push(f)`): `add`, `open`, `close`, `break`, `alarm`; para que la navegación dinámica de la entrega 2 invalide rutas.
 
 Límites conocidos (a resolver en las entregas indicadas):
 - El juego colisiona en 2D: pasarela, escalera, puesto elevado y cristaleras son sólidos o dejan ver como una caja. La altura transitable, ocupar el puesto y la visión real a través de aberturas son de la **entrega 2** (los modelos ya llevan `seats` y el ancho de los pasos).
 - Las **aspilleras** a ras de suelo del diseño no se han hecho: necesitan huecos reales en la colisión (entrega 2).
-- Rendimiento: cada pieza es una malla. Los 49 tipos suman 1259 piezas (máximo 59 por objeto). Un distrito entero con cientos de objetos necesitará fusionar la geometría de lo intacto (entrega 6); medir en el iPhone antes.
+- Rendimiento: cada pieza es una malla. Los 55 tipos suman 1387 piezas (máximo 64 por objeto). Un distrito entero con cientos de objetos necesitará fusionar la geometría de lo intacto (entrega 6); medir en el iPhone antes.
 - Los sonidos nuevos (`IMP_glass`, `ALARM_loop`, rotura de cada tipo) no existen todavía: callan hasta que el usuario los genere. Las roturas reutilizan los sonidos de caja, barrera y bloques.
 - Edificios completos (tiendas, clínica, estación, viviendas, puentes), la colocación en el mapa y el uso por el mando/bots no están hechos.
 
@@ -213,7 +219,18 @@ La puerta interior del portón nivel 3 (`gateInner`, 400) es de hierro. Todos ll
 ## 13. Estilo visual
 Paleta cálida y saturada (la luz del juego es fría y apaga los colores), texturas procedurales (madera con vetas y clavos, sillería irregular, planchas con óxido, ladrillo, chapa oxidada, tejas), suciedad y musgo en la base por color de vértice, colores propios por objeto (puertas, taquillas, contenedores y coches de distintos colores) y rótulos iluminados de tienda. `OBJ.setGround(hex)` permite probar otro color de suelo sin cambiar el juego.
 
-## 14. Locales de hoy y líneas de facción (25-11)
-- **Locales** (`shopFront` minimarket, `pharmFront` farmacia con cruz verde de bandera, `superFront` supermercado): aspecto actual, no medieval. Fachada de aluminio y vidrio tintado, puerta de cristal con tiradores, zócalo oscuro con línea de color de marca, rótulo iluminado con texto, cajón de persiana, vinilos en los cristales, cartel de abierto, cámara de seguridad, parapeto plano y equipos de aire acondicionado en la azotea. Cuerpo con volumen (fondo 2,2 m). Sin toldos de rayas ni ladrillo. Mantienen la alarma al romper un cristal.
-- **Quiosco de prensa** (chapa pintada, ventana de despacho, revistas y rótulo luminoso), **puesto de mercado** (carpa lisa con faldón) y **surtidor** (pantalla digital, botones de combustible, isleta con borde amarillo) también actualizados.
-- **Líneas de facción** (`lines()`): una franja de color con dos filetes finos del color claro, a ras de la superficie, sin telas ni cintas: viga superior de la empalizada, friso de la piedra, viga del muro de hierro, dintel de los portones, y borde del techo y del suelo de la plataforma de las torres.
+## 14. Edificios recorribles (25-11)
+El usuario señaló que los locales eran demasiado pequeños para interactuar dentro. Las fachadas de una sola pieza se sustituyen por **edificios completos con interior** (`OBJ.building(tipo, x, z, giro, facción)`; `OBJ.buildingKinds` = `mini`, `pharm`, `super`):
+
+| Edificio | Interior | Puerta | Contenido |
+|---|---|---|---|
+| Minimarket | 10 × 7 m | 1,8 m | 4 vitrinas frigoríficas, 2 góndolas, caja, palé con cajas, estantería, cajas de suministros |
+| Farmacia | 10 × 7 m | 1,8 m | 4 armarios, 2 mostradores con acceso al trasero, 2 góndolas, sala de espera, camilla, cajas médicas, cruz verde de bandera |
+| Supermercado | 18 × 12 m | 2,4 m | 8 vitrinas, 4 góndolas de 4 m, 3 estanterías, 2 cajas, 4 carros, palés, cajas de suministros |
+
+- Cada edificio está hecho de muros (`bwallSolid`, tramos de ≤ 4 m), escaparates (`bwallGlass`, cristales independientes con alarma) y una puerta de cristal (`shopDoor`, abierta al crearlo). Todo es destructible: una brecha abre un acceso real.
+- Suelo de baldosa, luz cálida interior, friso con rótulo iluminado de la marca, línea de color, cubierta plana con peto y equipos de aire.
+- **Recorte de cámara:** al entrar, el techo y el friso se ocultan y los muros del lado de la cámara se recortan al 28 % (su colisión y su vida no cambian); al salir vuelven.
+- Pasillos de ≥ 2 m (la rejilla de navegación de los bots infla 0,62 m). Mobiliario nuevo: góndola de 3 y 4 m, vitrina, caja registradora, carro, banco de espera.
+- Medido (`tests/edificios.py`): se llega a pie a todo el interior libre desde 5 m fuera de la puerta, sin objetos solapados.
+- Pendiente: rendimiento (el supermercado son unos 44 objetos; fusionar geometría estática en la entrega 6), más detalle interior, otros locales (gasolinera con marquesina, clínica, estación), almacén trasero, uso por los bots (la navegación del mapa 3 es estática: hay que reconstruirla al colocar edificios) y que los cristales no corten la visión de los bots.

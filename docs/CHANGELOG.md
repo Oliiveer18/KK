@@ -1,9 +1,9 @@
 # Changelog
 
 ## Objetos de campaña (sin versionar; rama claude/funny-hypatia-uvl1wv)
-- Nuevo `src/objetos.js`: 49 tipos de objeto del catálogo (accesos, muros y portones de 3 niveles, puesto de vigilancia, pasarela y escalera, mobiliario urbano, comercio y transporte, escaparates con alarma, foco, surtidor, almacén por reservas, camilla, tablón, armero y emblemas de las 4 facciones), 13 recogibles (material, munición, botiquín, kit, casco/chaleco/mochila en 3 niveles) y raíles. Material nuevo `glass`.
+- Nuevo `src/objetos.js`: 55 tipos de objeto del catálogo (accesos, muros y portones de 3 niveles, puesto de vigilancia, pasarela y escalera, mobiliario urbano, comercio y transporte, escaparates con alarma, foco, surtidor, almacén por reservas, camilla, tablón, armero y emblemas de las 4 facciones), 13 recogibles (material, munición, botiquín, kit, casco/chaleco/mochila en 3 niveles) y raíles. Material nuevo `glass`.
 - Revisión de estilo (25-11): muros, portones y torres en 3 niveles madera → piedra → hierro, paleta cálida, texturas procedurales, desgaste, color de facción (`OBJ.fac`) y colores propios por objeto. Ver `docs/CATALOGO_OBJETOS.md` §12–13.
-- Locales modernos (minimarket, farmacia, supermercado), quiosco, puesto y surtidor actualizados; líneas de facción tipo filete en muros, portones y torres. 49 tipos. Ver `docs/CATALOGO_OBJETOS.md` §14.
+- Edificios recorribles (`OBJ.building`): minimarket 10×7 m, farmacia 10×7 m y supermercado 18×12 m con interior amueblado, puerta, escaparates con alarma, techo que se oculta al entrar y muros cercanos recortados. Quiosco, puesto y surtidor modernos; líneas de facción tipo filete. 55 tipos. Test `tests/edificios.py`. Ver `docs/CATALOGO_OBJETOS.md` §14.
 - Puertas, portones, verja y persiana se abren y cierran por código (`OBJ.setOpen`); alarma de tienda con ruido que atrae infectados. Sin inventario ni interacción por mando todavía.
 - `?galeria=1` muestra todos los objetos. `tools/build.py` incrusta el módulo. Test nuevo `tests/objetos.py` (26 comprobaciones). Regresión: partida, partida_armas, partida_escudo, horizontal, zombis, balistica, aspecto, abatido_campana, barras y restos_fisica sin fallos.
 - Solo comprobado en Chrome headless con capturas; no se ha visto en iPhone ni medido el rendimiento allí.

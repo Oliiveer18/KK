@@ -501,49 +501,6 @@
       return { out, hx: W / 2, hz: .09, h: H };
     }
   });
-  /* Locales de hoy: fachada de aluminio y vidrio, rótulo iluminado, parapeto plano, aire acondicionado en la azotea. Un cuerpo con volumen (fondo 2,2 m) y techo plano. */
-  function signTex(label, sub, bg, fg, cross) {
-    return new THREE.MeshBasicMaterial({ map: mkTex(512, (x, s) => {
-      x.fillStyle = bg; x.fillRect(0, 0, s, s); const y0 = s * .375, hh = s * .25; x.fillStyle = 'rgba(255,255,255,.12)'; x.fillRect(0, y0, s, hh * .45);
-      x.fillStyle = fg; x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = '900 ' + Math.round(cl((cross ? 380 : 440) / (label.length * .68), 34, 76)) + 'px sans-serif'; x.fillText(label, s / 2 + (cross ? 36 : 0), y0 + hh * (sub ? .38 : .5));
-      if (sub) { x.font = '700 30px sans-serif'; x.fillText(sub, s / 2 + (cross ? 36 : 0), y0 + hh * .8); }
-      if (cross) { x.fillStyle = '#2fb866'; const cx = 70, cyy = y0 + hh / 2, a = 26, b = 9; x.fillRect(cx - b, cyy - a, 2 * b, 2 * a); x.fillRect(cx - a, cyy - b, 2 * a, 2 * b); }
-    }) });
-  }
-  function shopFront(o) {
-    return g => {
-      const out = [], W = o.W, D = 2.2, H = 3.2, hw = W / 2, dw = o.door, pw = (W - .6 - dw) / 2, glassPcs = [];
-      const wallM = o.wall || OM.plasterG;
-      bx(g, out, OM.anth, W, .42, D, 0, .21, 0, false);                                                           // zócalo oscuro
-      tx(g, out, wallM, 1, W, H - .42, .12, 0, .42 + (H - .42) / 2, -D / 2 + .06, false);                         // fachada trasera y laterales
-      for (const s of [-1, 1]) tx(g, out, wallM, 1, .3, H - .42, D, s * (hw - .15), .42 + (H - .42) / 2, 0, false);
-      bx(g, out, OM.concL, W + .24, .18, D + .24, 0, H + .09, 0, false);                                          // losa de cubierta con peto
-      bx(g, out, o.brand, W + .26, .05, .03, 0, .42, D / 2 + .005, false);                                        // línea de color de la marca sobre el zócalo
-      for (const s of [-1, 1]) { const px = s * (dw / 2 + pw / 2); bx(g, out, OM.glassT, pw - .06, 2.0, .03, px, 1.45, D / 2 - .02, true); glassPcs.push(out[out.length - 1]); }   // escaparates
-      for (const s of [-1, 1]) { bx(g, out, OM.glassT, dw / 2 - .08, 2.0, .03, s * (dw / 4), 1.45, D / 2 - .02, true); glassPcs.push(out[out.length - 1]); }   // hojas de la puerta
-      for (const x of [-hw + .3, -dw / 2 - pw, -dw / 2, 0, dw / 2, dw / 2 + pw, hw - .3]) bx(g, out, OM.alu, .06, 2.1, .1, x, 1.45, D / 2 - .02, false);   // montantes de aluminio
-      for (const y of [.45, 2.47]) bx(g, out, OM.alu, W - .5, .07, .1, 0, y, D / 2 - .02, false);
-      for (const s of [-1, 1]) bx(g, out, OM.steelL, .03, .55, .04, s * .07, 1.15, D / 2 + .01, true);              // tiradores
-      bx(g, out, OM.anth, W - .5, .14, .14, 0, 2.58, D / 2 - .05, false);                                         // cajón de la persiana
-      const sg = signTex(o.label, o.sub, o.bg, o.fg, o.cross); sg.map.wrapS = sg.map.wrapT = THREE.ClampToEdgeWrapping;
-      bx(g, out, OM.anth, W - .3, .62, .16, 0, 2.9, D / 2 - .04, false);
-      const sign = bx(g, out, sg, W - .42, .5, .03, 0, 2.9, D / 2 + .05, true); sign.geometry = sign.geometry.clone(); const uv = sign.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setY(i, uv.getY(i) * .25 + .375);
-      bx(g, out, OM.white, .7, .04, .01, -hw / 2 - .2, 1.2, D / 2 + .0, true); bx(g, out, o.brand, .7, .22, .01, hw / 2 + .2, 1.5, D / 2 + .0, true);   // vinilos en el cristal
-      bx(g, out, OM.ledG, .34, .1, .03, dw / 2 + .22, 2.05, D / 2 + .02, true);                                      // cartel ABIERTO
-      bx(g, out, OM.dark, .1, .1, .16, -hw + .12, 2.35, D / 2 + .1, true);                                         // cámara de seguridad
-      for (const [x, z, w, h] of [[-hw / 2, -.2, .9, .6], [hw / 2 - .2, .2, .7, .5]]) { bx(g, out, OM.steelL, w, h, w * .8, x, H + .18 + h / 2, z, true); cy(g, out, OM.ironD, w * .32, .04, x, H + .18 + h + .01, z, true); }   // equipos de aire en la azotea
-      if (o.crossFlag) { bx(g, out, OM.ledG, .2, .9, .14, -hw - .02, 2.35, D / 2 - .5, true); bx(g, out, OM.ledG, .9, .2, .14, -hw - .02, 2.35, D / 2 - .5, true); }   // cruz verde de bandera
-      const beacon = new THREE.Mesh(geoBall, new THREE.MeshBasicMaterial({ color: 0x551111 })); beacon.scale.set(.1, .1, .1); beacon.position.set(hw - .25, H + .24, D / 2 - .2); g.add(beacon);
-      return { out, hx: hw + .08, hz: D / 2 + .15, h: H + .2, beacon, glassPcs };
-    };
-  }
-  const SHOPS = {
-    shopFront: ['Minimarket', { W: 4.6, door: 1.4, label: 'MINIMARKET', sub: 'ABIERTO 24 H', bg: '#d8321f', fg: '#ffffff', brand: sm(0xd8321f, .5), wall: OM.plasterG }],
-    pharmFront: ['Farmacia', { W: 4.6, door: 1.4, label: 'FARMACIA', sub: 'MEDICAMENTOS · SALUD', bg: '#ffffff', fg: '#1a6b3c', brand: sm(0x2fb866, .5), wall: OM.plasterG, cross: true, crossFlag: true }],
-    superFront: ['Supermercado', { W: 6.6, door: 2.2, label: 'SUPERMERCADO', sub: 'FRESCOS · OFERTAS', bg: '#f08a12', fg: '#ffffff', brand: sm(0xf08a12, .5), wall: OM.plasterG }]
-  };
-  for (const k in SHOPS) def(k, { name: 'Local: ' + SHOPS[k][0], cat: 'Sonido y visibilidad', alarm: true, note: 'Alarma de tienda: al romper un cristal suena y atrae infectados' }, { mat: 'block', hp: 380, push: false, mass: 90, fric: 9, alarm: true, build: shopFront(SHOPS[k][1]) });
-
   def('floodlight', { name: 'Foco de patio', cat: 'Sonido y visibilidad', note: 'Apagarlo o romperlo oculta la zona (efecto de visión: entrega 2)' }, {
     mat: 'metal', hp: 80, push: false, mass: 20, fric: 9, build: g => {
       const out = [], H = 4.2;
@@ -632,6 +589,102 @@
     }
   });
 
+
+  /* =============================== edificios que se pueden recorrer =============================== */
+  const PAR = () => OBJ.param || {};
+  const PLASTER_W = OM.plasterG;
+  /* tramo de muro macizo (revoco claro, zócalo oscuro, remate de hormigón); largo variable (OBJ.param.len) */
+  def('bwallSolid', { name: 'Muro de edificio', cat: 'Edificios' }, {
+    mat: 'block', hp: 520, push: false, mass: 80, fric: 9, build: g => {
+      const out = [], pr = PAR(), L = pr.len || 4, T = .3, H = 3.2, wm = pr.wall || PLASTER_W, n = Math.max(1, Math.round(L / 2));
+      bx(g, out, OM.anth, L, .35, T + .04, 0, .175, 0, false);
+      for (let i = 0; i < n; i++) { tx(g, out, wm, 1, L / n - .01, H - .5, T, -L / 2 + (i + .5) * L / n, .35 + (H - .5) / 2 - .075, 0, true); }
+      bx(g, out, OM.concL, L + .02, .15, T + .1, 0, H - .075, 0, false);
+      if (pr.brand) bx(g, out, pr.brand, L, .05, T + .06, 0, .38, 0, false);
+      return { out, hx: L / 2, hz: T / 2 + .03, h: H };
+    }
+  });
+  /* tramo de escaparate: murete, cristales independientes (cada impacto rompe el más cercano y salta la alarma) y perfiles de aluminio */
+  def('bwallGlass', { name: 'Escaparate de edificio', cat: 'Edificios', alarm: true, note: 'Cada impacto rompe un cristal y salta la alarma' }, {
+    mat: 'glass', hp: 400, push: false, mass: 60, fric: 9, pen: .85, alarm: true, noiseOnBreak: 0, build: g => {
+      const out = [], pr = PAR(), L = pr.len || 3.5, T = .3, H = 2.55, n = Math.max(1, Math.round(L / 1.8)), pw = (L - .12) / n, wm = pr.wall || PLASTER_W, glassPcs = [];
+      bx(g, out, OM.anth, L, .3, T + .04, 0, .15, 0, false); tx(g, out, wm, 1, L, .2, T, 0, .4, 0, true);
+      if (pr.brand) bx(g, out, pr.brand, L, .05, T + .06, 0, .3, 0, false);
+      for (let i = 0; i < n; i++) { bx(g, out, OM.glassT, pw - .05, 1.95, .03, -L / 2 + .06 + (i + .5) * pw, 1.45, 0, true); glassPcs.push(out[out.length - 1]); }
+      for (let i = 0; i <= n; i++) bx(g, out, OM.alu, .06, 1.98, .12, -L / 2 + .06 + i * pw, 1.45, 0, false);
+      bx(g, out, OM.alu, L, .07, .12, 0, .5, 0, false); bx(g, out, OM.alu, L, .08, .14, 0, H - .04, 0, false);
+      bx(g, out, OM.white, Math.min(1.2, pw - .3), .04, .01, 0, 1.2, T / 2 + .02, true);                                 // vinilo
+      return { out, hx: L / 2, hz: T / 2 + .03, h: H, glassPcs };
+    }
+  });
+  /* puerta de cristal y aluminio de dos hojas (ancho OBJ.param.len); se puede abrir y cerrar */
+  def('shopDoor', { name: 'Puerta de local', cat: 'Edificios', open: true }, {
+    mat: 'glass', hp: 200, push: false, mass: 30, fric: 9, pen: .85, alarm: true, build: g => {
+      const out = [], pr = PAR(), W = pr.len || 1.8, H = 2.5, hw = W / 2, lw = hw - .04, lfs = [], glassPcs = [];
+      for (const s of [-1, 1]) bx(g, out, OM.alu, .08, H, .16, s * (hw - .04), H / 2, 0, false); bx(g, out, OM.alu, W, .08, .16, 0, H - .04, 0, false);
+      for (const s of [-1, 1]) {
+        const i0 = out.length, hx = s * (hw - .08), cx = s * (hw - .08 - lw / 2);
+        bx(g, out, OM.alu, lw, .1, .07, cx, H - .2, 0, true); bx(g, out, OM.alu, lw, .14, .07, cx, .1, 0, true); bx(g, out, OM.alu, .08, H - .3, .07, hx - s * .04, (H - .3) / 2 + .1, 0, true); bx(g, out, OM.alu, .08, H - .3, .07, hx - s * (lw - .04), (H - .3) / 2 + .1, 0, true);
+        bx(g, out, OM.glassT, lw - .12, H - .4, .03, cx, (H - .3) / 2 + .1, 0, true); glassPcs.push(out[out.length - 1]);
+        bx(g, out, OM.steelL, .03, .7, .04, hx - s * (lw - .1), 1.1, .06, true);
+        lfs.push(leaf(out, i0, hx, 0, s));
+      }
+      return { out, hx: hw, hz: .1, h: H, leaves: lfs, glassPcs, openBoxes: [], swing: 1.7 };
+    }
+  });
+  /* mobiliario de tienda */
+  const gondolaBuild = len => g => {
+    const out = [], L = len, D = .9, H = 1.7, brand = pick([OM.red, OM.blueP, OM.orange, OM.green, OM.teal]);
+    bx(g, out, OM.white, L, .16, D, 0, .08, 0, false); bx(g, out, OM.steelL, .06, H, D - .1, 0, H / 2, 0, false);                 // zócalo y columna central
+    for (const s of [-1, 1]) for (let l = 0; l < 4; l++) { bx(g, out, OM.steelL, L - .05, .04, .36, 0, .35 + l * .36, s * .22, true); const nb = Math.round(L), bw = (L - .4) / nb; for (let k = 0; k < nb; k++) { const hh = .2 + rnd() * .1; bx(g, out, prodColors[(k * 3 + l * 2 + (s > 0 ? 1 : 0)) % 8], bw - .06, hh, .3, -L / 2 + .2 + (k + .5) * bw, .37 + l * .36 + hh / 2, s * .22, true); } }
+    for (const s of [-1, 1]) { bx(g, out, OM.white, .08, H, D, s * (L / 2 - .04), H / 2, 0, false); bx(g, out, brand, .1, .5, D - .1, s * (L / 2 - .04), H - .25, 0, true); }
+    bx(g, out, brand, L - .1, .12, .06, 0, H + .02, 0, true); bx(g, out, OM.white, L * .5, .2, .02, 0, H - .1, .2, true);
+    return { out, hx: L / 2, hz: D / 2, h: H + .08 };
+  };
+  def('gondola3', { name: 'Góndola de tienda (3 m)', cat: 'Comercio y transporte' }, { mat: 'metal', hp: 130, push: false, mass: 40, fric: 9, build: gondolaBuild(3) });
+  def('gondola4', { name: 'Góndola de tienda (4 m)', cat: 'Comercio y transporte' }, { mat: 'metal', hp: 150, push: false, mass: 50, fric: 9, build: gondolaBuild(4) });
+  def('fridge', { name: 'Vitrina frigorífica', cat: 'Comercio y transporte', note: 'Frente hacia +z' }, {
+    mat: 'metal', hp: 140, push: false, mass: 50, fric: 9, pen: .1, build: g => {
+      const out = [], W = 2.4, D = .8, H = 2.05, cs = [OM.red, OM.blueP, OM.yellow, OM.green, OM.orange, OM.white];
+      bx(g, out, OM.anth, W, .22, D, 0, .11, 0, false); bx(g, out, OM.white, W, H - .25, D - .5, 0, .22 + (H - .25) / 2, -.25, false); bx(g, out, OM.white, W, .12, D, 0, H - .06, 0, false);
+      for (const s of [-1, 1]) bx(g, out, OM.white, .06, H - .22, D - .3, s * (W / 2 - .03), .22 + (H - .22) / 2, -.1, false);
+      for (let i = 0; i < 3; i++) { const x = (i - 1) * (W / 3); bx(g, out, OM.glassT, W / 3 - .08, H - .45, .03, x, .22 + (H - .45) / 2, D / 2 - .02, true); bx(g, out, OM.alu, W / 3 - .04, .05, .06, x, H - .25, D / 2 - .02, false); bx(g, out, OM.steelL, .03, .5, .04, x + W / 6 - .09, 1.0, D / 2 + .01, true);
+        for (let l = 0; l < 4; l++) for (let k = 0; k < 4; k++) bx(g, out, cs[(i + l * 2 + k) % 6], .14, .26, .14, x - .3 + k * .2, .5 + l * .4, .0, true); }
+      bx(g, out, OM.ledG, W - .2, .04, .04, 0, H - .09, D / 2 - .01, true); bx(g, out, OM.blueP, W - .2, .1, .04, 0, H - .09 + .0, D / 2 + .005, true);
+      return { out, hx: W / 2, hz: D / 2, h: H };
+    }
+  });
+  def('checkout', { name: 'Caja registradora', cat: 'Comercio y transporte', note: 'Eje largo en x; el cliente va en +z' }, {
+    mat: 'metal', hp: 120, push: false, mass: 40, fric: 9, build: g => {
+      const out = [], L = 2.0, D = .9, H = 1.05;
+      bx(g, out, OM.anth, L, H - .1, D - .2, 0, (H - .1) / 2, -.1, true); bx(g, out, OM.cream, L + .04, .06, D, 0, H - .03, 0, true);
+      bx(g, out, OM.dark, 1.2, .04, .6, .25, H + .02, .08, true);                                                                        // cinta
+      bx(g, out, OM.dark, .36, .3, .3, -.62, H + .18, -.2, true); bx(g, out, OM.screen, .28, .16, .02, -.62, H + .2, -.04, true);       // caja y pantalla
+      bx(g, out, OM.steelL, .14, .02, .1, -.62, H + .05, .1, true); bx(g, out, OM.ledG, .2, .03, .2, -.9, H + .045, .25, true);
+      bx(g, out, OM.red, .3, .1, .08, .98, H + .3, -.1, true); bx(g, out, OM.steelL, .04, .3, .04, .98, H + .15, -.1, true);             // luz de carril
+      bx(g, out, OM.yellow, .5, .26, .3, .5, 0.2, D / 2 - .02, true);                                                                    // expositor de chicles
+      return { out, hx: L / 2, hz: D / 2, h: H + .3 };
+    }
+  });
+  def('cart', { name: 'Carro de compra', cat: 'Comercio y transporte' }, {
+    mat: 'metal', hp: 30, push: true, mass: 1.2, fric: 3, pen: .6, build: g => {
+      const out = [], W = .6, L = .95;
+      bx(g, out, OM.steelL, W, .04, L, 0, .3, 0, true); for (const y of [.55, .8]) for (const z of [-1, 1]) bx(g, out, OM.steelL, W, .03, .03, 0, y, z * L / 2, true);
+      for (const s of [-1, 1]) { bx(g, out, OM.steelL, .03, .5, L, s * W / 2, .55, 0, true); for (let k = 0; k < 5; k++) bx(g, out, OM.steelL, .02, .5, .02, s * W / 2, .55, -L / 2 + k * L / 4, true); }
+      bx(g, out, OM.red, W + .04, .08, .06, 0, .9, -L / 2 - .05, true); bx(g, out, OM.steelL, .03, .5, .03, -W / 2 + .05, .6, -L / 2 - .02, true); bx(g, out, OM.steelL, .03, .5, .03, W / 2 - .05, .6, -L / 2 - .02, true);
+      for (const s of [-1, 1]) for (const z of [-1, 1]) cy(g, out, OM.rubber, .05, .04, s * (W / 2 - .06), .06, z * (L / 2 - .1), true).rotation.z = Math.PI / 2;
+      return { out, hx: W / 2, hz: L / 2 + .05, h: .95 };
+    }
+  });
+  def('waitSeat', { name: 'Banco de espera', cat: 'Comercio y transporte' }, {
+    mat: 'metal', hp: 80, push: false, mass: 20, fric: 9, build: g => {
+      const out = [], L = 1.8, D = .55;
+      bx(g, out, OM.alu, L, .05, .05, 0, .26, -.18, false); for (const s of [-1, 1]) bx(g, out, OM.alu, .05, .45, D, s * (L / 2 - .05), .25, 0, false);
+      for (let k = 0; k < 3; k++) { const x = -L / 3 + k * L / 3; bx(g, out, OM.blueP, L / 3 - .06, .08, D - .1, x, .46, 0, true); rot(bx(g, out, OM.blueP, L / 3 - .06, .4, .07, x, .75, -D / 2 + .08, true), -.12, 0, 0); }
+      return { out, hx: L / 2, hz: D / 2, h: 1.0 };
+    }
+  });
+
   /* ---------- registro en el sistema de objetos del juego ---------- */
   Object.assign(MT, { glass: { pen: .85, dm: 1.3 } });
   Object.assign(pMat, { glass: new THREE.MeshBasicMaterial({ color: 0xcfeaff }) });
@@ -644,7 +697,7 @@
   }
 
   /* =============================== estado y comportamiento =============================== */
-  const OBJ = window.OBJ = { meta: META, types: Object.keys(SP), on: [], pickups: [], alarms: [], _b: null, fac: null };
+  const OBJ = window.OBJ = { meta: META, types: Object.keys(SP), on: [], pickups: [], alarms: [], _b: null, fac: null, param: null, buildings: [] };
   const emit = (ev, p) => { for (const f of OBJ.on) f(ev, p); };
   const wpos = (p, lx, lz) => { const c = Math.cos(p.g.rotation.y), s = Math.sin(p.g.rotation.y); return [p.x + lx * c + lz * s, p.z - lx * s + lz * c]; };
   const sideways = p => Math.abs(Math.sin(p.g.rotation.y)) > .5;
@@ -662,7 +715,7 @@
     if (s) { p.meta = META[type]; p.faction = OBJ.fac; emit('add', p); } return p;
   };
   /* abrir/cerrar: al abrir, la huella pasa a ser solo lo que queda en pie (postas, hoja plegada); cerrar se rechaza si alguien está en el paso */
-  OBJ.setOpen = function (p, on) {
+  OBJ.setOpen = function (p, on, instant) {
     if (!p || p.dead || !p.o || !p.o.leaves) return false; on = !!on; if (p.open === on) return true;
     if (!on) {
       const fb = p.fullBox, pad = .55;
@@ -673,10 +726,11 @@
       dropBoxes(p); p.xb = (p.o.openBoxes || []).map(b => mkBox(p, b)); for (const b of p.xb) boxes.push(b); p.box = p.xb[0] || { x: p.x, z: p.z, hx: .05, hz: .05, prop: p };   // sin huella (persiana enrollada): caja ficticia fuera de `boxes` para el código que espera p.box
     }
     p.open = on; const s = SP[p.type]; if (s.noiseOnMove && MX && MX.zom) MX.zom.noise(p.x, p.z, s.noiseOnMove, false);
+    if (instant) { p.oT = on ? 1 : 0; pose(p); }
     emit(on ? 'open' : 'close', p); return true;
   };
   OBJ.toggle = p => OBJ.setOpen(p, !p.open);
-  OBJ.place = function (type, x, z, rot, fac) { const f0 = OBJ.fac; OBJ.fac = fac === undefined ? null : fac; try { return addProp(type, x, z, rot || 0); } finally { OBJ.fac = f0; } };   // fac 0..3 = color de facción (franjas, telas, banderas)
+  OBJ.place = function (type, x, z, rot, fac, param) { const f0 = OBJ.fac, p0 = OBJ.param; OBJ.fac = fac === undefined ? null : fac; OBJ.param = param || null; try { return addProp(type, x, z, rot || 0); } finally { OBJ.fac = f0; OBJ.param = p0; } };   // fac 0..3 = color de facción (franjas, telas, banderas)
   OBJ.contents = p => (p.meta && p.meta.loot) || [];
   OBJ.near = function (x, z, r) { let best = null, bd = r; for (const p of props) { if (p.dead || !p.o) continue; const d = Math.hypot(Math.max(Math.abs(x - p.x) - p.hx, 0), Math.max(Math.abs(z - p.z) - p.hz, 0)); if (d < bd) { bd = d; best = p; } } return best; };
 
@@ -703,7 +757,7 @@
   const _gv = new V3();
   const _dest = destroyProp;
   destroyProp = function (p, dx, dz, power) {
-    if (p.dead) return; const s = SP[p.type]; dropBoxes(p);
+    if (p.dead) return; const s = SP[p.type]; dropBoxes(p); if (p.g.scale.y !== 1) p.g.scale.y = 1;
     if (s && s.mat === 'glass') for (let i = 0; i < 16; i++) spawn('glass', new V3(p.x + (rnd() - .5) * p.hx * 2, .3 + rnd() * 1.8, p.z + (rnd() - .5) * p.hz * 2), new V3((rnd() - .5) * 4 + dx * 2, 1 + rnd() * 4, (rnd() - .5) * 4 + dz * 2), .8 + rnd() * .6, .025, .025, .035, true, 12);
     _dest.apply(null, arguments);
     if (s && s.noiseOnBreak && MX && MX.zom) MX.zom.noise(p.x, p.z, s.noiseOnBreak, false);
@@ -733,7 +787,7 @@
     }
     for (const k of OBJ.pickups) { k.t += dt; k.g.position.y = k.y0 + .05 + Math.sin(k.t * 2.2 + k.x) * .035; k.g.rotation.y += dt * .8; }
   }
-  const _up = updateProps; updateProps = function (dt) { _up.apply(null, arguments); tick(dt); };
+  const _up = updateProps; updateProps = function (dt) { _up.apply(null, arguments); tick(dt); buildingsTick(dt); };
 
   /* =============================== recogibles =============================== */
   const PK = {};
@@ -771,12 +825,102 @@
     return rows;
   };
   OBJ.gallery = function (types, facOf2) {                                             // coloca los tipos pedidos en filas; cada uno con una facción distinta (por defecto 0,1,2,3…)
-    for (const p of props.slice()) { dropBoxes(p); scene.remove(p.g); const i = props.indexOf(p); if (i >= 0) props.splice(i, 1); }
+    OBJ.clearBuildings(); for (const p of props.slice()) { dropBoxes(p); scene.remove(p.g); const i = props.indexOf(p); if (i >= 0) props.splice(i, 1); }
     boxes.length = 0; types = types || OBJ.types; const cols = 8, gx = 6.2, gz = 6, out = [];
     types.forEach((t, i) => { const one = types.length === 1, x = one ? 0 : (i % cols - (cols - 1) / 2) * gx, z = one ? 0 : -8 + Math.floor(i / cols) * gz; out.push(OBJ.place(t, x, z, 0, facOf2 ? facOf2(i) : i % 4)); });
     P.pos.set(0, 0, 0); return out;
   };
   /* vista previa de otro color de suelo (solo en pruebas; el juego no lo cambia) */
   OBJ.setGround = function (hex) { if (OBJ._g0 === undefined) OBJ._g0 = ground.material.color.getHex(); ground.material.color.setHex(hex === null ? OBJ._g0 : hex); };
+
+  /* ---------- edificios: suelo, muros con puertas y escaparates, techo que se oculta al entrar, muros cercanos a la cámara recortados y mobiliario ---------- */
+  function floorMat(W, D, tint) {
+    const t = FLOORTEX.clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(W / .6, D / .6);
+    return new THREE.MeshStandardMaterial({ map: t, color: tint, roughness: .55, metalness: .05, flatShading: true });
+  }
+  const FLOORTEX = mkTex(128, (x, s) => { x.fillStyle = '#b9b6ac'; x.fillRect(0, 0, s, s); for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) { const v = 214 + ((rnd() * 18) | 0); x.fillStyle = rgb(v, v - 2, v - 8); x.fillRect(i * s / 2 + 2, j * s / 2 + 2, s / 2 - 4, s / 2 - 4); } speckle(x, s, 160, .06); });
+  function bigSign(label, sub, bg, fg, cross, aspect) {
+    const cw = 1024, ch = Math.round(cw / aspect), m = new THREE.MeshBasicMaterial();
+    const c = document.createElement('canvas'); c.width = cw; c.height = ch; const x = c.getContext('2d');
+    x.fillStyle = bg; x.fillRect(0, 0, cw, ch); x.fillStyle = 'rgba(255,255,255,.14)'; x.fillRect(0, 0, cw, ch * .4);
+    x.fillStyle = fg; x.textAlign = 'center'; x.textBaseline = 'middle'; const fs = Math.min(ch * (sub ? .52 : .66), 640 / (label.length * .66)), off = cross ? ch * .55 : 0;
+    x.font = '900 ' + Math.round(fs) + 'px sans-serif'; x.fillText(label, cw / 2 + off, ch * (sub ? .4 : .5));
+    if (sub) { x.font = '700 ' + Math.round(ch * .2) + 'px sans-serif'; x.fillText(sub, cw / 2 + off, ch * .8); }
+    if (cross) { x.fillStyle = '#2fb866'; const cx = cw / 2 - label.length * fs * .34 - ch * .2, cyy = ch / 2, a = ch * .3, b = ch * .1; x.fillRect(cx - b, cyy - a, 2 * b, 2 * a); x.fillRect(cx - a, cyy - b, 2 * a, 2 * b); }
+    const t = new THREE.CanvasTexture(c); t.anisotropy = 4; m.map = t; return m;
+  }
+  const BLD = {
+    mini: { name: 'Minimarket', W: 10, D: 7, door: 1.8, label: 'MINIMARKET', sub: 'ABIERTO 24 H', bg: '#d8321f', fg: '#ffffff', brand: 0xd8321f, floor: 0xffffff,
+      fix: (P_) => {
+        for (let i = 0; i < 4; i++) P_('fridge', -3.6 + i * 2.4, -3.05, 0);
+        P_('gondola3', -2.7, -.2, 0); P_('gondola3', 2.7, -.2, 0); P_('checkout', 3.95, 1.6, Math.PI / 2); P_('palletBoxes', -3.4, 2.55, 0); P_('shelf', -4.6, 1.2, Math.PI / 2);
+        P_('supplyMat', 4.3, 3.15, 0); P_('supplyAmmo', 3.5, 3.15, 0); P_('wheelie', -4.5, -1.2, 0);
+      } },
+    pharm: { name: 'Farmacia', W: 10, D: 7, door: 1.8, label: 'FARMACIA', sub: 'MEDICAMENTOS · SALUD', bg: '#ffffff', fg: '#1a6b3c', cross: true, brand: 0x2fb866, floor: 0xe9f5ec,
+      fix: (P_) => {
+        for (let i = 0; i < 4; i++) P_('pharmaCab', -3.9 + i * 1.2, -3.2, 0);
+        P_('counter', -3.0, -1.3, 0); P_('counter', -.5, -1.3, 0); P_('shelf', 3.85, -3.2, 0); P_('supplyMed', 1.4, -3.2, 0); P_('supplyMed', 2.25, -3.2, 0);
+        P_('gondola3', -2.9, 1.4, 0); P_('gondola3', 2.9, 1.4, 0); P_('waitSeat', -4.6, -.2, Math.PI / 2); P_('cot', 4.3, -1.0, 0);
+      } },
+    super: { name: 'Supermercado', W: 18, D: 12, door: 2.4, label: 'SUPERMERCADO', sub: 'FRESCOS · OFERTAS', bg: '#f08a12', fg: '#ffffff', brand: 0xf08a12, floor: 0xffffff,
+      fix: (P_) => {
+        for (let i = 0; i < 6; i++) P_('fridge', -6.0 + i * 2.4, -5.55, 0);
+        for (const z of [-2.4, .2]) for (const x of [-4.6, 4.6]) P_('gondola4', x, z, 0);
+        for (const z of [-3.5, -1.0, 1.5]) P_('shelf', -8.6, z, Math.PI / 2);
+        P_('fridge', 8.55, -3.0, -Math.PI / 2); P_('fridge', 8.55, -.4, -Math.PI / 2);
+        P_('palletBoxes', -6.5, 3.6, 0); P_('palletBoxes', -4.8, 3.6, 0);
+        for (let i = 0; i < 4; i++) P_('cart', -8.2 + i * .7, 5.1, 0);
+        for (const x of [3.5, 6.0]) P_('checkout', x, 3.8, Math.PI / 2);
+        for (let i = 0; i < 3; i++) P_(['supplyMat', 'supplyAmmo', 'supplyMed'][i], 8.3 - i * .85, 5.3, 0);
+      } }
+  };
+  OBJ.buildingKinds = Object.keys(BLD);
+  OBJ.building = function (kind, x, z, rot, fac) {
+    const d = BLD[kind]; if (!d) return null; rot = rot || 0; fac = fac === undefined ? null : fac;
+    const W = d.W, D = d.D, H = 3.2, T = .3, c = Math.cos(rot), s = Math.sin(rot), b = { kind, name: d.name, x, z, rot, W, D, H, props: [], walls: [], near: [], doors: [], cut: 0, inside: false, group: new THREE.Group() };
+    const wp = (lx, lz) => [x + lx * c + lz * s, z - lx * s + lz * c], wm = sm(0xe6e6e0, .95), wall = d.wallMat || PLASTER_W, brand = sm(d.brand, .5), pr = { wall, brand };
+    b.group.position.set(x, 0, z); b.group.rotation.y = rot; scene.add(b.group);
+    const add = (type, lx, lz, lrot, param) => { const [wx, wz] = wp(lx, lz), p = OBJ.place(type, wx, wz, rot + (lrot || 0), fac, param); b.props.push(p); return p; };
+    const mesh = (geo, mat, sx, sy, sz, px, py, pz) => { const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.position.set(px, py, pz); m.castShadow = true; m.receiveShadow = true; b.group.add(m); return m; };
+    const fl = new THREE.Mesh(new THREE.PlaneGeometry(W, D), floorMat(W, D, d.floor)); fl.rotation.x = -Math.PI / 2; fl.position.y = .03; fl.receiveShadow = true; b.group.add(fl);
+    mesh(geoBox, OM.anth, W + .3, .06, D + .3, 0, -.02, 0).castShadow = false;                                        // losa bajo el suelo
+    for (let i = 0; i < 3; i++) { const gl = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ map: GLOWTEX, color: 0xfff1c8, transparent: true, opacity: .1, depthWrite: false, blending: THREE.AdditiveBlending })); gl.rotation.x = -Math.PI / 2; gl.position.set((i - 1) * W / 3, .05, 0); gl.scale.set(W / 3.4, D / 2.6, 1); b.group.add(gl); }
+    const wall1 = (type, lx, lz, lrot, param) => { const p = add(type, lx, lz, lrot, Object.assign({}, pr, param)); b.walls.push(p); const [, wz] = wp(lx, lz); if (wz > z + (Math.abs(c) * D + Math.abs(s) * W) / 2 - .01) b.near.push(p); return p; };
+    const seg = (type, from, to, lz, lrot, vertical) => { const L = to - from, n = Math.max(1, Math.ceil(L / 4 - 1e-6)); for (let i = 0; i < n; i++) wall1(type, vertical ? lz : from + (i + .5) * L / n, vertical ? from + (i + .5) * L / n : lz, lrot, { len: L / n }); };
+    const fz = D / 2 + T / 2, bz = -D / 2 - T / 2, ex = W / 2 + T;                                                       // muro frontal (+z), trasero, y extremos
+    seg('bwallSolid', -ex, ex, bz, 0);                                                                                  // trasero
+    seg('bwallSolid', -D / 2, D / 2, -(W / 2 + T / 2), Math.PI / 2, true); seg('bwallSolid', -D / 2, D / 2, W / 2 + T / 2, Math.PI / 2, true);   // laterales
+    const pier = .9, span = ex - pier, gw = (span - d.door / 2);                                                           // frontal: pilar | escaparate | puerta | escaparate | pilar
+    seg('bwallSolid', -ex, -span, fz, 0); seg('bwallSolid', span, ex, fz, 0);
+    seg('bwallGlass', -span, -d.door / 2, fz, 0); seg('bwallGlass', d.door / 2, span, fz, 0);
+    const door = wall1('shopDoor', 0, fz, 0, { len: d.door }); b.doors.push(door); OBJ.setOpen(door, true, true);
+    d.fix((type, lx, lz, lrot, param) => add(type, lx, lz, lrot, param));
+    // fachada: friso, rótulo iluminado, línea de marca; cubierta con peto y equipos
+    b.fascia = new THREE.Group(); b.group.add(b.fascia); const mf = (...a) => { const m = mesh(...a); b.group.remove(m); b.fascia.add(m); return m; };
+    mf(geoBox, wm, span * 2, .65, T + .1, 0, H - .325, fz);
+    mf(geoBox, brand, span * 2, .06, T + .12, 0, 2.55, fz);
+    const sw = Math.min(span * 2 - .6, 6.2), sg = bigSign(d.label, d.sub, d.bg, d.fg, d.cross, sw / .52); const sign = mf(geoBox, sg, sw, .52, .05, 0, 2.9, fz + T / 2 + .08); sign.castShadow = false;
+    mf(geoBox, OM.anth, sw + .12, .6, .1, 0, 2.9, fz + T / 2 + .03);
+    b.roof = new THREE.Group(); b.group.add(b.roof);
+    const rm = sm(0xc9c9c4, .95); rm.transparent = true; const rf = new THREE.Mesh(geoBox, rm); rf.scale.set(W + 2 * T + .3, .25, D + 2 * T + .3); rf.position.set(0, H + .125, 0); rf.castShadow = true; rf.receiveShadow = true; b.roof.add(rf);
+    for (const [px, pz, sx, sz] of [[0, (D + 2 * T + .3) / 2, W + 2 * T + .3, .16], [0, -(D + 2 * T + .3) / 2, W + 2 * T + .3, .16], [(W + 2 * T + .3) / 2, 0, .16, D + 2 * T + .3], [-(W + 2 * T + .3) / 2, 0, .16, D + 2 * T + .3]]) { const q = new THREE.Mesh(geoBox, OM.concL); q.scale.set(sx, .3, sz); q.position.set(px, H + .3, pz); q.castShadow = true; b.roof.add(q); }
+    for (const [ax, az, sx, sz] of [[-W / 4, -D / 4, 1.1, .8], [W / 4 + .5, D / 5, .9, .7], [W / 4 - 1.2, -D / 4, .9, .7]]) { const u = new THREE.Mesh(geoBox, OM.steelL); u.scale.set(sx, .6, sz); u.position.set(ax, H + .25 + .3, az); u.castShadow = true; b.roof.add(u); const f = new THREE.Mesh(geoCyl16, OM.ironD); f.scale.set(sx * .36, .04, sx * .36); f.position.set(ax, H + .25 + .62, az); b.roof.add(f); }
+    if (d.cross) { const gm = OM.ledG; for (const [sx, sy] of [[.22, .95], [.95, .22]]) { const q = new THREE.Mesh(geoBox, gm); q.scale.set(sx, sy, .16); q.position.set(-ex - .02, 2.35, fz + .1); b.group.add(q); } }
+    b.zHalf = (Math.abs(c) * D + Math.abs(s) * W) / 2; OBJ.buildings.push(b); return b;
+  };
+  OBJ.insideBuilding = function (x, zz) {                                                                                  // ¿está el punto dentro de algún edificio?
+    for (const b of OBJ.buildings) { const dx = x - b.x, dz = zz - b.z, lx = dx * Math.cos(b.rot) - dz * Math.sin(b.rot), lz = dx * Math.sin(b.rot) + dz * Math.cos(b.rot); if (Math.abs(lx) < b.W / 2 + .1 && Math.abs(lz) < b.D / 2 + .1) return b; }
+    return null;
+  };
+  OBJ.clearBuildings = function () { for (const b of OBJ.buildings.slice()) OBJ.removeBuilding(b); };
+  OBJ.removeBuilding = function (b) { for (const p of b.props.slice()) if (!p.dead) { dropBoxes(p); scene.remove(p.g); const i = props.indexOf(p); if (i >= 0) props.splice(i, 1); } scene.remove(b.group); const i = OBJ.buildings.indexOf(b); if (i >= 0) OBJ.buildings.splice(i, 1); };
+  function buildingsTick(dt) {
+    const inB = OBJ.insideBuilding(P.pos.x, P.pos.z);
+    for (const b of OBJ.buildings) {
+      b.inside = b === inB; const tgt = b.inside ? 1 : 0; b.cut += (tgt - b.cut) * Math.min(1, dt * 7); if (Math.abs(b.cut - tgt) < .01) b.cut = tgt;
+      const rv = b.cut < .98; b.roof.visible = rv; if (rv) b.roof.children[0].material.opacity = 1 - b.cut; b.fascia.visible = b.cut < .5;
+      for (const p of b.near) if (!p.dead) p.g.scale.y = 1 - .72 * b.cut;
+    }
+  }
   if (/[?&]galeria=1/.test(location.search)) setTimeout(() => OBJ.gallery(), 400);
 })();
