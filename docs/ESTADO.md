@@ -1,5 +1,7 @@
 # Estado — v0.3.9
 
+- HUD: vida y escudo abajo a la izquierda (número de vida primero, escudo al lado); arma, munición, granadas y dash abajo a la derecha. Quitada la chuleta de controles de la pantalla (`#help` oculto por CSS; los controles siguen en `docs/CONTROLES.md`). Solo automático (`tests/barras.py`).
+
 - Barras de vida/escudo rediseñadas (solo visual, mismos colores y reglas): escudo en 5 segmentos inclinados, vida con chaflán, brillo y marcas cada 25, números grandes con icono de escudo, pulso rojo bajo 30 HP, destello al romperse el escudo; barra de bots más pequeña con rombo de equipo y fundido. Código en `mkBar`/`drawBar` de `src/partida.js`; test `tests/barras.py` (capturas en /tmp). Solo automático; sin ver en iPhone.
 
 - Sonidos en bucle (humo, fuego, fugas): con el menú abierto (pausa) seguían sonando; ahora se apagan con fundido y vuelven al cerrar. Test nuevo `tests/sonidos_bucles.py` (sin bucles huérfanos tras 2,5 min de partida con bots). Solo automático; sin probar a oído.

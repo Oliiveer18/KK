@@ -562,12 +562,12 @@ function mkBar(w, h, num) {                                                     
   const el = mk('position:absolute;width:' + w + 'px;transform-origin:50% 100%;will-change:transform,opacity;filter:drop-shadow(0 2px 5px #000a)');
   const b = { el, w, segs: [], num };
   if (num) {
-    const top = mk('display:flex;align-items:baseline;justify-content:flex-end;gap:10px;margin-bottom:4px;font-variant-numeric:tabular-nums', el);
+    const top = mk('display:flex;align-items:baseline;justify-content:flex-start;gap:10px;margin-bottom:4px;font-variant-numeric:tabular-nums', el);
+    b.hpT = mk('font:800 30px/1 system-ui,sans-serif;letter-spacing:-.02em;color:#fff;text-shadow:0 2px 6px #000', top); b.hpT.className = 'mxhp';
+    b.hpT.innerHTML = '<span></span><b style="font-size:11px;opacity:.55;font-weight:700;margin-left:3px;letter-spacing:.1em">HP</b>'; b.hpN = b.hpT.firstChild;
     b.shT = mk('font:700 13px/1 system-ui,sans-serif;color:#5ac8ff;display:flex;gap:4px;align-items:center;text-shadow:0 1px 4px #000', top);
     b.shT.innerHTML = '<svg viewBox="0 0 12 12" width="12" height="12" style="fill:#5ac8ff"><path d="M6 0l5 2v4c0 3-2.2 4.8-5 6C3.2 10.8 1 9 1 6V2z"/></svg><span></span>';
     b.shN = b.shT.lastChild;
-    b.hpT = mk('font:800 30px/1 system-ui,sans-serif;letter-spacing:-.02em;color:#fff;text-shadow:0 2px 6px #000', top); b.hpT.className = 'mxhp';
-    b.hpT.innerHTML = '<span></span><b style="font-size:11px;opacity:.55;font-weight:700;margin-left:3px;letter-spacing:.1em">HP</b>'; b.hpN = b.hpT.firstChild;
   } else b.pip = mk('width:6px;height:6px;margin:0 auto 3px;transform:rotate(45deg);box-shadow:0 0 0 1px #000a;background:#888', el);
   b.sRow = mk('display:flex;gap:' + (num ? 3 : 2) + 'px;margin-bottom:' + (num ? 3 : 2) + 'px', el);
   for (let k = 0; k < SEGN; k++) {
@@ -605,7 +605,7 @@ function drawBar(b, e, dt) {
   }
 }
 function placeBar(b, x, y, fl) { const [sc, jx] = b.el.dataset.s.split('|'); b.el.style.transform = 'translate(' + (x - b.w / 2 + +jx) + 'px,' + y + 'px) translateY(-100%) scale(' + sc + ')'; b.el.style.display = 'block'; }
-const PB = mkBar(210, 12, true); PB.num = true; PB.el.className = 'mxpb'; PB.el.style.right = 'var(--r)'; PB.el.style.bottom = '196px'; PB.el.style.transformOrigin = '100% 100%'; MX.PB = PB;
+const PB = mkBar(210, 12, true); PB.num = true; PB.el.className = 'mxpb'; PB.el.style.transformOrigin = '0% 100%'; MX.PB = PB;
 /* ---- números de daño: aparecen, suben y se desvanecen; el tamaño crece con el daño y cada uno sale hacia un lado distinto ---- */
 const NUMS = []; let numSide = 1; const _np = new V3();
 function popNum(e, dmg) {
