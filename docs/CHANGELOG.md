@@ -1,5 +1,11 @@
 # Changelog
 
+## Objetos de campaña (sin versionar; rama claude/funny-hypatia-uvl1wv)
+- Nuevo `src/objetos.js`: 46 tipos de objeto del catálogo (accesos, muros y portones de 3 niveles, puesto de vigilancia, pasarela y escalera, mobiliario urbano, comercio y transporte, escaparates con alarma, foco, surtidor, almacén por reservas, camilla, tablón, armero y emblemas de las 4 facciones), 13 recogibles (material, munición, botiquín, kit, casco/chaleco/mochila en 3 niveles) y raíles. Material nuevo `glass`.
+- Puertas, portones, verja y persiana se abren y cierran por código (`OBJ.setOpen`); alarma de tienda con ruido que atrae infectados. Sin inventario ni interacción por mando todavía.
+- `?galeria=1` muestra todos los objetos. `tools/build.py` incrusta el módulo. Test nuevo `tests/objetos.py` (26 comprobaciones). Regresión: partida, partida_armas, partida_escudo, horizontal, zombis, balistica, aspecto, abatido_campana, barras y restos_fisica sin fallos.
+- Solo comprobado en Chrome headless con capturas; no se ha visto en iPhone ni medido el rendimiento allí.
+
 ## v0.3.8 · Mando en iPhone: acceso directo sin modo app
 - En iOS los mandos funcionan en Safari pero no en apps añadidas a la pantalla de inicio en modo standalone (error conocido de WebKit, bug 214336). Se quitan las metas `apple-mobile-web-app-capable`/`mobile-web-app-capable` y el manifest pasa a `display: browser`: el icono abre la página en Safari y el mando se detecta. Pantalla completa en iPhone: Aa → Ocultar barra de herramientas, en horizontal.
 
