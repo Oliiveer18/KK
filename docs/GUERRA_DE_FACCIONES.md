@@ -72,7 +72,28 @@ Cada facción mantiene una guardia y distribuye a los demás agentes según las 
 3. **Organizar expediciones.** Reunirse en el patio, señalar el destino y dejar que el jugador se incorpore. Mantener personal suficiente en casa.
 4. **Gestionar suministros.** Recibir cajas, colocarlas y despachar material a quienes lo necesitan. Tres reservas físicas y reconocibles: materiales, munición y material médico. La reserva médica distingue botiquines de curación y kits de reanimación. El almacén muestra sus existencias mediante estantes, símbolos y cajas visibles. Se puede cargar, entregar o escoltar a quien transporta. Evitar medidores de hambre o sed y cadenas obligatorias de fabricación.
 
-Reparar devuelve la funcionalidad y conserva las mejoras adquiridas. Mejorar cambia una capacidad de manera permanente mientras se conserve la estructura: reforzar un portón para resistir más daño o ampliar un estante para guardar más cajas. Mostrar en el propio elemento la acción contextual, el coste y el resultado antes de gastar. Los agentes pueden efectuar reparaciones ordinarias con las reservas disponibles. Hacer visibles el trabajo y el resultado. Validar quién decide el gasto de mejoras cuando coincidan varios jugadores online.
+### Identidad visual de los cuatro refugios iniciales
+
+Cada facción empieza en un recinto fortificado propio, con un patio de salida desde el que se reconocen la armería, el almacén y el puesto de auxilio. Los cuatro comparten un acceso de carga, un paso peatonal y un lenguaje de construcción: muros de bloque con juntas visibles y pilares de hormigón, portones de acero, cubiertas de chapa y estructuras de madera formadas por listones y travesaños, como las cajas y vallas actuales. Mantener proporciones, grosores, biseles y desgaste coherentes, legibles desde la cámara del juego en iPhone.
+
+Cada facción se distingue por el emblema, una franja de color y la silueta de la entrada. Probar el emblema sobre un travesaño, entre dos pilares, en una marquesina corta o en un panel escalonado. Igualar protección inicial, anchura útil de los accesos y distancia de reaparición a la salida. Al conquistar un refugio cambian las señales de propiedad; las piezas, mejoras y reparaciones siguen contando la historia del edificio.
+
+### Reparación y mejora por pieza
+
+Cada pieza tiene un nivel y una integridad independientes. Una reparación recupera al 100 % una pieza dañada o reconstruye una pieza rota en su nivel anterior. Una mejora exige que la pieza elegida esté intacta al 100 % y avanza exactamente un nivel. Los daños de otra pieza permiten seguir mejorando las que estén intactas. Cada tramo de muro se gestiona por separado. Las cuatro facciones comienzan con las seis partes en nivel 1, con idénticas opciones hasta el nivel 3. El refugio carece de nivel global.
+
+| Parte | Nivel 1 | Nivel 2 | Nivel 3 |
+|---|---|---|---|
+| Muro, por tramo | Bloques con pilares. | Contrafuertes que aumentan la resistencia. | Revestimiento reforzado que retrasa la apertura de una brecha. |
+| Portón principal | Portón de acero estándar. | Marco y hojas reforzados. | Segunda puerta interior que permite cerrar el paso aunque caiga la exterior. |
+| Almacén | Un módulo de estantería por tipo de reserva. | Dos módulos por reserva, el doble de capacidad inicial. | Tres módulos por reserva, el triple de capacidad inicial. |
+| Enfermería | Una camilla operativa. | Dos aliados atendidos simultáneamente. | Tres aliados atendidos simultáneamente. |
+| Taller | Un puesto de reparación. | Dos reparaciones simultáneas. | Tres reparaciones simultáneas. Cada trabajo requiere un agente y materiales disponibles. |
+| Puesto de vigilancia | Un puesto en la entrada. | Segundo puesto que cubre otro sector. | Tercer puesto para el acceso trasero. Cada puesto requiere un agente y visión directa. |
+
+Al acercarse a una pieza dañada se ofrece «Reparar». Una vez intacta, si aún puede subir de nivel, la acción indica la mejora concreta, su coste y su efecto antes de confirmar. Ejemplo: un portón de nivel 2 al 40 % primero se repara; al llegar al 100 % permite elegir «Mejorar a nivel 3 · Añadir puerta interior». En nivel 3 sigue siendo reparable.
+
+Los agentes atienden reparaciones ordinarias con las existencias del almacén. El jugador elige las inversiones de su facción y las facciones controladas por bots priorizan según daños, ocupación y reservas. Al confirmar una mejora, el almacén reserva los materiales una vez. Un agente ejecuta el trabajo, el jugador puede ayudar y una alarma permite interrumpirlo y retomarlo. La reparación se reconoce por las piezas repuestas y la mejora por la nueva estructura visible. Quedan por equilibrar costes y tiempos, y por decidir cómo se autoriza el gasto compartido en el futuro online.
 
 ## 7. Pérdida de refugios, ocupación y reaparición
 
@@ -102,7 +123,7 @@ Como punto de partida, permitir **una reanimación por vida**. Si el mismo perso
 |---|---|---|
 | 1. Distrito y guerra | Cuatro facciones, compañías, dos frentes, infectados y una horda. | Entrar, elegir entre dos destinos y encontrar un frente cambiado al regresar. La horda se aproxima por una ruta legible y altera una decisión. |
 | 2. Entorno y refugios | Primer recorrido entre tienda, gasolinera, clínica, estación, taller y refugio. Accesos y materiales con comportamientos distintos. | Bot y jugador usan una brecha recién abierta. El carro pasa por el patio de carga. Al volver se entiende en segundos si conviene abrir, auxiliar o reparar. |
-| 3. Logística y mejoras | Recogida, entrega, almacenamiento, reparación y mejora de un portón o estante. | Una caja recogida por una compañía llega físicamente al almacén y permite reparar una entrada. Interrumpir o repetir la acción no duplica el material. |
+| 3. Logística y mejoras | Recogida, entrega y reservas. Validar primero portón, almacén y enfermería, y completar las seis partes y sus tres niveles. | Una caja recogida por una compañía llega físicamente al almacén y permite reparar una entrada. Comprobar que reparar conserva el nivel, que solo se mejora la pieza elegida al 100 % y que interrumpir o repetir la acción no duplica materiales. Verificar el efecto de cada nivel, incluida la segunda puerta tras caer la exterior. |
 | 4. Caídas y cambios de control | Reanimación, conquista, infestación, destrucción, retirada y puesto alternativo. | Probar rescate sin kit, muerte por daño durante el rescate, rescate interrumpido, rescate simultáneo, segunda caída y pérdida del puesto durante la espera. Con la base destruida se reaparece únicamente en otro puesto válido. |
 | 5. Escala y decisión online | Multiplicar compañías y sectores tras validar el primer distrito. | Probar quince minutos sin límite de bajas, tanto en un sector concurrido como entre frentes. Registrar decisiones espontáneas, rescates repetidos, tiempos de regreso y rendimiento real. Decidir después si avanzar al ensayo multijugador. |
 
