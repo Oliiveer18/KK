@@ -9,7 +9,7 @@ const M = MX.M, MAXZ = 240;
 const TY = {
   walker:   { hp: 70,  sc: 1,    dmg: 12, atkCd: 1.1, roam: .9,  chase: 2.4, sight: 14, lean: .5,  arm: -1.15, hs: 1,    tw: 1,   r: .42 },
   runner:   { hp: 45,  sc: .96,  dmg: 8,  atkCd: .7,  roam: 1.2, chase: 5.0, sight: 18, lean: .62, arm: -.5,   hs: .95,  tw: .9,  r: .38 },
-  brute:    { hp: 320, sc: 1.32, dmg: 38, atkCd: 1.6, roam: 1.0, chase: 2.0, sight: 14, lean: .2,  arm: -.95,  hs: .85,  tw: 1.35, r: .62 },
+  brute:    { hp: 320, sc: 1.32, dmg: 38, atkCd: 1.6, roam: 1.0, chase: 2.0, sight: 14, lean: .2,  arm: -.95,  hs: 1.3,  tw: 1.35, r: .62 },
   screamer: { hp: 60,  sc: 1,    dmg: 6,  atkCd: 1.0, roam: 1.0, chase: 2.3, sight: 15, lean: .08, arm: -.9,   hs: 1.25, tw: .92, r: .4 }
 };
 const NOISE_R = { P1: 24, P2: 32, S1: 28, S2: 30, F1: 36, F2: 48, E1: 40, E2: 40, H1: 42, H2: 55 };
@@ -20,7 +20,8 @@ const GEO = { box: new THREE.BoxGeometry(1, 1, 1), ball: new THREE.SphereGeometr
 const mat = () => new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .92, flatShading: true });
 /* piezas: [geometría, instancias por zombi]. Cada pieza es UNA malla instanciada, así que añadir detalle no multiplica las llamadas de dibujo por zombi */
 const PARTS = { che: [GEO.box, 1], abd: [GEO.box, 1], pel: [GEO.box, 1], sho: [GEO.box, 1], nek: [GEO.limb, 1], hd: [GEO.ball, 1], jaw: [GEO.hang, 1], hair: [GEO.ballL, 1],
-  ua: [GEO.limb, 2], fa: [GEO.limb, 2], hn: [GEO.hang, 2], ul: [GEO.limb, 2], ll: [GEO.limb, 2], ft: [GEO.box, 2], rg: [GEO.hang, 2], wn: [GEO.box, 3], sk: [GEO.box, 2], ey: [GEO.box, 2], bn: [GEO.spike, 1], tm: [GEO.ballL, 1] };
+  ua: [GEO.limb, 2], fa: [GEO.limb, 2], hn: [GEO.hang, 2], ul: [GEO.limb, 2], ll: [GEO.limb, 2], ft: [GEO.box, 2], rg: [GEO.hang, 2], wn: [GEO.box, 3], sk: [GEO.box, 2], ey: [GEO.box, 2], bn: [GEO.spike, 1], tm: [GEO.ballL, 1],
+  col: [GEO.box, 1], hood: [GEO.ballL, 1], tie: [GEO.box, 1], blt: [GEO.box, 1], pk: [GEO.box, 2], st: [GEO.box, 2] };
 const IM = {}, MUL = {};
 for (const k in PARTS) {
   const cap = MAXZ * PARTS[k][1]; MUL[k] = PARTS[k][1];
@@ -51,12 +52,25 @@ function newZ(type, x, z, o) {
   zb.rgF = rnd() < .75; zb.rgB = rnd() < .6; zb.shoes = rnd() < .6;
   const SK = [0x6d7863, 0x5e6b57, 0x77796a, 0x546350, 0x706d5d, 0x605a68, 0x66735d], HR = [0x2a1d14, 0x3a2c20, 0x1b1b1d, 0x5a4a38, 0x6b6a66];
   const skin = new THREE.Color(SK[(rnd() * SK.length) | 0]).multiplyScalar(rr(.85, 1.08)), hairC = new THREE.Color(HR[(rnd() * HR.length) | 0]);
-  let torso, pants;
-  { const P_ = [0x4a5056, 0x57493a, 0x3c4756, 0x4b4337, 0x464f58, 0x58553f, 0x3a302c, 0x303c35]; torso = new THREE.Color(P_[(rnd() * P_.length) | 0]).multiplyScalar(rr(.7, 1.0)); pants = new THREE.Color(P_[(rnd() * P_.length) | 0]).multiplyScalar(.55); }
+  /* ropa civil gastada y sucia: tonos apagados (crema sucio, gris, verde oliva, marrón, verde quirófano) que NO se parecen a los uniformes de las facciones (azul, rojo, ámbar, violeta) */
+  const pick = a => a[(rnd() * a.length) | 0], dirt = (c, k) => new THREE.Color(c).multiplyScalar(k !== undefined ? k : rr(.72, .95));
+  const PANTS = [0x3b3a38, 0x4a4d52, 0x56564e, 0x424a44, 0x5b5448, 0x33332f], r0 = rnd();
+  let torso, pants = dirt(pick(PANTS)), trim = null;
+  zb.hood = zb.tie = zb.str = zb.coat = zb.col = zb.pock = false; zb.blt = true;
+  if (r0 < .3) { torso = dirt(pick([0x8a8578, 0x6b6f66, 0x5a5f5c, 0x7a6a55, 0x6c7a70])); zb.col = rnd() < .6; zb.str = rnd() < .25; zb.out = 'camisa'; }                    // camiseta/camisa
+  else if (r0 < .45) { torso = dirt(pick([0x4a4a4c, 0x6e6a5e, 0x575f4e])); zb.hood = true; zb.pock = true; zb.out = 'sudadera'; }                                           // sudadera con capucha
+  else if (r0 < .56) { torso = dirt(0x9a9a90, rr(.8, 1)); pants = dirt(0x5a7d73, rr(.8, 1)); zb.coat = true; zb.col = true; zb.rgF = zb.rgB = true; zb.out = 'bata'; }          // bata de laboratorio sobre quirófano
+  else if (r0 < .68) { torso = dirt(pick([0x59604a, 0x4f5b47, 0x4b4f44])); pants = torso.clone().multiplyScalar(.9); zb.pock = true; zb.str = rnd() < .5; zb.out = 'mono'; }  // mono de trabajo
+  else if (r0 < .78) { torso = dirt(0x5a8a78, rr(.7, .9)); pants = dirt(0x4f7a69, rr(.7, .9)); zb.col = true; zb.out = 'quirofano'; }                                          // uniforme sanitario
+  else if (r0 < .87) { torso = dirt(0x38383c, rr(.8, 1)); pants = dirt(0x2e2e30, rr(.8, 1)); zb.tie = true; zb.col = true; zb.out = 'traje'; }                               // traje con corbata
+  else { torso = dirt(pick([0x86867e, 0x77776f, 0x6a6e66])); zb.bare = true; zb.out = 'tirantes'; }                                                                            // camiseta de tirantes: brazos y abdomen al aire
+  zb.bareA = zb.out === 'tirantes' ? [true, true] : [rnd() < .3, rnd() < .3];
   const dark = skin.clone().multiplyScalar(.55), blood = new THREE.Color(rnd() < .5 ? 0x5b1414 : 0x3b0d0d), shoe = new THREE.Color(0x2b2824);
   const set = (k, j, c) => IM[k].setColorAt(slot * MUL[k] + j, _c.set(c));
   set('che', 0, torso); set('abd', 0, zb.bare ? skin : torso.clone().multiplyScalar(.85)); set('pel', 0, pants); set('sho', 0, torso); set('nek', 0, skin); set('hd', 0, skin); set('jaw', 0, rnd() < .55 ? new THREE.Color(0x4a1616) : dark); set('hair', 0, hairC);
-  for (let s = 0; s < 2; s++) { const bareArm = rnd() < .45; set('ua', s, bareArm ? skin : torso); set('fa', s, rnd() < .6 ? skin : torso); set('hn', s, skin.clone().multiplyScalar(.92)); set('ul', s, pants); set('ll', s, rnd() < .35 ? skin : pants); set('ft', s, zb.shoes ? shoe : skin); set('rg', s, torso.clone().multiplyScalar(.72)); set('sk', s, 0x1a1a14); }
+  set('col', 0, zb.out === 'traje' || zb.out === 'bata' ? new THREE.Color(0xb5b2a4).multiplyScalar(rr(.75, .95)) : torso.clone().multiplyScalar(.82)); set('hood', 0, torso.clone().multiplyScalar(.9)); set('tie', 0, 0x242426); set('blt', 0, 0x24211e);
+  for (let s = 0; s < 2; s++) { set('pk', s, pants.clone().multiplyScalar(.85)); set('st', s, torso.clone().lerp(new THREE.Color(0xc9c6b8), .45)); }
+  for (let s = 0; s < 2; s++) { const bareArm = zb.bareA[s]; set('ua', s, bareArm ? skin : torso); set('fa', s, zb.bareA[s] || rnd() < .45 ? skin : torso); set('hn', s, skin.clone().multiplyScalar(.92)); set('ul', s, pants); set('ll', s, rnd() < .35 ? skin : pants); set('ft', s, zb.shoes ? shoe : skin); set('rg', s, zb.coat ? torso.clone().multiplyScalar(.95) : torso.clone().multiplyScalar(.72)); set('sk', s, 0x1a1a14); }
   for (let s = 0; s < 3; s++) set('wn', s, blood); set('bn', 0, 0xd9d3bd); set('tm', 0, new THREE.Color(rnd() < .5 ? 0x93a05a : 0x7a8a45));
   Object.values(IM).forEach(m => { if (m.instanceColor) m.instanceColor.needsUpdate = true; });
   Z.push(zb); return zb;
@@ -198,7 +212,7 @@ function pose(z, dt) {
   put('sho', 0, C, 0, .15, 0, 0, 0, z.shR, .46 * wd, .08, .18);
   const hp = dorm ? .6 : (scr ? -.75 : .24 + Math.sin(ph * .5 + 1) * .09 + z.slouch * .5), hy = Math.sin(ph * .25 + z.seed * 9) * .14 + tw * .6, hr = Math.sin(ph * .33 + z.seed * 4) * .12 + (dorm ? .08 : .1);
   const Hd = fr(MH, C, 0, .2, .02, hp, hy, hr);                                         // cabeza (cae hacia delante, bambolea)
-  put('nek', 0, C, 0, .15, .01, hp * .5, hy * .5, 0, .075 * (z.type === 'screamer' ? 1.35 : 1), .12, .075 * (z.type === 'screamer' ? 1.35 : 1));
+  put('nek', 0, C, 0, .15, .01, hp * .5, hy * .5, 0, .075 * (z.type === 'screamer' ? 1.35 : big ? 1.5 : 1), .12, .075 * (z.type === 'screamer' ? 1.35 : big ? 1.5 : 1));
   const hs = T.hs * z.hs0, jawOpen = scr ? .85 : atk ? .55 + .2 * Math.sin(z.atk * 20) : dorm ? .06 : .16 + .07 * Math.sin(ph * 2 + z.seed * 3) + (z.stag > 0 ? .3 : 0);
   put('hd', 0, Hd, 0, .09 * hs, .03, 0, 0, 0, .112 * hs, .125 * hs, .118 * hs);
   _p.set(0, .09 * hs, .03).applyMatrix4(Hd); z.hdx = _p.x; z.hdy = _p.y; z.hdz = _p.z; z.hdr = .125 * hs * s;                    // centro y radio reales de la cabeza (para colocar la barra de vida justo encima)
@@ -235,7 +249,12 @@ function pose(z, dt) {
     put('ft', q, An, 0, .02, .05, 0, 0, 0, .105 * (big ? 1.3 : 1), .065, .25 * (big ? 1.2 : 1));
   }
   /* harapos, heridas, hueso al aire y bultos según el tipo */
-  put('rg', 0, S, 0, .0, .1, .12 + roll, 0, 0, z.rgF ? .27 * wd : 0, .28, .02); put('rg', 1, S, 0, .0, -.1, -.1, 0, 0, z.rgB ? .27 * wd : 0, .3, .02);
+  put('rg', 0, S, 0, .0, .1, .12 + roll, 0, 0, z.rgF ? .27 * wd : 0, z.coat ? .62 : .28, .02); put('rg', 1, S, 0, .0, -.1, -.1, 0, 0, z.rgB ? .27 * wd : 0, z.coat ? .66 : .3, .02);   // bata: faldones hasta las rodillas
+  put('col', 0, C, 0, .17, .0, hp * .3, hy * .3, 0, z.col ? .19 * wd : 0, .045, .15 * (big ? 1.1 : 1));                                  // cuello de camisa / solapas
+  put('hood', 0, C, 0, .21, -.07, hp * .3, hy * .2, 0, z.hood ? .125 * hs : 0, .1 * hs, .1 * hs);                                      // capucha caída por detrás
+  put('tie', 0, C, 0, .06, .122 * (big ? 1.15 : 1), 0, 0, 0, z.tie ? .04 : 0, .2, .012);                                               // corbata
+  put('blt', 0, B, 0, .87 - .8 + .08, 0, 0, 0, 0, z.blt ? .31 * wd : 0, .035, .21 * (big ? 1.1 : 1));                                    // cinturón
+  for (let q = 0; q < 2; q++) { const sg = q ? 1 : -1; put('pk', q, B, sg * .12 * wd, .0, .105 * (big ? 1.2 : 1), 0, 0, 0, z.pock ? .07 : 0, .09, .025); put('st', q, C, 0, q ? .03 : -.04, .122 * (big ? 1.15 : 1), 0, 0, 0, z.str ? .38 * wd : 0, .035, .012); }   // bolsillos, rayas del mono
   for (let w = 0; w < 3; w++) { const d = z.wnd[w]; if (d) put('wn', w, C, d.x * wd, d.y, d.z * .125 * (big ? 1.15 : 1), 0, 0, 0, d.w, d.h, .02); else put('wn', w, C, 0, 0, 0, 0, 0, 0, 0, 0, 0); }
   put('bn', 0, C, .18 * wd, .06, .02, 0, 0, -1.25, z.bone ? .03 : 0, .16, .03);
   const tumor = z.type === 'brute' ? [S, 0, .13, .1, .2, .17, .15] : z.type === 'screamer' ? [C, 0, .16, .06, .1, .09, .09] : null;
