@@ -166,7 +166,7 @@ const border = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeome
 border.position.y = 0.15; scene.add(border);
 
 /* ---------- partida 6 vs 6 (mapa 3): ganchos hacia src/partida.js; con MX.on = false todo funciona como antes ---------- */
-const MX = { on: false, want: false, campaign: false, rev: false, foes: [], ents: [] };
+const MX = { on: false, want: false, campaign: false, district: false, rev: false, revCtx: false, foes: [], ents: [] };
 const WORLD = { x: 39, z: 39 };                                                    // límites jugables (mapa 3 los cambia)
 /* ---------- obstáculos (AABB) ---------- */
 const boxes = [], OBST = [];
@@ -602,6 +602,7 @@ if (window.visualViewport) visualViewport.addEventListener('resize', fitView);
 if (!matchMedia('(pointer:coarse)').matches) setTimeout(begin, 6000);   // en táctil espera a que elijas el modo (si no, a los 6 s arrancaba solo el polígono)   // se cierra solo
 if (/partida|mapa=3/.test(location.search + location.hash)) MX.want = true;
 if (new URLSearchParams(location.search).get('mapa') === '4') MX.want = MX.campaign = true;
+if (new URLSearchParams(location.search).get('mapa') === '5') MX.want = MX.campaign = MX.district = true;   // distrito (M1)
 for (const event of ['pointerdown', 'touchstart', 'click']) {
   for (const id of ['goMatch', 'goCampaign']) {
     $(id).addEventListener(event, () => {
@@ -834,7 +835,7 @@ function updateBullets(dt) {
     const L = [];                                                                    // colisión continua: todo lo que cruza el tramo recorrido en este fotograma
     for (const bx of boxes) { if (bx.prop && (bx.prop === b.cover || b.passed.has(bx.prop))) continue; const r = rayBox2(b.ox, b.oz, b.dx, b.dz, bx); if (r && r[0] <= d1 && r[1] >= d0) L.push({ t: Math.max(r[0], d0), t2: r[1], bx }); }
     for (const tg of targets) { if (tg.hp <= 0) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, tg.g.position.x, tg.g.position.z, .42); if (tc >= d0 && tc <= d1) L.push({ t: tc, tg }); }
-    if (MX.on && MX.zom) for (const z of MX.zom.list) { if (z.dead || z.st === 'rise') continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, z.p.x, z.p.z, z.r); if (tc >= d0 && tc <= d1) L.push({ t: tc, zom: z }); }   // zombis (campaña)
+    if (MX.on && MX.zom) for (const z of MX.zom.list) { if (z.dead) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, z.p.x, z.p.z, z.r); if (tc >= d0 && tc <= d1) L.push({ t: tc, zom: z }); }   // zombis (campaña)
     if (MX.on) for (const e of MX.ents) { if (e.dead || e.inv > 0 || e.team === (b.own ? b.own.team : 0)) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, e.p.x, e.p.z, .36); if (tc >= d0 && tc <= d1) L.push({ t: tc, ent: e }); }   // jugadores y bots de la partida
     L.sort((a, c) => a.t - c.t);
     let ended = false;
@@ -913,13 +914,13 @@ function updateHelp() {
     '<b>Teclado</b> WASD mover · ratón girar · clic izq. disparar · clic der. apuntar · R recargar · C agacharse · Q arma · G granada · H humo · Espacio dash (mantén = más largo) · Shift correr · P/Esc configurar mando';
 }
 /* ---- selector de mapa (arriba del menú de Options; el juego está en pausa mientras está abierto) ---- */
-const MAPS = [[1, 'Mapa 1 · Arena'], [2, 'Mapa 2 · Polígono de pruebas'], [3, 'Mapa 3 · Partida 6 vs 6'], [4, 'Campaña · cuatro facciones']], NM = MAPS.length;
-const curMap = () => MX.on ? (MX.campaign ? 4 : 3) : RANGE.on ? 2 : 1;
+const MAPS = [[1, 'Mapa 1 · Arena'], [2, 'Mapa 2 · Polígono de pruebas'], [3, 'Mapa 3 · Partida 6 vs 6'], [4, 'Campaña · cuatro facciones'], [5, 'Distrito (M1) · mapa grande']], NM = MAPS.length;
+const curMap = () => MX.on ? (MX.district ? 5 : MX.campaign ? 4 : 3) : RANGE.on ? 2 : 1;
 function chooseMap(n) {
   if (n === curMap()) { closeMenu(); return; }
   if (MX.on) { location.href = location.pathname + '?mapa=' + n; return; }              // el mapa 3 transforma la escena: para salir se recarga la página
   closeMenu();
-  if (n === 3 || n === 4) { MX.campaign = n === 4; if (RANGE.on) rangeToggle(); MX.want = true; MX.start(); }
+  if (n === 3 || n === 4 || n === 5) { MX.campaign = n >= 4; MX.district = n === 5; if (RANGE.on) rangeToggle(); MX.want = true; MX.start(); }
   else if ((n === 2) !== RANGE.on) rangeToggle();
 }
 function renderMenu() {
@@ -1956,7 +1957,7 @@ function update(dt) {
     rawX = rx; rawY = ry;
     if (rm > 0.02) { ax = rx; ay = ry; stickAim = rm; mode = 'pad'; }
     const down = k => !!(g.buttons[k] && (g.buttons[k].pressed || g.buttons[k].value > .3)), edge = k => down(k) && !prevBtn[k];
-    if (down(0)) MX.rev = true;                                    // ✕: mantener para reanimar (campaña)
+    if (down(BIND.reload)) MX.rev = true;                          // □ (o el botón de recargar): mantener = reanimar a un aliado, o reaparecer si estás abatido (campaña)
     const tv = k => (g.buttons[k] ? g.buttons[k].value || (g.buttons[k].pressed ? 1 : 0) : 0);   // gatillos analógicos: umbral según el arma
     if (tv(BIND.fire) >= cur.tr) { trig = true; mode = 'pad'; }
     if (tv(BIND.ads) >= cur.ta) ads = true;
@@ -2092,6 +2093,7 @@ function update(dt) {
     }
     if (W.swapT >= .36) W.swapT = -1;
   }
+  if (MX.on && MX.revCtx) flags.reload = false;                                      // junto a un aliado abatido, recargar/mantener □ es reanimar: no se recarga el arma
   if (flags.reload && !reloading && W.swapT < 0 && P.gState === 0 && W.ammo < W.max) { W.reload = 0; W.dropped = false; W.rp = 0; }
   flags.reload = false;
   const pressed = trig && !W.trigPrev; W.trigPrev = trig;
@@ -2315,6 +2317,7 @@ function update(dt) {
   camera.lookAt(camLook.x, 0, camLook.z);
   const asp = innerWidth / innerHeight, fov = Math.min(85, (45 + P.slide * 4 + speed * .25) * (asp < 1 ? 1.4 : 1));   // vertical: más campo; horizontal (móvil o escritorio): sin ampliar
   if (Math.abs(fov - camera.fov) > .01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+  if (MX.on) { if (MX.placeBars) MX.placeBars(); if (MX.zom && MX.zom.place) MX.zom.place(); }      // barras de vida sobre la cabeza: se colocan con la cámara ya movida
   sun.target.position.set(P.pos.x, 0, P.pos.z); sun.position.set(P.pos.x - 8, 16, P.pos.z + 6);
 
   // HUD
@@ -3482,6 +3485,120 @@ requestAnimationFrame(frame);
 })();
 </script>
 <script>"use strict";
+/* ===================== MAPA POR DATOS (distrito de la campaña) =====================
+   Generador: convierte una descripción (src/mapa_distrito.js) en la escena. Suelos, calles con marcas, aceras, plazas, aparcamientos y refugios provisionales se
+   dibujan fusionados por material (muy pocas llamadas de dibujo); edificios y objetos se colocan con placeObject (src/objetos.js, que debe cargarse antes).
+   Convenciones: x hacia la derecha, z hacia la cámara (norte = z negativo). Un edificio con giro 0 tiene la puerta hacia +z. */
+(function () {
+const MAPA = window.MAPA = { data: {}, built: null };
+const MA = {}; const mat = c => MA[c] || (MA[c] = new THREE.MeshStandardMaterial({ color: c, roughness: .95, flatShading: true }));
+/* superficies: color y altura de la cara superior (las más altas tapan a las más bajas: sin parpadeo) */
+const SURF = { asphalt: [0x35383e, .01], grass: [0x56713f, .02], dirt: [0x6c5a44, .03], concrete: [0x85827c, .05], cobble: [0x7a6d60, .07], refuge: [0x6c685f, .06], sidewalk: [0x9d9b92, .13] };
+const MARK = { white: 0xdbd8cb, yellow: 0xe3b942 };
+const _q = new THREE.Quaternion(), _p = new V3(), _s = new V3();
+const mkBox = (x, y, z, w, h, d) => ({ m: new THREE.Matrix4().compose(_p.set(x, y, z), _q, _s.set(w, h, d)) });
+function flush(group, buckets) {                                                      // una malla por material (en trozos de ≤1500 cajas para no pasar de 65k vértices)
+  for (const c in buckets) { const L = buckets[c]; for (let i = 0; i < L.length; i += 1500) { const m = new THREE.Mesh(mergeParts(L.slice(i, i + 1500).map(b => ({ geo: geoBox, m: b.m }))), mat(+c)); m.receiveShadow = true; m.castShadow = false; group.add(m); } }
+}
+MAPA.build = function (D) {
+  MAPA.clear(); const group = new THREE.Group(); scene.add(group); const B = {}, add = (c, x, y, z, w, h, d) => (B[c] || (B[c] = [])).push(mkBox(x, y, z, w, h, d));
+  const rect = (t, x, z, w, d) => add(SURF[t][0], x, SURF[t][1] / 2, z, w, SURF[t][1], d), mark = (c, x, z, w, d) => add(MARK[c], x, .0145, z, w, .006, d);
+  const out = { half: D.half, spawns: [[], [], [], []], hot: (D.hot || []).slice(), walls: [], props: [], buildings: [], rails: [], group };
+  if (D.ground) OBJ.setGround(SURF[D.ground][0]);
+  for (const s of D.surfaces || []) rect(s.t, s.x, s.z, s.w, s.d);
+  /* calles: asfalto, aceras a ambos lados, marcas centrales y de borde, pasos de cebra; se cortan donde se cruzan */
+  const roads = D.roads || [], SW = 3.2;
+  const crossings = r => roads.filter(o => o !== r && o.axis !== r.axis && o.c >= r.a0 && o.c <= r.a1 && r.c >= o.a0 && r.c <= o.a1);
+  for (const r of roads) {
+    const X = r.axis === 'x', len = r.a1 - r.a0, mid = (r.a0 + r.a1) / 2, cr = crossings(r);
+    if (X) rect('asphalt', mid, r.c, len, r.w); else rect('asphalt', r.c, mid, r.w, len);
+    const gaps = cr.map(o => [o.c - o.w / 2, o.c + o.w / 2]).sort((a, b) => a[0] - b[0]), segs = []; let cur = r.a0;     // tramos entre cruces
+    for (const g of gaps) { if (g[0] > cur) segs.push([cur, g[0]]); cur = Math.max(cur, g[1]); } if (cur < r.a1) segs.push([cur, r.a1]);
+    for (const [a, b] of segs) {
+      const L = b - a, m = (a + b) / 2;
+      for (const sg of [-1, 1]) { const o = sg * (r.w / 2 + SW / 2); if (X) rect('sidewalk', m, r.c + o, L, SW); else rect('sidewalk', r.c + o, m, SW, L); }
+      for (const sg of [-1, 1]) { const o = sg * (r.w / 2 - .35); if (X) mark('white', m, r.c + o, L, .16); else mark('white', r.c + o, m, .16, L); }          // bordes
+      const dbl = r.w >= 10;                                                                                                                       // avenidas: doble línea amarilla; calles: discontinua blanca
+      if (dbl) { for (const sg of [-1, 1]) { if (X) mark('yellow', m, r.c + sg * .22, L, .14); else mark('yellow', r.c + sg * .22, m, .14, L); } }
+      else for (let t = a + 1.5; t < b - 3; t += 8) { if (X) mark('white', t + 1.5, r.c, 3, .16); else mark('white', r.c, t + 1.5, .16, 3); }
+    }
+    for (const o of cr) for (const sg of [-1, 1]) { const at = o.c + sg * (o.w / 2 + 1.4);                                                       // pasos de cebra a cada lado del cruce
+      for (let k = -r.w / 2 + .8; k <= r.w / 2 - .7; k += 1.05) { if (X) mark('white', at, r.c + k, 1.5, .55); else mark('white', r.c + k, at, .55, 1.5); } }
+  }
+  for (const k of D.lots || []) {                                                       // aparcamientos: hormigón con plazas marcadas
+    rect('concrete', k.x, k.z, k.w, k.d);
+    for (let i = 0; i <= Math.floor(k.w / 3); i++) { const x = k.x - k.w / 2 + 1.5 + i * 3; if (x < k.x + k.w / 2 - .5) { mark('white', x, k.z - k.d / 2 + 3.2, .12, 5.2); mark('white', x, k.z + k.d / 2 - 3.2, .12, 5.2); } }
+  }
+  /* refugios provisionales (muros bajos de bloque y un hueco de portón; la geometría definitiva es la Entrega 2) */
+  const wallBox = (x, z, w, d, h, fac) => { const FM = FACM[fac % FACM.length];
+    const m = new THREE.Mesh(geoBox, FM.uni); m.scale.set(w, h, d); m.position.set(x, h / 2, z); m.castShadow = m.receiveShadow = true; group.add(m);
+    const c = new THREE.Mesh(geoBox, FM.acc); c.scale.set(w + .1, .14, d + .1); c.position.set(x, h + .07, z); c.receiveShadow = true; group.add(c);
+    const bx = { x, z, hx: w / 2, hz: d / 2, h, wall: true }; boxes.push(bx); out.walls.push(bx); };
+  for (const R of D.refuges || []) {
+    rect('refuge', R.x, R.z, R.w, R.d); const T = .8, H = 3, g = R.gate, hw = R.w / 2, hd = R.d / 2;
+    const side = (nx, nz, len, horiz, gateHere) => {                                  // lado con o sin hueco de portón
+      if (!gateHere) { horiz ? wallBox(R.x + nx, R.z + nz, len, T, H, R.fac) : wallBox(R.x + nx, R.z + nz, T, len, H, R.fac); return; }
+      const half = (len - g) / 2; for (const sg of [-1, 1]) { const o = sg * (g / 2 + half / 2); horiz ? wallBox(R.x + nx + o, R.z + nz, half, T, H, R.fac) : wallBox(R.x + nx, R.z + nz + o, T, half, H, R.fac); }
+    };
+    side(0, -hd, R.w, true, R.face === 'n'); side(0, hd, R.w, true, R.face === 's'); side(-hw, 0, R.d, false, R.face === 'w'); side(hw, 0, R.d, false, R.face === 'e');
+    const dir = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] }[R.face], yaw = Math.atan2(dir[0], dir[1]);
+    { const cx = R.x + dir[0] * (hw - 7), cz = R.z + dir[1] * (hd - 7); for (let i = 0; i < 6; i++) out.spawns[R.fac].push({ x: dir[1] ? cx + (i - 2.5) * 4 : cx, z: dir[1] ? cz : cz + (i - 2.5) * 4, yaw }); }      // 6 puntos de aparición dentro, cerca del portón
+    const e = placeObject('emblem' + R.fac, R.x + dir[0] * (hw + .1), R.z + dir[1] * (hd + .1), Math.atan2(dir[0], dir[1]), { fac: R.fac }); if (e) out.props.push(e);
+  }
+  flush(group, B);
+  for (const r of D.rails || []) out.rails.push(OBJ.rails(r.x, r.z, r.len, r.ry || 0));
+  for (const b of D.buildings || []) { const r = placeObject(b.k, b.x, b.z, b.rot || 0, { fac: b.fac }); if (r) out.buildings.push(r); }
+  for (const o of D.objects || []) { const r = placeObject(o.t, o.x, o.z, o.g || 0, o.o); if (r) out.props.push(r); }
+  MAPA.built = out; return out;
+};
+MAPA.clear = function () {
+  const b = MAPA.built; if (!b) return; scene.remove(b.group); b.group.traverse(o => { if (o.geometry && o.isMesh) o.geometry.dispose(); });
+  for (const r of b.rails) scene.remove(r); for (const x of b.buildings) OBJ.removeObject(x); for (const p of b.props) OBJ.removeObject(p);
+  for (const w of b.walls) { const i = boxes.indexOf(w); if (i >= 0) boxes.splice(i, 1); } MAPA.built = null;
+};
+})();
+</script>
+<script>"use strict";
+/* ===================== DATOS DEL DISTRITO (sector de prueba M1: 250 × 250 m) =====================
+   Cuadrícula de calles (x e z = −70, 0, +70), un refugio provisional por esquina (Azul NO, Rojo NE, Ámbar SO, Violeta SE), plaza al noreste del cruce central,
+   tiendas sobre la Avenida Mayor, gasolinera, aparcamiento y una vía. Norte = z negativo. Se amplía por sectores (M2/M3). */
+(function () {
+const fp = (k, g) => OBJ.footprint(k, g || 0, {});
+MAPA.data.M1 = function () {
+  const SW = 3.2, AV = 12, CALLE = 8, half = 125;
+  const D = { half, ground: 'grass', roads: [], surfaces: [], lots: [], refuges: [], buildings: [], objects: [], rails: [], hot: [] };
+  D.roads.push({ axis: 'x', c: 0, a0: -half, a1: half, w: AV }, { axis: 'z', c: 0, a0: -half, a1: half, w: 9 });                         // Avenida Mayor y Calle Central
+  for (const c of [-70, 70]) D.roads.push({ axis: 'x', c, a0: -half, a1: half, w: CALLE }, { axis: 'z', c, a0: -half, a1: half, w: CALLE });   // calles perimetrales
+  /* refugios (provisionales): portón hacia la calle más cercana */
+  D.refuges.push({ fac: 0, x: -98, z: -98, w: 44, d: 40, face: 's', gate: 8 }, { fac: 1, x: 98, z: -98, w: 44, d: 40, face: 's', gate: 8 },
+                 { fac: 2, x: -98, z: 98, w: 44, d: 40, face: 'n', gate: 8 }, { fac: 3, x: 98, z: 98, w: 44, d: 40, face: 'n', gate: 8 });
+  /* tiendas en la acera norte de la Avenida Mayor (puerta hacia +z, a la avenida) */
+  const front = AV / 2 + SW + .3, put = (k, x, side, fac) => { const f = fp(k), D_ = f.hz, z = side * (front + D_); D.buildings.push({ k, x, z, rot: side < 0 ? 0 : Math.PI, fac }); return [x, z]; };
+  const s1 = put('super', -38, -1), s2 = put('pharm', -9, -1), s3 = put('mini', 22, 1);
+  D.hot.push([s1[0], -6], [s2[0], -6], [s3[0], 6]);
+  /* plaza al noreste del cruce central */
+  D.surfaces.push({ t: 'cobble', x: 36, z: -37, w: 44, d: 44 });
+  D.objects.push({ t: 'bench', x: 24, z: -26 }, { t: 'bench', x: 48, z: -26 }, { t: 'planter', x: 26, z: -48, g: 0 }, { t: 'planter', x: 46, z: -48 }, { t: 'kiosk', x: 36, z: -50 }, { t: 'busStop', x: 12, z: -8.5 },
+                 { t: 'bench', x: 24, z: -50 }, { t: 'floodlight', x: 36, z: -36 });
+  D.hot.push([36, -37]);
+  /* gasolinera al sureste */
+  D.surfaces.push({ t: 'concrete', x: 40, z: 38, w: 36, d: 24 });
+  D.objects.push({ t: 'pump', x: 30, z: 36 }, { t: 'pump', x: 38, z: 36 }, { t: 'pump', x: 46, z: 36 }, { t: 'kiosk', x: 50, z: 46 }, { t: 'car', x: 34, z: 44, g: Math.PI / 2 }, { t: 'dumpster', x: 56, z: 30 });
+  D.hot.push([40, 38]);
+  /* aparcamiento al suroeste */
+  D.lots.push({ x: -36, z: 40, w: 40, d: 24 });
+  D.objects.push({ t: 'car', x: -48, z: 36, g: Math.PI / 2 }, { t: 'car', x: -42, z: 44, g: Math.PI / 2 }, { t: 'car', x: -30, z: 36, g: Math.PI / 2 }, { t: 'car', x: -24, z: 44, g: Math.PI / 2 },
+                 { t: 'wheelie', x: -56, z: 30 }, { t: 'dumpster', x: -54, z: 52 }, { t: 'pallet', x: -16, z: 52 });
+  D.hot.push([-36, 40]);
+  /* una vía al sur, entre los dos refugios del sur */
+  D.surfaces.push({ t: 'dirt', x: 0, z: 100, w: 120, d: 10 });
+  D.rails.push({ x: 0, z: 100, len: 120, ry: 0 });
+  D.hot.push([0, 100], [0, -70], [0, 70], [-70, 0], [70, 0], [-70, -70], [70, -70], [-70, 70], [70, 70], [0, 0]);
+  return D;
+};
+})();
+</script>
+<script>"use strict";
 /* ===================== PARTIDA 6 vs 6 · MAPA 3 =====================
    Módulo cargado después del juego: comparte su ámbito global (P, W, WP, boxes, props, scene, spawnBullet, explode...).
    Con MX.on = false no hace nada: los mapas 1 (arena original) y 2 (polígono de pruebas) quedan intactos.
@@ -3526,7 +3643,24 @@ function placeProp(spec, checkEnts) {
   if (checkEnts) for (const e of M.ents) if (!e.dead && Math.hypot(e.p.x - spec.x, e.p.z - spec.z) < 1.6) return null;
   const p = addProp(spec.type, spec.x, spec.z, spec.rot || 0); p.spec = spec; M.props.push(p); return p;
 }
+function navResize(half) {                                                          // reajusta la malla de navegación al tamaño del mundo (distrito)
+  NV.w = NV.h = Math.ceil(half * 2 + 8); NV.ox = NV.oz = -NV.w / 2; NV.n = NV.w * NV.h; NV.bl = new Uint8Array(NV.n);
+  AS.g = new Float32Array(NV.n); AS.par = new Int32Array(NV.n); AS.st = new Uint8Array(NV.n);
+}
+function buildDistrict() {                                                           // campaña sobre el distrito generado por MAPA (src/mapa.js + mapa_distrito.js)
+  for (const o of OBST) { o.m.visible = false; const i = boxes.indexOf(o.bx); if (i >= 0) boxes.splice(i, 1); }
+  for (const p of props.slice()) { scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); }
+  props.length = 0; for (const tg of targets) scene.remove(tg.g); targets.length = 0;
+  grid.visible = false;                                                             // la cuadrícula de referencia de la arena no se usa en el distrito
+  const D = MAPA.build(MAPA.data.M1());
+  WORLD.x = WORLD.z = D.half - .6; border.scale.set(WORLD.x / 40, 1, WORLD.z / 40); ground.scale.set(Math.max(1, (D.half * 2 + 20) / 120), Math.max(1, (D.half * 2 + 20) / 120), 1);
+  for (const w of D.walls) M.walls.push(w);
+  for (let tm = 0; tm < 4; tm++) M.spawn[tm] = D.spawns[tm].map(s => ({ x: s.x, z: s.z, yaw: s.yaw }));
+  HOT.length = 0; for (const h of D.hot) HOT.push(h);
+  navResize(D.half); navBuild();
+}
 function buildMap() {
+  if (MX.district) return buildDistrict();
   /* se aparta la arena original (mapa 1) y los blancos: aquí los rivales son los bots */
   for (const o of OBST) { o.m.visible = false; const i = boxes.indexOf(o.bx); if (i >= 0) boxes.splice(i, 1); }
   for (const p of props.slice()) { scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); }
@@ -3546,8 +3680,8 @@ function buildMap() {
   for (const z of [-9.5, -6.5, -3.6, 3.6, 6.5, 9.5]) { M.spawn[0].push({ x: -40.2, z, yaw: Math.PI / 2 }); M.spawn[1].push({ x: 40.2, z, yaw: -Math.PI / 2 }); }
   if (MX.campaign) {
     for (const [team, z] of [[2, -26], [3, 26]]) {
-      floorRect(0, z, 12, 6, new THREE.Color(FAC[team].acc).multiplyScalar(.4).getHex());
-      M.spawn[team] = [-4, -2, 2, 4].map(x => ({ x, z, yaw: z < 0 ? 0 : Math.PI }));
+      floorRect(0, z, 22, 8, new THREE.Color(FAC[team].acc).multiplyScalar(.4).getHex());
+      M.spawn[team] = [-8, -4, 4, 8].map(x => ({ x, z, yaw: z < 0 ? 0 : Math.PI }));
     }
   }
   buildArmory();
@@ -3713,7 +3847,7 @@ function teamColor(team) {
   return '#' + FAC[team].trim.toString(16).padStart(6, '0');
 }
 function makeEnt(team, n, isPlayer) {
-  const e = { id: ['A', 'R', 'M', 'V'][team] + (n + 1), team, isPlayer: !!isPlayer, bot: !isPlayer, p: isPlayer ? P.pos : new V3(), v: isPlayer ? P.vel : new V3(),
+  const e = { id: ['A', 'R', 'M', 'V'][team] + (n + 1), team, sq: Math.floor(n / 5), slot: n % 5, isPlayer: !!isPlayer, bot: !isPlayer, p: isPlayer ? P.pos : new V3(), v: isPlayer ? P.vel : new V3(),
     yaw: 0, body: 0, hp: HP, sh: SH, bH: { fill: HP, chunk: HP, wait: 0 }, bS: { fill: SH, chunk: SH, wait: 0 }, dead: true, deadT: 0, respT: 0, inv: 0, kills: 0, deaths: 0, cover: null, lastHurt: -99, lastAtt: null, lastAttT: -99, dwn: false, revived: false, kits: 1, rescuer: null, rt: null, revP: 0 };
   e.tgp = { hp: HP, g: { visible: true, position: e.p } };
   if (!isPlayer) initBot(e);
@@ -3794,7 +3928,7 @@ function unbake(e) { e.root.position.set(0, 0, 0); e.root.quaternion.identity();
 const DWN_RING = new THREE.RingGeometry(.62, .78, 40), DWN_AMB = new THREE.MeshBasicMaterial({ color: 0xffb020, transparent: true, opacity: .8, side: THREE.DoubleSide, depthWrite: false }),
   DWN_WHT = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .95, depthWrite: false }), DWN_RED = new THREE.MeshBasicMaterial({ color: 0xff4a38, transparent: true, opacity: .95, depthWrite: false }),
   DWN_GRN = new THREE.MeshBasicMaterial({ color: 0x6dff9a, transparent: true, opacity: .9, side: THREE.DoubleSide, depthWrite: false });
-const DWN_T = 25, DWN_HP = 40, REV_T = 3, REV_R = 1.5, REV_HP = 50;            // abatido: tiempo máx., vida extra antes de morir; reanimar: tiempo, alcance y vida al volver
+const DWN_T = 25, DWN_HP = 40, REV_T = 3, REV_R = 1.5, REV_HP = 50, SUR_T = .8;          // SUR_T: segundos manteniendo □ para reaparecer estando abatido            // abatido: tiempo máx., vida extra antes de morir; reanimar: tiempo, alcance y vida al volver
 function dwnFxMake(e) {
   if (e.dwnFx) return;
   const g = new THREE.Group(), ring = new THREE.Mesh(DWN_RING, DWN_AMB.clone()); ring.rotation.x = -Math.PI / 2; ring.position.y = .035; g.add(ring);
@@ -3834,7 +3968,7 @@ function dwnTick(e, dt) {
 function perceive(e) {
   let best = null, bs = 1e9;
   if (MX.zom) for (const o of MX.zom.list) {                                         // los zombis también son amenaza para los bots
-    if (o.dead || o.st === 'rise') continue;
+    if (o.dead) continue;
     const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.hypot(dx, dz); if (d > 24) continue;
     if (d > 5 && Math.abs(angDiff(e.yaw, Math.atan2(dx, dz))) > 1.25) continue;
     if (!segClear(e.p.x, e.p.z, o.p.x, o.p.z, null, null, true) || smokeBlock(e.p.x, e.p.z, o.p.x, o.p.z)) continue;
@@ -3876,7 +4010,29 @@ function retreatPoint(e, tx, tz) {
   return null;
 }
 function setGoal(e, x, z) { e.goal = { x, z }; e.needPath = true; }
+/* ---- grupos de 5 (escuadras): 5 por facción (25 combatientes). El líder es el primer miembro vivo en pie; en la escuadra 0 de Azul lidera el jugador y los demás le siguen.
+   Los seguidores van a su puesto de la formación junto al destino del líder, se reagrupan si se alejan y comparten avisos de enemigos. ---- */
+const SQ_OFF = [[0, 0], [-2.2, 2.2], [2.2, 2.2], [-3.6, -1.6], [3.6, -1.6]], SQ_MAX = 30;
+function leaderOf(e) { for (const o of M.ents) if (o.team === e.team && o.sq === e.sq && !o.dead && !o.dwn) return o; return null; }
+function squadGoal(e, L) {                                                           // punto de formación de un seguidor junto a su líder
+  const o = SQ_OFF[e.slot % 5], a = L.isPlayer ? P.aim : L.yaw, ca = Math.cos(a), sa = Math.sin(a), base = L.isPlayer || !L.goal ? L.p : L.goal;
+  return { x: base.x + o[0] * ca + o[1] * sa, z: base.z - o[0] * sa + o[1] * ca };
+}
+function squadSync(e) {                                                              // llamado desde think: mantiene al seguidor con su escuadra
+  const L = leaderOf(e); e.leader = L; if (!L || L === e || e.st !== 'push') return;
+  const g = squadGoal(e, L), far = Math.hypot(L.p.x - e.p.x, L.p.z - e.p.z) > SQ_MAX;
+  if (!e.goal || far || Math.hypot(e.goal.x - g.x, e.goal.z - g.z) > 5) setGoal(e, g.x + rr(-.6, .6), g.z + rr(-.6, .6));
+}
+function squadAlert(e, seen) {                                                       // un miembro ve un enemigo: avisa a los de su escuadra que no lo ven
+  if (M.t - (e.sqAlert || -9) < 1.5) return; e.sqAlert = M.t;
+  for (const o of M.ents) {
+    if (o === e || o.dead || o.dwn || o.isPlayer || o.team !== e.team || o.sq !== e.sq || o.vis || o.st === 'cover' || M.t - o.alertT < 3) continue;
+    if (Math.hypot(o.p.x - e.p.x, o.p.z - e.p.z) > 35) continue;
+    o.alertT = M.t; o.ls.x = seen.p.x; o.ls.z = seen.p.z; o.st = 'search'; o.searchStart = M.t; setGoal(o, o.ls.x, o.ls.z);
+  }
+}
 function pickGoal(e) {
+  if (MX.campaign) { const L = leaderOf(e); if (L && L !== e) { const g = squadGoal(e, L); e.goal = null; setGoal(e, g.x + rr(-.6, .6), g.z + rr(-.6, .6)); return; } }   // seguidor: va a su puesto junto al líder
   const dir = e.team % 2 === 0 ? 1 : -1, cand = []; let tot = 0;
   for (const h of HOT) { const d = Math.hypot(h[0] - e.p.x, h[1] - e.p.z); if (d < 7) continue; const w = 1 + 1.6 * clamp(dir * h[e.team < 2 ? 0 : 1] / 30, 0, 1) - (e.lastGoal && Math.hypot(h[0] - e.lastGoal[0], h[1] - e.lastGoal[1]) < 5 ? .8 : 0); cand.push([h, Math.max(.15, w)]); tot += Math.max(.15, w); }
   let r = rnd() * tot, pick = cand.length ? cand[0][0] : [0, 0]; for (const c of cand) { r -= c[1]; if (r <= 0) { pick = c[0]; break; } }
@@ -3901,6 +4057,7 @@ function think(e) {
   for (const p of props) { if (p.dead || p.h > .95) continue; const dx = Math.max(Math.abs(e.p.x - p.x) - p.hx, 0), dz = Math.max(Math.abs(e.p.z - p.z) - p.hz, 0), d = Math.hypot(dx, dz); if (d < (p === e.cover ? 1 : .8) && d < bd) { bd = d; cv = p; } }
   e.cover = cv; e.flee = dangerVec(e);
   const seen = perceive(e);
+  if (MX.campaign) { e.syncT = (e.syncT || 0) - .13; if (e.syncT <= 0) { e.syncT = 1 + rnd() * .5; squadSync(e); } if (seen && seen.p) squadAlert(e, seen); }
   if (seen) { if (e.tgt !== seen) { e.tgt = seen; e.reactT = 0; e.leadK = rr(.6, 1.05); } e.vis = true; e.seenT = M.t; e.ls.x = seen.p.x; e.ls.z = seen.p.z; } else e.vis = false;
   if (e.vis) { const sx = e.p.x + Math.sin(e.yaw) * .6, sz = e.p.z + Math.cos(e.yaw) * .6; e.dT = Math.hypot(e.tgt.p.x - e.p.x, e.tgt.p.z - e.p.z); e.canShoot = segClear(sx, sz, e.tgt.p.x, e.tgt.p.z, e.cover, null, false) && !smokeBlock(sx, sz, e.tgt.p.x, e.tgt.p.z); } else e.canShoot = false;
   if (!e.vis && e.lastAtt && !e.lastAtt.dead && e.lastAtt.team !== e.team && M.t - e.lastAttT < .6 && e.st !== 'cover' && M.t - e.alertT > 4) {   // me han disparado y no veo a nadie: voy hacia el atacante
@@ -4040,7 +4197,9 @@ function pickSpawn(team) {
   return c[0].s;
 }
 function respawn(e) {
-  const s = pickSpawn(e.team); e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = SH; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); syncKit(e);
+  const s0 = pickSpawn(e.team), s = { x: s0.x, z: s0.z, yaw: s0.yaw };
+  if (MX.campaign) for (let k = 0; k < 8; k++) { const x = s0.x + rr(-3, 3), z = s0.z + rr(-3, 3); if (navAt(x, z)) { s.x = x; s.z = z; break; } }   // campaña: 25 por facción, se reparten junto al punto de aparición
+  e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = SH; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); syncKit(e);
   if (e.isPlayer) return respawnPlayer(e);
   unbake(e); setWeapon(e, pickWeaponIdx()); e.gCount = 3; e.sCount = 2; e.st = 'push'; e.goal = null; e.path = null; e.tgt = null; e.vis = false; e.reactT = 0; e.canShoot = false; e.wantThrow = null; e.holdT = 0;
   e.crouch = e.crouchT = 0; e.kick = 0; e.fireCd = rr(.2, .6); e.pause = 0; e.burst = 0; e.gCd = rr(4, 10); e.sCd = 6; e.walk = 0; e.stuckN = 0; e.nudge = 0; e.py = 1.1; e.thinkT = rnd() * .12; e.ring.visible = true; e.root.visible = true;
@@ -4105,14 +4264,16 @@ function rescueBot(e, dt) {                                                     
   if (t.revP >= 1) revive(t, e);
   return true;
 }
-function rescuePlayer(pl, dt) {                                                    // el jugador mantiene ✕ / E junto a un aliado abatido
-  const held = !!(MX.rev || keys.KeyE); let near = null, nd = REV_R;
+const KEYN = () => mode === 'pad' ? bn(BIND.reload) : 'R';                         // nombre de la tecla de reanimar/reaparecer (□ en el mando)
+function rescuePlayer(pl, dt) {                                                    // el jugador mantiene □ (mando) o R/E junto a un aliado abatido
+  const held = !!(MX.rev || keys.KeyE || keys.KeyR); MX.revCtx = false; let near = null, nd = REV_R;
   if (!pl.dead && !pl.dwn) for (const o of M.ents) if (o !== pl && o.dwn && !o.dead && o.team === pl.team && (!o.rescuer || o.rescuer === pl)) { const d = Math.hypot(o.p.x - pl.p.x, o.p.z - pl.p.z); if (d <= nd) { nd = d; near = o; } }
   if (pl.rt && pl.rt !== near) cancelRescue(pl);
   if (!near) return '';
+  MX.revCtx = pl.kits > 0;
   if (pl.kits <= 0) return 'Sin kit de reanimación';
   if (held && M.t - pl.lastHurt > .4) { pl.rt = near; near.rescuer = pl; near.revP += dt / REV_T; MX.reviveFx(near, near.revP); if (near.revP >= 1) revive(near, pl); return 'Reanimando a ' + near.id + '…'; }
-  cancelRescue(pl); return 'Mantén ✕ / E para reanimar a ' + near.id;
+  cancelRescue(pl); return 'Mantén ' + KEYN() + ' para reanimar a ' + near.id;
 }
 MX.hit = (e, dmg, from, dx, dz, w, src) => {
   if (e.dead || e.inv > 0 || M.over || dmg <= 0) return;
@@ -4140,7 +4301,6 @@ function kill(v, killer, dx, dz) {
   for (let i = 0; i < 8; i++) spawn('red', _kp.set(v.p.x, .9, v.p.z), _kv.set((Math.random() - .5) * 4 + dx * 2, 1 + Math.random() * 3, (Math.random() - .5) * 4 + dz * 2), .5, .04, .04, .04, true, 8);
   if (v.isPlayer) { P.dead = true; if (!corpseP) playerCorpse(dx, dz); for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(200, .8, .6); }
   else { if (wasDown) v.deadT = .55; else bake(v, dx, dz); v.ring.visible = false; v.flash.visible = false; v.wantThrow = null; }
-  if (MX.onDeath) MX.onDeath(v);
   if (!MX.campaign && (M.score[0] >= GOAL || M.score[1] >= GOAL)) endMatch(M.score[0] >= GOAL ? 0 : 1);
 }
 const _kp = new V3(), _kv = new V3();
@@ -4245,6 +4405,7 @@ function popNum(e, dmg) {
   d.textContent = Math.round(dmg); hud.appendChild(d); numSide = -numSide;
   NUMS.push({ d, e, t: 0, ox: numSide * (14 + Math.random() * 16), wx: e.p.x, wz: e.p.z, mine });
 }
+MX.popNum = popNum;
 function updNums(dt) {
   for (let i = NUMS.length - 1; i >= 0; i--) {
     const n = NUMS[i]; n.t += dt; if (n.t > 1) { n.d.remove(); NUMS.splice(i, 1); continue; }
@@ -4279,7 +4440,7 @@ MX.start = () => {
   buildMap();
   const pl = makeEnt(0, 0, true); MX.pl = pl; M.ents.push(pl);
   const teams = MX.campaign ? 4 : 2;
-  const members = MX.campaign ? 4 : 6;
+  const members = MX.campaign ? clamp(+new URLSearchParams(location.search).get('bots') || 25, 4, 25) : 6;   // campaña: 25 combatientes por facción (el jugador cuenta dentro de Azul); ?mapa=4&bots=N lo reduce para pruebas
   M.score = Array(teams).fill(0);
   for (let team = 0; team < teams; team++) {
     for (let n = team === 0 ? 1 : 0; n < members; n++) M.ents.push(makeEnt(team, n, false));
@@ -4289,6 +4450,10 @@ MX.start = () => {
   M.built = true; MX.on = true; hud.style.display = 'block'; if (MX.zom && MX.campaign) MX.zom.init();
   for (const e of M.ents) respawn(e);
   forceWeapon(M.slots[0]);
+};
+MX.placeBars = () => {                                                              // se llama tras mover la cámara: así la barra no se retrasa un fotograma respecto al personaje
+  camera.updateMatrixWorld();
+  for (const e of M.ents) { if (e.isPlayer || !e.barOn) continue; const hp = e.R.head.position; _kp.set(hp.x, hp.y + .13 + .5, hp.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight); }   // base de la barra 0,5 m sobre la coronilla (igual que los zombis)
 };
 MX.update = dt => {
   if (!M.built) return; dt = Math.min(dt, .05); M.t += dt; M.budget = 2;
@@ -4308,7 +4473,14 @@ MX.update = dt => {
   }
   pl.yaw = P.aim;
   let msg = '';
-  if (MX.campaign) { msg = rescuePlayer(pl, dt); if (pl.dwn) msg = 'ABATIDO · espera ayuda · ' + Math.max(0, Math.ceil(DWN_T - pl.dwT)) + ' s'; }
+  if (MX.campaign) {
+    msg = rescuePlayer(pl, dt);
+    if (pl.dwn) {                                                                  // abatido: espera ayuda o mantén □ (R) para volver a tu refugio sin esperar
+      const held = !!(MX.rev || keys.KeyE || keys.KeyR); pl.surT = held ? (pl.surT || 0) + dt : Math.max(0, (pl.surT || 0) - dt * 2);
+      msg = pl.surT > .05 ? 'Reapareciendo en tu refugio… ' + Math.min(100, Math.round(pl.surT / SUR_T * 100)) + ' %' : 'ABATIDO · ' + Math.max(0, Math.ceil(DWN_T - pl.dwT)) + ' s · espera ayuda o mantén ' + KEYN() + ' para reaparecer';
+      if (pl.surT >= SUR_T) { pl.surT = 0; endRescueOn(pl); kill(pl, null, 0, 1); pl.respT = 0; }   // se rinde: cuenta como baja y reaparece en su refugio al instante
+    } else pl.surT = 0;
+  }
   mxMsg.textContent = msg; mxMsg.style.display = msg ? 'block' : 'none'; MX.rev = false;
   MX.foes.length = 0;
   for (const e of M.ents) {
@@ -4323,12 +4495,11 @@ MX.update = dt => {
       e.ring.visible = false;                                                      // sin anillos bajo los personajes: la facción se reconoce por los colores del equipo
       e.flash.visible = e.flashT > 0 && !!e.gun; if (e.flash.visible) { const dx = Math.sin(e.yaw), dz = Math.cos(e.yaw); e.flash.position.set(e.p.x + dx * (.7 + e.w.muz * .3), 1.1 - e.crouch * .25, e.p.z + dz * (.7 + e.w.muz * .3)); e.flash.quaternion.setFromUnitVectors(UP, _kv.set(dx, 0, dz)); }
     }
-    const near = Math.hypot(e.p.x - P.pos.x, e.p.z - P.pos.z) < 42, hid = e.team !== 0 && hiddenBySmoke(e.p.x, e.p.z);
+    const near = Math.hypot(e.p.x - P.pos.x, e.p.z - P.pos.z) < 32, hid = e.team !== 0 && hiddenBySmoke(e.p.x, e.p.z);
     e.root.visible = near && !hid && (!e.dead || e.root.position.y > -.55); e.ring.visible = e.ring.visible && near && !hid;
     if (!e.dead && !e.dwn && e.root.visible) poseBot(e, dt);
-    if (!e.dead && e.root.visible && M.t - (e.bShow || -99) < 4) {                  // barra sobre la cabeza: solo tras recibir daño
-      drawBar(e.bar, e, dt); _kp.set(e.p.x, 2.3 - e.crouch * .25, e.p.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight);
-    } else e.bar.el.style.display = 'none';
+    if (!e.dead && e.root.visible && M.t - (e.bShow || -99) < 4) { drawBar(e.bar, e, dt); e.barOn = true; }          // barra sobre la cabeza: solo tras recibir daño (se coloca al final del fotograma, con la cámara ya movida: MX.placeBars)
+    else { e.barOn = false; e.bar.el.style.display = 'none'; }
     if (e.team !== pl.team && !e.dead) { e.tgp.g.visible = e.root.visible; MX.foes.push(e.tgp); }
   }
   /* HUD */
@@ -4344,15 +4515,15 @@ MX.update = dt => {
 <script>"use strict";
 /* ===================== ZOMBIS · CAMPAÑA (?mapa=4) =====================
    Módulo cargado después de partida.js. Población independiente de las facciones (no puntúa): zombis locales que duermen y una horda itinerante.
-   Tipos: caminante, corredor, pesado y gritón. Los combatientes caídos se convierten en zombis (uniforme de su facción) a los 8 s.
+   Tipos: caminante, corredor, pesado y gritón. Los combatientes caídos NO se convierten en zombis (decisión del usuario).
    Ruido: disparos, explosiones y gritos despiertan a los cercanos y desvían la horda. Atacan igual a las 4 facciones. Dibujo instanciado (una malla por pieza).
    Sin sonidos inventados: los eventos llaman a playAt('ZOM_*'), que callan hasta que exista la muestra. */
 (function () {
-const M = MX.M, MAXZ = 240, CONV_T = 8, RISE_T = 2.2;
+const M = MX.M, MAXZ = 240;
 const TY = {
   walker:   { hp: 70,  sc: 1,    dmg: 12, atkCd: 1.1, roam: .9,  chase: 2.4, sight: 14, lean: .5,  arm: -1.15, hs: 1,    tw: 1,   r: .42 },
   runner:   { hp: 45,  sc: .96,  dmg: 8,  atkCd: .7,  roam: 1.2, chase: 5.0, sight: 18, lean: .62, arm: -.5,   hs: .95,  tw: .9,  r: .38 },
-  brute:    { hp: 320, sc: 1.32, dmg: 38, atkCd: 1.6, roam: 1.0, chase: 2.0, sight: 14, lean: .2,  arm: -.95,  hs: .85,  tw: 1.35, r: .62 },
+  brute:    { hp: 320, sc: 1.32, dmg: 38, atkCd: 1.6, roam: 1.0, chase: 2.0, sight: 14, lean: .2,  arm: -.95,  hs: 1.3,  tw: 1.35, r: .62 },
   screamer: { hp: 60,  sc: 1,    dmg: 6,  atkCd: 1.0, roam: 1.0, chase: 2.3, sight: 15, lean: .08, arm: -.9,   hs: 1.25, tw: .92, r: .4 }
 };
 const NOISE_R = { P1: 24, P2: 32, S1: 28, S2: 30, F1: 36, F2: 48, E1: 40, E2: 40, H1: 42, H2: 55 };
@@ -4363,7 +4534,8 @@ const GEO = { box: new THREE.BoxGeometry(1, 1, 1), ball: new THREE.SphereGeometr
 const mat = () => new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .92, flatShading: true });
 /* piezas: [geometría, instancias por zombi]. Cada pieza es UNA malla instanciada, así que añadir detalle no multiplica las llamadas de dibujo por zombi */
 const PARTS = { che: [GEO.box, 1], abd: [GEO.box, 1], pel: [GEO.box, 1], sho: [GEO.box, 1], nek: [GEO.limb, 1], hd: [GEO.ball, 1], jaw: [GEO.hang, 1], hair: [GEO.ballL, 1],
-  ua: [GEO.limb, 2], fa: [GEO.limb, 2], hn: [GEO.hang, 2], ul: [GEO.limb, 2], ll: [GEO.limb, 2], ft: [GEO.box, 2], rg: [GEO.hang, 2], wn: [GEO.box, 3], sk: [GEO.box, 2], ey: [GEO.box, 2], bn: [GEO.spike, 1], tm: [GEO.ballL, 1] };
+  ua: [GEO.limb, 2], fa: [GEO.limb, 2], hn: [GEO.hang, 2], ul: [GEO.limb, 2], ll: [GEO.limb, 2], ft: [GEO.box, 2], rg: [GEO.hang, 2], wn: [GEO.box, 3], sk: [GEO.box, 2], ey: [GEO.box, 2], bn: [GEO.spike, 1], tm: [GEO.ballL, 1],
+  col: [GEO.box, 1], hood: [GEO.ballL, 1], tie: [GEO.box, 1], blt: [GEO.box, 1], pk: [GEO.box, 2], st: [GEO.box, 2] };
 const IM = {}, MUL = {};
 for (const k in PARTS) {
   const cap = MAXZ * PARTS[k][1]; MUL[k] = PARTS[k][1];
@@ -4372,7 +4544,7 @@ for (const k in PARTS) {
   if (k !== 'ey') m.setColorAt(0, new THREE.Color(1, 1, 1));                       // crea el búfer de color con la capacidad completa (r128 usa count al crearlo)
   m.count = 0; m.visible = false; scene.add(m); IM[k] = m;
 }
-const Z = [], FREE = [], HORDES = [], CONV = [];                                    // zombis (vivos y cuerpos), huecos libres, hordas, conversiones pendientes
+const Z = [], FREE = [], HORDES = [];                                    // zombis (vivos y cuerpos), huecos libres y hordas
 let slotMax = 0, hw = 0, nextId = 1, astar = 3, zt = 0, hudT = 0, lastShot = -9, lastShotSid = '';
 const _m1 = new THREE.Matrix4(), _m2 = new THREE.Matrix4(), _m3 = new THREE.Matrix4(), _m4 = new THREE.Matrix4(), _m5 = new THREE.Matrix4(), _gp = new V3(), _gv = new V3(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new V3(), _s = new V3(), _c = new THREE.Color();
 const smoothS = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
@@ -4386,22 +4558,33 @@ function newZ(type, x, z, o) {
   const sc = T.sc * rr(.94, 1.06), zb = {
     id: 'Z' + (nextId++), type, slot, p: new V3(x, 0, z), v: new V3(), team: -1, crouch: 0, dead: false, hp: T.hp, maxhp: T.hp, sc, r: T.r * sc,
     st: o.st || 'dorm', yaw: o.yaw === undefined ? rr(-Math.PI, Math.PI) : o.yaw, ph: rr(0, 6.28), seed: rnd(), limp: rnd() < .5, atk: -1, atkCd: rr(.2, 1), tgt: null, tgtT: 0, thinkT: rr(0, .25),
-    path: null, pi: 0, pathT: -9, stuckT: 0, sx: x, sz: z, home: { x, z }, horde: null, lie: o.lie === undefined ? 0 : o.lie, riseT: o.rise ? 0 : -1, deadT: 0, stag: 0, scream: -1, screamCd: rr(3, 8), hx: x, hz: z, wait: 0, lastNoise: -9, noiseDelay: 0,
-    rag: rnd() < .55, bare: rnd() < .4, gaitSpd: 0, brk: 0 };
-  if (zb.riseT === 0) zb.st = 'rise';
+    path: null, pi: 0, pathT: -9, stuckT: 0, sx: x, sz: z, home: { x, z }, horde: null, lie: o.lie === undefined ? 0 : o.lie, deadT: 0, stag: 0, scream: -1, screamCd: rr(3, 8), hx: x, hz: z, wait: 0, lastNoise: -9, noiseDelay: 0,
+    rag: rnd() < .55, bare: rnd() < .4, gaitSpd: 0, brk: -99, bf: 1, bc: 1, bw: 0, hdx: x, hdy: 1.5, hdz: z, hdr: .13 };
   // rasgos: cada zombi es distinto (complexión, postura, heridas, pelo, ropa rota)
   zb.build = rr(.88, 1.14); zb.slouch = rr(-.1, .12); zb.shR = rr(-.14, .14); zb.hs0 = rr(.92, 1.08); zb.hair = rnd() < .65; zb.bone = rnd() < .3; zb.bare = rnd() < .45; zb.twT = rr(2, 6); zb.tw0 = 0;
   zb.wnd = [0, 1, 2].map(i => rnd() < (i === 0 ? .95 : i === 1 ? .7 : .45) ? { x: rr(-.16, .16), y: rr(-.08, .13), z: rnd() < .75 ? 1 : -1, w: rr(.07, .14), h: rr(.06, .12) } : null);
   zb.rgF = rnd() < .75; zb.rgB = rnd() < .6; zb.shoes = rnd() < .6;
   const SK = [0x6d7863, 0x5e6b57, 0x77796a, 0x546350, 0x706d5d, 0x605a68, 0x66735d], HR = [0x2a1d14, 0x3a2c20, 0x1b1b1d, 0x5a4a38, 0x6b6a66];
   const skin = new THREE.Color(SK[(rnd() * SK.length) | 0]).multiplyScalar(rr(.85, 1.08)), hairC = new THREE.Color(HR[(rnd() * HR.length) | 0]);
-  let torso, pants;
-  if (o.fac !== undefined) { torso = new THREE.Color(FAC[o.fac].uni).lerp(new THREE.Color(0x4d5a46), .3); pants = new THREE.Color(FAC[o.fac].pants).lerp(new THREE.Color(0x3d4638), .25); torso.multiplyScalar(.78); pants.multiplyScalar(.8); zb.rgF = zb.rgB = true; }
-  else { const P_ = [0x4a5056, 0x57493a, 0x3c4756, 0x4b4337, 0x464f58, 0x58553f, 0x3a302c, 0x303c35]; torso = new THREE.Color(P_[(rnd() * P_.length) | 0]).multiplyScalar(rr(.7, 1.0)); pants = new THREE.Color(P_[(rnd() * P_.length) | 0]).multiplyScalar(.55); }
+  /* ropa civil gastada y sucia: tonos apagados (crema sucio, gris, verde oliva, marrón, verde quirófano) que NO se parecen a los uniformes de las facciones (azul, rojo, ámbar, violeta) */
+  const pick = a => a[(rnd() * a.length) | 0], dirt = (c, k) => new THREE.Color(c).multiplyScalar(k !== undefined ? k : rr(.72, .95));
+  const PANTS = [0x3b3a38, 0x4a4d52, 0x56564e, 0x424a44, 0x5b5448, 0x33332f], r0 = rnd();
+  let torso, pants = dirt(pick(PANTS)), trim = null;
+  zb.hood = zb.tie = zb.str = zb.coat = zb.col = zb.pock = false; zb.blt = true;
+  if (r0 < .3) { torso = dirt(pick([0x8a8578, 0x6b6f66, 0x5a5f5c, 0x7a6a55, 0x6c7a70])); zb.col = rnd() < .6; zb.str = rnd() < .25; zb.out = 'camisa'; }                    // camiseta/camisa
+  else if (r0 < .45) { torso = dirt(pick([0x4a4a4c, 0x6e6a5e, 0x575f4e])); zb.hood = true; zb.pock = true; zb.out = 'sudadera'; }                                           // sudadera con capucha
+  else if (r0 < .56) { torso = dirt(0x9a9a90, rr(.8, 1)); pants = dirt(0x5a7d73, rr(.8, 1)); zb.coat = true; zb.col = true; zb.rgF = zb.rgB = true; zb.out = 'bata'; }          // bata de laboratorio sobre quirófano
+  else if (r0 < .68) { torso = dirt(pick([0x59604a, 0x4f5b47, 0x4b4f44])); pants = torso.clone().multiplyScalar(.9); zb.pock = true; zb.str = rnd() < .5; zb.out = 'mono'; }  // mono de trabajo
+  else if (r0 < .78) { torso = dirt(0x5a8a78, rr(.7, .9)); pants = dirt(0x4f7a69, rr(.7, .9)); zb.col = true; zb.out = 'quirofano'; }                                          // uniforme sanitario
+  else if (r0 < .87) { torso = dirt(0x38383c, rr(.8, 1)); pants = dirt(0x2e2e30, rr(.8, 1)); zb.tie = true; zb.col = true; zb.out = 'traje'; }                               // traje con corbata
+  else { torso = dirt(pick([0x86867e, 0x77776f, 0x6a6e66])); zb.bare = true; zb.out = 'tirantes'; }                                                                            // camiseta de tirantes: brazos y abdomen al aire
+  zb.bareA = zb.out === 'tirantes' ? [true, true] : [rnd() < .3, rnd() < .3];
   const dark = skin.clone().multiplyScalar(.55), blood = new THREE.Color(rnd() < .5 ? 0x5b1414 : 0x3b0d0d), shoe = new THREE.Color(0x2b2824);
   const set = (k, j, c) => IM[k].setColorAt(slot * MUL[k] + j, _c.set(c));
   set('che', 0, torso); set('abd', 0, zb.bare ? skin : torso.clone().multiplyScalar(.85)); set('pel', 0, pants); set('sho', 0, torso); set('nek', 0, skin); set('hd', 0, skin); set('jaw', 0, rnd() < .55 ? new THREE.Color(0x4a1616) : dark); set('hair', 0, hairC);
-  for (let s = 0; s < 2; s++) { const bareArm = rnd() < .45; set('ua', s, bareArm ? skin : torso); set('fa', s, rnd() < .6 ? skin : torso); set('hn', s, skin.clone().multiplyScalar(.92)); set('ul', s, pants); set('ll', s, rnd() < .35 ? skin : pants); set('ft', s, zb.shoes ? shoe : skin); set('rg', s, torso.clone().multiplyScalar(.72)); set('sk', s, 0x1a1a14); }
+  set('col', 0, zb.out === 'traje' || zb.out === 'bata' ? new THREE.Color(0xb5b2a4).multiplyScalar(rr(.75, .95)) : torso.clone().multiplyScalar(.82)); set('hood', 0, torso.clone().multiplyScalar(.9)); set('tie', 0, 0x242426); set('blt', 0, 0x24211e);
+  for (let s = 0; s < 2; s++) { set('pk', s, pants.clone().multiplyScalar(.85)); set('st', s, torso.clone().lerp(new THREE.Color(0xc9c6b8), .45)); }
+  for (let s = 0; s < 2; s++) { const bareArm = zb.bareA[s]; set('ua', s, bareArm ? skin : torso); set('fa', s, zb.bareA[s] || rnd() < .45 ? skin : torso); set('hn', s, skin.clone().multiplyScalar(.92)); set('ul', s, pants); set('ll', s, rnd() < .35 ? skin : pants); set('ft', s, zb.shoes ? shoe : skin); set('rg', s, zb.coat ? torso.clone().multiplyScalar(.95) : torso.clone().multiplyScalar(.72)); set('sk', s, 0x1a1a14); }
   for (let s = 0; s < 3; s++) set('wn', s, blood); set('bn', 0, 0xd9d3bd); set('tm', 0, new THREE.Color(rnd() < .5 ? 0x93a05a : 0x7a8a45));
   Object.values(IM).forEach(m => { if (m.instanceColor) m.instanceColor.needsUpdate = true; });
   Z.push(zb); return zb;
@@ -4420,7 +4603,7 @@ function newHorde(x, z, mix) {
 /* ---- ruido ---- */
 function noise(x, z, R, scream) {
   for (const zb of Z) {
-    if (zb.dead || zb.st === 'rise') continue;
+    if (zb.dead) continue;
     const d = Math.hypot(zb.p.x - x, zb.p.z - z), lim = R * (zb.st === 'dorm' && !scream ? .65 : 1);
     if (d > lim || zb.st === 'chase' || zb.st === 'attack') continue;
     zb.st = 'invest'; zb.hx = x + rr(-2.5, 2.5); zb.hz = z + rr(-2.5, 2.5); zb.noiseDelay = rr(.1, .9) + d * .02; zb.path = null; zb.wait = 0;
@@ -4433,7 +4616,7 @@ function noise(x, z, R, scream) {
 MX.zom = { list: Z, count: () => Z.filter(z => !z.dead).length, noise,
   shot: (x, z, w) => { if (!MX.campaign || !M.built) return; if (M.t - lastShot < .1 && lastShotSid === w.sid) return; lastShot = M.t; lastShotSid = w.sid; noise(x, z, NOISE_R[w.sid] || 30); },
   blast: (p, R, own) => { if (!MX.campaign) return; noise(p.x, p.z, 62);
-    for (const z of Z) { if (z.dead || z.st === 'rise') continue; const d = Math.hypot(z.p.x - p.x, z.p.z - p.z); if (d < R + z.r) hitZ(z, 260 * (1 - d / (R + z.r)) + 30, own, z.p.x - p.x, z.p.z - p.z, null, true); } },
+    for (const z of Z) { if (z.dead) continue; const d = Math.hypot(z.p.x - p.x, z.p.z - p.z); if (d < R + z.r) hitZ(z, 260 * (1 - d / (R + z.r)) + 30, own, z.p.x - p.x, z.p.z - p.z, null, true); } },
   hit: (z, dmg, from, dx, dz, w) => hitZ(z, dmg, from, dx, dz, w), total: () => nextId - 1, spawn: (type, x, z, o) => newZ(type, x, z, o), horde: (x, z, mix) => newHorde(x, z, mix) };
 
 /* ---- daño ---- */
@@ -4441,7 +4624,7 @@ function hitZ(z, dmg, from, dx, dz, w, quiet) {
   if (z.dead) return;
   z.hp -= dmg; z.stag = 1; z.brk = M.t; const l = Math.hypot(dx, dz) || 1; z.v.x += dx / l * 1.2; z.v.z += dz / l * 1.2;
   if (from && from.p && z.st !== 'chase' && z.st !== 'attack') { z.tgt = from; z.st = 'chase'; z.tgtT = M.t; alertNear(z, from); }
-  const pl = from && from.isPlayer;
+  const pl = from && from.isPlayer; if (pl && MX.popNum) MX.popNum(z, dmg);
   for (let i = 0; i < 3; i++) spawn('red', _gp.set(z.p.x, 1, z.p.z), _gv.set((Math.random() - .5) * 3 + dx / l, 1 + Math.random() * 2, (Math.random() - .5) * 3 + dz / l), .35, .035, .035, .035, true, 8);
   if (z.hp <= 0) {
     z.dead = true; z.deadT = 0; z.st = 'dead'; z.tgt = null; playAt('ZOM_death', z.p.x, z.p.z, { gap: 120 });
@@ -4449,16 +4632,9 @@ function hitZ(z, dmg, from, dx, dz, w, quiet) {
   } else { playAt('ZOM_hurt', z.p.x, z.p.z, { gap: 90 }); if (pl && !quiet) playSnd('HIT_marker', { vol: 1 }); }
 }
 function alertNear(z, tgt) {
-  for (const o of Z) { if (o === z || o.dead || o.st === 'rise' || o.st === 'chase' || o.st === 'attack') continue; if (Math.hypot(o.p.x - z.p.x, o.p.z - z.p.z) < 20 && (o.horde === z.horde || Math.hypot(o.p.x - z.p.x, o.p.z - z.p.z) < 9)) { o.tgt = tgt; o.st = 'chase'; o.tgtT = M.t; o.noiseDelay = rr(.2, 1.2); } }
+  for (const o of Z) { if (o === z || o.dead || o.st === 'chase' || o.st === 'attack') continue; if (Math.hypot(o.p.x - z.p.x, o.p.z - z.p.z) < 20 && (o.horde === z.horde || Math.hypot(o.p.x - z.p.x, o.p.z - z.p.z) < 9)) { o.tgt = tgt; o.st = 'chase'; o.tgtT = M.t; o.noiseDelay = rr(.2, 1.2); } }
 }
 
-/* ---- conversión de los combatientes caídos ---- */
-MX.onDeath = v => {
-  if (!MX.campaign || !M.built) return;
-  const g = new THREE.Group(), ring = new THREE.Mesh(new THREE.RingGeometry(.5, .66, 28), new THREE.MeshBasicMaterial({ color: 0x8fe05a, transparent: true, opacity: .0, side: THREE.DoubleSide, depthWrite: false }));
-  ring.rotation.x = -Math.PI / 2; ring.position.y = .04; g.add(ring); g.position.set(v.p.x, 0, v.p.z); scene.add(g);
-  CONV.push({ x: v.p.x, z: v.p.z, fac: v.team, t: 0, g, ring });
-};
 
 /* ---- IA ---- */
 function pathTo(z, x, zz) { if (astar <= 0) return false; astar--; z.path = MX.findPath(z.p.x, z.p.z, x, zz); z.pi = 0; z.pathT = M.t; return !!z.path; }
@@ -4477,7 +4653,6 @@ function pickTarget(z) {
 function stepZ(z, dt) {
   const T = TY[z.type];
   if (z.st === 'dead') { z.deadT += dt; z.lie = smoothS(z.deadT / .5); z.v.set(0, 0, 0); if (z.deadT > 14) freeZ(z); return; }
-  if (z.st === 'rise') { z.riseT += dt; z.lie = 1 - smoothS(z.riseT / RISE_T); if (z.riseT >= RISE_T) { z.st = 'chase'; z.lie = 0; z.tgt = pickTarget(z); if (!z.tgt) z.st = 'wander'; z.tgtT = M.t; } z.v.set(0, 0, 0); return; }
   z.stag = Math.max(0, z.stag - dt * 3); if (z.noiseDelay > 0) { z.noiseDelay -= dt; z.v.x *= .9; z.v.z *= .9; return; }
   z.thinkT -= dt; if (z.thinkT <= 0) {
     z.thinkT = .22 + rnd() * .08; const t = pickTarget(z);
@@ -4524,7 +4699,7 @@ function bruteSmash(z) {                                                        
 
 /* ---- movimiento, separación y pose ---- */
 function moveZ(z, dt) {
-  if (z.st === 'dead' || z.st === 'rise') return;
+  if (z.st === 'dead') return;
   const k = gk(z.p.x, z.p.z); let sx = 0, sz = 0;
   for (let ox = -1; ox <= 1; ox++) for (let oz = -1; oz <= 1; oz++) { const a = grid.get(gk(z.p.x + ox * 1.6, z.p.z + oz * 1.6)); if (!a) continue; for (const o of a) { if (o === z) continue; const dx = z.p.x - o.p.x, dz = z.p.z - o.p.z, d = Math.hypot(dx, dz), m = (z.r + o.r) * .9; if (d < m && d > 1e-3) { sx += dx / d * (m - d); sz += dz / d * (m - d); } } }
   z.p.x += (z.v.x + sx * 2.5) * dt; z.p.z += (z.v.z + sz * 2.5) * dt; collide(z.p, z.r * .85, 2.6);
@@ -4533,7 +4708,7 @@ function moveZ(z, dt) {
 function pose(z, dt) {
   const T = TY[z.type], s = z.sc, sp = Math.hypot(z.v.x, z.v.z), lerp = (a, b, k) => a + (b - a) * k;
   z.gaitSpd += (sp - z.gaitSpd) * Math.min(1, dt * 6); z.ph += dt * (2.2 + z.gaitSpd * (z.type === 'runner' ? 2.4 : 1.9));
-  const alive = z.st !== 'dead' && z.st !== 'rise', dorm = z.st === 'dorm', amp = clamp(z.gaitSpd / (T.chase * .8), 0, 1), ph = z.ph, atk = z.atk >= 0, scr = z.scream >= 0;
+  const alive = z.st !== 'dead', dorm = z.st === 'dorm', amp = clamp(z.gaitSpd / (T.chase * .8), 0, 1), ph = z.ph, atk = z.atk >= 0, scr = z.scream >= 0;
   z.twT -= dt; if (z.twT <= 0 && alive) { z.twT = rr(2.5, 7); z.tw0 = .35; } z.tw0 = Math.max(0, z.tw0 - dt);          // espasmo ocasional
   const tw = z.tw0 > 0 ? Math.sin(z.tw0 * 60) * z.tw0 * .5 : 0, br = Math.sin(zt * (dorm ? 1.4 : 2.4) + z.seed * 9) * .02;
   let lean = (dorm ? .66 : T.lean + amp * .12) + z.slouch + Math.sin(ph * .5 + z.seed * 6) * .05 + z.stag * .35 - (scr ? .75 : 0) + (atk ? .3 * Math.sin(Math.min(1, z.atk * 1.6) * Math.PI) : 0);
@@ -4551,9 +4726,10 @@ function pose(z, dt) {
   put('sho', 0, C, 0, .15, 0, 0, 0, z.shR, .46 * wd, .08, .18);
   const hp = dorm ? .6 : (scr ? -.75 : .24 + Math.sin(ph * .5 + 1) * .09 + z.slouch * .5), hy = Math.sin(ph * .25 + z.seed * 9) * .14 + tw * .6, hr = Math.sin(ph * .33 + z.seed * 4) * .12 + (dorm ? .08 : .1);
   const Hd = fr(MH, C, 0, .2, .02, hp, hy, hr);                                         // cabeza (cae hacia delante, bambolea)
-  put('nek', 0, C, 0, .15, .01, hp * .5, hy * .5, 0, .075 * (z.type === 'screamer' ? 1.35 : 1), .12, .075 * (z.type === 'screamer' ? 1.35 : 1));
+  put('nek', 0, C, 0, .15, .01, hp * .5, hy * .5, 0, .075 * (z.type === 'screamer' ? 1.35 : big ? 1.5 : 1), .12, .075 * (z.type === 'screamer' ? 1.35 : big ? 1.5 : 1));
   const hs = T.hs * z.hs0, jawOpen = scr ? .85 : atk ? .55 + .2 * Math.sin(z.atk * 20) : dorm ? .06 : .16 + .07 * Math.sin(ph * 2 + z.seed * 3) + (z.stag > 0 ? .3 : 0);
   put('hd', 0, Hd, 0, .09 * hs, .03, 0, 0, 0, .112 * hs, .125 * hs, .118 * hs);
+  _p.set(0, .09 * hs, .03).applyMatrix4(Hd); z.hdx = _p.x; z.hdy = _p.y; z.hdz = _p.z; z.hdr = .125 * hs * s;                    // centro y radio reales de la cabeza (para colocar la barra de vida justo encima)
   put('jaw', 0, Hd, 0, .015 * hs, .075 * hs, jawOpen, 0, 0, .085 * hs, .045 * hs, .095 * hs);       // mandíbula que se abre
   put('hair', 0, Hd, 0, .15 * hs, -.01, 0, 0, 0, z.hair ? .12 * hs : 0, .065 * hs, .125 * hs);
   const ey = alive && !dorm ? 1 : 0;
@@ -4587,7 +4763,12 @@ function pose(z, dt) {
     put('ft', q, An, 0, .02, .05, 0, 0, 0, .105 * (big ? 1.3 : 1), .065, .25 * (big ? 1.2 : 1));
   }
   /* harapos, heridas, hueso al aire y bultos según el tipo */
-  put('rg', 0, S, 0, .0, .1, .12 + roll, 0, 0, z.rgF ? .27 * wd : 0, .28, .02); put('rg', 1, S, 0, .0, -.1, -.1, 0, 0, z.rgB ? .27 * wd : 0, .3, .02);
+  put('rg', 0, S, 0, .0, .1, .12 + roll, 0, 0, z.rgF ? .27 * wd : 0, z.coat ? .62 : .28, .02); put('rg', 1, S, 0, .0, -.1, -.1, 0, 0, z.rgB ? .27 * wd : 0, z.coat ? .66 : .3, .02);   // bata: faldones hasta las rodillas
+  put('col', 0, C, 0, .17, .0, hp * .3, hy * .3, 0, z.col ? .19 * wd : 0, .045, .15 * (big ? 1.1 : 1));                                  // cuello de camisa / solapas
+  put('hood', 0, C, 0, .21, -.07, hp * .3, hy * .2, 0, z.hood ? .125 * hs : 0, .1 * hs, .1 * hs);                                      // capucha caída por detrás
+  put('tie', 0, C, 0, .06, .122 * (big ? 1.15 : 1), 0, 0, 0, z.tie ? .04 : 0, .2, .012);                                               // corbata
+  put('blt', 0, B, 0, .87 - .8 + .08, 0, 0, 0, 0, z.blt ? .31 * wd : 0, .035, .21 * (big ? 1.1 : 1));                                    // cinturón
+  for (let q = 0; q < 2; q++) { const sg = q ? 1 : -1; put('pk', q, B, sg * .12 * wd, .0, .105 * (big ? 1.2 : 1), 0, 0, 0, z.pock ? .07 : 0, .09, .025); put('st', q, C, 0, q ? .03 : -.04, .122 * (big ? 1.15 : 1), 0, 0, 0, z.str ? .38 * wd : 0, .035, .012); }   // bolsillos, rayas del mono
   for (let w = 0; w < 3; w++) { const d = z.wnd[w]; if (d) put('wn', w, C, d.x * wd, d.y, d.z * .125 * (big ? 1.15 : 1), 0, 0, 0, d.w, d.h, .02); else put('wn', w, C, 0, 0, 0, 0, 0, 0, 0, 0, 0); }
   put('bn', 0, C, .18 * wd, .06, .02, 0, 0, -1.25, z.bone ? .03 : 0, .16, .03);
   const tumor = z.type === 'brute' ? [S, 0, .13, .1, .2, .17, .15] : z.type === 'screamer' ? [C, 0, .16, .06, .1, .09, .09] : null;
@@ -4625,13 +4806,41 @@ function restock() {
   const live = HORDES.some(h => h.members.some(m => !m.dead)); hordeGone = live ? 0 : hordeGone + 3;
   if (hordeGone > 24 && alive < 150) { hordeGone = 0; const h = pts[(rnd() * pts.length) | 0], mix = ['walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'runner', 'runner', 'runner', 'brute']; if (rnd() < .4) mix.push('screamer'); const hd = newHorde(h[0], h[1], mix); hd.roamPts = MX.HOT; }
 }
+/* ---- barras de vida de los zombis: aparecen sobre la cabeza tras recibir daño (4 s), con drenaje suave y trozo naranja del daño reciente, como las de los combatientes pero en verde tóxico ---- */
+const BW = { walker: 46, runner: 40, brute: 74, screamer: 46 }, ZBAR = [], zbHold = document.createElement('div');
+zbHold.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2;display:none'; document.body.appendChild(zbHold);
+function zbMake() {
+  const mk = (css, par) => { const d = document.createElement('div'); d.style.cssText = css; if (par) par.appendChild(d); return d; };
+  const el = mk('position:absolute;left:0;top:0;will-change:transform,opacity;filter:drop-shadow(0 2px 4px #000a);display:none');
+  const hb = mk('position:relative;transform:skewX(-22deg);background:#0b0f18c8;box-shadow:inset 0 0 0 1px #ffffff22,0 0 0 1px #000a;overflow:hidden', el);
+  const c = mk('position:absolute;left:0;top:0;height:100%;width:100%;transform-origin:0 50%;background:#ff9440', hb), f = mk('position:absolute;left:0;top:0;height:100%;width:100%;transform-origin:0 50%', hb);
+  mk('position:absolute;inset:0;background:linear-gradient(#ffffff55 0,#ffffff00 45%,#00000030 100%)', f);
+  zbHold.appendChild(el); return { el, hb, c, f };
+}
+const _bp = new V3(), BAR_GAP = .5;                                                // misma separación sobre la coronilla que las barras de los combatientes: la barra sigue a la CABEZA real (que va adelantada al ir encorvados), no a los pies
+
+let barList = [];
+function updBars(dt) {
+  zbHold.style.display = MX.on && MX.campaign ? 'block' : 'none'; let n = 0; barList = [];
+  for (const z of Z) {
+    if (z.dead || n >= 14) continue; const age = M.t - z.brk; if (age > 4) continue;
+    const ratio = clamp(z.hp / z.maxhp, 0, 1); if (ratio < z.bf - .004) z.bw = .55;
+    z.bf = z.bf + (ratio - z.bf) * Math.min(1, dt * (ratio < z.bf ? 16 : 7)); if (z.bw > 0) z.bw -= dt; else z.bc = z.bc + (z.bf - z.bc) * Math.min(1, dt * 5); if (z.bc < z.bf) z.bc = z.bf;
+    while (ZBAR.length <= n) ZBAR.push(zbMake()); const b = ZBAR[n++], w = BW[z.type], h = z.type === 'brute' ? 6 : 4; barList.push({ z, b, w });
+    b.el.style.display = 'block'; b.el.style.width = w + 'px'; b.hb.style.height = h + 'px';
+    b.c.style.transform = 'scaleX(' + z.bc + ')'; b.f.style.transform = 'scaleX(' + z.bf + ')';
+    b.f.style.background = ratio > .6 ? '#9bd650' : ratio > .3 ? '#ffd24a' : '#ff5a4a'; b.f.style.filter = 'brightness(' + (1 + z.stag * 1.2) + ')';
+    b.el.style.opacity = clamp(age / .1, 0, 1) * clamp((4 - age) / .6, 0, 1);
+  }
+  for (let i = n; i < ZBAR.length; i++) ZBAR[i].el.style.display = 'none';
+}
+MX.zom.place = () => {                                                              // tras mover la cámara (ver MX.placeBars): proyecta y coloca las barras
+  camera.updateMatrixWorld();
+  for (const { z, b, w } of barList) { _bp.set(z.hdx, z.hdy + z.hdr + BAR_GAP, z.hdz).project(camera); b.el.style.display = _bp.z > 1 ? 'none' : 'block'; b.el.style.transform = 'translate(' + ((_bp.x * .5 + .5) * innerWidth - w / 2) + 'px,' + ((-_bp.y * .5 + .5) * innerHeight) + 'px) translateY(-100%)'; }
+};
 MX.zom.update = dt => {
   if (!MX.campaign || !M.built) return; dt = Math.min(dt, .05); zt += dt; astar = 3;
-  for (let i = CONV.length - 1; i >= 0; i--) {                                      // infección: el cadáver se levanta como zombi con el uniforme de su facción
-    const c = CONV[i]; c.t += dt; c.ring.material.opacity = Math.min(.75, c.t * .6) * (.5 + .5 * Math.sin(c.t * 6)) ; c.ring.scale.setScalar(1 + .15 * Math.sin(c.t * 6));
-    if (c.t >= CONV_T) { scene.remove(c.g); CONV.splice(i, 1); if (Z.length < MAXZ) { const zb = newZ('walker', c.x, c.z, { st: 'rise', rise: true, lie: 1, fac: c.fac, yaw: rr(-3, 3) }); if (zb) { zb.sc *= 1; zb.converted = true; } } }
-  }
-  popT -= dt; if (popT <= 0) { popT = 3; restock(); }
+  popT -= dt; if (popT <= 0) { popT = 3; if (!MX.zom.noRestock) restock(); }
   for (const h of HORDES) stepHorde(h, dt);
   grid.clear(); for (const z of Z) { if (z.dead) continue; const k = gk(z.p.x, z.p.z); let a = grid.get(k); if (!a) { a = []; grid.set(k, a); } a.push(z); }
   for (const z of Z.slice()) {
@@ -4639,6 +4848,7 @@ MX.zom.update = dt => {
   }
   let top = 0; for (const z of Z) top = Math.max(top, z.slot + 1); slotMax = top;
   for (const k in IM) { const m = IM[k]; m.count = slotMax * MUL[k]; m.visible = slotMax > 0; m.instanceMatrix.needsUpdate = true; }
+  updBars(dt);
   hudT -= dt; if (hudT <= 0) { hudT = .5; $('mxScore').textContent = 'Campaña · Facción azul · ☣ ' + MX.zom.count(); }
 };
 })();

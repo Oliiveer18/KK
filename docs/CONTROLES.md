@@ -5,7 +5,9 @@
 - Mapas 1 (arena) y 2 (polígono) y paso a mapa 3: al instante. Desde el mapa 3 a 1/2 se recarga la página (hay que tocar la pantalla para empezar). También por URL: `?mapa=1|2|3`.
 
 ## Campaña (?mapa=4)
-- Reanimar a un aliado abatido: acércate (≤1,5 m) y **mantén ✕ (mando) o E (teclado)** 3 s. Necesitas kit (✚ junto al escudo). Soltar, alejarte o recibir daño lo interrumpe. Si caes abatido, espera ayuda (25 s).
+- **Reanimar** a un aliado abatido: acércate (≤1,5 m) y **mantén □ (mando) o R/E (teclado)** 3 s. Necesitas kit (✚ junto al escudo). Junto a un abatido el □ no recarga el arma. Soltar, alejarte o recibir daño lo interrumpe.
+- **Si caes abatido** (25 s): espera ayuda o **mantén □ (R) 0,8 s para reaparecer al instante en tu refugio** (cuenta como baja; reapareces con la vida completa y sin esperar). Un mensaje en pantalla te lo recuerda.
+- En táctil no hay botón de reanimar/reaparecer todavía.
 
 ## Mapa 3 (partida 6 vs 6)
 - Pantalla: vida y escudo abajo a la izquierda; arma, munición, granadas y dash abajo a la derecha; kill feed arriba a la derecha (tus bajas con borde dorado). Ya no hay chuleta de controles en pantalla: están aquí.

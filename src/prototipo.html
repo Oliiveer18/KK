@@ -158,7 +158,7 @@ const border = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeome
 border.position.y = 0.15; scene.add(border);
 
 /* ---------- partida 6 vs 6 (mapa 3): ganchos hacia src/partida.js; con MX.on = false todo funciona como antes ---------- */
-const MX = { on: false, want: false, campaign: false, rev: false, foes: [], ents: [] };
+const MX = { on: false, want: false, campaign: false, district: false, rev: false, revCtx: false, foes: [], ents: [] };
 const WORLD = { x: 39, z: 39 };                                                    // límites jugables (mapa 3 los cambia)
 /* ---------- obstáculos (AABB) ---------- */
 const boxes = [], OBST = [];
@@ -594,6 +594,7 @@ if (window.visualViewport) visualViewport.addEventListener('resize', fitView);
 if (!matchMedia('(pointer:coarse)').matches) setTimeout(begin, 6000);   // en táctil espera a que elijas el modo (si no, a los 6 s arrancaba solo el polígono)   // se cierra solo
 if (/partida|mapa=3/.test(location.search + location.hash)) MX.want = true;
 if (new URLSearchParams(location.search).get('mapa') === '4') MX.want = MX.campaign = true;
+if (new URLSearchParams(location.search).get('mapa') === '5') MX.want = MX.campaign = MX.district = true;   // distrito (M1)
 for (const event of ['pointerdown', 'touchstart', 'click']) {
   for (const id of ['goMatch', 'goCampaign']) {
     $(id).addEventListener(event, () => {
@@ -826,7 +827,7 @@ function updateBullets(dt) {
     const L = [];                                                                    // colisión continua: todo lo que cruza el tramo recorrido en este fotograma
     for (const bx of boxes) { if (bx.prop && (bx.prop === b.cover || b.passed.has(bx.prop))) continue; const r = rayBox2(b.ox, b.oz, b.dx, b.dz, bx); if (r && r[0] <= d1 && r[1] >= d0) L.push({ t: Math.max(r[0], d0), t2: r[1], bx }); }
     for (const tg of targets) { if (tg.hp <= 0) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, tg.g.position.x, tg.g.position.z, .42); if (tc >= d0 && tc <= d1) L.push({ t: tc, tg }); }
-    if (MX.on && MX.zom) for (const z of MX.zom.list) { if (z.dead || z.st === 'rise') continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, z.p.x, z.p.z, z.r); if (tc >= d0 && tc <= d1) L.push({ t: tc, zom: z }); }   // zombis (campaña)
+    if (MX.on && MX.zom) for (const z of MX.zom.list) { if (z.dead) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, z.p.x, z.p.z, z.r); if (tc >= d0 && tc <= d1) L.push({ t: tc, zom: z }); }   // zombis (campaña)
     if (MX.on) for (const e of MX.ents) { if (e.dead || e.inv > 0 || e.team === (b.own ? b.own.team : 0)) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, e.p.x, e.p.z, .36); if (tc >= d0 && tc <= d1) L.push({ t: tc, ent: e }); }   // jugadores y bots de la partida
     L.sort((a, c) => a.t - c.t);
     let ended = false;
@@ -905,13 +906,13 @@ function updateHelp() {
     '<b>Teclado</b> WASD mover · ratón girar · clic izq. disparar · clic der. apuntar · R recargar · C agacharse · Q arma · G granada · H humo · Espacio dash (mantén = más largo) · Shift correr · P/Esc configurar mando';
 }
 /* ---- selector de mapa (arriba del menú de Options; el juego está en pausa mientras está abierto) ---- */
-const MAPS = [[1, 'Mapa 1 · Arena'], [2, 'Mapa 2 · Polígono de pruebas'], [3, 'Mapa 3 · Partida 6 vs 6'], [4, 'Campaña · cuatro facciones']], NM = MAPS.length;
-const curMap = () => MX.on ? (MX.campaign ? 4 : 3) : RANGE.on ? 2 : 1;
+const MAPS = [[1, 'Mapa 1 · Arena'], [2, 'Mapa 2 · Polígono de pruebas'], [3, 'Mapa 3 · Partida 6 vs 6'], [4, 'Campaña · cuatro facciones'], [5, 'Distrito (M1) · mapa grande']], NM = MAPS.length;
+const curMap = () => MX.on ? (MX.district ? 5 : MX.campaign ? 4 : 3) : RANGE.on ? 2 : 1;
 function chooseMap(n) {
   if (n === curMap()) { closeMenu(); return; }
   if (MX.on) { location.href = location.pathname + '?mapa=' + n; return; }              // el mapa 3 transforma la escena: para salir se recarga la página
   closeMenu();
-  if (n === 3 || n === 4) { MX.campaign = n === 4; if (RANGE.on) rangeToggle(); MX.want = true; MX.start(); }
+  if (n === 3 || n === 4 || n === 5) { MX.campaign = n >= 4; MX.district = n === 5; if (RANGE.on) rangeToggle(); MX.want = true; MX.start(); }
   else if ((n === 2) !== RANGE.on) rangeToggle();
 }
 function renderMenu() {
@@ -1948,7 +1949,7 @@ function update(dt) {
     rawX = rx; rawY = ry;
     if (rm > 0.02) { ax = rx; ay = ry; stickAim = rm; mode = 'pad'; }
     const down = k => !!(g.buttons[k] && (g.buttons[k].pressed || g.buttons[k].value > .3)), edge = k => down(k) && !prevBtn[k];
-    if (down(0)) MX.rev = true;                                    // ✕: mantener para reanimar (campaña)
+    if (down(BIND.reload)) MX.rev = true;                          // □ (o el botón de recargar): mantener = reanimar a un aliado, o reaparecer si estás abatido (campaña)
     const tv = k => (g.buttons[k] ? g.buttons[k].value || (g.buttons[k].pressed ? 1 : 0) : 0);   // gatillos analógicos: umbral según el arma
     if (tv(BIND.fire) >= cur.tr) { trig = true; mode = 'pad'; }
     if (tv(BIND.ads) >= cur.ta) ads = true;
@@ -2084,6 +2085,7 @@ function update(dt) {
     }
     if (W.swapT >= .36) W.swapT = -1;
   }
+  if (MX.on && MX.revCtx) flags.reload = false;                                      // junto a un aliado abatido, recargar/mantener □ es reanimar: no se recarga el arma
   if (flags.reload && !reloading && W.swapT < 0 && P.gState === 0 && W.ammo < W.max) { W.reload = 0; W.dropped = false; W.rp = 0; }
   flags.reload = false;
   const pressed = trig && !W.trigPrev; W.trigPrev = trig;
@@ -2307,6 +2309,7 @@ function update(dt) {
   camera.lookAt(camLook.x, 0, camLook.z);
   const asp = innerWidth / innerHeight, fov = Math.min(85, (45 + P.slide * 4 + speed * .25) * (asp < 1 ? 1.4 : 1));   // vertical: más campo; horizontal (móvil o escritorio): sin ampliar
   if (Math.abs(fov - camera.fov) > .01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+  if (MX.on) { if (MX.placeBars) MX.placeBars(); if (MX.zom && MX.zom.place) MX.zom.place(); }      // barras de vida sobre la cabeza: se colocan con la cámara ya movida
   sun.target.position.set(P.pos.x, 0, P.pos.z); sun.position.set(P.pos.x - 8, 16, P.pos.z + 6);
 
   // HUD
@@ -2333,6 +2336,8 @@ function frame(now) {
 requestAnimationFrame(frame);
 </script>
 <script src="objetos.js"></script>
+<script src="mapa.js"></script>
+<script src="mapa_distrito.js"></script>
 <script src="partida.js"></script>
 <script src="zombis.js"></script>
 </body>
