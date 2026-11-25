@@ -19,8 +19,9 @@ JS_WALK = """(kind) => {
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const x = X(i), z = Z(j); if (Math.abs(x) < b.W / 2 - .2 && Math.abs(z) < b.D / 2 - .2 && free(x, z)) { inside++; if (seen[idx(i, j)]) reached++; } }
   // solapes entre objetos del edificio
   let overlaps = []; const ps = b.props.filter(p => p.box && boxes.includes(p.box));
-  for (let a = 0; a < ps.length; a++) for (let c = a + 1; c < ps.length; c++) { const A = ps[a], B = ps[c]; if (A.type.startsWith('bwall') && B.type.startsWith('bwall')) continue; if (Math.abs(A.x - B.x) < A.hx + B.hx - .02 && Math.abs(A.z - B.z) < A.hz + B.hz - .02) overlaps.push(A.type + '+' + B.type); }
-  return { props: b.props.length, inside, reached, overlaps, start: free(X(si), Z(sj)), doorOpen: b.doors[0].open };
+  for (let a = 0; a < ps.length; a++) for (let c = a + 1; c < ps.length; c++) { const A = ps[a], B = ps[c]; const WL = ['bwallSolid','bwallGlass','shopDoor','door','rollDoor','slideGate','chainFence']; if (WL.includes(A.type) && WL.includes(B.type)) continue; if (Math.abs(A.x - B.x) < A.hx + B.hx - .02 && Math.abs(A.z - B.z) < A.hz + B.hz - .02) overlaps.push(A.type + '+' + B.type); }
+  let lost = []; for (let j = 0; j < nz; j += 2) for (let i = 0; i < nx; i += 2) { const x = X(i), zz = Z(j); if (Math.abs(x) < b.W / 2 - .2 && Math.abs(zz) < b.D / 2 - .2 && free(x, zz) && !seen[idx(i, j)]) lost.push([+x.toFixed(1), +zz.toFixed(1)]); }
+  return { lost: lost.slice(0, 12), props: b.props.length, inside, reached, overlaps, start: free(X(si), Z(sj)), doorOpen: b.doors.length ? b.doors[0].open : true };
 }"""
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])
@@ -31,16 +32,16 @@ with sync_playwright() as p:
         chk(r['start'] and r['doorOpen'], '%s: puerta abierta y exterior libre' % kind)
         chk(not r['overlaps'], '%s: ningún objeto solapado %s' % (kind, r['overlaps']))
         frac = r['reached'] / max(1, r['inside'])
-        chk(frac > .9, '%s: se puede llegar a pie al %d %% del interior libre (%d de %d celdas)' % (kind, frac * 100, r['reached'], r['inside']))
+        chk(frac > .9, '%s: se puede llegar a pie al %d %% del interior libre (%d de %d celdas) %s' % (kind, frac * 100, r['reached'], r['inside'], r['lost'] if frac <= .9 else ''))
         print('    %s: %d objetos' % (kind, r['props']))
     # techo y muros cercanos
     r = ev("""(() => {
       OBJ.clearBuildings(); for (const p of props.slice()) { scene.remove(p.g); props.splice(props.indexOf(p), 1); } boxes.length = 0;
       const b = OBJ.building('mini', 0, 0, 0, 0), out = {}; P.pos.set(0, 0, 9); for (let i = 0; i < 40; i++) update(1/60);
-      out.roofOut = b.roof.visible; out.nearOut = b.near[0].g.scale.y;
+      out.roofOut = b.roofs[0].g.visible; out.nearOut = b.near[0].g.scale.y;
       P.pos.set(0, 0, 0); for (let i = 0; i < 90; i++) update(1/60);
-      out.roofIn = b.roof.visible; out.nearIn = b.near[0].g.scale.y; out.inside = b.inside;
-      P.pos.set(0, 0, 9); for (let i = 0; i < 90; i++) update(1/60); out.roofBack = b.roof.visible; out.nearBack = b.near[0].g.scale.y;
+      out.roofIn = b.roofs[0].g.visible; out.nearIn = b.near[0].g.scale.y; out.inside = b.inside;
+      P.pos.set(0, 0, 9); for (let i = 0; i < 90; i++) update(1/60); out.roofBack = b.roofs[0].g.visible; out.nearBack = b.near[0].g.scale.y;
       // romper un muro recortado: la escala vuelve a 1 antes de soltar trozos
       P.pos.set(0, 0, 0); for (let i = 0; i < 60; i++) update(1/60); const w = b.near[0]; damageProp(w, 99999, w.x, w.z, 0, 1, 'bullet'); out.dead = w.dead; out.debrisScale = DEB.length ? DEB[DEB.length - 1].o.scale.y : null;
       // ventana: un impacto rompe un cristal y salta la alarma
