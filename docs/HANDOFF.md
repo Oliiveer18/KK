@@ -56,8 +56,9 @@ Estado actual (v0.3.9): ver `docs/ESTADO.md` (cabecera) y `docs/ARQUITECTURA.md`
 - Equipo en 3 huecos: casco, chaleco y mochila; 3 niveles (ligero, medio, pesado), visibles en el personaje.
 - Vida: **100 sin ninguna equipación y hasta 200 en total**, repartida entre las equipaciones (propuesta de Claude: casco +10/+20/+30 y chaleco +25/+50/+70, máximo +100; la mochila da capacidad de carga, no vida). Sustituye al esquema actual de escudo 50 + vida 100 del mapa 3, que se mantiene mientras no exista el equipo.
 - **Al morir se pierde todo** el equipo (queda en el cuerpo; una compañía podría recuperarlo, a decidir con el diseño).
+- **El escudo/vida del equipo no se regenera** (se repone en el refugio y con kits). Detalle completo en `docs/EQUIPO_Y_VIDA.md`.
 - Sin recetas de fabricación; el equipo se consigue en tiendas, farmacias, taller y almacén y se mejora en el refugio.
-- El aspecto de los personajes se construye con piezas modulares (casco, chaleco, mochila) para que el equipo se vea sin rehacer el personaje. Pendiente de cerrar con GPT: regeneración de la vida del equipo y recuperación del equipo caído.
+- El aspecto de los personajes se construye con piezas modulares (casco, chaleco, mochila) para que el equipo se vea sin rehacer el personaje. Pendiente de cerrar: si la vida base se regenera y si el equipo caído se puede recoger.
 
 ### v0.2.2
 Hecho en esta versión (detalle en `docs/CHANGELOG.md`, estado en `docs/ESTADO.md`, arquitectura en `docs/ARQUITECTURA.md`):
