@@ -47,3 +47,17 @@ Cubre la Entrega 6 del plan («distrito completo», ~1 km²) y lo que hay que co
 ## 4. Decisiones ya tomadas / pendientes
 - Hecho: techos y paredes transparentes (como los juegos profesionales); mapa estratégico y grande; refugios por esquinas (propuesta).
 - Pendiente de confirmar: la disposición de §2 (¿refugios en las esquinas?), los nombres de las calles, y si la clínica y la estación van como en el dibujo.
+
+## 5. Población: 25 combatientes por facción (decisión del usuario, 25-11)
+**25 por facción = 100 combatientes en total** (1 jugador + 99 bots; el jugador cuenta dentro de Azul), más los zombis aparte. Encaja con el plan (meta de 64 y escalado 32 → 64 → 128). Propuesta: 5 compañías de 5 por facción (el diseño pide 2–3 en el primer distrito; se empieza con 3 y se sube al probar).
+
+Medición hecha el mismo día en el mapa 4 actual con `?mapa=4&bots=N` (parámetro nuevo, por defecto 4; solo para pruebas de escala; Chrome headless, no iPhone). Peor caso: todos los combatientes a la vez en pantalla:
+
+| Combatientes | Lógica por actualización | Llamadas de dibujo | Triángulos |
+|---|---|---|---|
+| 16 (4 por facción) | 2,0 ms | 514 | 54 k |
+| 32 (8) | 2,1 ms | 1.000 | 83 k |
+| 64 (16) | 3,9 ms | 1.429 | 107 k |
+| 100 (25) | 3,9 ms | 2.210 | 157 k |
+
+Lectura: la **lógica** (IA, navegación) aguanta 100; el límite es el **dibujo**: cada combatiente cuesta ~22 llamadas, y 2.210 en pantalla son demasiadas para un iPhone. En una partida real nunca se ven los 100 a la vez (la cámara abarca ~40 × 25 m de un kilómetro), pero hay que garantizarlo con: (1) solo se dibujan y animan los combatientes de los sectores cercanos a la cámara; (2) versión simplificada del personaje (pocas mallas) a media distancia; (3) simulación abstracta (grupos con posición, recuento y destino) en los sectores lejanos; (4) límite de combatientes en detalle completo a la vez (~30) y ruido/IA reducidos fuera de la vista. Esto entra en M2 y en la medición en iPhone.

@@ -798,7 +798,7 @@ MX.start = () => {
   buildMap();
   const pl = makeEnt(0, 0, true); MX.pl = pl; M.ents.push(pl);
   const teams = MX.campaign ? 4 : 2;
-  const members = MX.campaign ? 4 : 6;
+  const members = MX.campaign ? clamp(+new URLSearchParams(location.search).get('bots') || 4, 4, 25) : 6;   // ?mapa=4&bots=N: combatientes por facción (prueba de escala; por defecto 4)
   M.score = Array(teams).fill(0);
   for (let team = 0; team < teams; team++) {
     for (let n = team === 0 ? 1 : 0; n < members; n++) M.ents.push(makeEnt(team, n, false));
