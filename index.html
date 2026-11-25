@@ -20,7 +20,7 @@ canvas{display:block}
 #dash{position:absolute;right:var(--r);bottom:24px;width:160px;height:14px;background:#ffffff14;border-radius:7px;overflow:hidden}
 #dash i{display:block;height:100%;width:100%;background:#4aa3ff;transition:background .1s}
 #dash span{position:absolute;left:8px;top:-1px;font-size:10px;letter-spacing:2px;opacity:.85;line-height:16px}
-#mode{position:absolute;left:var(--l);top:var(--t);font-size:13px;opacity:.75}
+#mode{display:none !important}   /* texto de depuración de entrada/mando: oculto (sigue disponible en el menú de Options) */
 #fps{position:absolute;right:var(--r);top:var(--t);font-size:26px;font-weight:700;font-variant-numeric:tabular-nums;color:#6dff9a;text-shadow:0 2px 8px #000;background:#0c1018aa;padding:4px 12px;border-radius:8px}
 #help{display:none !important}   /* sin chuleta de controles en pantalla (están en docs/CONTROLES.md y en el menú) */
 .mxpb{left:var(--l) !important;right:auto !important;bottom:calc(24px + var(--b) * .5) !important}   /* vida y escudo: abajo a la izquierda; arma y munición: abajo a la derecha */
