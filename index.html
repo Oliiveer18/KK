@@ -89,7 +89,8 @@ canvas{display:block}
 (function(){var hide=function(){document.getElementById('start').style.display='none'};
 ['pointerdown','touchstart','click'].forEach(function(t){document.getElementById('start').addEventListener(t,hide);document.getElementById('go').addEventListener(t,hide)});
 setTimeout(hide,6000);
-window.onerror=function(m,u,l){var e=document.getElementById('err');e.style.display='block';e.textContent='Error: '+m+' (línea '+l+')'};
+window.addEventListener('error',function(ev){var e=document.getElementById('err');if(!e)return;var er=ev.error;e.style.display='block';e.textContent='Error: '+ev.message+' (línea '+ev.lineno+':'+ev.colno+' '+String(ev.filename||'').split('/').pop()+')'+(er&&er.stack?'\n'+String(er.stack).split('\n').slice(0,4).join('\n'):'')});
+window.addEventListener('unhandledrejection',function(ev){var e=document.getElementById('err');if(!e)return;e.style.display='block';e.textContent='Error (promesa): '+String(ev.reason&&ev.reason.stack||ev.reason).split('\n').slice(0,4).join('\n')});
 setTimeout(function(){if(typeof THREE==='undefined'){var e=document.getElementById('err');e.style.display='block';e.textContent='No se pudo cargar three.js (red o bloqueo). Abre el archivo prototipo.html en Chrome con internet.'}},1500);
 })();
 </script>
@@ -502,7 +503,7 @@ const fitView = () => { renderer.setSize(innerWidth, innerHeight); camera.aspect
 addEventListener('resize', fitView); addEventListener('orientationchange', () => { fitView(); setTimeout(fitView, 150); setTimeout(fitView, 500); });   // al girar, algunos móviles tardan en dar el tamaño nuevo
 if (window.visualViewport) visualViewport.addEventListener('resize', fitView);
 ['pointerdown', 'touchstart', 'click'].forEach(t => { $('start').addEventListener(t, begin); $('go').addEventListener(t, begin); });
-setTimeout(begin, 6000);   // se cierra solo
+if (!matchMedia('(pointer:coarse)').matches) setTimeout(begin, 6000);   // en táctil espera a que elijas el modo (si no, a los 6 s arrancaba solo el polígono)   // se cierra solo
 if (/partida|mapa=3/.test(location.search + location.hash)) MX.want = true;
 ['pointerdown', 'touchstart', 'click'].forEach(t => $('goMatch').addEventListener(t, () => { MX.want = true; begin(); }));
 
