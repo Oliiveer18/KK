@@ -1,6 +1,6 @@
 # Catálogo de objetos y ubicaciones de la campaña
 
-Fuente: `GUERRA_DE_FACCIONES.md` §3, §5 y §6 (rama `docs/diseno-guerra-facciones`) más lo ya existente en `src/prototipo.html` (`PSPEC`). Las filas marcadas **(propuesta)** no están en el diseño: son mías para cubrir huecos y se pueden quitar. **Estado:** las tablas 2 a 7 están construidas en `src/objetos.js` (46 tipos de objeto, 13 recogibles y raíles); ver la sección 11. Los edificios completos (§8) y la lógica de inventario siguen pendientes.
+Fuente: `GUERRA_DE_FACCIONES.md` §3, §5 y §6 (rama `docs/diseno-guerra-facciones`) más lo ya existente en `src/prototipo.html` (`PSPEC`). Las filas marcadas **(propuesta)** no están en el diseño: son mías para cubrir huecos y se pueden quitar. **Estado:** las tablas 2 a 7 están construidas en `src/objetos.js` (48 tipos de objeto, 13 recogibles y raíles); ver la sección 11. Los edificios completos (§8) y la lógica de inventario siguen pendientes.
 
 Leyenda de comportamiento: **Fijo** (no se mueve), **Empujable**, **Rompible** (vida y fases de daño como los actuales), **Reparable** (conserva nivel), **Recogible** (va al inventario).
 
@@ -124,56 +124,58 @@ Reserva única de **materiales**; unidad = 1 «lote». Un lote = una caja de sum
 - Todo se ajusta con partidas; no hay valores validados.
 
 ## 11. Implementación (`src/objetos.js`)
-Los 46 tipos se crean con el mismo sistema que las cajas y barriles (piezas reales, vida por material, huella 2D en `boxes`, marcas de bala, fases de daño y restos con física). Medido con `OBJ.measure()`:
+Los 48 tipos se crean con el mismo sistema que las cajas y barriles (piezas reales, vida por material, huella 2D en `boxes`, marcas de bala, fases de daño y restos con física). Medido con `OBJ.measure()`:
 
 | Tipo | Nombre | Material | Vida | Huella (m) | Alto | Piezas |
 |---|---|---|---|---|---|---|
-| `wall1` | Muro de bloques | block | 400 | 3.2×0.46 | 2.5 | 12 |
-| `wall2` | Muro con contrafuertes | block | 650 | 3.2×0.96 | 2.5 | 20 |
-| `wall3` | Muro reforzado | block | 1000 | 3.2×1.06 | 2.5 | 30 |
-| `gate1` | Portón de acero | metal | 280 | 4.2×0.54 | 2.8 | 19 |
-| `gate2` | Portón reforzado | metal | 450 | 4.2×0.54 | 2.8 | 23 |
-| `gate3` | Portón reforzado (nivel 3) | metal | 700 | 4.2×0.54 | 2.8 | 23 |
-| `gateInner` | Puerta interior del portón | metal | 350 | 3.2×0.54 | 2.5 | 22 |
-| `door` | Puerta doble | wood | 90 | 2×0.26 | 2.34 | 21 |
-| `slideGate` | Verja corredera | metal | 200 | 4.2×0.44 | 2.4 | 31 |
-| `shutter` | Persiana | metal | 90 | 2.6×0.26 | 2.5 | 16 |
-| `tower` | Puesto de vigilancia elevado | wood | 320 | 2.6×2.8 | 3.9 | 34 |
-| `catwalk` | Pasarela elevada | metal | 260 | 4.4×1.3 | 3.45 | 31 |
+| `wall1` | Empalizada de madera | wood | 250 | 3.2×0.6 | 2.75 | 26 |
+| `wall2` | Muro de piedra | block | 600 | 3.2×0.66 | 2.72 | 22 |
+| `wall3` | Muro de hierro | metal | 1100 | 3.2×0.62 | 2.75 | 31 |
+| `gate1` | Portón de madera | wood | 180 | 4.2×0.54 | 3.1 | 27 |
+| `gate2` | Portón de piedra y roble | block | 420 | 4.2×0.66 | 3.1 | 56 |
+| `gate3` | Portón de hierro | metal | 750 | 4.2×0.54 | 3.1 | 39 |
+| `gateInner` | Puerta interior de hierro | metal | 400 | 3.2×0.54 | 2.8 | 29 |
+| `door` | Puerta doble | wood | 90 | 2×0.28 | 2.38 | 22 |
+| `slideGate` | Verja corredera | metal | 200 | 4.2×0.48 | 2.55 | 53 |
+| `shutter` | Persiana | metal | 90 | 2.6×0.3 | 2.5 | 17 |
+| `tower1` | Torre de vigilancia de madera | wood | 220 | 2.6×2.8 | 3.9 | 39 |
+| `tower2` | Torre de vigilancia con base de piedra | block | 450 | 2.6×2.8 | 3.9 | 47 |
+| `tower3` | Torre de vigilancia de hierro | metal | 750 | 2.6×2.8 | 3.9 | 45 |
+| `catwalk` | Pasarela elevada | metal | 260 | 4.4×1.3 | 3.45 | 42 |
 | `stairs` | Escalera de servicio | metal | 220 | 3.36×1.1 | 3.3 | 24 |
-| `bench` | Banco de hormigón | block | 150 | 1.9×0.46 | 0.93 | 4 |
-| `planter` | Jardinera | block | 170 | 1.56×0.84 | 0.95 | 8 |
-| `busStop` | Marquesina | metal | 110 | 3.4×1.5 | 2.65 | 14 |
-| `kiosk` | Quiosco | wood | 200 | 2.7×2.9 | 2.4 | 13 |
-| `wheelie` | Contenedor con ruedas | plastic | 60 | 0.62×0.7 | 1.08 | 7 |
-| `dumpster` | Contenedor de basura | metal | 190 | 1.9×0.95 | 1.33 | 8 |
+| `bench` | Banco de piedra y madera | block | 150 | 1.9×0.46 | 0.95 | 8 |
+| `planter` | Jardinera | block | 170 | 1.56×0.84 | 1.1 | 15 |
+| `busStop` | Marquesina | metal | 110 | 3.4×1.5 | 2.65 | 17 |
+| `kiosk` | Quiosco | wood | 200 | 2.7×2.9 | 2.4 | 15 |
+| `wheelie` | Contenedor con ruedas | plastic | 60 | 0.62×0.7 | 1.08 | 8 |
+| `dumpster` | Contenedor de basura | metal | 190 | 1.9×0.95 | 1.33 | 10 |
 | `pallet` | Palé | wood | 30 | 1.2×1 | 0.18 | 11 |
-| `palletBoxes` | Palé con cajas | wood | 70 | 1.2×1 | 1.1 | 20 |
-| `cage` | Jaula metálica | metal | 110 | 1.2×0.8 | 1.7 | 36 |
-| `counter` | Mostrador | wood | 130 | 2.48×0.75 | 1.35 | 6 |
+| `palletBoxes` | Palé con cajas | wood | 70 | 1.2×1 | 1.1 | 25 |
+| `cage` | Jaula metálica | metal | 110 | 1.2×0.8 | 1.7 | 37 |
+| `counter` | Mostrador | wood | 130 | 2.48×0.75 | 1.35 | 10 |
 | `shelf` | Estantería | metal | 90 | 2.2×0.55 | 1.9 | 38 |
-| `locker` | Taquilla | metal | 80 | 1.56×0.5 | 1.91 | 14 |
-| `pharmaCab` | Armario de farmacia | metal | 70 | 1.16×0.49 | 1.96 | 27 |
+| `locker` | Taquilla | metal | 80 | 1.56×0.5 | 1.91 | 16 |
+| `pharmaCab` | Armario de farmacia | metal | 70 | 1.16×0.49 | 1.98 | 28 |
 | `supplyMat` | Caja de materiales | wood | 40 | 0.8×0.55 | 0.55 | 7 |
-| `supplyAmmo` | Caja de munición | wood | 45 | 0.8×0.55 | 0.55 | 7 |
+| `supplyAmmo` | Caja de munición | wood | 45 | 0.8×0.55 | 0.55 | 8 |
 | `supplyMed` | Caja médica | plastic | 40 | 0.8×0.55 | 0.55 | 7 |
-| `car` | Coche abandonado | metal | 320 | 4.3×1.8 | 1.5 | 25 |
+| `car` | Coche abandonado | metal | 320 | 4.3×1.8 | 1.5 | 32 |
 | `stall` | Puesto de mercado | wood | 100 | 2.9×1.9 | 2.3 | 15 |
-| `glassPane` | Cristalera | glass | 22 | 2×0.16 | 2.2 | 10 |
-| `shopFront` | Escaparate de tienda | block | 300 | 4.4×0.4 | 3 | 10 |
-| `pharmFront` | Escaparate de farmacia | block | 300 | 4.4×0.4 | 3 | 12 |
-| `floodlight` | Foco de patio | metal | 80 | 0.5×0.5 | 4.5 | 6 |
-| `pump` | Surtidor de gasolinera | metal | 120 | 0.9×0.7 | 1.85 | 11 |
-| `storeMat` | Módulo de almacén: materiales | metal | 160 | 1.96×0.7 | 2.08 | 40 |
-| `storeAmmo` | Módulo de almacén: munición | metal | 160 | 1.96×0.7 | 2.08 | 34 |
-| `storeMed` | Módulo de almacén: material médico | metal | 160 | 1.96×0.7 | 2.08 | 46 |
-| `cot` | Camilla | metal | 80 | 0.9×2.04 | 0.8 | 15 |
-| `board` | Tablón de expediciones | wood | 70 | 2.04×0.2 | 2.3 | 12 |
-| `rack` | Expositor de armas (armería) | metal | 100 | 1.7×0.32 | 1.5 | 22 |
-| `emblem0` | Emblema de facción Azul | block | 260 | 2.8×0.54 | 2.8 | 9 |
-| `emblem1` | Emblema de facción Rojo | block | 260 | 2.8×0.54 | 2.8 | 9 |
-| `emblem2` | Emblema de facción Ámbar | block | 260 | 2.8×0.54 | 2.8 | 9 |
-| `emblem3` | Emblema de facción Violeta | block | 260 | 2.8×0.54 | 2.8 | 9 |
+| `glassPane` | Cristalera | glass | 22 | 2×0.18 | 2.2 | 10 |
+| `shopFront` | Escaparate de tienda | block | 300 | 4.4×0.4 | 3 | 13 |
+| `pharmFront` | Escaparate de farmacia | block | 300 | 4.4×0.4 | 3 | 15 |
+| `floodlight` | Foco de patio | metal | 80 | 0.5×0.5 | 4.5 | 8 |
+| `pump` | Surtidor de gasolinera | metal | 120 | 0.9×0.7 | 1.85 | 14 |
+| `storeMat` | Módulo de almacén: materiales | wood | 160 | 1.96×0.7 | 2.1 | 47 |
+| `storeAmmo` | Módulo de almacén: munición | wood | 160 | 1.96×0.7 | 2.1 | 47 |
+| `storeMed` | Módulo de almacén: material médico | wood | 160 | 1.96×0.7 | 2.1 | 59 |
+| `cot` | Camilla | metal | 80 | 0.9×2.28 | 0.8 | 15 |
+| `board` | Tablón de expediciones | wood | 70 | 2.04×0.2 | 2.4 | 17 |
+| `rack` | Expositor de armas (armería) | metal | 100 | 1.7×0.32 | 1.5 | 23 |
+| `emblem0` | Emblema de facción Azul | block | 260 | 3×0.66 | 2.9 | 15 |
+| `emblem1` | Emblema de facción Rojo | block | 260 | 3×0.66 | 2.9 | 15 |
+| `emblem2` | Emblema de facción Ámbar | block | 260 | 3×0.66 | 2.9 | 15 |
+| `emblem3` | Emblema de facción Violeta | block | 260 | 3×0.66 | 2.9 | 15 |
 
 Novedades que aporta además de los modelos:
 - **Material nuevo `glass`** (cristal: pen 0,85, rotura inmediata, esquirlas y grietas en las marcas de bala).
@@ -183,13 +185,29 @@ Novedades que aporta además de los modelos:
 - **Persiana y cristalera** hacen ruido (`noiseOnMove` 30 m / `noiseOnBreak` 40 m).
 - **Recogibles** (`OBJ.pickup(clase, x, z)`): material, munición, botiquín, kit de reanimación, y casco, chaleco y mochila en 3 niveles. Solo son el modelo; recoger y guardar llega con el inventario.
 - **Raíles** (`OBJ.rails(x, z, largo, giro)`), decoración sin colisión.
-- **Galería de pruebas**: `index.html?galeria=1` coloca los 46 tipos en filas; `OBJ.gallery([tipos])` coloca los que se pidan.
+- **Galería de pruebas**: `index.html?galeria=1` coloca los 48 tipos en filas; `OBJ.gallery([tipos])` coloca los que se pidan.
 - **Contenido**: `OBJ.contents(p)` devuelve la lista de lo que lleva (`loot`) cada caja o armario; sin lógica de inventario todavía.
 - **Eventos** (`OBJ.on.push(f)`): `add`, `open`, `close`, `break`, `alarm`; para que la navegación dinámica de la entrega 2 invalide rutas.
 
 Límites conocidos (a resolver en las entregas indicadas):
 - El juego colisiona en 2D: pasarela, escalera, puesto elevado y cristaleras son sólidos o dejan ver como una caja. La altura transitable, ocupar el puesto y la visión real a través de aberturas son de la **entrega 2** (los modelos ya llevan `seats` y el ancho de los pasos).
 - Las **aspilleras** a ras de suelo del diseño no se han hecho: necesitan huecos reales en la colisión (entrega 2).
-- Rendimiento: cada pieza es una malla. Los 46 tipos suman 841 piezas (máximo 46 por objeto). Un distrito entero con cientos de objetos necesitará fusionar la geometría de lo intacto (entrega 6); medir en el iPhone antes.
+- Rendimiento: cada pieza es una malla. Los 48 tipos suman 1154 piezas (máximo 59 por objeto). Un distrito entero con cientos de objetos necesitará fusionar la geometría de lo intacto (entrega 6); medir en el iPhone antes.
 - Los sonidos nuevos (`IMP_glass`, `ALARM_loop`, rotura de cada tipo) no existen todavía: callan hasta que el usuario los genere. Las roturas reutilizan los sonidos de caja, barrera y bloques.
 - Edificios completos (tiendas, clínica, estación, viviendas, puentes), la colocación en el mapa y el uso por el mando/bots no están hechos.
+
+## 12. Niveles: madera → piedra → hierro (decisión del usuario, 25-11)
+Sustituye a los «bloques con pilares» del diseño original (`GUERRA_DE_FACCIONES.md`, a actualizar cuando se integre).
+
+| | Nivel 1 · Madera | Nivel 2 · Piedra | Nivel 3 · Hierro |
+|---|---|---|---|
+| Muro | Empalizada de troncos con puntas, atados con cuerda (250) | Sillería ocre con esquinas de sillares y remate de tejas (600) | Planchas remachadas en vigas en H, púas y franja de aviso (1100) |
+| Portón | Tablones con herrajes en dos postes de tronco (180) | Arco de piedra con puertas de roble y bandas de hierro (420) | Hierro remachado con puntas y diagonales (750) |
+| Torre de vigilancia | Rollizos, chapa de techo (220) | Base de piedra, plataforma de madera, tejas (450) | Estructura y parapeto de hierro (750) |
+| Balas | Atraviesan ~55 % | No atraviesan | No atraviesan y rebotan |
+| Fuego | Arde | No arde | No arde |
+
+La puerta interior del portón nivel 3 (`gateInner`, 400) es de hierro. Todos llevan el color de la facción (`OBJ.fac` 0–3): cinta en la empalizada, franja pintada en piedra y hierro, estandarte en los portones de madera y piedra, bandera en la torre.
+
+## 13. Estilo visual
+Paleta cálida y saturada (la luz del juego es fría y apaga los colores), texturas procedurales (madera con vetas y clavos, sillería irregular, planchas con óxido, ladrillo, chapa oxidada, tejas), suciedad y musgo en la base por color de vértice, colores propios por objeto (puertas, taquillas, contenedores y coches de distintos colores) y toldos y rótulos de tienda. `OBJ.setGround(hex)` permite probar otro color de suelo sin cambiar el juego.
