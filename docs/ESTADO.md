@@ -110,3 +110,8 @@ Muestras: 104 de 105 sonidos (sin capas de rareza, descartadas por ahora). Falta
 
 ## Visión de los bots (v0.3.13)
 Los bots ven lo mismo que el jugador: un enemigo sólo se detecta si cabe en el rectángulo de pantalla de la cámara real alrededor del bot (`SIGHT.hw`/`SIGHT.hd`, medidos cada 0,5 s con rayos de la cámara; ±10 m de ancho y ±8 m de fondo en una ventana de escritorio, más ancho en un iPhone en horizontal, más estrecho en vertical). Sin cono: el jugador también ve a su espalda dentro de la pantalla. Los zombis que amenazan a los bots usan la misma regla. Test: `tests/vision_bots.py`. Siguen igual los avisos de escuadra (`squadAlert`) y ir hacia quien les dispara.
+
+## Avisos de escuadra y disparos (v0.3.15)
+- Aviso de escuadra: sólo cuando un bot VE (con la visión igual a la del jugador) a un enemigo por primera vez o a uno nuevo, no con seguimiento continuo; alcance de radio 25 m; los compañeros que no lo ven van a donde estaba (`search`).
+- Herido por alguien que no ve: va hacia la DIRECCIÓN del impacto (`hitSrc`: 10 m atrás ±2,5 m), no a la posición real del atacante; tampoco lo fija como objetivo. El bot herido con poca vida huye de ese punto.
+- Test: `tests/avisos_bots.py`.

@@ -4046,7 +4046,7 @@ function squadAlert(e, seen) {                                                  
   if (M.t - (e.sqAlert || -9) < 1.5) return; e.sqAlert = M.t;
   for (const o of M.ents) {
     if (o === e || o.dead || o.dwn || o.isPlayer || o.team !== e.team || o.sq !== e.sq || o.vis || o.st === 'cover' || M.t - o.alertT < 3) continue;
-    if (Math.hypot(o.p.x - e.p.x, o.p.z - e.p.z) > 35) continue;
+    if (Math.hypot(o.p.x - e.p.x, o.p.z - e.p.z) > 25) continue;                          // alcance de la radio de escuadra
     o.alertT = M.t; o.ls.x = seen.p.x; o.ls.z = seen.p.z; o.st = 'search'; o.searchStart = M.t; setGoal(o, o.ls.x, o.ls.z);
   }
 }
@@ -4076,17 +4076,18 @@ function think(e) {
   for (const p of props) { if (p.dead || p.h > .95) continue; const dx = Math.max(Math.abs(e.p.x - p.x) - p.hx, 0), dz = Math.max(Math.abs(e.p.z - p.z) - p.hz, 0), d = Math.hypot(dx, dz); if (d < (p === e.cover ? 1 : .8) && d < bd) { bd = d; cv = p; } }
   e.cover = cv; e.flee = dangerVec(e);
   const seen = perceive(e);
-  if (MX.campaign) { e.syncT = (e.syncT || 0) - .13; if (e.syncT <= 0) { e.syncT = 1 + rnd() * .5; squadSync(e); } if (seen && seen.p) squadAlert(e, seen); }
+  if (MX.campaign) { e.syncT = (e.syncT || 0) - .13; if (e.syncT <= 0) { e.syncT = 1 + rnd() * .5; squadSync(e); } if (seen && seen.p && (!e.vis || e.tgt !== seen)) squadAlert(e, seen); }      // se avisa sólo cuando el bot VE al enemigo por primera vez (o a uno nuevo), no con seguimiento continuo
+
   if (seen) { if (e.tgt !== seen) { e.tgt = seen; e.reactT = 0; e.leadK = rr(.6, 1.05); } e.vis = true; e.seenT = M.t; e.ls.x = seen.p.x; e.ls.z = seen.p.z; } else e.vis = false;
   if (e.vis) { const sx = e.p.x + Math.sin(e.yaw) * .6, sz = e.p.z + Math.cos(e.yaw) * .6; e.dT = Math.hypot(e.tgt.p.x - e.p.x, e.tgt.p.z - e.p.z); e.canShoot = segClear(sx, sz, e.tgt.p.x, e.tgt.p.z, e.cover, null, false) && !smokeBlock(sx, sz, e.tgt.p.x, e.tgt.p.z); } else e.canShoot = false;
-  if (!e.vis && e.lastAtt && !e.lastAtt.dead && e.lastAtt.team !== e.team && M.t - e.lastAttT < .6 && e.st !== 'cover' && M.t - e.alertT > 4) {   // me han disparado y no veo a nadie: voy hacia el atacante
-    e.alertT = M.t; e.ls.x = e.lastAtt.p.x; e.ls.z = e.lastAtt.p.z; e.tgt = e.lastAtt; e.st = 'search'; e.searchStart = M.t; setGoal(e, e.ls.x, e.ls.z);
+  if (!e.vis && e.hitSrc && e.lastAtt && !e.lastAtt.dead && e.lastAtt.team !== e.team && M.t - e.lastAttT < .6 && e.st !== 'cover' && M.t - e.alertT > 4) {   // me han disparado y no veo a nadie: voy hacia el lugar de donde vino el disparo (dirección del impacto, no la posición real del atacante)
+    e.alertT = M.t; e.ls.x = e.hitSrc.x; e.ls.z = e.hitSrc.z; e.st = 'search'; e.searchStart = M.t; setGoal(e, e.ls.x, e.ls.z);
   }
   const lowHp = e.hp < 36;
   if (e.st === 'cover') {
     if ((e.hp > 72 && M.t - e.coverStart > 2) || M.t - e.coverStart > 9) { e.st = e.vis ? 'fight' : 'push'; e.path = null; e.goal = null; }
   } else if (lowHp && (e.vis || M.t - e.lastHurt < 3)) {
-    const th = e.vis ? e.tgt.p : (e.lastAtt ? e.lastAtt.p : null);
+    const th = e.vis ? e.tgt.p : (e.hitSrc || null);
     if (th) { const cp = coverPoint(e, th.x, th.z) || retreatPoint(e, th.x, th.z); if (cp) { e.st = 'cover'; e.coverStart = M.t; e.coverPt = cp; setGoal(e, cp.x, cp.z); } }
   } else if (e.vis) { if (e.st !== 'fight') { e.st = 'fight'; e.path = null; e.goal = null; } }
   else if (e.st === 'fight' && M.t - e.seenT > 1.0) { e.st = 'search'; e.searchStart = M.t; setGoal(e, e.ls.x, e.ls.z); }
@@ -4218,7 +4219,7 @@ function pickSpawn(team) {
 function respawn(e) {
   const s0 = pickSpawn(e.team), s = { x: s0.x, z: s0.z, yaw: s0.yaw };
   if (MX.campaign) for (let k = 0; k < 8; k++) { const x = s0.x + rr(-3, 3), z = s0.z + rr(-3, 3); if (navAt(x, z)) { s.x = x; s.z = z; break; } }   // campaña: 25 por facción, se reparten junto al punto de aparición
-  e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = SH; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); syncKit(e);
+  e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = SH; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.hitSrc = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); syncKit(e);
   if (e.isPlayer) return respawnPlayer(e);
   unbake(e); setWeapon(e, pickWeaponIdx()); e.gCount = 3; e.sCount = 2; e.st = 'push'; e.goal = null; e.path = null; e.tgt = null; e.vis = false; e.reactT = 0; e.canShoot = false; e.wantThrow = null; e.holdT = 0;
   e.crouch = e.crouchT = 0; e.kick = 0; e.fireCd = rr(.2, .6); e.pause = 0; e.burst = 0; e.gCd = rr(4, 10); e.sCd = 6; e.walk = 0; e.stuckN = 0; e.nudge = 0; e.py = 1.1; e.thinkT = rnd() * .12; e.ring.visible = true; e.root.visible = true;
@@ -4294,6 +4295,10 @@ function rescuePlayer(pl, dt) {                                                 
   if (held && M.t - pl.lastHurt > .4) { pl.rt = near; near.rescuer = pl; near.revP += dt / REV_T; MX.reviveFx(near, near.revP); if (near.revP >= 1) revive(near, pl); return 'Reanimando a ' + near.id + '…'; }
   cancelRescue(pl); return 'Mantén ' + KEYN() + ' para reanimar a ' + near.id;
 }
+function hitSrc(e, dx, dz) {                                                           // de dónde vino el disparo: sólo la DIRECCIÓN del impacto (no la posición exacta del atacante), con algo de error
+  const L = Math.hypot(dx, dz); if (L < .01) { e.hitSrc = null; return; }
+  e.hitSrc = { x: e.p.x - dx / L * 10 + rr(-2.5, 2.5), z: e.p.z - dz / L * 10 + rr(-2.5, 2.5) };
+}
 MX.hit = (e, dmg, from, dx, dz, w, src) => {
   if (e.dead || e.inv > 0 || M.over || dmg <= 0) return;
   const hm = !!(w && from && from.isPlayer && !e.isPlayer && e.team !== from.team);   // «hit» de confirmación: solo cuando una bala del jugador entra en un rival
@@ -4307,7 +4312,7 @@ MX.hit = (e, dmg, from, dx, dz, w, src) => {
   if (e.sh > 0) { const a = Math.min(e.sh, rest); e.sh -= a; rest -= a; e.bS.flash = 1; }                  // el escudo absorbe primero; el sobrante pasa a la vida en el mismo golpe
   if (rest > 0) { e.hp -= rest; e.bH.flash = 1; }
   e.tgp.hp = e.hp; e.lastHurt = M.t; e.bShow = M.t; e.lastSrc = src || (w ? w.sid : null);
-  if (from && (from.isPlayer || e.isPlayer)) popNum(e, tot); if (from) { e.lastAtt = from; e.lastAttT = M.t; }
+  if (from && (from.isPlayer || e.isPlayer)) popNum(e, tot); if (from) { e.lastAtt = from; e.lastAttT = M.t; hitSrc(e, dx, dz); }
   if (e.isPlayer) { M.hurt = Math.min(1, M.hurt + dmg / 45); P.shake = Math.max(P.shake, .06 + Math.min(.14, dmg * .004)); rumble(70, .55, .4); }
   if (e.hp <= 0) { if (canDown(e)) goDown(e, dx, dz); else kill(e, from, dx, dz); } else if (hm) playSnd('HIT_marker', { vol: 1 });   // si la bala mata, suena solo el sonido de baja (HIT_kill)
 };
