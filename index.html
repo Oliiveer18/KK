@@ -230,6 +230,76 @@ const rig = {
   hand: [ball(.06, mAcc), ball(.06, mAcc)], shoulder: [ball(.08, mBody), ball(.08, mBody)]
 };
 
+/* ---------- aspecto: paletas de facción y equipo visible (casco, chaleco, mochila) ----------
+   Piezas modulares colgadas de las mallas del rig (heredan la pose: la animación no cambia). Cada pieza del equipo tiene 3 niveles (1 ligero, 2 medio, 3 pesado; 0 = sin pieza).
+   Las piezas de cada punto del cuerpo se fusionan en una malla por material para no multiplicar las llamadas de dibujo. */
+const FAC = [
+  { name: 'Azul', body: 0x3d6fb6, limb: 0x2c3f63, trim: 0x8fd0ff, gear: 0x232f46 },
+  { name: 'Rojo', body: 0xb6453d, limb: 0x5a2a28, trim: 0xff9a88, gear: 0x452220 },
+  { name: 'Ámbar', body: 0xc98a2e, limb: 0x5c4218, trim: 0xffd98a, gear: 0x43330f },
+  { name: 'Violeta', body: 0x7a4db0, limb: 0x3a2a58, trim: 0xcfb0ff, gear: 0x2d2243 }];
+const FACM = FAC.map(f => { const m = c => new THREE.MeshStandardMaterial({ color: c, roughness: .65, flatShading: true }); return { body: m(f.body), limb: m(f.limb), trim: m(f.trim), gear: m(f.gear) }; });
+const DRESS_DEF = { helmet: 2, vest: 2, pack: 1 };
+const _IQ = new THREE.Quaternion(), _pv = new V3(), _sv = new V3();
+function mergeParts(list) {
+  let nv = 0, ni = 0; const gs = list.map(p => { const g = p.geo.clone(); g.applyMatrix4(p.m); nv += g.attributes.position.count; ni += g.index.count; return g; });
+  const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), idx = new Uint16Array(ni); let vo = 0, io = 0;
+  for (const g of gs) { pos.set(g.attributes.position.array, vo * 3); nor.set(g.attributes.normal.array, vo * 3); for (let k = 0; k < g.index.count; k++) idx[io + k] = g.index.array[k] + vo; vo += g.attributes.position.count; io += g.index.count; g.dispose(); }
+  const out = new THREE.BufferGeometry(); out.setAttribute('position', new THREE.BufferAttribute(pos, 3)); out.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); out.setIndex(new THREE.BufferAttribute(idx, 1)); return out;
+}
+function dress(R, fi, L) {
+  L = Object.assign({}, DRESS_DEF, L || {}); const M = FACM[fi % FACM.length];
+  if (R._gear) for (const h of R._gear) { h.parent.remove(h); h.traverse(o => { if (o.geometry && o.isMesh) o.geometry.dispose(); }); }
+  R._gear = [];
+  const jobs = new Map();                                                           // malla del rig -> Map(material -> piezas)
+  const add = (target, geo, mat, sx, sy, sz, x, y, z) => {
+    let mp = jobs.get(target); if (!mp) { mp = new Map(); jobs.set(target, mp); }
+    let l = mp.get(mat); if (!l) { l = []; mp.set(mat, l); }
+    l.push({ geo, m: new THREE.Matrix4().compose(_pv.set(x, y, z), _IQ, _sv.set(sx, sy, sz)) });
+  };
+  const bx = (t, mat, w, h, d, x, y, z) => add(t, geoBox, mat, w, h, d, x, y, z), bl = (t, mat, w, h, d, x, y, z) => add(t, geoBall, mat, w, h, d, x, y, z);
+  const T = R.torso, v = L.vest, k = L.pack, H = R.visor, B = R.pelvis;
+  bx(T, M.limb, .09, .15, .09, 0, .31, 0);                                           // cuello
+  if (v >= 1) {                                                                     // chaleco: placas delantera y trasera, franja de facción y tirantes
+    const w = [0, .30, .34, .36][v], h = [0, .26, .31, .34][v], d = [0, .045, .055, .065][v];
+    bx(T, M.gear, w, h, d, 0, .03, .125 + d / 2 - .01); bx(T, M.gear, w, h, d, 0, .03, -.125 - d / 2 + .01);
+    bx(T, M.trim, w * .92, .045, d + .008, 0, .13, .125 + d / 2 - .01);
+    bx(T, M.gear, .07, .1, .27, .12, .24, 0); bx(T, M.gear, .07, .1, .27, -.12, .24, 0);
+    if (v >= 2) { bx(T, M.gear, .04, .2, .27, .215, -.03, 0); bx(T, M.gear, .04, .2, .27, -.215, -.03, 0); }
+    if (v >= 3) { bx(T, M.gear, .22, .06, .13, 0, .275, 0); for (const x of [-.1, 0, .1]) bx(T, M.gear, .07, .1, .04, x, -.1, .125 + d + .015); bx(T, M.trim, .22, .02, .135, 0, .31, 0); }
+  }
+  if (k >= 1) {                                                                     // mochila
+    const w = [0, .26, .30, .34][k], h = [0, .28, .34, .40][k], d = [0, .11, .15, .19][k], y = [0, .08, .06, .05][k], z = -.125 - d / 2 + .005;
+    bx(T, M.gear, w, h, d, 0, y, z); bx(T, M.trim, w * .86, .05, d * .82, 0, y + h / 2 + .02, z);
+    bx(T, M.gear, .05, .3, .015, .1, .08, .127); bx(T, M.gear, .05, .3, .015, -.1, .08, .127);
+    if (k >= 3) { bx(T, M.gear, .07, .15, d * .8, w / 2 + .035, y - .08, z); bx(T, M.gear, .07, .15, d * .8, -w / 2 - .035, y - .08, z); }
+  }
+  bx(B, M.gear, .345, .05, .215, 0, .055, 0); bx(B, M.trim, .06, .04, .012, 0, .055, .11);        // cinturón con hebilla
+  bx(B, M.gear, .07, .08, .05, .1, -.005, .125); bx(B, M.gear, .07, .08, .05, -.1, -.005, .125);
+  if (v >= 2) bx(B, M.gear, .04, .11, .06, .175, -.03, 0);
+  const h2 = L.helmet;
+  if (h2 >= 1) {                                                                    // casco: cúpula + franja de facción visible desde arriba
+    const dome = [0, [.14, .085, .15], [.152, .11, .16], [.158, .125, .17]][h2], dy = [0, .05, .045, .05][h2];
+    bl(H, M.gear, dome[0], dome[1], dome[2], 0, dy, -.1);
+    bx(H, M.trim, .035, .012, dome[2] * 1.5, 0, dy + dome[1] - .004, -.1);
+    if (h2 === 1) bx(H, M.gear, .2, .018, .06, 0, .035, .0);                          // visera de gorra
+    if (h2 >= 2) { bl(H, M.gear, .17, .018, .18, 0, 0, -.1); bx(H, M.gear, .03, .07, .08, .14, -.02, -.1); bx(H, M.gear, .03, .07, .08, -.14, -.02, -.1); }
+    if (h2 >= 3) { bx(H, M.gear, .15, .05, .03, 0, .04, .065); bx(H, M.gear, .2, .07, .03, 0, -.03, -.26); bx(H, M.trim, .012, .012, .18, .05, dy + dome[1] - .015, -.1); bx(H, M.trim, .012, .012, .18, -.05, dy + dome[1] - .015, -.1); }
+  }
+  for (let i = 0; i < 2; i++) {
+    if (v >= 2) bl(R.shoulder[i], M.body, v >= 3 ? .125 : .105, (v >= 3 ? .125 : .105) * .7, v >= 3 ? .125 : .105, 0, .02, 0);   // hombreras del color de la facción
+    bl(R.knee[i], M.gear, .09, .075, .09, 0, 0, .012);                              // rodilleras
+    bx(R.foot[i], M.gear, .125, .06, .09, 0, 0, .095); bx(R.foot[i], M.limb, .115, .07, .11, 0, .065, -.06);   // puntera y caña de la bota
+    R.foot[i].material = M.gear; R.hand[i].material = M.gear;                      // botas y guantes oscuros
+  }
+  for (const [target, mp] of jobs) {
+    const g = new THREE.Group(); g.scale.set(1 / target.scale.x, 1 / target.scale.y, 1 / target.scale.z);
+    for (const [mat, list] of mp) { const m = new THREE.Mesh(mergeParts(list), mat); m.castShadow = true; g.add(m); }
+    target.add(g); R._gear.push(g);
+  }
+}
+dress(rig, 0);
+
 /* estela del dash: 3 siluetas translúcidas que se desvanecen rápido */
 const GH = { list: Object.values(rig).flat(), g: [], i: 0, t: 0 };
 for (let n = 0; n < 3; n++) {
@@ -2463,6 +2533,7 @@ function initBot(e) {
   e.R = { pelvis: mkm(geoBox, T.body, .32, .18, .2), torso: mkm(geoBox, T.body, .42, .5, .25), head: mkm(geoBall, T.limb, .13, .13, .13), visor: mkm(geoBox, T.acc, .17, .05, .1),
     thigh: pair(() => mkm(geoCyl, T.limb, .07, 1, .07)), shin: pair(() => mkm(geoCyl, T.limb, .06, 1, .06)), knee: pair(() => mkm(geoBall, T.limb, .07, .07, .07)), foot: pair(() => mkm(geoBox, T.acc, .12, .07, .27)),
     upper: pair(() => mkm(geoCyl, T.limb, .055, 1, .055)), fore: pair(() => mkm(geoCyl, T.limb, .05, 1, .05)), hand: pair(() => mkm(geoBall, T.acc, .06, .06, .06)), shoulder: pair(() => mkm(geoBall, T.body, .08, .08, .08)) };
+  dress(e.R, e.team);
   e.bar = mkBar(60, 4); e.bar.el.style.display = 'none'; e.ring = new THREE.Mesh(RING_G, RING[e.team]); e.ring.rotation.x = -Math.PI / 2; e.ring.visible = false; scene.add(e.ring);
   e.flash = new THREE.Mesh(flashMesh.geometry, flashMesh.material); e.flash.visible = false; scene.add(e.flash);
   Object.assign(e, { gun: null, w: WP[0], wi: 0, ammo: 0, reloadT: -1, rp: 0, fireCd: 0, pause: 0, burst: 0, spread: 0, kick: 0, flashT: 0, gCount: 3, sCount: 2, gReg: 0, sReg: 0, gCd: rr(5, 12), sCd: 8, wantThrow: null, throwT: 0,
@@ -2745,7 +2816,7 @@ function respawnPlayer(e) {
 }
 function playerCorpse(dx, dz) {
   const grp = new THREE.Group(); grp.position.set(P.pos.x, 0, P.pos.z); scene.add(grp);
-  for (const m of RL) { const c = new THREE.Mesh(m.geometry, m.material); c.position.copy(m.position); c.position.x -= P.pos.x; c.position.z -= P.pos.z; c.quaternion.copy(m.quaternion); c.scale.copy(m.scale); c.castShadow = true; grp.add(c); }
+  for (const m of RL) { const c = m.clone(true); c.position.copy(m.position); c.position.x -= P.pos.x; c.position.z -= P.pos.z; c.quaternion.copy(m.quaternion); c.scale.copy(m.scale); c.castShadow = true; grp.add(c); }
   const l = Math.hypot(dx, dz) || 1; grp.userData.ax = new V3(dz / l, 0, -dx / l); grp.userData.t = 0; corpseP = grp;
 }
 function regen(e, dt) {                                                              // tras 5 s sin daño: primero se recarga el escudo y después la vida

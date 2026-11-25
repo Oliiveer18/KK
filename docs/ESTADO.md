@@ -3,6 +3,7 @@
 Todo lo de abajo está comprobado **solo con tests automáticos y capturas** (Chrome headless, sin GPU ni altavoces). El usuario lo prueba en iPhone con DualSense. Nada se ha escuchado ni visto en el dispositivo real.
 
 ## Qué hay ahora
+- **Aspecto de los personajes (v0.3.9, paso 1)**: equipo visible modular (casco, chaleco, mochila; niveles 1–3; hoy todos llevan casco 2, chaleco 2 y mochila 1), cinturón con bolsas, rodilleras, botas y guantes oscuros, hombreras y franja del casco en el color de la facción (paletas `FAC`: azul, rojo, ámbar, violeta). Mapa 3 usa azul y rojo. Coste medido con 12 personajes visibles: 437 → 618 llamadas de dibujo, 18,8k → 32,3k triángulos (solo Chrome headless; no medido en iPhone). Sin zombis ni estados de abatido todavía. Sin estadísticas de equipo (decisión: ver `docs/EQUIPO_Y_VIDA.md`).
 - **Mapas** (menú de Options, en pausa): 1 Arena, 2 Polígono, 3 Partida 6 vs 6 a 100 bajas. De 1/2 a 3 al instante; de 3 a 1/2 recarga la página. También `?mapa=1|2|3`.
 - **Partida (mapa 3)**: bots con IA y A*, escudo 50 + vida 100, armería en la base azul, ranuras 2 principales + pistola, pantalla final con tabla por jugador y REVANCHA.
 - **HUD**: vida y escudo abajo a la izquierda (número grande, 5 segmentos de escudo, estado crítico con pulso); arma, munición, granadas y dash abajo a la derecha; kill feed arriba a la derecha (bajo los FPS); barras pequeñas con rombo de equipo sobre los bots. Sin chuleta de controles ni texto de depuración en pantalla.
