@@ -278,29 +278,32 @@ zbHold.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2;dis
 function zbMake() {
   const mk = (css, par) => { const d = document.createElement('div'); d.style.cssText = css; if (par) par.appendChild(d); return d; };
   const el = mk('position:absolute;left:0;top:0;will-change:transform,opacity;filter:drop-shadow(0 2px 4px #000a);display:none');
-  const pip = mk('width:6px;height:6px;margin:0 auto 3px;transform:rotate(45deg);box-shadow:0 0 0 1px #000a;background:#9bd650', el);
   const hb = mk('position:relative;transform:skewX(-22deg);background:#0b0f18c8;box-shadow:inset 0 0 0 1px #ffffff22,0 0 0 1px #000a;overflow:hidden', el);
   const c = mk('position:absolute;left:0;top:0;height:100%;width:100%;transform-origin:0 50%;background:#ff9440', hb), f = mk('position:absolute;left:0;top:0;height:100%;width:100%;transform-origin:0 50%', hb);
   mk('position:absolute;inset:0;background:linear-gradient(#ffffff55 0,#ffffff00 45%,#00000030 100%)', f);
-  zbHold.appendChild(el); return { el, pip, hb, c, f };
+  zbHold.appendChild(el); return { el, hb, c, f };
 }
-const _bp = new V3();
+const _bp = new V3(), BAR_GAP = .5;                                                // misma separación sobre la cabeza que las barras de los combatientes (partida.js: coronilla 1,8 m + 0,5 m)
+const headTop = z => (.87 + .65 * Math.cos(z.st === 'dorm' ? .66 : TY[z.type].lean) + .13) * z.sc;   // altura aproximada de la coronilla (van encorvados)
+let barList = [];
 function updBars(dt) {
-  zbHold.style.display = MX.on && MX.campaign ? 'block' : 'none'; let n = 0;
+  zbHold.style.display = MX.on && MX.campaign ? 'block' : 'none'; let n = 0; barList = [];
   for (const z of Z) {
     if (z.dead || n >= 14) continue; const age = M.t - z.brk; if (age > 4) continue;
     const ratio = clamp(z.hp / z.maxhp, 0, 1); if (ratio < z.bf - .004) z.bw = .55;
     z.bf = z.bf + (ratio - z.bf) * Math.min(1, dt * (ratio < z.bf ? 16 : 7)); if (z.bw > 0) z.bw -= dt; else z.bc = z.bc + (z.bf - z.bc) * Math.min(1, dt * 5); if (z.bc < z.bf) z.bc = z.bf;
-    _bp.set(z.p.x, 2.15 * z.sc, z.p.z).project(camera); if (_bp.z > 1) continue;
-    while (ZBAR.length <= n) ZBAR.push(zbMake()); const b = ZBAR[n++], w = BW[z.type], h = z.type === 'brute' ? 7 : 5;
+    while (ZBAR.length <= n) ZBAR.push(zbMake()); const b = ZBAR[n++], w = BW[z.type], h = z.type === 'brute' ? 6 : 4; barList.push({ z, b, w });
     b.el.style.display = 'block'; b.el.style.width = w + 'px'; b.hb.style.height = h + 'px';
     b.c.style.transform = 'scaleX(' + z.bc + ')'; b.f.style.transform = 'scaleX(' + z.bf + ')';
     b.f.style.background = ratio > .6 ? '#9bd650' : ratio > .3 ? '#ffd24a' : '#ff5a4a'; b.f.style.filter = 'brightness(' + (1 + z.stag * 1.2) + ')';
     b.el.style.opacity = clamp(age / .1, 0, 1) * clamp((4 - age) / .6, 0, 1);
-    b.el.style.transform = 'translate(' + ((_bp.x * .5 + .5) * innerWidth - w / 2) + 'px,' + ((-_bp.y * .5 + .5) * innerHeight) + 'px) translateY(-100%)';
   }
   for (let i = n; i < ZBAR.length; i++) ZBAR[i].el.style.display = 'none';
 }
+MX.zom.place = () => {                                                              // tras mover la cámara (ver MX.placeBars): proyecta y coloca las barras
+  camera.updateMatrixWorld();
+  for (const { z, b, w } of barList) { _bp.set(z.p.x, headTop(z) + BAR_GAP, z.p.z).project(camera); b.el.style.display = _bp.z > 1 ? 'none' : 'block'; b.el.style.transform = 'translate(' + ((_bp.x * .5 + .5) * innerWidth - w / 2) + 'px,' + ((-_bp.y * .5 + .5) * innerHeight) + 'px) translateY(-100%)'; }
+};
 MX.zom.update = dt => {
   if (!MX.campaign || !M.built) return; dt = Math.min(dt, .05); zt += dt; astar = 3;
   popT -= dt; if (popT <= 0) { popT = 3; if (!MX.zom.noRestock) restock(); }

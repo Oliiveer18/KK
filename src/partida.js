@@ -807,6 +807,10 @@ MX.start = () => {
   for (const e of M.ents) respawn(e);
   forceWeapon(M.slots[0]);
 };
+MX.placeBars = () => {                                                              // se llama tras mover la cámara: así la barra no se retrasa un fotograma respecto al personaje
+  camera.updateMatrixWorld();
+  for (const e of M.ents) { if (e.isPlayer || !e.barOn) continue; _kp.set(e.p.x, 1.8 - e.crouch * .25 + .5, e.p.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight); }   // base de la barra 0,5 m sobre la coronilla (igual que los zombis)
+};
 MX.update = dt => {
   if (!M.built) return; dt = Math.min(dt, .05); M.t += dt; M.budget = 2;
   M.navT -= dt; if (M.navT <= 0) { M.navT = .5; navBuild(); }
@@ -843,9 +847,8 @@ MX.update = dt => {
     const near = Math.hypot(e.p.x - P.pos.x, e.p.z - P.pos.z) < 42, hid = e.team !== 0 && hiddenBySmoke(e.p.x, e.p.z);
     e.root.visible = near && !hid && (!e.dead || e.root.position.y > -.55); e.ring.visible = e.ring.visible && near && !hid;
     if (!e.dead && !e.dwn && e.root.visible) poseBot(e, dt);
-    if (!e.dead && e.root.visible && M.t - (e.bShow || -99) < 4) {                  // barra sobre la cabeza: solo tras recibir daño
-      drawBar(e.bar, e, dt); _kp.set(e.p.x, 2.3 - e.crouch * .25, e.p.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight);
-    } else e.bar.el.style.display = 'none';
+    if (!e.dead && e.root.visible && M.t - (e.bShow || -99) < 4) { drawBar(e.bar, e, dt); e.barOn = true; }          // barra sobre la cabeza: solo tras recibir daño (se coloca al final del fotograma, con la cámara ya movida: MX.placeBars)
+    else { e.barOn = false; e.bar.el.style.display = 'none'; }
     if (e.team !== pl.team && !e.dead) { e.tgp.g.visible = e.root.visible; MX.foes.push(e.tgp); }
   }
   /* HUD */

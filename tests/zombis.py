@@ -39,6 +39,21 @@ with sync_playwright() as p:
     ev('()=>{for(let i=0;i<6;i++)MX.zom.hit(q,60,MX.pl,1,0,WP[MX.WI.F1])}'); chk(ev('()=>q.dead&&q.st==="dead"'), 'varios impactos lo matan')
     # los zombis no puntúan
     chk(ev('()=>MX.M.score.reduce((a,b)=>a+b,0)') == 0 or True, 'los zombis no cuentan en el marcador')
+    # barras de vida: misma colocación en combatientes y zombis (centradas sobre la entidad, base 0,5 m sobre la coronilla, sin rombo en los zombis)
+    ev(SETUP); run(2)
+    ev('()=>{const a=E.find(x=>x.bot&&x.team===0);a.dead=false;a.inv=0;a.fireCd=1e9;a.p.set(-3,0,0);a.vis=false;window.ca=a;window.zq=Zs("walker",3,0,"dorm");zq.noiseDelay=1e9;zq.yaw=0;P.pos.set(0,0,4);MX.hit(a,5,E[4],1,0,WP[MX.WI.F1]);MX.zom.hit(zq,5,MX.pl,1,0,WP[MX.WI.F1])}')
+    ev('()=>{for(let i=0;i<45;i++){for(const e of E) if(e.bot&&e.team!==0){e.dead=true;e.respT=1e9} ca.v.set(0,0,0);ca.p.set(-3,0,0);update(1/60)}}')
+    r2 = ev('''()=>{const bars=[...document.querySelectorAll('div')].filter(d=>d.style.position==='absolute'&&d.style.display!=='none'&&d.style.opacity!==''&&+d.style.opacity>.5&&d.children.length>=1&&/translate\\(/.test(d.style.transform)&&d.style.willChange.includes('opacity'));
+      const out=[];for(const el of bars){const q=el.getBoundingClientRect();out.push({cx:q.left+q.width/2,bottom:q.bottom,w:q.width,pip:!!el.querySelector('div[style*="rotate(45deg)"]')})}
+      const pr=(x,y,z)=>{const v=new THREE.Vector3(x,y,z).project(camera);return [(v.x*.5+.5)*innerWidth,(-v.y*.5+.5)*innerHeight]};
+      return {bars:out,ca:pr(-3,0,0),zq:pr(3,0,0),caX:pr(ca.p.x,2.3-ca.crouch*.25,ca.p.z)[0],anchorC:pr(ca.p.x,2.3-ca.crouch*.25,ca.p.z)[1],zqX:(()=>{const ht=(.87+.65*Math.cos(zq.st==='dorm'?.66:.5)+.13)*zq.sc;return pr(zq.p.x,ht+.5,zq.p.z)[0]})(),zAnchor:(()=>{const ht=(.87+.65*Math.cos(zq.st==='dorm'?.66:.5)+.13)*zq.sc;return pr(zq.p.x,ht+.5,zq.p.z)[1]})()}}''')
+    print('barras:', r2)
+    chk(len(r2['bars']) == 2, 'se ven a la vez la barra del combatiente y la del zombi')
+    bz = [b for b in r2['bars'] if not b['pip']]; bc = [b for b in r2['bars'] if b['pip']]
+    chk(len(bz) == 1 and len(bc) == 1, 'el combatiente lleva rombo de equipo y el zombi no lleva ningún punto')
+    if len(bz) == 1 and len(bc) == 1:
+        chk(abs(bc[0]['cx'] - r2['caX']) < 2 and abs(bz[0]['cx'] - r2['zqX']) < 2, 'ambas barras quedan centradas horizontalmente sobre su personaje a la altura de la barra (±2 px)')
+        chk(abs(bc[0]['bottom'] - r2['anchorC']) < 3 and abs(bz[0]['bottom'] - r2['zAnchor']) < 3, 'la base de ambas barras queda a la misma distancia (0,5 m) sobre la coronilla (±3 px)')
     # los combatientes caídos NO se convierten en zombis
     ev(SETUP); run(2); n0 = ev('MX.zom.count()')
     ev('()=>{const e=E[2];e.dead=false;e.dwn=false;e.hp=100;e.sh=0;e.inv=0;e.p.set(-30,0,-20);e.revived=true;MX.hit(e,500,E[8],1,0,WP[MX.WI.F1])}'); run(60 * 2)

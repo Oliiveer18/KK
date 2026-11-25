@@ -2315,6 +2315,7 @@ function update(dt) {
   camera.lookAt(camLook.x, 0, camLook.z);
   const asp = innerWidth / innerHeight, fov = Math.min(85, (45 + P.slide * 4 + speed * .25) * (asp < 1 ? 1.4 : 1));   // vertical: más campo; horizontal (móvil o escritorio): sin ampliar
   if (Math.abs(fov - camera.fov) > .01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+  if (MX.on) { if (MX.placeBars) MX.placeBars(); if (MX.zom && MX.zom.place) MX.zom.place(); }      // barras de vida sobre la cabeza: se colocan con la cámara ya movida
   sun.target.position.set(P.pos.x, 0, P.pos.z); sun.position.set(P.pos.x - 8, 16, P.pos.z + 6);
 
   // HUD
@@ -3149,6 +3150,10 @@ MX.start = () => {
   for (const e of M.ents) respawn(e);
   forceWeapon(M.slots[0]);
 };
+MX.placeBars = () => {                                                              // se llama tras mover la cámara: así la barra no se retrasa un fotograma respecto al personaje
+  camera.updateMatrixWorld();
+  for (const e of M.ents) { if (e.isPlayer || !e.barOn) continue; _kp.set(e.p.x, 1.8 - e.crouch * .25 + .5, e.p.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight); }   // base de la barra 0,5 m sobre la coronilla (igual que los zombis)
+};
 MX.update = dt => {
   if (!M.built) return; dt = Math.min(dt, .05); M.t += dt; M.budget = 2;
   M.navT -= dt; if (M.navT <= 0) { M.navT = .5; navBuild(); }
@@ -3185,9 +3190,8 @@ MX.update = dt => {
     const near = Math.hypot(e.p.x - P.pos.x, e.p.z - P.pos.z) < 42, hid = e.team !== 0 && hiddenBySmoke(e.p.x, e.p.z);
     e.root.visible = near && !hid && (!e.dead || e.root.position.y > -.55); e.ring.visible = e.ring.visible && near && !hid;
     if (!e.dead && !e.dwn && e.root.visible) poseBot(e, dt);
-    if (!e.dead && e.root.visible && M.t - (e.bShow || -99) < 4) {                  // barra sobre la cabeza: solo tras recibir daño
-      drawBar(e.bar, e, dt); _kp.set(e.p.x, 2.3 - e.crouch * .25, e.p.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight);
-    } else e.bar.el.style.display = 'none';
+    if (!e.dead && e.root.visible && M.t - (e.bShow || -99) < 4) { drawBar(e.bar, e, dt); e.barOn = true; }          // barra sobre la cabeza: solo tras recibir daño (se coloca al final del fotograma, con la cámara ya movida: MX.placeBars)
+    else { e.barOn = false; e.bar.el.style.display = 'none'; }
     if (e.team !== pl.team && !e.dead) { e.tgp.g.visible = e.root.visible; MX.foes.push(e.tgp); }
   }
   /* HUD */
@@ -3480,29 +3484,32 @@ zbHold.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2;dis
 function zbMake() {
   const mk = (css, par) => { const d = document.createElement('div'); d.style.cssText = css; if (par) par.appendChild(d); return d; };
   const el = mk('position:absolute;left:0;top:0;will-change:transform,opacity;filter:drop-shadow(0 2px 4px #000a);display:none');
-  const pip = mk('width:6px;height:6px;margin:0 auto 3px;transform:rotate(45deg);box-shadow:0 0 0 1px #000a;background:#9bd650', el);
   const hb = mk('position:relative;transform:skewX(-22deg);background:#0b0f18c8;box-shadow:inset 0 0 0 1px #ffffff22,0 0 0 1px #000a;overflow:hidden', el);
   const c = mk('position:absolute;left:0;top:0;height:100%;width:100%;transform-origin:0 50%;background:#ff9440', hb), f = mk('position:absolute;left:0;top:0;height:100%;width:100%;transform-origin:0 50%', hb);
   mk('position:absolute;inset:0;background:linear-gradient(#ffffff55 0,#ffffff00 45%,#00000030 100%)', f);
-  zbHold.appendChild(el); return { el, pip, hb, c, f };
+  zbHold.appendChild(el); return { el, hb, c, f };
 }
-const _bp = new V3();
+const _bp = new V3(), BAR_GAP = .5;                                                // misma separación sobre la cabeza que las barras de los combatientes (partida.js: coronilla 1,8 m + 0,5 m)
+const headTop = z => (.87 + .65 * Math.cos(z.st === 'dorm' ? .66 : TY[z.type].lean) + .13) * z.sc;   // altura aproximada de la coronilla (van encorvados)
+let barList = [];
 function updBars(dt) {
-  zbHold.style.display = MX.on && MX.campaign ? 'block' : 'none'; let n = 0;
+  zbHold.style.display = MX.on && MX.campaign ? 'block' : 'none'; let n = 0; barList = [];
   for (const z of Z) {
     if (z.dead || n >= 14) continue; const age = M.t - z.brk; if (age > 4) continue;
     const ratio = clamp(z.hp / z.maxhp, 0, 1); if (ratio < z.bf - .004) z.bw = .55;
     z.bf = z.bf + (ratio - z.bf) * Math.min(1, dt * (ratio < z.bf ? 16 : 7)); if (z.bw > 0) z.bw -= dt; else z.bc = z.bc + (z.bf - z.bc) * Math.min(1, dt * 5); if (z.bc < z.bf) z.bc = z.bf;
-    _bp.set(z.p.x, 2.15 * z.sc, z.p.z).project(camera); if (_bp.z > 1) continue;
-    while (ZBAR.length <= n) ZBAR.push(zbMake()); const b = ZBAR[n++], w = BW[z.type], h = z.type === 'brute' ? 7 : 5;
+    while (ZBAR.length <= n) ZBAR.push(zbMake()); const b = ZBAR[n++], w = BW[z.type], h = z.type === 'brute' ? 6 : 4; barList.push({ z, b, w });
     b.el.style.display = 'block'; b.el.style.width = w + 'px'; b.hb.style.height = h + 'px';
     b.c.style.transform = 'scaleX(' + z.bc + ')'; b.f.style.transform = 'scaleX(' + z.bf + ')';
     b.f.style.background = ratio > .6 ? '#9bd650' : ratio > .3 ? '#ffd24a' : '#ff5a4a'; b.f.style.filter = 'brightness(' + (1 + z.stag * 1.2) + ')';
     b.el.style.opacity = clamp(age / .1, 0, 1) * clamp((4 - age) / .6, 0, 1);
-    b.el.style.transform = 'translate(' + ((_bp.x * .5 + .5) * innerWidth - w / 2) + 'px,' + ((-_bp.y * .5 + .5) * innerHeight) + 'px) translateY(-100%)';
   }
   for (let i = n; i < ZBAR.length; i++) ZBAR[i].el.style.display = 'none';
 }
+MX.zom.place = () => {                                                              // tras mover la cámara (ver MX.placeBars): proyecta y coloca las barras
+  camera.updateMatrixWorld();
+  for (const { z, b, w } of barList) { _bp.set(z.p.x, headTop(z) + BAR_GAP, z.p.z).project(camera); b.el.style.display = _bp.z > 1 ? 'none' : 'block'; b.el.style.transform = 'translate(' + ((_bp.x * .5 + .5) * innerWidth - w / 2) + 'px,' + ((-_bp.y * .5 + .5) * innerHeight) + 'px) translateY(-100%)'; }
+};
 MX.zom.update = dt => {
   if (!MX.campaign || !M.built) return; dt = Math.min(dt, .05); zt += dt; astar = 3;
   popT -= dt; if (popT <= 0) { popT = 3; if (!MX.zom.noRestock) restock(); }

@@ -2307,6 +2307,7 @@ function update(dt) {
   camera.lookAt(camLook.x, 0, camLook.z);
   const asp = innerWidth / innerHeight, fov = Math.min(85, (45 + P.slide * 4 + speed * .25) * (asp < 1 ? 1.4 : 1));   // vertical: más campo; horizontal (móvil o escritorio): sin ampliar
   if (Math.abs(fov - camera.fov) > .01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+  if (MX.on) { if (MX.placeBars) MX.placeBars(); if (MX.zom && MX.zom.place) MX.zom.place(); }      // barras de vida sobre la cabeza: se colocan con la cámara ya movida
   sun.target.position.set(P.pos.x, 0, P.pos.z); sun.position.set(P.pos.x - 8, 16, P.pos.z + 6);
 
   // HUD
