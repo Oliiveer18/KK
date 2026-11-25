@@ -3293,7 +3293,7 @@ MX.zom = { list: Z, count: () => Z.filter(z => !z.dead).length, noise,
   shot: (x, z, w) => { if (!MX.campaign || !M.built) return; if (M.t - lastShot < .1 && lastShotSid === w.sid) return; lastShot = M.t; lastShotSid = w.sid; noise(x, z, NOISE_R[w.sid] || 30); },
   blast: (p, R, own) => { if (!MX.campaign) return; noise(p.x, p.z, 62);
     for (const z of Z) { if (z.dead || z.st === 'rise') continue; const d = Math.hypot(z.p.x - p.x, z.p.z - p.z); if (d < R + z.r) hitZ(z, 260 * (1 - d / (R + z.r)) + 30, own, z.p.x - p.x, z.p.z - p.z, null, true); } },
-  hit: (z, dmg, from, dx, dz, w) => hitZ(z, dmg, from, dx, dz, w), total: () => nextId - 1, spawn: (type, x, z, o) => newZ(type, x, z, o), horde: (x, z, mix) => newHorde(x, z, mix) };
+  hit: (z, dmg, from, dx, dz, w) => hitZ(z, dmg, from, dx, dz, w), clearConv: () => { for (const c of CONV) scene.remove(c.g); CONV.length = 0; }, total: () => nextId - 1, spawn: (type, x, z, o) => newZ(type, x, z, o), horde: (x, z, mix) => newHorde(x, z, mix) };
 
 /* ---- daño ---- */
 function hitZ(z, dmg, from, dx, dz, w, quiet) {
@@ -3490,7 +3490,7 @@ MX.zom.update = dt => {
     const c = CONV[i]; c.t += dt; c.ring.material.opacity = Math.min(.75, c.t * .6) * (.5 + .5 * Math.sin(c.t * 6)) ; c.ring.scale.setScalar(1 + .15 * Math.sin(c.t * 6));
     if (c.t >= CONV_T) { scene.remove(c.g); CONV.splice(i, 1); if (Z.length < MAXZ) { const zb = newZ('walker', c.x, c.z, { st: 'rise', rise: true, lie: 1, fac: c.fac, yaw: rr(-3, 3) }); if (zb) { zb.sc *= 1; zb.converted = true; } } }
   }
-  popT -= dt; if (popT <= 0) { popT = 3; restock(); }
+  popT -= dt; if (popT <= 0) { popT = 3; if (!MX.zom.noRestock) restock(); }
   for (const h of HORDES) stepHorde(h, dt);
   grid.clear(); for (const z of Z) { if (z.dead) continue; const k = gk(z.p.x, z.p.z); let a = grid.get(k); if (!a) { a = []; grid.set(k, a); } a.push(z); }
   for (const z of Z.slice()) {

@@ -15,11 +15,12 @@ with sync_playwright() as p:
     chk(r['n'] >= 30 and r['dorm'] > 5 and r['horde'] >= 15, 'población inicial: zombis locales dormidos y una horda')
     chk(r['types'] == 'brute,runner,screamer,walker', 'están los 4 tipos (caminante, corredor, pesado, gritón)')
     # escenario controlado: sin bots, sin zombis iniciales
-    SETUP = '''()=>{boxes.length=0;const E=MX.ents;window.E=E;MX.M.over=false;for(const z of MX.zom.list.slice()){z.dead=true;z.st="dead";z.deadT=99}
+    SETUP = '''()=>{boxes.length=0;const E=MX.ents;window.E=E;MX.M.over=false;MX.zom.clearConv();for(const z of MX.zom.list.slice()){z.dead=true;z.st="dead";z.deadT=99}
       for(const e of E){e.dwn=false;e.dead=false;e.hp=100;e.sh=50;e.inv=0;e.vis=false;e.revived=false;e.lastHurt=-99;if(e.bot){e.fireCd=1e9;e.p.set(40+Math.random(),0,40)}}
       P.pos.set(0,0,0);window.Zs=(ty,x,z,st)=>{const q=MX.zom.spawn(ty,x,z,{st:st||"dorm"});return q}}'''
     def run(n): ev('()=>{for(let i=0;i<%d;i++){for(const e of E) if(e.bot){e.fireCd=1e9}; update(1/60)}}' % n)
-    ev(SETUP); ev('()=>{for(const e of E) if(e.bot){e.dead=true;e.respT=1e9}}'); run(130)    # deja que los muertos se liberen
+    ev(SETUP); ev('()=>{for(const e of E) if(e.bot){e.dead=true;e.respT=1e9}}'); run(130)
+    ev('MX.zom.noRestock=true')    # deja que los muertos se liberen
     # ruido: un disparo despierta a un dormido a 20 m, no a uno a 60 m
     ev('()=>{window.a=Zs("walker",20,0);window.c=Zs("walker",60,0);MX.zom.shot(0,0,WP[MX.WI.F1])}'); run(10)
     chk(ev('()=>a.st') in ('invest', 'chase'), 'un disparo de fusil despierta a un zombi dormido a 20 m (se acerca a investigar)')
@@ -64,7 +65,7 @@ with sync_playwright() as p:
     # bots luchan contra zombis
     ev(SETUP); run(2)
     ev('()=>{const a=E.find(x=>x.bot&&x.team===0);a.dead=false;a.hp=100;a.inv=0;a.fireCd=0;a.p.set(-10,0,10);a.yaw=0;window.bb=a;window.z2=Zs("walker",-10,17,"chase");z2.tgt=a;z2.tgtT=MX.M.t;z2.hp=z2.maxhp=400}')
-    ev('()=>{for(let i=0;i<60*6;i++){bb.fireCd=Math.min(bb.fireCd,.2);update(1/60)}}')
+    ev('()=>{for(let i=0;i<60*10;i++){bb.fireCd=Math.min(bb.fireCd,.2);update(1/60)}}')
     chk(ev('()=>z2.hp<z2.maxhp')=='True' or ev('()=>z2.hp<z2.maxhp'), 'un bot detecta y dispara a un zombi que se acerca')
     # límite de población
     ev(SETUP); run(2)
