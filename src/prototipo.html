@@ -1000,10 +1000,12 @@ const boomLight = new THREE.PointLight(0xffa050, 0, 16, 2); scene.add(boomLight)
    para las 4 combinaciones de luces y sube todas las geometrías a la GPU con un único dibujo, antes de empezar a jugar: sin tirones al disparar ni al entrar en zonas nuevas. */
 function warmAll() {
   const st = [], mv = muzzleLight.visible, bv = boomLight.visible;
+  const extra = []; for (const k of ['pistol', 'rifle', 'shot', 'launcher', 'lmg', 'revolver', 'shot2', 'smg', 'sniper']) { try { const g = makeGun(k).g; scene.add(g); extra.push(g); } catch (e) { } }   // todos los modelos de arma (los bots los crean al cambiar)
   scene.traverse(o => { st.push([o, o.visible, o.frustumCulled]); o.visible = true; o.frustumCulled = false; });
   [[1, 1], [1, 0], [0, 1], [0, 0]].forEach(c => { muzzleLight.visible = !!c[0]; boomLight.visible = !!c[1]; renderer.compile(scene, camera); });
   muzzleLight.visible = true; boomLight.visible = true; renderer.render(scene, camera);                 // sube buffers y compila los shaders de sombra
   st.forEach(v => { v[0].visible = v[1]; v[0].frustumCulled = v[2]; }); muzzleLight.visible = mv; boomLight.visible = bv;
+  for (const g of extra) scene.remove(g);
 }
 const LIGHTS = { warm: false };
 function lightsSync() { muzzleLight.visible = muzzleLight.intensity > 0; boomLight.visible = boomLight.intensity > 0; }

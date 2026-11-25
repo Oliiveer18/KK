@@ -108,7 +108,5 @@ Muestras: 104 de 105 sonidos (sin capas de rareza, descartadas por ahora). Falta
 - Capas de rareza: descartadas. Nuevo test: tests/audio_mundo.py.
 - Probado: automático (Playwright, sin errores JS; las 10 armas disparan, seco, recarga; 8 props; explosiones, humo, fuego). NO probado: escucha real en navegador, volúmenes, fugas, empuje.
 
-## Visión de los bots (v0.3.11)
-Alcance 22 m en un cono de ~140° (antes 34 m, más que la pantalla del jugador); a menos de 5 m los oyen con vista libre. `BOT_SIGHT` en `src/partida.js`. Test: `tests/vision_bots.py`. Sin probar a mano: sensación de dificultad en iPhone. Los avisos entre compañeros de escuadra (`squadAlert`) y ir hacia quien les dispara siguen igual.
-
-- Rendimiento: ver `docs/RENDIMIENTO.md` (precalentado de shaders, medidas y pendientes).
+## Visión de los bots (v0.3.13)
+Los bots ven lo mismo que el jugador: un enemigo sólo se detecta si cabe en el rectángulo de pantalla de la cámara real alrededor del bot (`SIGHT.hw`/`SIGHT.hd`, medidos cada 0,5 s con rayos de la cámara; ±10 m de ancho y ±8 m de fondo en una ventana de escritorio, más ancho en un iPhone en horizontal, más estrecho en vertical). Sin cono: el jugador también ve a su espalda dentro de la pantalla. Los zombis que amenazan a los bots usan la misma regla. Test: `tests/vision_bots.py`. Siguen igual los avisos de escuadra (`squadAlert`) y ir hacia quien les dispara.

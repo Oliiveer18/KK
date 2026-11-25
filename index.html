@@ -1008,10 +1008,12 @@ const boomLight = new THREE.PointLight(0xffa050, 0, 16, 2); scene.add(boomLight)
    para las 4 combinaciones de luces y sube todas las geometrías a la GPU con un único dibujo, antes de empezar a jugar: sin tirones al disparar ni al entrar en zonas nuevas. */
 function warmAll() {
   const st = [], mv = muzzleLight.visible, bv = boomLight.visible;
+  const extra = []; for (const k of ['pistol', 'rifle', 'shot', 'launcher', 'lmg', 'revolver', 'shot2', 'smg', 'sniper']) { try { const g = makeGun(k).g; scene.add(g); extra.push(g); } catch (e) { } }   // todos los modelos de arma (los bots los crean al cambiar)
   scene.traverse(o => { st.push([o, o.visible, o.frustumCulled]); o.visible = true; o.frustumCulled = false; });
   [[1, 1], [1, 0], [0, 1], [0, 0]].forEach(c => { muzzleLight.visible = !!c[0]; boomLight.visible = !!c[1]; renderer.compile(scene, camera); });
   muzzleLight.visible = true; boomLight.visible = true; renderer.render(scene, camera);                 // sube buffers y compila los shaders de sombra
   st.forEach(v => { v[0].visible = v[1]; v[0].frustumCulled = v[2]; }); muzzleLight.visible = mv; boomLight.visible = bv;
+  for (const g of extra) scene.remove(g);
 }
 const LIGHTS = { warm: false };
 function lightsSync() { muzzleLight.visible = muzzleLight.intensity > 0; boomLight.visible = boomLight.intensity > 0; }
@@ -3974,20 +3976,27 @@ function dwnTick(e, dt) {
 }
 
 /* ============================ IA DE LOS BOTS ============================ */
-const BOT_SIGHT = 22;                                                                // alcance de visión de los bots ≈ lo que el jugador ve en pantalla (cámara cenital: ~±13 m a los lados, ~±8 m de fondo); antes 34 m, fuera de pantalla
+/* Visión igual que la del jugador: un bot ve a un enemigo sólo si éste cabría en su pantalla, es decir, dentro del mismo rectángulo que la cámara del jugador
+   enseña alrededor de su personaje (ancho y fondo medidos de la cámara real; en vertical es más estrecho). Sin cono: el jugador también ve a su espalda dentro de la pantalla. */
+const SIGHT = { hw: 13, hd: 8, t: 0 }, _sr = new THREE.Raycaster(), _sv = new THREE.Vector2();
+function sightUpdate() {
+  const g = (nx, ny) => { _sv.set(nx, ny); _sr.setFromCamera(_sv, camera); const r = _sr.ray; if (r.direction.y > -.01) return null; const t = -r.origin.y / r.direction.y; return { x: r.origin.x + r.direction.x * t, z: r.origin.z + r.direction.z * t }; };
+  const l = g(-1, 0), r = g(1, 0), u = g(0, 1), d = g(0, -1); if (!l || !r || !u || !d) return;
+  SIGHT.hw = Math.abs(r.x - l.x) / 2; SIGHT.hd = Math.abs(d.z - u.z) / 2;
+}
+MX.SIGHT = SIGHT;
+const inSight = (e, dx, dz) => Math.abs(dx) < SIGHT.hw && Math.abs(dz) < SIGHT.hd;
 function perceive(e) {
   let best = null, bs = 1e9;
   if (MX.zom) for (const o of MX.zom.list) {                                         // los zombis también son amenaza para los bots
     if (o.dead) continue;
-    const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.hypot(dx, dz); if (d > 24) continue;
-    if (d > 5 && Math.abs(angDiff(e.yaw, Math.atan2(dx, dz))) > 1.25) continue;
+    const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.hypot(dx, dz); if (!inSight(e, dx, dz)) continue;
     if (!segClear(e.p.x, e.p.z, o.p.x, o.p.z, null, null, true) || smokeBlock(e.p.x, e.p.z, o.p.x, o.p.z)) continue;
     if (d + 2 < bs) { bs = d + 2; best = o; }
   }
   for (const o of M.ents) {
     if (o.dead || o.team === e.team || o.inv > 0) continue;
-    const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.hypot(dx, dz); if (d > BOT_SIGHT) continue;
-    if (d > 5 && Math.abs(angDiff(e.yaw, Math.atan2(dx, dz))) > 1.25) continue;      // campo de visión ~140°; a menos de 5 m los oye
+    const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.hypot(dx, dz); if (!inSight(e, dx, dz)) continue;
     if (!segClear(e.p.x, e.p.z, o.p.x, o.p.z, null, null, true) || smokeBlock(e.p.x, e.p.z, o.p.x, o.p.z)) continue;
     const sc = d - (o === e.lastAtt && M.t - e.lastAttT < 3 ? 6 : 0); if (sc < bs) { bs = sc; best = o; }
   }
@@ -4466,6 +4475,7 @@ MX.placeBars = () => {                                                          
   for (const e of M.ents) { if (e.isPlayer || !e.barOn) continue; const hp = e.R.head.position; _kp.set(hp.x, hp.y + .13 + .5, hp.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight); }   // base de la barra 0,5 m sobre la coronilla (igual que los zombis)
 };
 MX.update = dt => {
+  SIGHT.t -= dt; if (SIGHT.t <= 0) { SIGHT.t = .5; sightUpdate(); }
   if (!M.built) return; dt = Math.min(dt, .05); M.t += dt; M.budget = 2;
   M.navT -= dt; if (M.navT <= 0) { M.navT = .5; navBuild(); }
   for (let i = M.propQ.length - 1; i >= 0; i--) { const q = M.propQ[i]; if (M.t >= q.t) { if (placeProp(q.spec, true)) M.propQ.splice(i, 1); else q.t = M.t + 4; } }
