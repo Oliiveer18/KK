@@ -17,3 +17,5 @@ Lógica 4–5 ms/fotograma; dibujo CPU 4–9 ms; 80–611 llamadas de dibujo seg
 5. Reutilizar (pool) las piezas al destruir muchos objetos a la vez (25 a la vez: pico de 65 ms).
 
 - Kill feed (v0.3.14): 5 filas reutilizadas y animadas con la Web Animations API (sólo opacity/transform en capa propia) en vez de crear/destruir DOM y escribir estilos cada fotograma; las sombras difuminadas ya no se repintan por fotograma.
+
+- Precalentado (v0.3.17): también se compilan los materiales que aún no cuelgan de la escena (agujeros de bala `HOLE_MAT`, casquillos, charcos, ropa, piel…) con malla de prueba, y los de color de vértice en RGB y RGBA (son shaders distintos). Era la causa del shader nuevo al primer disparo contra un objeto (test `rendimiento.py` intermitente; 8 ejecuciones seguidas ya sin fallo).

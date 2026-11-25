@@ -1002,7 +1002,13 @@ function warmAll() {
   const st = [], mv = muzzleLight.visible, bv = boomLight.visible;
   const extra = []; for (const k of ['pistol', 'rifle', 'shot', 'launcher', 'lmg', 'revolver', 'shot2', 'smg', 'sniper']) { try { const g = makeGun(k).g; scene.add(g); extra.push(g); } catch (e) { } }   // todos los modelos de arma (los bots los crean al cambiar)
   scene.traverse(o => { st.push([o, o.visible, o.frustumCulled]); o.visible = true; o.frustumCulled = false; });
+  const dm = [], seen = new Set(), addM = m => { if (!m) return; if (m.isMaterial) { if (!seen.has(m)) { seen.add(m);
+      const geos = m.vertexColors ? [3, 4].map(n => { const g = geoBox.clone(); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * n).fill(1), n)); return g; }) : [geoBox];   // con color de vértice, RGB y RGBA son shaders distintos
+      for (const g of geos) { const q = new THREE.Mesh(g, m); q.frustumCulled = false; scene.add(q); dm.push(q); } } } else if (typeof m === 'object') for (const k in m) addM(m[k]); };
+  /* materiales que existen pero aún no cuelgan de la escena (agujeros de bala, casquillos, charcos, ropa, piel…): una malla de prueba cada uno para precompilar su shader */
+  [typeof csMat !== 'undefined' && csMat, typeof HOLE_MAT !== 'undefined' && HOLE_MAT, typeof WET_MAT !== 'undefined' && WET_MAT, typeof PM !== 'undefined' && PM, FACM, SKINM, HAIRM, KITW, KITR, mBody, mLimb, mAcc, mGun].forEach(addM);
   [[1, 1], [1, 0], [0, 1], [0, 0]].forEach(c => { muzzleLight.visible = !!c[0]; boomLight.visible = !!c[1]; renderer.compile(scene, camera); });
+  for (const q of dm) scene.remove(q);
   muzzleLight.visible = true; boomLight.visible = true; renderer.render(scene, camera);                 // sube buffers y compila los shaders de sombra
   st.forEach(v => { v[0].visible = v[1]; v[0].frustumCulled = v[2]; }); muzzleLight.visible = mv; boomLight.visible = bv;
   for (const g of extra) scene.remove(g);
