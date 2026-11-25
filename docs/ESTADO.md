@@ -1,5 +1,7 @@
 # Estado — v0.3.9
 
+- Cámara horizontal: quitado el campo ampliado ×1,05 (fov 47,3 → 45, igual que escritorio). Personaje 8,1 % → 8,5 % de la altura. Solo automático. La vertical (×1,4) no cambia.
+
 - v0.3.9: selector de mapa en el menú de Options (pausa el juego). Probado solo en automático (cambio 1↔2↔3, recarga desde 3, navegación con mando simulado); sin probar en iPhone con DualSense.
 
 ## Estado al cierre del 25-11-2026 (v0.3.8)

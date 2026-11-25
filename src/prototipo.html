@@ -2198,7 +2198,7 @@ function update(dt) {
   const zf = 1 - .05 * P.ads;
   camera.position.set(camLook.x + (Math.random() - .5) * P.shake, 13 * zf + (Math.random() - .5) * P.shake, camLook.z + 8.5 * zf + (Math.random() - .5) * P.shake);
   camera.lookAt(camLook.x, 0, camLook.z);
-  const asp = innerWidth / innerHeight, shortL = asp > 1 && innerHeight < 520, fov = Math.min(85, (45 + P.slide * 4 + speed * .25) * (asp < 1 ? 1.4 : shortL ? 1.05 : 1));   // móvil apaisado: más campo para ver rivales arriba y abajo
+  const asp = innerWidth / innerHeight, fov = Math.min(85, (45 + P.slide * 4 + speed * .25) * (asp < 1 ? 1.4 : 1));   // vertical: más campo; horizontal (móvil o escritorio): sin ampliar
   if (Math.abs(fov - camera.fov) > .01) { camera.fov = fov; camera.updateProjectionMatrix(); }
   sun.target.position.set(P.pos.x, 0, P.pos.z); sun.position.set(P.pos.x - 8, 16, P.pos.z + 6);
 
