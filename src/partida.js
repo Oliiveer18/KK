@@ -243,7 +243,7 @@ function initBot(e) {
   e.R = { pelvis: mkm(geoBox, T.body, .32, .18, .2), torso: mkm(geoBox, T.body, .42, .5, .25), head: mkm(geoBall, T.limb, .13, .13, .13), visor: mkm(geoBox, T.acc, .17, .05, .1),
     thigh: pair(() => mkm(geoCyl, T.limb, .07, 1, .07)), shin: pair(() => mkm(geoCyl, T.limb, .06, 1, .06)), knee: pair(() => mkm(geoBall, T.limb, .07, .07, .07)), foot: pair(() => mkm(geoBox, T.acc, .12, .07, .27)),
     upper: pair(() => mkm(geoCyl, T.limb, .055, 1, .055)), fore: pair(() => mkm(geoCyl, T.limb, .05, 1, .05)), hand: pair(() => mkm(geoBall, T.acc, .06, .06, .06)), shoulder: pair(() => mkm(geoBall, T.body, .08, .08, .08)) };
-  dress(e.R, e.team);
+  dress(e.R, e.team, { skin: (e.id.charCodeAt(1) + e.team * 2) % 4 });
   e.bar = mkBar(60, 4); e.bar.el.style.display = 'none'; e.ring = new THREE.Mesh(RING_G, RING[e.team]); e.ring.rotation.x = -Math.PI / 2; e.ring.visible = false; scene.add(e.ring);
   e.flash = new THREE.Mesh(flashMesh.geometry, flashMesh.material); e.flash.visible = false; scene.add(e.flash);
   Object.assign(e, { gun: null, w: WP[0], wi: 0, ammo: 0, reloadT: -1, rp: 0, fireCd: 0, pause: 0, burst: 0, spread: 0, kick: 0, flashT: 0, gCount: 3, sCount: 2, gReg: 0, sReg: 0, gCd: rr(5, 12), sCd: 8, wantThrow: null, throwT: 0,
@@ -306,6 +306,38 @@ function bake(e, dx, dz) {                                                      
   const l = Math.hypot(dx, dz) || 1; e.fallAx.set(dz / l, 0, -dx / l); e.deadT = 0;
 }
 function unbake(e) { e.root.position.set(0, 0, 0); e.root.quaternion.identity(); }
+/* ---- abatido y reanimación (solo aspecto: sin reglas de juego todavía; lo activan MX.setDowned / MX.reviveFx) ----
+   Abatido = cae al suelo con el mismo giro que la baja, pero sigue ahí con un marcador (anillo ámbar que late + cruz flotante). Al reanimarle, un anillo de progreso y el cuerpo se incorpora. */
+const DWN_RING = new THREE.RingGeometry(.62, .78, 40), DWN_AMB = new THREE.MeshBasicMaterial({ color: 0xffb020, transparent: true, opacity: .8, side: THREE.DoubleSide, depthWrite: false }),
+  DWN_WHT = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .95, depthWrite: false }), DWN_RED = new THREE.MeshBasicMaterial({ color: 0xff4a38, transparent: true, opacity: .95, depthWrite: false }),
+  DWN_GRN = new THREE.MeshBasicMaterial({ color: 0x6dff9a, transparent: true, opacity: .9, side: THREE.DoubleSide, depthWrite: false });
+MX.setDowned = (e, on, dx, dz) => {
+  if (on === !!e.dwn || e.dead) return;
+  if (on) {
+    e.dwn = true; e.dwT = 0; bake(e, dx === undefined ? Math.sin(e.yaw) : dx, dz === undefined ? Math.cos(e.yaw) : dz);
+    const g = new THREE.Group(), ring = new THREE.Mesh(DWN_RING, DWN_AMB.clone()); ring.rotation.x = -Math.PI / 2; ring.position.y = .035; g.add(ring);
+    const cr = new THREE.Group(), pl = new THREE.Mesh(geoBox, DWN_WHT); pl.scale.set(.46, .46, .04); cr.add(pl);                    // placa blanca con cruz roja, inclinada hacia la cámara
+    for (const [w, h] of [[.36, .1], [.1, .36]]) { const m = new THREE.Mesh(geoBox, DWN_RED); m.scale.set(w, h, .03); m.position.z = .03; cr.add(m); }
+    cr.rotation.x = -.99; cr.position.y = 1.5; g.add(cr);
+    g.position.set(e.p.x, 0, e.p.z); scene.add(g); e.dwnFx = { g, ring, cr, prog: null, pm: null };
+  } else {
+    e.dwn = false; unbake(e); if (e.dwnFx) { scene.remove(e.dwnFx.g); e.dwnFx = null; }
+  }
+};
+MX.reviveFx = (e, p) => {                                                           // progreso de reanimación 0..1 (null = sin rescate)
+  const f = e.dwnFx; if (!f) return;
+  if (p === null || p === undefined) { if (f.pm) { f.g.remove(f.pm); f.pm = null; } f.prog = null; return; }
+  if (f.pm === null || f.prog === null || Math.abs(p - f.prog) > .015) {
+    if (f.pm) { f.g.remove(f.pm); f.pm.geometry.dispose(); }
+    f.pm = new THREE.Mesh(new THREE.RingGeometry(.82, .98, 40, 1, Math.PI / 2, -Math.PI * 2 * clamp(p, .001, 1)), DWN_GRN); f.pm.rotation.x = -Math.PI / 2; f.pm.position.y = .04; f.g.add(f.pm); f.prog = p;
+  }
+};
+function dwnTick(e, dt) {
+  e.dwT += dt; const k = smooth(e.dwT / .5); e.root.quaternion.setFromAxisAngle(e.fallAx, k * 1.3);
+  const f = e.dwnFx; if (!f) return;
+  f.g.position.set(e.p.x - e.fallAx.z * .9, 0, e.p.z + e.fallAx.x * .9); f.ring.material.opacity = .45 + .4 * (.5 + .5 * Math.sin(M.t * 5)); f.ring.scale.setScalar(1 + .06 * Math.sin(M.t * 5));
+  f.cr.position.y = 1.45 + .08 * Math.sin(M.t * 3);
+}
 
 /* ============================ IA DE LOS BOTS ============================ */
 function perceive(e) {
@@ -718,6 +750,8 @@ MX.update = dt => {
     if (e.dead) {
       e.respT -= dt; e.deadT += dt; const k = smooth(e.deadT / .55); e.root.quaternion.setFromAxisAngle(e.fallAx, k * 1.45); e.root.position.y = -smooth((e.deadT - 2.3) / .7) * .6;
       if (e.respT <= 0 && !M.over) respawn(e);
+    } else if (e.dwn) {
+      dwnTick(e, dt); e.v.set(0, 0, 0); e.ring.visible = false; e.flash.visible = false;                  // abatido: no actúa, queda tumbado con su marcador
     } else {
       if (!M.over) botTick(e, dt); else { e.v.set(0, 0, 0); e.fireCd -= dt; }
       e.ring.position.set(e.p.x, .03, e.p.z); e.ring.visible = true; e.ring.material = e.inv > 0 && Math.floor(M.t * 14) % 2 ? RING[e.team] : RING[e.team];
@@ -725,7 +759,7 @@ MX.update = dt => {
     }
     const near = Math.hypot(e.p.x - P.pos.x, e.p.z - P.pos.z) < 42, hid = e.team !== 0 && hiddenBySmoke(e.p.x, e.p.z);
     e.root.visible = near && !hid && (!e.dead || e.root.position.y > -.55); e.ring.visible = e.ring.visible && near && !hid;
-    if (!e.dead && e.root.visible) poseBot(e, dt);
+    if (!e.dead && !e.dwn && e.root.visible) poseBot(e, dt);
     if (!e.dead && e.root.visible && M.t - (e.bShow || -99) < 4) {                  // barra sobre la cabeza: solo tras recibir daño
       drawBar(e.bar, e, dt); _kp.set(e.p.x, 2.3 - e.crouch * .25, e.p.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight);
     } else e.bar.el.style.display = 'none';
