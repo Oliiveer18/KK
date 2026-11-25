@@ -61,3 +61,13 @@ Medición hecha el mismo día en el mapa 4 actual con `?mapa=4&bots=N` (parámet
 | 100 (25) | 3,9 ms | 2.210 | 157 k |
 
 Lectura: la **lógica** (IA, navegación) aguanta 100; el límite es el **dibujo**: cada combatiente cuesta ~22 llamadas, y 2.210 en pantalla son demasiadas para un iPhone. En una partida real nunca se ven los 100 a la vez (la cámara abarca ~40 × 25 m de un kilómetro), pero hay que garantizarlo con: (1) solo se dibujan y animan los combatientes de los sectores cercanos a la cámara; (2) versión simplificada del personaje (pocas mallas) a media distancia; (3) simulación abstracta (grupos con posición, recuento y destino) en los sectores lejanos; (4) límite de combatientes en detalle completo a la vez (~30) y ruido/IA reducidos fuera de la vista. Esto entra en M2 y en la medición en iPhone.
+
+## 6. Propuesta de trazado más natural (26-11, boceto; sustituye la cruz de §2 si el usuario la aprueba)
+Imagen: `docs/img/mapa_propuesta_1km.png` (generada con `tools/boceto_mapa.py`; es un boceto 2D, no el mapa del juego). Principios:
+- Sin rejilla global: avenidas curvas que se adaptan a un río con meandros y a una colina; cada barrio con su propia orientación de calles (casco antiguo ~24°, residenciales ~−30°, industria ~−10°).
+- Jerarquía vial: dos arterias con línea central (Avenida Mayor y Calle Central) que se unen en una plaza triangular, carreteras que llegan a cada refugio, calles locales irregulares y callejones.
+- Naturaleza: río (puentes limitan los cruces), parque con lago, bosques en los bordes, campos de cultivo girados en el sureste.
+- Refugios fuera de las esquinas exactas: colina residencial (azul), antigua fábrica (rojo), colegio y viviendas (ámbar), granjas y silos (violeta).
+- Ferrocarril curvo con estación y naves de carga; supermercado con aparcamiento, gasolinera en el cruce, clínica, iglesia.
+- Tamaños de manzana y edificio variados; casas con jardín en barrios, bloques pegados en el casco antiguo, naves grandes en la industria.
+Pendiente de aprobar. Implementarlo exige que `mapa.js` admita calles curvas (polilíneas/splines) y no sólo tramos rectos; es parte de M2.
