@@ -300,6 +300,13 @@
   "fade": 0.05,
   "peak": -1.0
  },
+ "HIT_kill": {
+  "src": "originales/HIT_kill.wav",
+  "inicio": 0.015,
+  "trim": 0.3,
+  "fade": 0.06,
+  "peak": -1.0
+ },
  "BRK_crate": {
   "src": "originales/BRK_crate.wav",
   "trim": 0.85,

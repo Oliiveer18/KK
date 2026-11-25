@@ -518,14 +518,14 @@ function regen(e, dt) {                                                         
 }
 MX.hit = (e, dmg, from, dx, dz, w) => {
   if (e.dead || e.inv > 0 || M.over || dmg <= 0) return;
-  if (w && from && from.isPlayer && !e.isPlayer && e.team !== from.team) playSnd('HIT_marker', { vol: 1 });   // «hit» de confirmación: solo cuando una bala del jugador entra en un rival (sin muestra = silencio)
+  const hm = !!(w && from && from.isPlayer && !e.isPlayer && e.team !== from.team);   // «hit» de confirmación: solo cuando una bala del jugador entra en un rival
   const tot = dmg; let rest = dmg;
   if (e.sh > 0) { const a = Math.min(e.sh, rest); e.sh -= a; rest -= a; e.bS.flash = 1; }                  // el escudo absorbe primero; el sobrante pasa a la vida en el mismo golpe
   if (rest > 0) { e.hp -= rest; e.bH.flash = 1; }
   e.tgp.hp = e.hp; e.lastHurt = M.t; e.bShow = M.t;
   if (from && (from.isPlayer || e.isPlayer)) popNum(e, tot); if (from) { e.lastAtt = from; e.lastAttT = M.t; }
   if (e.isPlayer) { M.hurt = Math.min(1, M.hurt + dmg / 45); P.shake = Math.max(P.shake, .06 + Math.min(.14, dmg * .004)); rumble(70, .55, .4); }
-  if (e.hp <= 0) kill(e, from, dx, dz);
+  if (e.hp <= 0) kill(e, from, dx, dz); else if (hm) playSnd('HIT_marker', { vol: 1 });   // si la bala mata, suena solo el sonido de baja (HIT_kill)
 };
 function kill(v, killer, dx, dz) {
   if (!killer && v.lastAtt && M.t - v.lastAttT < 8 && v.lastAtt.team !== v.team) killer = v.lastAtt;     // fuego o explosión sin autor claro: cuenta quien le hirió hace poco
