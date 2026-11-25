@@ -1,5 +1,7 @@
 # Estado — v0.3.9
 
+- Sonidos en bucle (humo, fuego, fugas): con el menú abierto (pausa) seguían sonando; ahora se apagan con fundido y vuelven al cerrar. Test nuevo `tests/sonidos_bucles.py` (sin bucles huérfanos tras 2,5 min de partida con bots). Solo automático; sin probar a oído.
+
 - 25-11: dos despliegues de Pages fallaron con error 500 de GitHub y el reintento se quedó en cola; se forzó un despliegue nuevo con este commit de docs.
 
 - Cámara horizontal: quitado el campo ampliado ×1,05 (fov 47,3 → 45, igual que escritorio). Personaje 8,1 % → 8,5 % de la altura. Solo automático. La vertical (×1,4) no cambia.

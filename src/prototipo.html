@@ -2219,7 +2219,7 @@ let last = performance.now(), fAcc = 0, fN = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - last) / 1000, .05); last = now; if (dt <= 0) return;
-  try { const _a = performance.now(); time += dt; if (menuOpen) menuTick(); else update(dt); const _b = performance.now(); lightsSync(); diagGpuBegin(); renderer.render(scene, camera); diagGpuEnd(); const _c = performance.now(); DIAG.u += _b - _a; DIAG.r += _c - _b; DIAG.n++; }
+  try { const _a = performance.now(); time += dt; if (menuOpen) { menuTick(); loopTick(dt); } else update(dt); /* en pausa los bucles se apagan con fundido */ const _b = performance.now(); lightsSync(); diagGpuBegin(); renderer.render(scene, camera); diagGpuEnd(); const _c = performance.now(); DIAG.u += _b - _a; DIAG.r += _c - _b; DIAG.n++; }
   catch (e) { const el = $('err'); el.style.display = 'block'; el.textContent = 'Error en el juego: ' + e.message + '\n' + String(e.stack || '').split('\n').slice(0, 3).join('\n'); }
   fAcc += dt; fN++; if (fAcc > .5) { const fps = Math.round(fN / fAcc); $('fps').textContent = fps + ' FPS' + (DIAG.on && DIAG.n ? ' · lógica ' + (DIAG.u / DIAG.n).toFixed(1) + ' ms · dibujo(CPU) ' + (DIAG.r / DIAG.n).toFixed(1) + ' ms · GPU ' + (DIAG.ext ? (DIAG.gn ? (DIAG.g / DIAG.gn).toFixed(1) + ' ms' : '…') : 'n/d') + ' · ' + renderer.info.render.calls + ' llamadas · ' + Math.round(renderer.info.render.triangles / 1000) + 'k tri · ' + renderer.domElement.width + '×' + renderer.domElement.height : ''); DIAG.u = DIAG.r = DIAG.n = DIAG.g = DIAG.gn = 0; $('fps').style.color = fps >= 55 ? '#6dff9a' : fps >= 30 ? '#ffd24a' : '#ff6a4a'; fAcc = 0; fN = 0; }
 }
