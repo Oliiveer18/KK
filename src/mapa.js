@@ -32,6 +32,22 @@ function pathPts(pts, step) {
   return out;
 }
 MAPA.pathPts = pathPts;
+/* colocar cualquier objeto del proyecto por su nombre: los 68 tipos de objetos.js y edificios (placeObject) y los 8 de siempre (cajas, vallas de madera, barreras de plástico,
+   barriles, sacos, bloques), que placeObject no conoce y se crean con addProp. Devuelve el prop/edificio o null. */
+const snapG = g => Math.round((g || 0) / (Math.PI / 2)) * (Math.PI / 2);
+MAPA.put = function (t, x, z, g, o) {
+  if (typeof PSPEC !== 'undefined' && PSPEC[t] && !(OBJ.types.indexOf(t) >= 0)) return addProp(t, x, z, snapG(g));
+  return placeObject(t, x, z, g || 0, o);
+};
+/* medidas (semianchos hx, hz con el giro ya aplicado) de cualquier tipo, para colocar sin solapes */
+const FPC = {};
+MAPA.fp = function (t, g) {
+  const k = t + '|' + (Math.abs(Math.sin(g || 0)) > .5 ? 1 : 0); if (FPC[k]) return FPC[k];
+  let f = null;
+  if (typeof PSPEC !== 'undefined' && PSPEC[t] && !(OBJ.types.indexOf(t) >= 0)) { const p = addProp(t, 1e4, 1e4, snapG(g)); f = { hx: p.hx, hz: p.hz, h: p.h }; OBJ.removeObject(p); }
+  else { const q = OBJ.footprint(t, snapG(g), {}); if (q) f = { hx: q.hx, hz: q.hz, h: q.h || 0 }; }
+  return FPC[k] = f;
+};
 function flush(group, buckets) {                                                      // una malla por material (en trozos de ≤1500 cajas para no pasar de 65k vértices)
   for (const c in buckets) { const L = buckets[c]; for (let i = 0; i < L.length; i += 1500) { const m = new THREE.Mesh(mergeParts(L.slice(i, i + 1500).map(b => ({ geo: geoBox, m: b.m }))), mat(+c)); m.receiveShadow = true; m.castShadow = false; group.add(m); } }
 }
@@ -105,7 +121,7 @@ MAPA.build = function (D) {
   flush(group, B);
   for (const r of D.rails || []) out.rails.push(OBJ.rails(r.x, r.z, r.len, r.ry || 0));
   for (const b of D.buildings || []) { const r = placeObject(b.k, b.x, b.z, b.rot || 0, { fac: b.fac }); if (r) out.buildings.push(r); }
-  for (const o of D.objects || []) { const r = placeObject(o.t, o.x, o.z, o.g || 0, o.o); if (r) out.props.push(r); }
+  for (const o of D.objects || []) { const r = MAPA.put(o.t, o.x, o.z, o.g || 0, o.o); if (r) out.props.push(r); }
   MAPA.built = out; return out;
 };
 MAPA.clear = function () {
