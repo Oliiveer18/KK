@@ -3,7 +3,7 @@
  "short_name": "Shooter",
  "start_url": "./",
  "scope": "./",
- "display": "fullscreen",
+ "display": "browser",
  "orientation": "any",
  "background_color": "#0c1018",
  "theme_color": "#0c1018",
