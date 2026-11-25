@@ -21,7 +21,12 @@ COMP.put = put;
 /* reserva la huella de algo ya colocado (edificios, calles de rejilla no: sólo objetos sólidos) */
 COMP.reserve = (D, x, z, hx, hz, t) => occOf(D).push({ x, z, hx, hz, t: t || 'reserva' });
 /* convierte una calle (curva o de rejilla) en puntos remuestreados cada 1 m con tangente */
-function roadPts(r) { const pts = r.pts || (r.axis === 'x' ? [[r.a0, r.c], [r.a1, r.c]] : [[r.c, r.a0], [r.c, r.a1]]); return MAPA.pathPts(pts, 1); }
+function roadPts(r) { if (r._p1) return r._p1; const pts = r.pts || (r.axis === 'x' ? [[r.a0, r.c], [r.a1, r.c]] : [[r.c, r.a0], [r.c, r.a1]]); return r._p1 = MAPA.pathPts(pts, 1); }
+COMP.roadPts = roadPts;
+/* punto de la calle más cercano a (x,z): { s (índice en metros), q (punto con tangente), d (distancia) } */
+COMP.nearest = function (r, x, z) { const P = roadPts(r); let bi = 0, bd = 1e9; for (let i = 0; i < P.length; i++) { const d = (P[i].x - x) * (P[i].x - x) + (P[i].z - z) * (P[i].z - z); if (d < bd) { bd = d; bi = i; } } return { s: bi, q: P[bi], d: Math.sqrt(bd) }; };
+/* la calle (de D.roads) más cercana a un punto */
+COMP.roadNear = function (D, x, z, maxD) { let b = null; for (const r of D.roads) { if (!r.pts) continue; const n = COMP.nearest(r, x, z); if (n.d <= (maxD || 60) && (!b || n.d < b.d)) b = Object.assign({ road: r }, n); } return b; };
 const yawAlong = (dx, dz) => Math.abs(dx) >= Math.abs(dz) ? 0 : PI2;
 
 /* atasco: coches abandonados a lo largo de una calle (carril aleatorio, algunos cruzados), con restos en el bordillo */
@@ -91,6 +96,54 @@ COMP.storefront = function (D, o) {
   { const [x, z] = front(1.2, -(Math.abs(fx) > .5 ? f.hz : f.hx) - 2); if (put(D, 'dumpster', x, z, rot)) n++; }
   { const [x, z] = front(1.1, (Math.abs(fx) > .5 ? f.hz : f.hx) * .5); if (put(D, 'bench', x, z, rot)) n++; }
   for (let i = 0; i < 2; i++) { const [x, z] = front(2.2 + i * 1.2, 2 + i); if (R() < .8 && put(D, 'cart', x, z, R() * 3)) n++; }
+  return n;
+};
+/* edificio suelto con huella reservada (reserve:false para marquesinas que dejan colocar cosas debajo) */
+COMP.building = function (D, o) {
+  const rot = snap(o.rot || 0), f = OBJ.footprint(o.kind, rot, {}); if (!f) return false; const occ = occOf(D), pad = o.pad === undefined ? 1 : o.pad;
+  if (Math.abs(o.x) + f.hx > D.half - 2 || Math.abs(o.z) + f.hz > D.half - 2) return false;
+  for (const b of occ) if (Math.abs(b.x - o.x) < b.hx + f.hx + pad && Math.abs(b.z - o.z) < b.hz + f.hz + pad) return false;
+  if (D.RI) for (const [px, pz] of [[0, 0], [1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]]) if (D.RI.gap(o.x + px * f.hx, o.z + pz * f.hz) < (o.clear === undefined ? 3.6 : o.clear)) return false;   // fuera del asfalto y de la acera
+  (D.buildings || (D.buildings = [])).push({ k: o.kind, x: o.x, z: o.z, rot, fac: o.fac }); if (o.reserve !== false) COMP.reserve(D, o.x, o.z, f.hx, f.hz, 'edif:' + o.kind); COMP.used.add(o.kind); return { x: o.x, z: o.z, rot, f };
+};
+/* edificio frente a una calle: junto al punto más cercano a `at`, del lado `side` (±1), con la puerta mirando a la calle; si choca se aleja hasta 14 m */
+COMP.frontage = function (D, o) {
+  const near = COMP.roadNear(D, o.at[0], o.at[1], 80); if (!near) return false; const r = near.road, q = near.q, side = o.side || 1;
+  const nx = -q.dz * side, nz = q.dx * side, face = Math.atan2(-nx, -nz), rot = snap(face), f = OBJ.footprint(o.kind, rot, {}); if (!f) return false;
+  const depth = Math.abs(Math.sin(rot)) > .5 ? f.hx : f.hz;
+  for (let extra = 0; extra <= 14; extra += 2) for (const sl of [0, 8, -8, 16, -16]) {
+    const off = r.w / 2 + 3.2 + 1.2 + depth + extra, px = q.x + nx * off + q.dx * sl, pz = q.z + nz * off + q.dz * sl, b = COMP.building(D, { kind: o.kind, x: px, z: pz, rot, fac: o.fac, pad: o.pad });
+    if (b) return Object.assign(b, { road: r, nx, nz, off });
+  }
+  return false;
+};
+/* corte de calle en el punto de la calle más cercano a (x,z): barricada o puesto de control atravesado a la calle (portón abierto para no cerrar rutas) */
+COMP.cut = function (D, o) {
+  const near = COMP.roadNear(D, o.x, o.z, o.maxD || 45); if (!near) return 0; const q = near.q, r = near.road, axis = Math.abs(q.dx) >= Math.abs(q.dz) ? 'z' : 'x';
+  const args = { x: q.x, z: q.z, axis, len: Math.ceil((r.w + 7) / 2) * 2, level: o.level || 1, seed: o.seed, gateOpen: o.open !== false, fac: o.fac, side: o.side };
+  let n = o.kind === 'barricade' ? COMP.barricade(D, args) : COMP.checkpoint(D, args);
+  if (o.jam) n += COMP.jam(D, { road: r, s0: Math.max(0, near.s - o.jam), s1: Math.max(0, near.s - 8), seed: o.seed + 50 });
+  return n;
+};
+/* pasarela elevada con una escalera en cada extremo (obstáculo sólido y cobertura alta) */
+COMP.footbridge = function (D, o) {
+  const X = (o.axis || 'x') === 'x', g = X ? 0 : PI2, c = MAPA.fp('catwalk', g), st = MAPA.fp('stairs', g); let n = put(D, 'catwalk', o.x, o.z, g, null, 0) ? 1 : 0; if (!n) return 0;
+  const ext = (X ? c.hx : c.hz) + (X ? st.hx : st.hz) + .05;
+  for (const sg of [-1, 1]) if (put(D, 'stairs', o.x + (X ? sg * ext : 0), o.z + (X ? 0 : sg * ext), g + (sg > 0 ? 0 : Math.PI), null, 0)) n++;
+  return n;
+};
+/* equipamiento del refugio provisional: almacén (materiales, munición, médico), armería, camillas, tablón, focos, sacos y cajas; deja libre la franja de aparición junto al portón */
+COMP.refugeKit = function (D, o) {
+  const R = rngOf(o.seed), dir = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] }[o.face], f = dir, sd = [-f[1], f[0]], hw = (f[0] ? o.w : o.d) / 2, hs = (f[0] ? o.d : o.w) / 2; let n = 0;
+  const at = (a, b) => [o.x + f[0] * a + sd[0] * b, o.z + f[1] * a + sd[1] * b], gz = f[0] ? 0 : PI2, gx = f[0] ? PI2 : 0;
+  const P = (t, a, b, g, op) => { const [x, z] = at(a, b); if (put(D, t, x, z, g === undefined ? 0 : g, op, .2)) n++; };
+  P('storeMat', -hw + 3.5, -11, gx + Math.PI); P('storeAmmo', -hw + 3.5, 0, gx + Math.PI); P('storeMed', -hw + 3.5, 11, gx + Math.PI);
+  P('rack', -hw + 12, -hs + 4, 0); P('rack', -hw + 12, hs - 4, 0);
+  for (const b of [-7, -4, 4, 7]) P('cot', -4, b, gz);
+  P('board', hw - 16, hs - 3, gz); P('gateInner', hw - 14.5, 0, f[0] ? PI2 : 0, { abierto: true });
+  for (const [a, b] of [[hw - 3, hs - 3], [hw - 3, -hs + 3], [-hw + 3, hs - 3], [-hw + 3, -hs + 3]]) P('floodlight', a, b, 0);
+  for (const b of [-5.5, 5.5]) P('sandbags', hw - 2.2, b, gz);
+  P('crate', -hw + 8, 4, 0); P('crateS', -hw + 8, -3, 0); P('barrel', hw - 18, -hs + 3, 0); P('barrelFuel', hw - 18, -hs + 5, 0);
   return n;
 };
 /* campamento / mercado improvisado: puestos, carros, cajas, palés y un barril */

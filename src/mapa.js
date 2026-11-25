@@ -32,6 +32,17 @@ function pathPts(pts, step) {
   return out;
 }
 MAPA.pathPts = pathPts;
+/* índice espacial de calles curvas (celdas de 12 m): near(x,z,m,excluir) dice si el punto está sobre el asfalto de alguna calle (±m); gap(x,z) da la distancia al borde del asfalto más cercano */
+MAPA.roadIndex = function (roads) {
+  const H = new Map(), CS = 12, key = (i, j) => i * 100003 + j;
+  for (const r of roads) { if (!r.pts) continue; r.idx = r.idx || pathPts(r.pts, 2); for (const q of r.idx) { const k = key(Math.floor(q.x / CS), Math.floor(q.z / CS)); let a = H.get(k); if (!a) H.set(k, a = []); a.push({ x: q.x, z: q.z, hw: r.w / 2, r }); } }
+  const each = (x, z, f) => { const ci = Math.floor(x / CS), cj = Math.floor(z / CS); for (let i = ci - 1; i <= ci + 1; i++) for (let j = cj - 1; j <= cj + 1; j++) { const a = H.get(key(i, j)); if (a) for (const q of a) { const r = f(q); if (r) return r; } } return null; };
+  return {
+    near: (x, z, m, ex) => !!each(x, z, q => q.r !== ex && (q.x - x) * (q.x - x) + (q.z - z) * (q.z - z) < (q.hw + m) * (q.hw + m)),
+    gap: (x, z) => { let g = 1e9; each(x, z, q => { const d = Math.hypot(q.x - x, q.z - z) - q.hw; if (d < g) g = d; return null; }); return g; },
+    nearest: (x, z) => { let b = null, bd = 1e9; each(x, z, q => { const d = Math.hypot(q.x - x, q.z - z); if (d < bd) { bd = d; b = q; } return null; }); return b ? { road: b.r, x: b.x, z: b.z, d: bd } : null; }
+  };
+};
 /* colocar cualquier objeto del proyecto por su nombre: los 68 tipos de objetos.js y edificios (placeObject) y los 8 de siempre (cajas, vallas de madera, barreras de plástico,
    barriles, sacos, bloques), que placeObject no conoce y se crean con addProp. Devuelve el prop/edificio o null. */
 const snapG = g => Math.round((g || 0) / (Math.PI / 2)) * (Math.PI / 2);
@@ -59,8 +70,8 @@ MAPA.build = function (D) {
   for (const s of D.surfaces || []) rect(s.t, s.x, s.z, s.w, s.d);
   /* calles: asfalto, aceras a ambos lados, marcas centrales y de borde, pasos de cebra; se cortan donde se cruzan */
   const allRoads = D.roads || [], roads = allRoads.filter(r => !r.pts), curves = allRoads.filter(r => r.pts), SW = 3.2;
-  for (const c of curves) c.dense = pathPts(c.pts, 2);
-  const onCurve = (x, z, ex, m) => { for (const c of curves) { if (c === ex) continue; const R = c.w / 2 + m; for (const q of c.dense) if ((q.x - x) * (q.x - x) + (q.z - z) * (q.z - z) < R * R) return true; } return false; };
+  for (const c of curves) c.dense = pathPts(c.pts, c.step || 2);
+  const RI = MAPA.roadIndex(curves), onCurve = (x, z, ex, m) => RI.near(x, z, m, ex);
   const onGrid = (x, z, m) => { for (const o of roads) { const X = o.axis === 'x', a = X ? x : z, b = X ? z : x; if (a >= o.a0 - m && a <= o.a1 + m && Math.abs(b - o.c) < o.w / 2 + m) return true; } return false; };
   const crossings = r => roads.filter(o => o !== r && o.axis !== r.axis && o.c >= r.a0 && o.c <= r.a1 && r.c >= o.a0 && r.c <= o.a1);
   for (const r of roads) {
@@ -95,7 +106,7 @@ MAPA.build = function (D) {
       }
       if (cut(mx, mz)) continue;
       if (c.w >= 10) for (const sg of [-1, 1]) (B[MARK.yellow] = B[MARK.yellow] || []).push(mkBoxR(mx + nx * sg * .22, .0145, mz + nz * sg * .22, L, .006, .14, yaw));
-      else if (i % 4 < 2) (B[MARK.white] = B[MARK.white] || []).push(mkBoxR(mx, .0145, mz, L, .006, .16, yaw));
+      else if (Math.floor(i * (c.step || 2) / 6) % 2 === 0) (B[MARK.white] = B[MARK.white] || []).push(mkBoxR(mx, .0145, mz, L, .006, .16, yaw));
     }
   }
   for (const k of D.lots || []) {                                                       // aparcamientos: hormigón con plazas marcadas

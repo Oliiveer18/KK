@@ -52,7 +52,7 @@ function buildDistrict() {                                                      
   for (const p of props.slice()) { scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); }
   props.length = 0; for (const tg of targets) scene.remove(tg.g); targets.length = 0;
   grid.visible = false;                                                             // la cuadrícula de referencia de la arena no se usa en el distrito
-  const D = MAPA.build(MAPA.data.M1());
+  const D = MAPA.build(MAPA.data[MX.dataId || 'M1']());
   WORLD.x = WORLD.z = D.half - .6; border.scale.set(WORLD.x / 40, 1, WORLD.z / 40); ground.scale.set(Math.max(1, (D.half * 2 + 20) / 120), Math.max(1, (D.half * 2 + 20) / 120), 1);
   for (const w of D.walls) M.walls.push(w);
   for (let tm = 0; tm < 4; tm++) M.spawn[tm] = D.spawns[tm].map(s => ({ x: s.x, z: s.z, yaw: s.yaw }));
@@ -184,9 +184,10 @@ function lineFree(a, b) {
 function findPath(sx, sz, gx, gz) {
   const s = nearestFree(cellOf(sx, sz)), g = nearestFree(cellOf(gx, gz)); if (s < 0 || g < 0) return null;
   const W_ = NV.w, gcx = g % W_, gcz = (g / W_) | 0;
-  AS.st.fill(0); AS.hf.length = 0; AS.hi.length = 0; AS.g[s] = 0; AS.st[s] = 1; AS.par[s] = -1; hpush(0, s); let found = false;
+  AS.st.fill(0); AS.hf.length = 0; AS.hi.length = 0; AS.g[s] = 0; AS.st[s] = 1; AS.par[s] = -1; hpush(0, s); let found = false, expanded = 0, best = s, bestH = 1e9, goalC = g;   // tope de nodos: en un mapa de 1 km² una ruta larga no puede congelar el juego
   while (AS.hi.length) {
     const c = hpop(); if (AS.st[c] === 2) continue; AS.st[c] = 2; if (c === g) { found = true; break; }
+    { const hx = Math.abs(c % W_ - gcx), hz = Math.abs(((c / W_) | 0) - gcz), hh = Math.max(hx, hz) + .414 * Math.min(hx, hz); if (hh < bestH) { bestH = hh; best = c; } if (++expanded > 22000) { goalC = best; found = true; break; } }
     const cx = c % W_, cz = (c / W_) | 0;
     for (let k = 0; k < 8; k++) {
       const nx = cx + DX8[k], nz = cz + DZ8[k]; if (nx < 0 || nz < 0 || nx >= W_ || nz >= NV.h) continue;
@@ -197,8 +198,8 @@ function findPath(sx, sz, gx, gz) {
     }
   }
   if (!found) return null;
-  const pts = []; for (let c = g; c !== -1; c = AS.par[c]) pts.push({ x: NV.ox + (c % W_ + .5) * NV.cs, z: NV.oz + (((c / W_) | 0) + .5) * NV.cs });
-  pts.reverse(); pts[0] = { x: sx, z: sz }; if (navAt(gx, gz)) pts[pts.length - 1] = { x: gx, z: gz };
+  const pts = []; for (let c = goalC; c !== -1; c = AS.par[c]) pts.push({ x: NV.ox + (c % W_ + .5) * NV.cs, z: NV.oz + (((c / W_) | 0) + .5) * NV.cs });
+  pts.reverse(); pts[0] = { x: sx, z: sz }; if (goalC === g && navAt(gx, gz)) pts[pts.length - 1] = { x: gx, z: gz };
   const out = []; let i = 0;                                                         // se alisa el camino: se salta a la waypoint más lejana con línea libre
   while (i < pts.length - 1) { let j = pts.length - 1; while (j > i + 1 && !lineFree(pts[i], pts[j])) j--; out.push(pts[j]); i = j; }
   return out.length ? out : [{ x: gx, z: gz }];

@@ -85,9 +85,9 @@ Imagen: `docs/img/mapa_propuesta_1km.png` (con la leyenda táctica).
 ## 7. Lo que queda para terminar el mapa de 1 km² (26-11, estado real)
 Hecho: motor de mapa por datos, calles curvas, composiciones, `MAPA.put`/`MAPA.fp` (los 76 tipos), objetos y edificios (otra sesión), navegación reactiva a `OBJ.on`, zombis con rodeo de obstáculos, precalentado de shaders, boceto aprobado (v3). Mapa 5 sigue siendo M1 (250×250, rejilla recta, 31/76 tipos).
 **A. Montar el distrito (M2→M3)**
-1. Datos del trazado del boceto (calles curvas, manzanas, plaza, parque, vía, bosques, campos) en sectores de 250×250: 16 sectores.
-2. Colocar con composiciones: atascos, 12+ barricadas y cortes, puestos de control, torres, mobiliario, restos, 8 objetivos, nidos de zombis y horda.
-3. Edificios: los 11 tipos (hoy 3) colocados con sus aparcamientos y entornos; casas y viviendas (varias decenas).
+1. ✅ (26-11, `?mapa=6`) Datos del trazado del boceto (calles curvas, manzanas, plaza, vía) en 1 km². Faltan parque con lago, bosques y campos como superficies.
+2. ✅ Composiciones colocadas: atascos, 12 cortes, 8 puestos de control, 8 torres, mobiliario, restos, 8 objetivos y 8 nidos (76/76 tipos).
+3. ✅ Edificios: los 11 tipos colocados con aparcamiento y entorno; 56 casas (más casas exigen B9).
 4. Recogibles (13 tipos) repartidos por nivel.
 5. Ambientación apocalíptica: niebla y luz, coches quemados, humo e incendios, cráter, helicóptero, puesto militar, valla de cuarentena (objetos nuevos o composiciones).
 6. `tests/mapa_cobertura.py --estricto` en verde (76 tipos, 11 edificios, 13 recogibles) + test de jugabilidad: sin solapes, pasillos ≥ 2 m, objetivos alcanzables desde los 4 refugios, cortes rodeables o forzables, bots sin atascos.

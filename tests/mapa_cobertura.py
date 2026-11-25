@@ -5,7 +5,7 @@ from playwright.sync_api import sync_playwright
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'])
     pg = b.new_page(viewport={'width': 900, 'height': 500}); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.goto('file://' + os.path.abspath('index.html') + '?mapa=5'); pg.wait_for_timeout(1000); pg.evaluate('begin()'); pg.wait_for_timeout(800)
+    pg.goto('file://' + os.path.abspath('index.html') + '?mapa=' + (sys.argv[1] if len(sys.argv) > 1 and sys.argv[1].isdigit() else '5')); pg.wait_for_timeout(1000); pg.evaluate('begin()'); pg.wait_for_timeout(1500)
     r = pg.evaluate('''()=>{const orig=["crate","crateS","barrier","barrel","barrelFuel","fence","sandbags","blocks"];
       const used=new Set(props.map(p=>p.type));const bl=new Set((MAPA.built&&MAPA.built.buildings||[]).map(x=>x.type||x.kind||x.k));
       const pk=new Set((OBJ.pickups||[]).map(k=>k.kind));

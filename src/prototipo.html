@@ -594,7 +594,7 @@ if (window.visualViewport) visualViewport.addEventListener('resize', fitView);
 if (!matchMedia('(pointer:coarse)').matches) setTimeout(begin, 6000);   // en táctil espera a que elijas el modo (si no, a los 6 s arrancaba solo el polígono)   // se cierra solo
 if (/partida|mapa=3/.test(location.search + location.hash)) MX.want = true;
 if (new URLSearchParams(location.search).get('mapa') === '4') MX.want = MX.campaign = true;
-if (new URLSearchParams(location.search).get('mapa') === '5') MX.want = MX.campaign = MX.district = true;   // distrito (M1)
+{ const mp = new URLSearchParams(location.search).get('mapa'); if (mp === '5' || mp === '6') { MX.want = MX.campaign = MX.district = true; MX.dataId = mp === '6' ? 'M2' : 'M1'; } }   // distrito: 5 = M1 (250 m), 6 = completo (1 km²)
 for (const event of ['pointerdown', 'touchstart', 'click']) {
   for (const id of ['goMatch', 'goCampaign']) {
     $(id).addEventListener(event, () => {
@@ -912,13 +912,13 @@ function updateHelp() {
     '<b>Teclado</b> WASD mover · ratón girar · clic izq. disparar · clic der. apuntar · R recargar · C agacharse · Q arma · G granada · H humo · Espacio dash (mantén = más largo) · Shift correr · P/Esc configurar mando';
 }
 /* ---- selector de mapa (arriba del menú de Options; el juego está en pausa mientras está abierto) ---- */
-const MAPS = [[1, 'Mapa 1 · Arena'], [2, 'Mapa 2 · Polígono de pruebas'], [3, 'Mapa 3 · Partida 6 vs 6'], [4, 'Campaña · cuatro facciones'], [5, 'Distrito (M1) · mapa grande']], NM = MAPS.length;
-const curMap = () => MX.on ? (MX.district ? 5 : MX.campaign ? 4 : 3) : RANGE.on ? 2 : 1;
+const MAPS = [[1, 'Mapa 1 · Arena'], [2, 'Mapa 2 · Polígono de pruebas'], [3, 'Mapa 3 · Partida 6 vs 6'], [4, 'Campaña · cuatro facciones'], [5, 'Distrito (M1) · mapa grande'], [6, 'Distrito completo (1 km²) · en construcción']], NM = MAPS.length;
+const curMap = () => MX.on ? (MX.district ? (MX.dataId === 'M2' ? 6 : 5) : MX.campaign ? 4 : 3) : RANGE.on ? 2 : 1;
 function chooseMap(n) {
   if (n === curMap()) { closeMenu(); return; }
   if (MX.on) { location.href = location.pathname + '?mapa=' + n; return; }              // el mapa 3 transforma la escena: para salir se recarga la página
   closeMenu();
-  if (n === 3 || n === 4 || n === 5) { MX.campaign = n >= 4; MX.district = n === 5; if (RANGE.on) rangeToggle(); MX.want = true; MX.start(); warmAll(); }
+  if (n >= 3 && n <= 6) { MX.campaign = n >= 4; MX.district = n >= 5; MX.dataId = n === 6 ? 'M2' : 'M1'; if (RANGE.on) rangeToggle(); MX.want = true; MX.start(); warmAll(); }
   else if ((n === 2) !== RANGE.on) rangeToggle();
 }
 function renderMenu() {
