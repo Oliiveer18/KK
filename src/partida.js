@@ -185,7 +185,7 @@ function findPath(sx, sz, gx, gz) {
   while (i < pts.length - 1) { let j = pts.length - 1; while (j > i + 1 && !lineFree(pts[i], pts[j])) j--; out.push(pts[j]); i = j; }
   return out.length ? out : [{ x: gx, z: gz }];
 }
-MX.findPath = findPath;
+MX.findPath = findPath; MX.HOT = HOT;
 
 /* ---- visibilidad: línea libre entre dos puntos (ignorando, si se pide, los objetos bajos: se ve por encima de ellos) y humo ---- */
 function segClear(ax, az, bx, bz, ign1, ign2, lowIgnore) {
@@ -350,6 +350,13 @@ function dwnTick(e, dt) {
 /* ============================ IA DE LOS BOTS ============================ */
 function perceive(e) {
   let best = null, bs = 1e9;
+  if (MX.zom) for (const o of MX.zom.list) {                                         // los zombis también son amenaza para los bots
+    if (o.dead || o.st === 'rise') continue;
+    const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.hypot(dx, dz); if (d > 24) continue;
+    if (d > 5 && Math.abs(angDiff(e.yaw, Math.atan2(dx, dz))) > 1.25) continue;
+    if (!segClear(e.p.x, e.p.z, o.p.x, o.p.z, null, null, true) || smokeBlock(e.p.x, e.p.z, o.p.x, o.p.z)) continue;
+    if (d + 2 < bs) { bs = d + 2; best = o; }
+  }
   for (const o of M.ents) {
     if (o.dead || o.team === e.team || o.inv > 0) continue;
     const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.hypot(dx, dz); if (d > 34) continue;
@@ -624,11 +631,11 @@ function rescuePlayer(pl, dt) {                                                 
   if (held && M.t - pl.lastHurt > .4) { pl.rt = near; near.rescuer = pl; near.revP += dt / REV_T; MX.reviveFx(near, near.revP); if (near.revP >= 1) revive(near, pl); return 'Reanimando a ' + near.id + '…'; }
   cancelRescue(pl); return 'Mantén ✕ / E para reanimar a ' + near.id;
 }
-MX.hit = (e, dmg, from, dx, dz, w) => {
+MX.hit = (e, dmg, from, dx, dz, w, src) => {
   if (e.dead || e.inv > 0 || M.over || dmg <= 0) return;
   const hm = !!(w && from && from.isPlayer && !e.isPlayer && e.team !== from.team);   // «hit» de confirmación: solo cuando una bala del jugador entra en un rival
   if (e.dwn) {                                                                     // un abatido sigue recibiendo daño; al agotarse su vida extra muere
-    e.dwHp -= dmg; e.bH.flash = 1; e.lastHurt = M.t; e.bShow = M.t; e.lastSrc = w ? w.sid : null; if (from) { e.lastAtt = from; e.lastAttT = M.t; }
+    e.dwHp -= dmg; e.bH.flash = 1; e.lastHurt = M.t; e.bShow = M.t; e.lastSrc = src || (w ? w.sid : null); if (from) { e.lastAtt = from; e.lastAttT = M.t; }
     if (from && (from.isPlayer || e.isPlayer)) popNum(e, dmg);
     if (e.dwHp <= 0) { endRescueOn(e); kill(e, from, dx, dz); } else if (hm) playSnd('HIT_marker', { vol: 1 });
     return;
@@ -636,7 +643,7 @@ MX.hit = (e, dmg, from, dx, dz, w) => {
   const tot = dmg; let rest = dmg;
   if (e.sh > 0) { const a = Math.min(e.sh, rest); e.sh -= a; rest -= a; e.bS.flash = 1; }                  // el escudo absorbe primero; el sobrante pasa a la vida en el mismo golpe
   if (rest > 0) { e.hp -= rest; e.bH.flash = 1; }
-  e.tgp.hp = e.hp; e.lastHurt = M.t; e.bShow = M.t; e.lastSrc = w ? w.sid : null;
+  e.tgp.hp = e.hp; e.lastHurt = M.t; e.bShow = M.t; e.lastSrc = src || (w ? w.sid : null);
   if (from && (from.isPlayer || e.isPlayer)) popNum(e, tot); if (from) { e.lastAtt = from; e.lastAttT = M.t; }
   if (e.isPlayer) { M.hurt = Math.min(1, M.hurt + dmg / 45); P.shake = Math.max(P.shake, .06 + Math.min(.14, dmg * .004)); rumble(70, .55, .4); }
   if (e.hp <= 0) { if (canDown(e)) goDown(e, dx, dz); else kill(e, from, dx, dz); } else if (hm) playSnd('HIT_marker', { vol: 1 });   // si la bala mata, suena solo el sonido de baja (HIT_kill)
@@ -650,10 +657,12 @@ function kill(v, killer, dx, dz) {
   for (let i = 0; i < 8; i++) spawn('red', _kp.set(v.p.x, .9, v.p.z), _kv.set((Math.random() - .5) * 4 + dx * 2, 1 + Math.random() * 3, (Math.random() - .5) * 4 + dz * 2), .5, .04, .04, .04, true, 8);
   if (v.isPlayer) { P.dead = true; if (!corpseP) playerCorpse(dx, dz); for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(200, .8, .6); }
   else { if (wasDown) v.deadT = .55; else bake(v, dx, dz); v.ring.visible = false; v.flash.visible = false; v.wantThrow = null; }
+  if (MX.onDeath) MX.onDeath(v);
   if (!MX.campaign && (M.score[0] >= GOAL || M.score[1] >= GOAL)) endMatch(M.score[0] >= GOAL ? 0 : 1);
 }
 const _kp = new V3(), _kv = new V3();
 MX.explosion = (p, R, sc, own) => {
+  if (MX.zom) MX.zom.blast(p, R, own === undefined ? null : (own || MX.pl));
   const killer = own === undefined ? null : (own || MX.pl);
   for (const e of M.ents) {
     if (e.dead || e.inv > 0) continue; const dx = e.p.x - p.x, dz = e.p.z - p.z, d = Math.hypot(dx, dz); if (d >= R) continue;
@@ -734,7 +743,7 @@ function addFeed(killer, v, src) {
   const col = e => teamColor(e.team), nm = e => e.isPlayer ? 'TÚ' : e.id, tag = s => '<i style="font-style:normal;font-weight:600;font-size:10px;letter-spacing:.06em;padding:1px 5px;border-radius:4px;background:#ffffff1c;opacity:.8">' + s + '</i>';
   const d = document.createElement('div'), ring = killer && killer.isPlayer ? '#ffd24acc' : v.isPlayer ? '#ff5a4acc' : '#ffffff14';
   d.style.cssText = 'display:flex;align-items:center;gap:7px;padding:3px 9px;border-radius:6px;background:#0c1018bd;box-shadow:0 0 0 1px ' + ring + ',0 2px 8px #0008;white-space:nowrap;font-variant-numeric:tabular-nums';
-  d.innerHTML = (killer ? '<span style="color:' + col(killer) + '">' + nm(killer) + '</span>' + tag(src || '✸') : tag('✸')) + '<span style="color:' + col(v) + '">' + nm(v) + '</span>';
+  d.innerHTML = (killer ? '<span style="color:' + col(killer) + '">' + nm(killer) + '</span>' + tag(src || '✸') : src === 'ZOM' ? '<span style="color:#9fd37a">ZOMBI</span>' : tag('✸')) + '<span style="color:' + col(v) + '">' + nm(v) + '</span>';
   feedEl.appendChild(d); FEED.push({ d, t: 0 });
   while (FEED.length > FEED_MAX) feedEl.removeChild(FEED.shift().d);
 }
@@ -794,7 +803,7 @@ MX.start = () => {
   }
   if (MX.campaign) $('mxScore').textContent = 'Campaña · Facción azul';
   for (const g of grens) g.own = null; while (grens.length < 14) { const m = new THREE.Mesh(geoBall, grens[0].m.material.clone()); m.scale.set(.09, .09, .09); m.castShadow = true; m.visible = false; scene.add(m); grens.push({ m, p: new V3(), v: new V3(), fuse: 0, on: false, own: null }); }
-  M.built = true; MX.on = true; hud.style.display = 'block';
+  M.built = true; MX.on = true; hud.style.display = 'block'; if (MX.zom && MX.campaign) MX.zom.init();
   for (const e of M.ents) respawn(e);
   forceWeapon(M.slots[0]);
 };
@@ -803,6 +812,7 @@ MX.update = dt => {
   M.navT -= dt; if (M.navT <= 0) { M.navT = .5; navBuild(); }
   for (let i = M.propQ.length - 1; i >= 0; i--) { const q = M.propQ[i]; if (M.t >= q.t) { if (placeProp(q.spec, true)) M.propQ.splice(i, 1); else q.t = M.t + 4; } }
   armoryTick(dt);
+  if (MX.zom && MX.campaign) MX.zom.update(dt);
   const pl = M.ents[0];
   if (pl.dead || pl.dwn) {                                                           // caído (muerto o abatido): cuerpo que cae; el muerto cuenta atrás para reaparecer
     if (pl.dead) pl.respT -= dt; else { pl.dwT += dt; dwnFxTick(pl); if (MX.campaign && pl.dwT >= DWN_T && !M.over) { endRescueOn(pl); kill(pl, pl.lastAtt && M.t - pl.lastAttT < 40 ? pl.lastAtt : null, 0, 1); } }

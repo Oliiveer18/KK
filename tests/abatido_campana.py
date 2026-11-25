@@ -13,7 +13,8 @@ with sync_playwright() as p:
     ev('for(let i=0;i<120;i++) update(1/60)')
     def run(n): ev('()=>{for(let i=0;i<%d;i++){for(const e of MX.ents) if(e.bot&&e.dead) e.respT=1e9; update(1/60)}}' % n)
     # escenario: equipos 1-3 fuera; A1 jugador, A2..A4 aliados
-    SETUP = '''()=>{boxes.length=0;const E=MX.ents;window.E=E;for(const e of E){e.inv=0;e.dwn=false;e.revived=false;e.kits=1;e.rescuer=null;e.rt=null;e.revP=0;e.dead=false;e.hp=100;e.sh=50;e.vis=false;e.lastHurt=-99}
+    SETUP = '''()=>{boxes.length=0;const E=MX.ents;window.E=E;if(MX.zom)for(const z of MX.zom.list){z.dead=true;z.st='dead';z.deadT=99}
+      for(const e of E){e.inv=0;e.dwn=false;e.revived=false;e.kits=1;e.rescuer=null;e.rt=null;e.revP=0;e.dead=false;e.hp=100;e.sh=50;e.vis=false;e.lastHurt=-99}
       for(const e of E) if(e.team!==0){e.dead=true;e.respT=1e9}
       for(const e of E) if(e.bot&&e.team===0){e.fireCd=1e9}
       const pl=E[0];P.pos.set(0,0,0);pl.dead=false;pl.dwn=false;pl.hp=100;pl.sh=50;

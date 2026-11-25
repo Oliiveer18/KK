@@ -5,7 +5,7 @@ Uso: python3 tools/build.py
 - Variantes de un mismo sonido (ID_01, ID_02...): se igualan en tono (EQ suave), sonoridad y duración de la cola,
   para que el arma no cambie de carácter entre disparos. Se imprime un informe antes y después.
 - Escribe src/sonidos.js con SOUND_DATA = { "P1_shot": [base64, ...], ... }.
-- Escribe index.html sustituyendo las etiquetas de three.js, sonidos.js y partida.js por su contenido.
+- Escribe index.html sustituyendo las etiquetas de three.js, sonidos.js, partida.js y zombis.js por su contenido.
 """
 import base64, json, re, subprocess, sys, wave
 from pathlib import Path
@@ -19,6 +19,7 @@ AUDIO = RAIZ / 'assets' / 'audio'
 TAG_THREE = '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" crossorigin="anonymous"></script>'
 TAG_SONIDOS = '<script src="sonidos.js"></script>'
 TAG_PARTIDA = '<script src="partida.js"></script>'
+TAG_ZOMBIS = '<script src="zombis.js"></script>'
 
 def leer_wav(p):
     with wave.open(str(p)) as w:
@@ -156,14 +157,17 @@ def main():
     js = '/* generado por tools/build.py a partir de assets/audio: no editar a mano */\nconst SOUND_DATA = ' + json.dumps(datos) + ';\n'
     (RAIZ / 'src' / 'sonidos.js').write_text(js, encoding='utf-8')
     fuente = (RAIZ / 'src' / 'prototipo.html').read_text(encoding='utf-8')
-    for tag in (TAG_THREE, TAG_SONIDOS, TAG_PARTIDA):
+    for tag in (TAG_THREE, TAG_SONIDOS, TAG_PARTIDA, TAG_ZOMBIS):
         if tag not in fuente:
             raise SystemExit('Falta la etiqueta en src/prototipo.html: ' + tag)
     three = (RAIZ / 'src' / 'three.min.r128.js').read_text(encoding='utf-8')
     partida = (RAIZ / 'src' / 'partida.js').read_text(encoding='utf-8')
+    zombis = (RAIZ / 'src' / 'zombis.js').read_text(encoding='utf-8')
+    if '</script' in zombis:
+        raise SystemExit('src/zombis.js no puede contener </script')
     if '</script' in partida:
         raise SystemExit('src/partida.js no puede contener </script')
-    salida = fuente.replace(TAG_THREE, '<script>' + three + '</script>').replace(TAG_SONIDOS, '<script>' + js + '</script>').replace(TAG_PARTIDA, '<script>' + partida + '</script>')
+    salida = fuente.replace(TAG_THREE, '<script>' + three + '</script>').replace(TAG_SONIDOS, '<script>' + js + '</script>').replace(TAG_PARTIDA, '<script>' + partida + '</script>').replace(TAG_ZOMBIS, '<script>' + zombis + '</script>')
     (RAIZ / 'index.html').write_text(salida, encoding='utf-8')
     print(f'sonidos.js {len(js)/1024:.0f} KB, index.html {len(salida)/1024:.0f} KB')
 
