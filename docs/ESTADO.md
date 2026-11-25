@@ -107,3 +107,6 @@ Muestras: 104 de 105 sonidos (sin capas de rareza, descartadas por ahora). Falta
 - Ayudantes de audio: playAt (distancia + panorama), loopAt/loopTick, later/tickTQ. Build: opciones inicio, quitar, bucle, apilar.
 - Capas de rareza: descartadas. Nuevo test: tests/audio_mundo.py.
 - Probado: automático (Playwright, sin errores JS; las 10 armas disparan, seco, recarga; 8 props; explosiones, humo, fuego). NO probado: escucha real en navegador, volúmenes, fugas, empuje.
+
+## Visión de los bots (v0.3.11)
+Alcance 22 m en un cono de ~140° (antes 34 m, más que la pantalla del jugador); a menos de 5 m los oyen con vista libre. `BOT_SIGHT` en `src/partida.js`. Test: `tests/vision_bots.py`. Sin probar a mano: sensación de dificultad en iPhone. Los avisos entre compañeros de escuadra (`squadAlert`) y ir hacia quien les dispara siguen igual.
