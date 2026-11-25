@@ -61,6 +61,12 @@ function buildMap() {
   for (const s of M.specs) placeProp(s, false);
   /* reaparición: seis puntos por base, mirando al otro equipo */
   for (const z of [-9.5, -6.5, -3.6, 3.6, 6.5, 9.5]) { M.spawn[0].push({ x: -40.2, z, yaw: Math.PI / 2 }); M.spawn[1].push({ x: 40.2, z, yaw: -Math.PI / 2 }); }
+  if (MX.campaign) {
+    for (const [team, z] of [[2, -26], [3, 26]]) {
+      floorRect(0, z, 12, 6, FAC[team].body);
+      M.spawn[team] = [-4, -2, 2, 4].map(x => ({ x, z, yaw: z < 0 ? 0 : Math.PI }));
+    }
+  }
   buildArmory();
   navBuild();
 }
@@ -213,8 +219,18 @@ const RING_G = new THREE.RingGeometry(.5, .62, 24);
 const WW = { P1: .6, P2: 1, S1: 1, S2: 1, F1: 1.5, F2: .8, E1: .9, E2: .9, H1: .9, H2: .5 };
 function pickWeaponIdx() { let tot = 0; for (const w of WP) tot += WW[w.sid] || 1; let r = rnd() * tot; for (let i = 0; i < WP.length; i++) { r -= WW[WP[i].sid] || 1; if (r <= 0) return i; } return 0; }
 
+// El equipo visible y los colores proceden de las paletas compartidas con el jugador.
+for (let team = TM.length; team < FAC.length; team++) {
+  TM.push({ body: FACM[team].body, limb: FACM[team].limb, acc: FACM[team].trim });
+  const ring = RING[1].clone();
+  ring.color.setHex(FAC[team].trim);
+  RING.push(ring);
+}
+function teamColor(team) {
+  return '#' + FAC[team].trim.toString(16).padStart(6, '0');
+}
 function makeEnt(team, n, isPlayer) {
-  const e = { id: (team ? 'R' : 'A') + (n + 1), team, isPlayer: !!isPlayer, bot: !isPlayer, p: isPlayer ? P.pos : new V3(), v: isPlayer ? P.vel : new V3(),
+  const e = { id: ['A', 'R', 'M', 'V'][team] + (n + 1), team, isPlayer: !!isPlayer, bot: !isPlayer, p: isPlayer ? P.pos : new V3(), v: isPlayer ? P.vel : new V3(),
     yaw: 0, body: 0, hp: HP, sh: SH, bH: { fill: HP, chunk: HP, wait: 0 }, bS: { fill: SH, chunk: SH, wait: 0 }, dead: true, deadT: 0, respT: 0, inv: 0, kills: 0, deaths: 0, cover: null, lastHurt: -99, lastAtt: null, lastAttT: -99 };
   e.tgp = { hp: HP, g: { visible: true, position: e.p } };
   if (!isPlayer) initBot(e);
@@ -331,8 +347,8 @@ function retreatPoint(e, tx, tz) {
 }
 function setGoal(e, x, z) { e.goal = { x, z }; e.needPath = true; }
 function pickGoal(e) {
-  const dir = e.team === 0 ? 1 : -1, cand = []; let tot = 0;
-  for (const h of HOT) { const d = Math.hypot(h[0] - e.p.x, h[1] - e.p.z); if (d < 7) continue; const w = 1 + 1.6 * clamp(dir * h[0] / 30, 0, 1) - (e.lastGoal && Math.hypot(h[0] - e.lastGoal[0], h[1] - e.lastGoal[1]) < 5 ? .8 : 0); cand.push([h, Math.max(.15, w)]); tot += Math.max(.15, w); }
+  const dir = e.team % 2 === 0 ? 1 : -1, cand = []; let tot = 0;
+  for (const h of HOT) { const d = Math.hypot(h[0] - e.p.x, h[1] - e.p.z); if (d < 7) continue; const w = 1 + 1.6 * clamp(dir * h[e.team < 2 ? 0 : 1] / 30, 0, 1) - (e.lastGoal && Math.hypot(h[0] - e.lastGoal[0], h[1] - e.lastGoal[1]) < 5 ? .8 : 0); cand.push([h, Math.max(.15, w)]); tot += Math.max(.15, w); }
   let r = rnd() * tot, pick = cand.length ? cand[0][0] : [0, 0]; for (const c of cand) { r -= c[1]; if (r <= 0) { pick = c[0]; break; } }
   e.lastGoal = pick; setGoal(e, pick[0] + rr(-2, 2), pick[1] + rr(-2, 2));
 }
@@ -536,7 +552,7 @@ function kill(v, killer, dx, dz) {
   for (let i = 0; i < 8; i++) spawn('red', _kp.set(v.p.x, .9, v.p.z), _kv.set((Math.random() - .5) * 4 + dx * 2, 1 + Math.random() * 3, (Math.random() - .5) * 4 + dz * 2), .5, .04, .04, .04, true, 8);
   if (v.isPlayer) { P.dead = true; playerCorpse(dx, dz); for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(200, .8, .6); }
   else { bake(v, dx, dz); v.ring.visible = false; v.flash.visible = false; v.wantThrow = null; }
-  if (M.score[0] >= GOAL || M.score[1] >= GOAL) endMatch(M.score[0] >= GOAL ? 0 : 1);
+  if (!MX.campaign && (M.score[0] >= GOAL || M.score[1] >= GOAL)) endMatch(M.score[0] >= GOAL ? 0 : 1);
 }
 const _kp = new V3(), _kv = new V3();
 MX.explosion = (p, R, sc, own) => {
@@ -603,7 +619,7 @@ function drawBar(b, e, dt) {
   b.el.dataset.s = ((1 + fl * .25) + '|' + (fl > .1 ? (Math.random() - .5) * sh * 2 : 0));
   if (b.num) { b.shN.textContent = Math.ceil(Math.max(0, e.sh)); b.shT.style.opacity = e.sh > .5 ? 1 : .35; b.hpN.textContent = Math.ceil(Math.max(0, e.hp)); b.hpT.style.color = low ? '#ff6a5a' : '#fff'; }
   else {
-    if (b.team !== e.team) { b.team = e.team; b.pip.style.background = e.team === 0 ? '#4aa3ff' : '#ff5a4a'; }
+    if (b.team !== e.team) { b.team = e.team; b.pip.style.background = teamColor(e.team); }
     const age = M.t - (e.bShow || -99); b.el.style.opacity = clamp(age / .1, 0, 1) * clamp((4 - age) / .6, 0, 1);               // aparece y se desvanece
   }
 }
@@ -614,7 +630,7 @@ const PB = mkBar(210, 12, true); PB.num = true; PB.el.className = 'mxpb'; PB.el.
 const feedEl = document.createElement('div'); feedEl.id = 'mxFeed'; feedEl.style.cssText = 'position:absolute;display:flex;flex-direction:column;align-items:flex-end;gap:3px;font:700 12px system-ui,sans-serif;pointer-events:none;opacity:.96'; hud.appendChild(feedEl);
 const FEED = [], FEED_MAX = 5, FEED_T = 5;
 function addFeed(killer, v, src) {
-  const col = e => e.team ? '#ff6a5a' : '#5db4ff', nm = e => e.isPlayer ? 'TÚ' : e.id, tag = s => '<i style="font-style:normal;font-weight:600;font-size:10px;letter-spacing:.06em;padding:1px 5px;border-radius:4px;background:#ffffff1c;opacity:.8">' + s + '</i>';
+  const col = e => teamColor(e.team), nm = e => e.isPlayer ? 'TÚ' : e.id, tag = s => '<i style="font-style:normal;font-weight:600;font-size:10px;letter-spacing:.06em;padding:1px 5px;border-radius:4px;background:#ffffff1c;opacity:.8">' + s + '</i>';
   const d = document.createElement('div'), ring = killer && killer.isPlayer ? '#ffd24acc' : v.isPlayer ? '#ff5a4acc' : '#ffffff14';
   d.style.cssText = 'display:flex;align-items:center;gap:7px;padding:3px 9px;border-radius:6px;background:#0c1018bd;box-shadow:0 0 0 1px ' + ring + ',0 2px 8px #0008;white-space:nowrap;font-variant-numeric:tabular-nums';
   d.innerHTML = (killer ? '<span style="color:' + col(killer) + '">' + nm(killer) + '</span>' + tag(src || '✸') : tag('✸')) + '<span style="color:' + col(v) + '">' + nm(v) + '</span>';
@@ -669,8 +685,13 @@ const RL = Object.values(rig).flat();
 MX.start = () => {
   buildMap();
   const pl = makeEnt(0, 0, true); MX.pl = pl; M.ents.push(pl);
-  for (let i = 1; i < 6; i++) M.ents.push(makeEnt(0, i, false));
-  for (let i = 0; i < 6; i++) M.ents.push(makeEnt(1, i, false));
+  const teams = MX.campaign ? 4 : 2;
+  const members = MX.campaign ? 4 : 6;
+  M.score = Array(teams).fill(0);
+  for (let team = 0; team < teams; team++) {
+    for (let n = team === 0 ? 1 : 0; n < members; n++) M.ents.push(makeEnt(team, n, false));
+  }
+  if (MX.campaign) $('mxScore').textContent = 'Campaña · Facción azul';
   for (const g of grens) g.own = null; while (grens.length < 14) { const m = new THREE.Mesh(geoBall, grens[0].m.material.clone()); m.scale.set(.09, .09, .09); m.castShadow = true; m.visible = false; scene.add(m); grens.push({ m, p: new V3(), v: new V3(), fuse: 0, on: false, own: null }); }
   M.built = true; MX.on = true; hud.style.display = 'block';
   for (const e of M.ents) respawn(e);
@@ -708,10 +729,10 @@ MX.update = dt => {
     if (!e.dead && e.root.visible && M.t - (e.bShow || -99) < 4) {                  // barra sobre la cabeza: solo tras recibir daño
       drawBar(e.bar, e, dt); _kp.set(e.p.x, 2.3 - e.crouch * .25, e.p.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight);
     } else e.bar.el.style.display = 'none';
-    if (e.team === 1 && !e.dead) { e.tgp.g.visible = e.root.visible; MX.foes.push(e.tgp); }
+    if (e.team !== pl.team && !e.dead) { e.tgp.g.visible = e.root.visible; MX.foes.push(e.tgp); }
   }
   /* HUD */
-  $('mxA').textContent = 'AZUL ' + M.score[0]; $('mxB').textContent = M.score[1] + ' ROJO';
+  if (!MX.campaign) { $('mxA').textContent = 'AZUL ' + M.score[0]; $('mxB').textContent = M.score[1] + ' ROJO'; }
   drawBar(PB, pl, dt); PB.el.style.transform = 'scale(' + (PB.el.dataset.s.split('|')[0]) + ') translateX(' + PB.el.dataset.s.split('|')[1] + 'px)';
   updNums(dt); updFeed(dt);
   M.hurt = Math.max(0, M.hurt - dt * 1.6); $('mxHurt').style.opacity = clamp(M.hurt, 0, 1) * .85 + (pl.hp < 30 && !pl.dead ? .15 : 0);
