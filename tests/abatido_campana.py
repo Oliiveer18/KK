@@ -8,7 +8,7 @@ def chk(c, m):
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])
     pg = b.new_page(viewport={'width': 1100, 'height': 700}); pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.goto('file://' + os.path.abspath('index.html') + '?mapa=4'); pg.wait_for_timeout(1000); ev = pg.evaluate
+    pg.goto('file://' + os.path.abspath('index.html') + '?mapa=4&bots=4'); pg.wait_for_timeout(1000); ev = pg.evaluate
     ev('begin()'); pg.wait_for_timeout(300); ev('MX.pl.inv=99')
     ev('MX.zom.noRestock=true')
     ev('for(let i=0;i<120;i++) update(1/60)')

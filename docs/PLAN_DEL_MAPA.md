@@ -49,7 +49,7 @@ Cubre la Entrega 6 del plan («distrito completo», ~1 km²) y lo que hay que co
 - Pendiente de confirmar: la disposición de §2 (¿refugios en las esquinas?), los nombres de las calles, y si la clínica y la estación van como en el dibujo.
 
 ## 5. Población: 25 combatientes por facción (decisión del usuario, 25-11)
-**25 por facción = 100 combatientes en total** (1 jugador + 99 bots; el jugador cuenta dentro de Azul), más los zombis aparte. Encaja con el plan (meta de 64 y escalado 32 → 64 → 128). Propuesta: 5 compañías de 5 por facción (el diseño pide 2–3 en el primer distrito; se empieza con 3 y se sube al probar).
+**25 por facción = 100 combatientes en total** (1 jugador + 99 bots; el jugador cuenta dentro de Azul), más los zombis aparte. Encaja con el plan (meta de 64 y escalado 32 → 64 → 128). **Decisión del usuario (25-11): 5 grupos de 5 por facción desde ya** (no 3 compañías). Implementado como escuadras en la campaña (ver `ESTADO.md`); la guardia del refugio y los destinos por compañía llegan con las entregas 2 y 5.
 
 Medición hecha el mismo día en el mapa 4 actual con `?mapa=4&bots=N` (parámetro nuevo, por defecto 4; solo para pruebas de escala; Chrome headless, no iPhone). Peor caso: todos los combatientes a la vez en pantalla:
 

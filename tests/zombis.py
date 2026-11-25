@@ -8,7 +8,7 @@ def chk(c, m):
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])
     pg = b.new_page(viewport={'width': 1100, 'height': 700}); pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.goto('file://' + os.path.abspath('index.html') + '?mapa=4'); pg.wait_for_timeout(1000); ev = pg.evaluate
+    pg.goto('file://' + os.path.abspath('index.html') + '?mapa=4&bots=4'); pg.wait_for_timeout(1000); ev = pg.evaluate
     ev('begin()'); pg.wait_for_timeout(300)
     r = ev('()=>({n:MX.zom.count(),types:[...new Set(MX.zom.list.map(z=>z.type))].sort().join(","),dorm:MX.zom.list.filter(z=>z.st==="dorm").length,horde:MX.zom.list.filter(z=>z.horde).length})')
     print('inicio:', r)
