@@ -115,3 +115,8 @@ Los bots ven lo mismo que el jugador: un enemigo sólo se detecta si cabe en el 
 - Aviso de escuadra: sólo cuando un bot VE (con la visión igual a la del jugador) a un enemigo por primera vez o a uno nuevo, no con seguimiento continuo; alcance de radio 25 m; los compañeros que no lo ven van a donde estaba (`search`).
 - Herido por alguien que no ve: va hacia la DIRECCIÓN del impacto (`hitSrc`: 10 m atrás ±2,5 m), no a la posición real del atacante; tampoco lo fija como objetivo. El bot herido con poca vida huye de ese punto.
 - Test: `tests/avisos_bots.py`.
+
+## M2 · tanda 1 (v0.3.16)
+- `src/mapa.js`: **calles curvas**. Una calle con `pts: [[x,z],…]` y `w` (en lugar de `axis/c/a0/a1`) se suaviza (Catmull-Rom), se remuestrea cada 2 m y se dibuja con asfalto, aceras cortadas donde se cruza otra calle, bordes y línea central (doble amarilla si `w ≥ 10`, discontinua si no). Fusionado por material (4 mallas para 3 calles). `MAPA.pathPts(pts, paso)` da los puntos y tangentes para colocar objetos a lo largo de la calle (atascos, farolas). Las calles de rejilla de M1 no cambian.
+- `tests/calles_curvas.py` (captura `docs/img/calles_curvas.png`) y `tests/mapa_cobertura.py` (guía: hoy faltan 45 de 76 tipos, 8 de 11 edificios y 13 de 13 recogibles; `--estricto` fallará hasta terminar el montaje).
+- Siguiente: composiciones reutilizables (atasco, barricada con portón, puesto de control, cruce con torre, fachada con aparcamiento) y colocación a lo largo de las calles; luego montar el trazado del boceto.
