@@ -29,6 +29,10 @@ with sync_playwright() as p:
     print('jugador -> rival:', L)
     chk('snd:HIT_marker' in L, 'el jugador oye HIT_marker al dar a un rival')
     chk('at:IMP_target' not in L, 'sin golpe metálico (IMP_target) al dar a un rival')
+    n = ev("(SND.buf.HIT_marker||[]).length"); print('muestras HIT_marker cargadas:', n, 'reproducciones:', ev("SND.count.HIT_marker||0"))
+    if n:
+        chk(ev("SND.count.HIT_marker||0") >= 1, 'con muestra cargada, HIT_marker se reproduce de verdad al dar a un rival')
+        chk(0.05 < ev("SND.buf.HIT_marker[0].duration") < 0.3, 'duración de HIT_marker razonable (%.0f ms)' % (ev("SND.buf.HIT_marker[0].duration") * 1000))
     # 2) disparo de un bot rival al jugador
     ev('''()=>{const pl=MX.ents[0],r=MX.ents[7];pl.dead=false;pl.hp=100;pl.sh=50;pl.inv=0;r.dead=false;r.inv=0;window.__L.length=0;const w=WP[MX.WI.F1];spawnBullet(r.p.x,1.1,r.p.z,-1,0,w,r)}''')
     ev('for(let i=0;i<30;i++) update(1/60)'); L = ev('window.__L')

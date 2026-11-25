@@ -1,5 +1,7 @@
 # Estado — v0.3.9
 
+- `HIT_marker` integrado (1 toma de ElevenLabs, `assets/audio/originales/HIT_marker.wav`, manifiesto con recorte 0,15 s y fundido 0,05 s, `SND_VOL.HIT_marker = .6`). Medida: 0,49 s con transitorio a 0 ms, espectro 60–500 Hz (centroide ~196 Hz, casi sin agudos), cola a −30 dB a los 126 ms (recortada). Pendiente: 2 tomas más (`HIT_marker_02/03`; al añadirlas renombrar la actual a `_01`) y `HIT_kill`. No escuchado por mí; el usuario aún no lo ha probado.
+
 - Sonido de impacto en personajes (mapa 3): quitado el golpe metálico (`IMP_target`) cuando una bala da a un jugador o bot; ahora solo suena el disparo. Preparado el «hit» del jugador: `HIT_marker` al entrar una bala suya en un rival y `HIT_kill` al matar (con respaldo a `HIT_marker`); **sin muestras todavía → silencio** hasta que el usuario genere los WAV con ElevenLabs. Test `tests/hit_sonido.py`. Solo automático.
 
 - Barra de los bots más pequeña (60 px, vida 4 px, segmentos de escudo 2 px, rombo 5 px) y más separada de la cabeza (punto de anclaje a 2,3 m, baja algo al agacharse). Solo automático.
