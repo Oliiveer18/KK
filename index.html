@@ -555,12 +555,13 @@ const prevBtn = [];
 let padErr = false;
 function getPad() {
   try {
-    const gps = navigator.getGamepads ? navigator.getGamepads() : [];
+    const gps = navigator.getGamepads ? navigator.getGamepads() : navigator.webkitGetGamepads ? navigator.webkitGetGamepads() : [];
     for (const g of gps) if (g && g.connected) return g;
   } catch (e) { padErr = true; }
   return null;
 }
 addEventListener('gamepadconnected', () => { mode = 'pad'; });
+addEventListener('gamepaddisconnected', () => { if (!getPad()) mode = isTouch ? 'touch' : 'kb'; });
 function stick(x, y, dz) {
   const m = Math.hypot(x, y); if (m < dz) return [0, 0, 0];
   const s = Math.min(1, (m - dz) / (1 - dz)), k = Math.pow(s, 1.4) / m;
