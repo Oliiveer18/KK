@@ -1,0 +1,1010 @@
+{
+ "_ayuda": "Cada entrada: recorte final en segundos (trim), fundido de salida (fade) y pico objetivo en dBFS (peak). Las variantes se nombran ID_NN y se agrupan solas. gate = umbral (dB bajo el pico) de la puerta de ruido; por defecto -42, más alto = limpia más.",
+ "P1_dry": {
+  "src": "originales/P1_dry.wav",
+  "trim": 0.15,
+  "fade": 0.015,
+  "peak": -1.0
+ },
+ "P1_equip": {
+  "src": "originales/P1_equip.wav",
+  "trim": 0.46,
+  "fade": 0.03,
+  "peak": -1.0
+ },
+ "P1_rel1": {
+  "src": "originales/P1_rel1.wav",
+  "trim": 0.6,
+  "fade": 0.03,
+  "peak": -1.0
+ },
+ "P1_rel3": {
+  "src": "originales/P1_rel3.wav",
+  "trim": 0.3,
+  "fade": 0.03,
+  "peak": -1.0
+ },
+ "C_9mm_01": {
+  "src": "originales/C_9mm_01.wav",
+  "trim": 0.62,
+  "fade": 0.06,
+  "peak": -1.0,
+  "gate": -36
+ },
+ "C_9mm_02": {
+  "src": "originales/C_9mm_02.wav",
+  "trim": 0.55,
+  "fade": 0.06,
+  "peak": -1.0,
+  "gate": -36
+ },
+ "C_9mm_03": {
+  "src": "originales/C_9mm_03.wav",
+  "trim": 0.68,
+  "fade": 0.06,
+  "peak": -1.0,
+  "gate": -36
+ },
+ "MAG_pistol_01": {
+  "src": "originales/MAG_pistol_01.wav",
+  "trim": 0.5,
+  "fade": 0.04,
+  "peak": -1.0
+ },
+ "MAG_pistol_02": {
+  "src": "originales/MAG_pistol_02.wav",
+  "trim": 0.36,
+  "fade": 0.04,
+  "peak": -1.0
+ },
+ "F1_shot_01": {
+  "src": "originales/F1_shot_01.wav",
+  "trim": 0.65,
+  "fade": 0.08,
+  "peak": -1.0
+ },
+ "F1_shot_02": {
+  "src": "originales/F1_shot_02.wav",
+  "trim": 0.65,
+  "fade": 0.08,
+  "peak": -1.0
+ },
+ "F1_shot_03": {
+  "src": "originales/F1_shot_03.wav",
+  "trim": 0.65,
+  "fade": 0.08,
+  "peak": -1.0
+ },
+ "P1_shot_02": {
+  "src": "originales/P1_shot_02.wav",
+  "trim": 0.78,
+  "fade": 0.03,
+  "peak": -1.0
+ },
+ "P1_shot_03": {
+  "src": "originales/P1_shot_03.wav",
+  "trim": 0.78,
+  "fade": 0.03,
+  "peak": -1.0
+ },
+ "P1_rel2": {
+  "src": "originales/P1_rel2.wav",
+  "trim": 0.45,
+  "fade": 0.03,
+  "peak": -1.0
+ },
+ "F1_dry": {
+  "src": "originales/F1_dry.wav",
+  "trim": 0.2,
+  "fade": 0.03,
+  "peak": -1.0
+ },
+ "F1_equip": {
+  "src": "originales/F1_equip.wav",
+  "trim": 0.4,
+  "fade": 0.04,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "F1_rel1": {
+  "src": "originales/F1_rel1.wav",
+  "trim": 0.42,
+  "fade": 0.04,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "F1_rel2": {
+  "src": "originales/F1_rel2.wav",
+  "trim": 0.4,
+  "fade": 0.04,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "F1_rel3": {
+  "src": "originales/F1_rel3.wav",
+  "trim": 0.35,
+  "fade": 0.04,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "C_556_01": {
+  "src": "originales/C_556_01.wav",
+  "trim": 0.62,
+  "fade": 0.06,
+  "peak": -1.0,
+  "gate": -36
+ },
+ "C_556_02": {
+  "src": "originales/C_556_02.wav",
+  "trim": 0.62,
+  "fade": 0.06,
+  "peak": -1.0,
+  "gate": -36
+ },
+ "C_556_03": {
+  "src": "originales/C_556_03.wav",
+  "trim": 0.62,
+  "fade": 0.06,
+  "peak": -1.0,
+  "gate": -36
+ },
+ "MAG_rifle_01": {
+  "src": "originales/MAG_rifle_01.wav",
+  "trim": 0.5,
+  "fade": 0.04,
+  "peak": -1.0
+ },
+ "MAG_rifle_02": {
+  "src": "originales/MAG_rifle_02.wav",
+  "trim": 0.5,
+  "fade": 0.04,
+  "peak": -1.0
+ },
+ "E1_pump": {
+  "src": "originales/E1_pump.wav",
+  "trim": 0.68,
+  "fade": 0.05,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "E1_shot_01": {
+  "src": "originales/E1_shot_01.wav",
+  "trim": 0.8,
+  "fade": 0.12,
+  "peak": -1.0
+ },
+ "E1_shot_02": {
+  "src": "originales/E1_shot_02.wav",
+  "trim": 0.8,
+  "fade": 0.12,
+  "peak": -1.0
+ },
+ "E1_dry": {
+  "src": "originales/E1_dry.wav",
+  "trim": 0.18,
+  "fade": 0.03,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "E1_equip": {
+  "src": "originales/E1_pump.wav",
+  "inicio": 0.31,
+  "trim": 0.4,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0,
+  "_nota": "derivado de E1_pump (parte hacia delante)"
+ },
+ "E1_rel1": {
+  "src": "originales/E1_rel1.wav",
+  "trim": 0.4,
+  "fade": 0.04,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "E1_rel2": {
+  "src": "originales/E1_rel2.wav",
+  "trim": 0.3,
+  "fade": 0.04,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "C_12ga_02": {
+  "src": "originales/C_12ga_02.wav",
+  "trim": 0.62,
+  "fade": 0.06,
+  "peak": -1.0,
+  "gate": -36
+ },
+ "C_12ga_03": {
+  "src": "originales/C_12ga_03.wav",
+  "trim": 0.62,
+  "fade": 0.06,
+  "peak": -1.0,
+  "gate": -36
+ },
+ "IMP_wood_01": {
+  "src": "originales/IMP_wood_01.wav",
+  "trim": 0.42,
+  "fade": 0.1,
+  "peak": -1.0
+ },
+ "IMP_wood_02": {
+  "src": "originales/IMP_wood_02.wav",
+  "trim": 0.42,
+  "fade": 0.1,
+  "peak": -1.0
+ },
+ "IMP_plastic_01": {
+  "src": "originales/IMP_plastic_01.wav",
+  "trim": 0.42,
+  "fade": 0.1,
+  "peak": -1.0
+ },
+ "IMP_plastic_02": {
+  "src": "originales/IMP_plastic_02.wav",
+  "trim": 0.42,
+  "fade": 0.1,
+  "peak": -1.0
+ },
+ "IMP_metal_01": {
+  "src": "originales/IMP_metal_01.wav",
+  "trim": 0.42,
+  "fade": 0.1,
+  "peak": -1.0
+ },
+ "IMP_metal_02": {
+  "src": "originales/IMP_metal_02.wav",
+  "trim": 0.42,
+  "fade": 0.1,
+  "peak": -1.0
+ },
+ "IMP_sand": {
+  "src": "originales/IMP_sand.wav",
+  "trim": 0.42,
+  "fade": 0.1,
+  "gate": -46,
+  "peak": -1.0
+ },
+ "IMP_block": {
+  "src": "originales/IMP_block.wav",
+  "trim": 0.42,
+  "fade": 0.1,
+  "gate": -46,
+  "peak": -1.0
+ },
+ "IMP_ground": {
+  "src": "originales/IMP_ground.wav",
+  "trim": 0.42,
+  "fade": 0.1,
+  "gate": -46,
+  "peak": -1.0
+ },
+ "IMP_ricochet": {
+  "src": "originales/IMP_ricochet.wav",
+  "trim": 0.45,
+  "fade": 0.1,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "IMP_target": {
+  "src": "originales/IMP_target.wav",
+  "trim": 0.6,
+  "fade": 0.12,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "BRK_crate": {
+  "src": "originales/BRK_crate.wav",
+  "trim": 0.85,
+  "fade": 0.12,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "BRK_fence": {
+  "src": "originales/BRK_fence.wav",
+  "trim": 0.8,
+  "fade": 0.12,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "BRK_barrier": {
+  "src": "originales/BRK_barrier.wav",
+  "trim": 0.75,
+  "fade": 0.1,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "BRK_barrel": {
+  "src": "originales/BRK_barrel.wav",
+  "trim": 0.9,
+  "fade": 0.15,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "BRK_sandbag": {
+  "src": "originales/BRK_sandbag.wav",
+  "trim": 0.8,
+  "fade": 0.15,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "BRK_blocks": {
+  "src": "originales/BRK_blocks.wav",
+  "trim": 1.0,
+  "fade": 0.15,
+  "gate": -52,
+  "peak": -1.0
+ },
+ "DEB_wood": {
+  "src": "originales/DEB_wood.wav",
+  "trim": 0.4,
+  "fade": 0.06,
+  "gate": -46,
+  "peak": -1.0
+ },
+ "DEB_plastic": {
+  "src": "originales/DEB_plastic.wav",
+  "trim": 0.38,
+  "fade": 0.06,
+  "gate": -46,
+  "peak": -1.0
+ },
+ "DEB_metal": {
+  "src": "originales/DEB_metal.wav",
+  "trim": 0.45,
+  "fade": 0.1,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "DEB_block": {
+  "src": "originales/DEB_block.wav",
+  "trim": 0.4,
+  "fade": 0.06,
+  "gate": -46,
+  "peak": -1.0
+ },
+ "PUSH_crate": {
+  "src": "originales/PUSH_crate.wav",
+  "trim": 0.95,
+  "fade": 0.1,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "PUSH_barrel": {
+  "src": "originales/PUSH_barrel.wav",
+  "trim": 0.95,
+  "fade": 0.1,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "LEAK_water": {
+  "src": "originales/LEAK_water.wav",
+  "bucle": true,
+  "cruce": 0.25,
+  "peak": -1.0
+ },
+ "LEAK_fuel": {
+  "src": "originales/LEAK_fuel.wav",
+  "bucle": true,
+  "cruce": 0.25,
+  "peak": -1.0
+ },
+ "FIRE_loop": {
+  "src": "originales/FIRE_loop.wav",
+  "bucle": true,
+  "cruce": 0.25,
+  "peak": -1.0
+ },
+ "FIRE_ignite": {
+  "src": "originales/FIRE_ignite.wav",
+  "trim": 0.7,
+  "fade": 0.12,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "EXP_barrel": {
+  "src": "originales/EXP_barrel.wav",
+  "trim": 1.6,
+  "fade": 0.3,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "EXP_frag": {
+  "src": "originales/EXP_frag.wav",
+  "trim": 1.2,
+  "fade": 0.25,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "GREN_pin": {
+  "src": "originales/GREN_pin.wav",
+  "trim": 0.35,
+  "fade": 0.04,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "GREN_bounce": {
+  "src": "originales/GREN_bounce.wav",
+  "trim": 0.3,
+  "fade": 0.05,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "SMOKE_pop": {
+  "src": "originales/SMOKE_pop.wav",
+  "trim": 0.8,
+  "fade": 0.15,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "SMOKE_loop": {
+  "src": "originales/SMOKE_loop.wav",
+  "bucle": true,
+  "cruce": 0.25,
+  "peak": -1.0
+ },
+ "GREN_throw": {
+  "src": "originales/GREN_throw.wav",
+  "trim": 0.35,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "S1_shot_02": {
+  "src": "originales/S1_shot_02.wav",
+  "trim": 0.6,
+  "fade": 0.1,
+  "peak": -1.0
+ },
+ "S1_shot_03": {
+  "src": "originales/S1_shot_03.wav",
+  "trim": 0.6,
+  "fade": 0.1,
+  "peak": -1.0
+ },
+ "S1_dry": {
+  "src": "originales/S1_dry.wav",
+  "trim": 0.2,
+  "fade": 0.03,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "S1_rel1": {
+  "src": "originales/S1_rel1.wav",
+  "trim": 0.45,
+  "fade": 0.05,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "S1_rel2": {
+  "src": "originales/S1_rel2.wav",
+  "trim": 0.55,
+  "fade": 0.05,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "S1_rel3": {
+  "src": "originales/S1_rel3.wav",
+  "trim": 0.35,
+  "fade": 0.05,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "S1_equip": {
+  "src": "originales/S1_rel3.wav",
+  "inicio": 0.08,
+  "trim": 0.3,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0,
+  "_nota": "derivado de S1_rel3 (cerrojo)"
+ },
+ "MAG_smg_01": {
+  "src": "originales/MAG_smg_01.wav",
+  "trim": 0.6,
+  "fade": 0.06,
+  "peak": -1.0
+ },
+ "MAG_smg_02": {
+  "src": "originales/MAG_smg_02.wav",
+  "trim": 0.6,
+  "fade": 0.06,
+  "peak": -1.0
+ },
+ "C_45_02": {
+  "src": "originales/C_45_02.wav",
+  "trim": 0.62,
+  "fade": 0.06,
+  "peak": -1.0,
+  "gate": -36
+ },
+ "C_45_03": {
+  "src": "originales/C_45_03.wav",
+  "trim": 0.62,
+  "fade": 0.06,
+  "peak": -1.0,
+  "gate": -36
+ },
+ "P2_shot_02": {
+  "src": "originales/P2_shot_02.wav",
+  "trim": 0.8,
+  "fade": 0.12,
+  "peak": -1.0
+ },
+ "P2_shot_03": {
+  "src": "originales/P2_shot_03.wav",
+  "trim": 0.8,
+  "fade": 0.12,
+  "peak": -1.0
+ },
+ "P2_rel1": {
+  "src": "originales/P2_rel1.wav",
+  "quitar": [
+   [
+    0.1,
+    0.42
+   ]
+  ],
+  "trim": 0.62,
+  "fade": 0.08,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "P2_rel2": {
+  "src": "originales/P2_rel2.wav",
+  "quitar": [
+   [
+    0.34,
+    0.68
+   ]
+  ],
+  "trim": 0.62,
+  "fade": 0.08,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "P2_dry": {
+  "src": "originales/P2_dry.wav",
+  "trim": 0.15,
+  "fade": 0.03,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "S2_shot_01": {
+  "src": "originales/S2_shot_01.wav",
+  "trim": 0.6,
+  "fade": 0.1,
+  "peak": -1.0
+ },
+ "S2_shot_03": {
+  "src": "originales/S2_shot_03.wav",
+  "trim": 0.6,
+  "fade": 0.1,
+  "peak": -1.0
+ },
+ "P2_rel3": {
+  "src": "originales/P2_rel3.wav",
+  "trim": 0.3,
+  "fade": 0.05,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "P2_equip": {
+  "src": "originales/P2_rel3.wav",
+  "inicio": 0.06,
+  "trim": 0.26,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0,
+  "_nota": "derivado de P2_rel3 (cierre del tambor)"
+ },
+ "S2_dry": {
+  "src": "originales/S2_dry.wav",
+  "trim": 0.15,
+  "fade": 0.03,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "S2_rel1": {
+  "src": "originales/S2_rel1.wav",
+  "trim": 0.55,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "S2_rel2": {
+  "src": "originales/S2_rel2.wav",
+  "trim": 0.36,
+  "fade": 0.05,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "C_762_01": {
+  "src": "originales/C_762_01.wav",
+  "trim": 0.62,
+  "fade": 0.06,
+  "peak": -1.0,
+  "gate": -36
+ },
+ "C_762_02": {
+  "src": "originales/C_762_02.wav",
+  "trim": 0.62,
+  "fade": 0.06,
+  "peak": -1.0,
+  "gate": -36
+ },
+ "MAG_battle_01": {
+  "src": "originales/MAG_battle_01.wav",
+  "trim": 0.55,
+  "fade": 0.06,
+  "peak": -1.0
+ },
+ "MAG_battle_02": {
+  "src": "originales/MAG_battle_02.wav",
+  "trim": 0.55,
+  "fade": 0.06,
+  "peak": -1.0
+ },
+ "S2_rel3": {
+  "src": "originales/S2_rel3.wav",
+  "trim": 0.3,
+  "fade": 0.05,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "S2_equip": {
+  "src": "originales/S2_rel3.wav",
+  "inicio": 0.04,
+  "trim": 0.26,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0,
+  "_nota": "derivado de S2_rel3 (cerrojo)"
+ },
+ "F2_shot_01": {
+  "src": "originales/F2_shot_01.wav",
+  "trim": 0.8,
+  "fade": 0.2,
+  "peak": -1.0
+ },
+ "F2_shot_03": {
+  "src": "originales/F2_shot_03.wav",
+  "trim": 0.8,
+  "fade": 0.2,
+  "peak": -1.0
+ },
+ "F2_dry": {
+  "src": "originales/F2_dry.wav",
+  "trim": 0.25,
+  "fade": 0.03,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "F2_rel1": {
+  "src": "originales/F2_rel1.wav",
+  "trim": 0.5,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "F2_rel2": {
+  "src": "originales/F2_rel2.wav",
+  "trim": 0.4,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "F2_rel3": {
+  "src": "originales/F2_rel3.wav",
+  "trim": 0.72,
+  "fade": 0.08,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "F2_equip": {
+  "src": "originales/F2_rel3.wav",
+  "inicio": 0.38,
+  "trim": 0.32,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0,
+  "_nota": "derivado de F2_rel3 (cierre del cerrojo)"
+ },
+ "H1_shot_01": {
+  "src": "originales/H1_shot_01.wav",
+  "trim": 0.6,
+  "fade": 0.1,
+  "peak": -1.0
+ },
+ "H1_shot_03": {
+  "src": "originales/H1_shot_03.wav",
+  "trim": 0.6,
+  "fade": 0.1,
+  "peak": -1.0
+ },
+ "H1_dry": {
+  "src": "originales/H1_dry.wav",
+  "trim": 0.15,
+  "fade": 0.03,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "H1_rel1": {
+  "src": "originales/H1_rel1.wav",
+  "trim": 0.4,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "H1_rel2": {
+  "src": "originales/H1_rel2.wav",
+  "trim": 0.45,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "H1_rel3": {
+  "src": "originales/H1_rel3.wav",
+  "trim": 0.6,
+  "fade": 0.1,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "H1_equip": {
+  "src": "originales/H1_rel3.wav",
+  "inicio": 0.17,
+  "trim": 0.34,
+  "fade": 0.07,
+  "gate": -50,
+  "peak": -1.0,
+  "_nota": "derivado de H1_rel3 (palanca de montar)"
+ },
+ "C_links_01": {
+  "src": "originales/C_links_01.wav",
+  "trim": 0.62,
+  "fade": 0.08,
+  "gate": -40,
+  "peak": -1.0
+ },
+ "MAG_box_01": {
+  "src": "originales/MAG_box_01.wav",
+  "trim": 0.6,
+  "fade": 0.1,
+  "peak": -1.0
+ },
+ "C_links_02": {
+  "src": "originales/C_links_02.wav",
+  "trim": 0.62,
+  "fade": 0.08,
+  "gate": -40,
+  "peak": -1.0
+ },
+ "MAG_box_02": {
+  "src": "originales/MAG_box_02.wav",
+  "trim": 0.6,
+  "fade": 0.1,
+  "peak": -1.0
+ },
+ "E2_shot_01": {
+  "src": "originales/E2_shot_01.wav",
+  "trim": 0.8,
+  "fade": 0.2,
+  "peak": -1.0
+ },
+ "E2_shot_02": {
+  "src": "originales/E2_shot_02.wav",
+  "trim": 0.8,
+  "fade": 0.2,
+  "peak": -1.0
+ },
+ "E2_shot_03": {
+  "src": "originales/E2_shot_03.wav",
+  "trim": 0.8,
+  "fade": 0.2,
+  "peak": -1.0
+ },
+ "E2_dry": {
+  "src": "originales/E2_dry.wav",
+  "trim": 0.15,
+  "fade": 0.03,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "E2_action": {
+  "src": "originales/E2_action.wav",
+  "trim": 0.45,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "E2_rel1": {
+  "src": "originales/E2_rel1.wav",
+  "trim": 0.34,
+  "fade": 0.05,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "E2_rel2": {
+  "src": "originales/E2_rel2.wav",
+  "trim": 0.3,
+  "fade": 0.05,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "E2_rel3": {
+  "src": "originales/E2_rel3.wav",
+  "trim": 0.35,
+  "fade": 0.05,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "E2_equip": {
+  "src": "originales/E2_rel3.wav",
+  "inicio": 0.04,
+  "trim": 0.3,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0,
+  "_nota": "derivado de E2_rel3 (cerrojo)"
+ },
+ "H2_shot_02": {
+  "src": "originales/H2_shot_02.wav",
+  "trim": 0.7,
+  "fade": 0.18,
+  "peak": -1.0
+ },
+ "H2_shot_03": {
+  "src": "originales/H2_shot_03.wav",
+  "trim": 0.7,
+  "fade": 0.18,
+  "peak": -1.0
+ },
+ "H2_dry": {
+  "src": "originales/H2_dry.wav",
+  "trim": 0.12,
+  "fade": 0.03,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "H2_rel1": {
+  "src": "originales/H2_rel1.wav",
+  "trim": 0.4,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "H2_rel2": {
+  "src": "originales/H2_rel2.wav",
+  "trim": 0.4,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "H2_rel3": {
+  "src": "originales/H2_rel3.wav",
+  "trim": 0.3,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0
+ },
+ "H2_equip": {
+  "src": "originales/H2_rel3.wav",
+  "trim": 0.25,
+  "fade": 0.06,
+  "gate": -50,
+  "peak": -1.0,
+  "_nota": "derivado de H2_rel3 (cierre del cañón), a menor volumen"
+ },
+ "C_40mm_01": {
+  "src": "originales/C_40mm_01.wav",
+  "trim": 0.7,
+  "fade": 0.12,
+  "gate": -40,
+  "peak": -1.0
+ },
+ "C_40mm_02": {
+  "src": "originales/C_40mm_02.wav",
+  "trim": 0.7,
+  "fade": 0.12,
+  "gate": -40,
+  "peak": -1.0
+ },
+ "C_44_01": {
+  "src": "originales/C_44_01.wav",
+  "trim": 0.62,
+  "fade": 0.06,
+  "peak": -1.0,
+  "gate": -36
+ },
+ "C_44_02": {
+  "src": "originales/C_44_02.wav",
+  "trim": 0.62,
+  "fade": 0.06,
+  "peak": -1.0,
+  "gate": -36
+ },
+ "C_44_multi": {
+  "src": "originales/C_44_01.wav",
+  "apilar": [
+   [
+    0,
+    1,
+    1.0
+   ],
+   [
+    0.07,
+    0.8,
+    1.06
+   ],
+   [
+    0.12,
+    0.7,
+    0.95
+   ],
+   [
+    0.2,
+    0.75,
+    1.1
+   ],
+   [
+    0.29,
+    0.55,
+    0.98
+   ],
+   [
+    0.38,
+    0.5,
+    1.04
+   ]
+  ],
+  "trim": 0.95,
+  "fade": 0.12,
+  "gate": -40,
+  "peak": -1.0
+ },
+ "DASH_start_01": {
+  "src": "originales/DASH_start_01.wav",
+  "trim": 0.34,
+  "fade": 0.1,
+  "peak": -1.0,
+  "gate": -40
+ },
+ "DASH_start_02": {
+  "src": "originales/DASH_start_02.wav",
+  "trim": 0.34,
+  "fade": 0.1,
+  "peak": -1.0,
+  "gate": -40
+ },
+ "DASH_hold_01": {
+  "src": "originales/DASH_hold_01.wav",
+  "inicio": 0.15,
+  "trim": 0.5,
+  "fade": 0.15,
+  "peak": -1.0,
+  "gate": -45
+ },
+ "DASH_hold_02": {
+  "src": "originales/DASH_hold_02.wav",
+  "inicio": 0.15,
+  "trim": 0.5,
+  "fade": 0.15,
+  "peak": -1.0,
+  "gate": -45
+ },
+ "STEP_walk_01": {
+  "src": "originales/STEP_walk_01.wav",
+  "trim": 0.2,
+  "fade": 0.07,
+  "peak": -3.6,
+  "gate": -70
+ },
+ "STEP_walk_02": {
+  "src": "originales/STEP_walk_02.wav",
+  "trim": 0.2,
+  "fade": 0.07,
+  "peak": -1.1,
+  "gate": -70
+ }
+}

@@ -1,0 +1,27 @@
+from playwright.sync_api import sync_playwright
+with sync_playwright() as p:
+    b=p.chromium.launch(executable_path='/usr/bin/google-chrome',args=['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist'])
+    pg=b.new_context(viewport={'width':900,'height':560}).new_page()
+    errs=[];pg.on('pageerror',lambda e:errs.append(str(e)))
+    pg.goto('file:///home/claude/prototipo_inline.html'); pg.wait_for_timeout(600); pg.click('#go'); pg.mouse.move(450,100)
+    ev=pg.evaluate
+    pg.keyboard.down('KeyD'); pg.keyboard.down('ShiftLeft'); pg.wait_for_timeout(1200)
+    print('antes',ev("P.vel.length().toFixed(1)"))
+    pg.keyboard.down('KeyC'); pg.wait_for_timeout(250)
+    print('deslizando',ev("({sld:P.sld,v:+P.vel.length().toFixed(1),slide:+P.slide.toFixed(2),py:+P.py.toFixed(2),nan:[P.pos.x,P.py].some(isNaN)})"))
+    pg.mouse.down(); pg.wait_for_timeout(200); print('ammo',ev("W.ammo")); pg.screenshot(path='t/slide.png'); pg.mouse.up()
+    pg.wait_for_timeout(600); print('mantiene',ev("({sld:P.sld,v:+P.vel.length().toFixed(1)})"))
+    pg.keyboard.up('KeyC'); pg.wait_for_timeout(300); print('suelta',ev("P.sld"))
+    pg.keyboard.up('KeyD'); pg.keyboard.up('ShiftLeft'); pg.wait_for_timeout(500)
+    pg.keyboard.press('KeyC'); pg.wait_for_timeout(400); print('toque parado→agachado',ev("P.crouchT"),ev("P.sld"))
+    # sensibilidad stick: giro 180° con pad
+    pg.keyboard.press('KeyC'); pg.wait_for_timeout(300)
+    pg.add_init_script("")
+    ev("window.__pad={connected:true,id:'DualSense',mapping:'standard',axes:[0,0,0,1],buttons:Array.from({length:17},()=>({pressed:false,value:0}))};navigator.getGamepads=()=>[window.__pad]")
+    pg.wait_for_timeout(1500)
+    ev("window.__pad.axes=[0,0,0,-1]"); a0=ev("P.aimT"); pg.wait_for_timeout(300); a1=ev("P.aimT")
+    print('giro 300ms sin apuntar',round(a1-a0,2),'rad (máx 8*.3=2.4)')
+    ev("window.__pad.axes=[0,0,0,1]"); pg.wait_for_timeout(1500)
+    ev("window.__pad.buttons[6]={pressed:true,value:1}; window.__pad.axes=[0,0,0,-1]"); pg.wait_for_timeout(100); a0=ev("P.aimT"); pg.wait_for_timeout(300); a1=ev("P.aimT")
+    print('giro 300ms apuntando',round(a1-a0,2),'rad (máx 2.4*.3=0.7)')
+    print('errs',errs,pg.eval_on_selector('#err','e=>e.textContent')); b.close()
