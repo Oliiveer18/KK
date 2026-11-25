@@ -12,6 +12,14 @@ El objetivo colectivo es sostener presencia operativa en la región. Importan la
 
 El mapa 3 es el ensayo de combate 6 contra 6. Los bots ya navegan con A*, perciben enemigos y humo, buscan cobertura, disparan, recargan y usan granadas. Jugador y bots comparten el sistema de proyectiles, con lógica propia para ejecutar acciones. El juego ya dispone de salud, escudo, reaparición, armería por proximidad, audio, casquillos, coberturas y objetos con física, empuje, impactos por material, destrucción progresiva y restos. Revisar [partida.js](../src/partida.js), [el prototipo](../src/prototipo.html), [arquitectura](ARQUITECTURA.md) y [estado](ESTADO.md) antes de modificar un sistema. El nuevo modo amplía la toma de decisiones de las compañías, las interacciones con el entorno y las reglas de campaña. Las reglas de reposición de objetos de la arena deberán distinguirse de las reparaciones persistentes del nuevo modo.
 
+### Equipo, vida e inventario de campaña
+
+Decisiones registradas en [EQUIPO_Y_VIDA.md de main](https://github.com/Oliiveer18/KK/blob/main/docs/EQUIPO_Y_VIDA.md). Claude lleva el diseño visual de personajes. Casco, chaleco y mochila son piezas visibles con tres niveles (ligero, medio y pesado). El personaje tiene 100 de vida base y hasta 200 en total con equipo. El reparto propuesto es casco +10/+20/+30 y chaleco +25/+50/+70. La mochila amplía la capacidad para suministros, granadas y kits. Las paletas provisionales son azul, rojo, ámbar y violeta; el verde queda para zombis y barras de vida.
+
+La protección adicional del equipo se repone mediante reparación en el refugio o kits. Sigue abierta la regeneración de la vida base. El equipo se encuentra en ubicaciones de suministro como tiendas, farmacias y almacenes y se mejora en el refugio, sin recetas. Los materiales y suministros viajan en el inventario personal. La posible penalización de velocidad y dash del chaleco pesado y la protección del casco ante impactos en la cabeza quedan para pruebas de equilibrio.
+
+Al quedar abatido, el equipo sigue en el personaje durante la ventana de rescate. Al morir definitivamente pierde todo lo equipado y el equipo queda en el cuerpo. **Decisión abierta:** quién puede recoger el equipo y el contenido de la mochila de un eliminado. Propuesta a probar: permitir la recuperación por cualquiera que llegue al cuerpo, aliado o rival, únicamente tras la muerte definitiva y hasta el límite de su propia mochila. La alternativa de comparación es la recuperación exclusiva por aliados. La reaparición nunca devuelve automáticamente artículos ya transferidos. El tiempo de permanencia de los objetos queda por ajustar.
+
 ## 3. Región, escala y lectura del mapa
 
 - Horizonte de diseño de 4 × 4 km (16 km²), con ciudad central, barrios residenciales, industria y periferia rural. El primer distrito será de alrededor de 1 × 1 km, a escala final y ampliable por sectores.
@@ -76,7 +84,7 @@ Cada facción tiene un único refugio: la base fortificada donde empieza su gent
 
 Cada facción se distingue por el emblema, una franja de color y la silueta de la entrada. Probar el emblema sobre un travesaño, entre dos pilares, en una marquesina corta o en un panel escalonado. Igualar protección inicial, anchura útil de los accesos y distancia de reaparición a la salida. Al conquistar un refugio cambian las señales de propiedad; las piezas, mejoras y reparaciones siguen contando la historia del edificio.
 
-Desde dentro del refugio, jugadores y bots pueden ocupar los puestos de vigilancia y disparar a rivales o zombis con línea de visión, incluso cuando ya han cruzado una brecha. Cada puesto cubre un acceso distinto con protección parcial. La defensa depende de quién ocupa cada puesto y de cuándo se desplaza a cubrir el patio.
+Desde dentro del refugio, jugadores y bots pueden ocupar los puestos de vigilancia y disparar a rivales o zombis con línea de visión, incluso cuando ya han cruzado una brecha. Cada puesto cubre un acceso distinto con protección parcial. Desde el nivel 1, un paso interior conecta portón, laterales y parte trasera. Cada tramo atacable debe poder defenderse desde al menos una posición interior accesible a pie por jugadores y bots. El puesto delantero tiene visión limitada; las aberturas a nivel del suelo permiten defender los laterales y la parte trasera. La mejora amplía las posiciones elevadas disponibles. Una brecha debe abrir una ruta real y permitir a los defensores volver al patio.
 
 ### Reparación y mejora por pieza
 
@@ -88,7 +96,7 @@ Cada pieza tiene un nivel y una integridad independientes. Una reparación recup
 | Portón principal | Portón de acero estándar. | Marco y hojas reforzados. | Segunda puerta interior que permite cerrar el paso aunque caiga la exterior. |
 | Almacén | Un módulo de estantería por tipo de reserva. | Dos módulos por reserva, el doble de capacidad inicial. | Tres módulos por reserva, el triple de capacidad inicial. |
 | Enfermería | Una camilla operativa. | Dos aliados atendidos simultáneamente. | Tres aliados atendidos simultáneamente. |
-| Puesto de vigilancia | Un puesto en la entrada. | Segundo puesto que cubre otro sector. | Tercer puesto para el acceso trasero. Cada puesto requiere un agente y visión directa. |
+| Puesto de vigilancia | Puesto elevado delantero y defensa a nivel del suelo en laterales y parte trasera. | Segundo puesto elevado lateral. | Tercer puesto elevado orientado hacia atrás. Cada puesto requiere un agente y visión directa. |
 
 Al acercarse a una pieza dañada se ofrece «Reparar». Una vez intacta, si aún puede subir de nivel, la acción indica la mejora concreta, su coste y su efecto antes de confirmar. Ejemplo: un portón de nivel 2 al 40 % primero se repara; al llegar al 100 % permite elegir «Mejorar a nivel 3 · Añadir puerta interior». En nivel 3 sigue siendo reparable.
 
@@ -117,6 +125,8 @@ Como punto de partida, permitir **una reanimación por vida**. Si el mismo perso
 - Si se decide pasar a online, el servidor mantendrá la autoridad sobre daño, recursos, refugios, rescates y reapariciones. Un humano podrá ocupar una plaza del sistema de facciones. El nivel de detalle dependerá de todos los jugadores presentes. Complementar bots con clientes de red simulados, latencia y dispositivo real. La cifra de bots por sí sola no valida la concurrencia online.
 
 ## 10. Orden de implementación y pruebas de aceptación
+
+El [plan de implementación](PLAN_DE_IMPLEMENTACION.md) desarrolla estas entregas, sus dependencias y las pruebas necesarias antes de ampliar la escala.
 
 | Etapa | Entrega jugable | Cómo saber si funciona |
 |---|---|---|
