@@ -39,6 +39,7 @@ canvas{display:block}
 #cfg .card{width:min(440px,94vw);max-height:94vh;overflow:auto;background:#151b28;border:1px solid #2b3650;border-radius:14px;padding:16px 18px}
 #cfg h2{margin:0 0 10px;font-size:18px}
 .row{display:flex;justify-content:space-between;padding:9px 12px;border-radius:8px;margin:3px 0;font-size:15px;cursor:pointer;background:#1b2333}
+.sec{font-size:11px;letter-spacing:.12em;opacity:.55;margin:10px 2px 2px}.sec:first-child{margin-top:0}
 .row.sel{outline:2px solid #4aa3ff}.row.wait{background:#ff944033;outline:2px solid #ff9440}.row b{color:#ffd24a}
 #cfgLive{font-size:11px;opacity:.75;white-space:pre-wrap;margin:10px 0;line-height:1.5}
 .cfgBtns{display:flex;gap:8px}.cfgBtns button{flex:1;font-size:14px;padding:10px;border-radius:8px;border:0;background:#2b3650;color:#fff}
@@ -77,8 +78,8 @@ canvas{display:block}
 </div>
 <div id="touch"></div><div id="sL" class="stick"><i></i></div><div id="sR" class="stick"><i></i></div><div id="bDash" class="tbtn">DASH</div><div id="bRel" class="tbtn">RECARG.</div><div id="bCrouch" class="tbtn">AGACHAR</div><div id="bSwap" class="tbtn">ARMA</div><div id="bGren" class="tbtn">GRANADA</div><div id="bSmk" class="tbtn">HUMO</div>
 <div id="vig"></div>
-<div id="cfgBtn">⚙ Mando</div>
-<div id="cfg"><div class="card"><h2>Configurar mando PS5</h2><div id="cfgRows"></div><pre id="cfgLive"></pre><div class="cfgBtns"><button id="cfgReset">Restablecer</button><button id="cfgClose">Cerrar</button></div><p>↑ ↓ elegir · ✕ cambiar · Options cerrar · o toca una fila</p></div></div>
+<div id="cfgBtn">⚙ Menú</div>
+<div id="cfg"><div class="card"><h2>Menú</h2><div id="cfgRows"></div><pre id="cfgLive"></pre><div class="cfgBtns"><button id="cfgReset">Restablecer</button><button id="cfgClose">Cerrar</button></div><p>↑ ↓ elegir · ✕ aceptar · Options cerrar (el juego queda en pausa) · o toca una fila</p></div></div>
 <div id="err"></div>
 <div id="start"><div>
   <h1>Prototipo de movimiento procedural</h1>
@@ -480,7 +481,7 @@ function collide(p, r, pk) {
 const keys = {}; let mode = 'kb', started = false;
 const mouse = { x: innerWidth / 2, y: innerHeight / 2, down: false, rdown: false };
 const flags = { reload: false, dash: false, crouch: false, swap: false };
-function begin() { if (started) return; started = true; $('start').style.display = 'none'; try { if (matchMedia('(pointer:coarse)').matches && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); } catch (e) {} initAudio(); if (MX.want) MX.start(); else if (!RANGE.built) rangeToggle(); LIGHTS.warm = true; }   // arranca en el polígono (Share / F2 para salir); el botón «Mapa 3» arranca la partida 6 vs 6
+function begin() { if (started) return; started = true; $('start').style.display = 'none'; try { if (matchMedia('(pointer:coarse)').matches && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); } catch (e) {} initAudio(); if (MX.want) MX.start(); else if (!RANGE.built && !/mapa=1/.test(location.search)) rangeToggle(); LIGHTS.warm = true; }   // arranca en el polígono (Share / F2 para salir); el botón «Mapa 3» arranca la partida 6 vs 6
 addEventListener('keydown', e => {
   if (e.repeat) return; keys[e.code] = true; mode = 'kb'; begin();
   if (e.code === 'KeyR') flags.reload = true;
@@ -797,27 +798,41 @@ function updateHelp() {
   $('help').innerHTML = '<b>Mando</b> stick izq. mover · stick der. girar · ' + bn(BIND.ads) + ' apuntar · ' + bn(BIND.fire) + ' disparar · ' + bn(BIND.frag) + ' granada · ' + bn(BIND.smoke) + ' humo (mantén = trayectoria, suelta = lanzar) · ' + bn(BIND.reload) + ' recargar · ' + bn(BIND.crouch) + ' agacharse · ' + bn(BIND.swap) + ' arma · ' + bn(BIND.dash) + ' dash (mantén = más largo) · ' + bn(BIND.sprint) + ' correr (un toque y sigues corriendo mientras te mueves) · Options configurar<br>' +
     '<b>Teclado</b> WASD mover · ratón girar · clic izq. disparar · clic der. apuntar · R recargar · C agacharse · Q arma · G granada · H humo · Espacio dash (mantén = más largo) · Shift correr · P/Esc configurar mando';
 }
+/* ---- selector de mapa (arriba del menú de Options; el juego está en pausa mientras está abierto) ---- */
+const MAPS = [[1, 'Mapa 1 · Arena'], [2, 'Mapa 2 · Polígono de pruebas'], [3, 'Mapa 3 · Partida 6 vs 6']], NM = MAPS.length;
+const curMap = () => MX.on ? 3 : RANGE.on ? 2 : 1;
+function chooseMap(n) {
+  if (n === curMap()) { closeMenu(); return; }
+  if (MX.on) { location.href = location.pathname + '?mapa=' + n; return; }              // el mapa 3 transforma la escena: para salir se recarga la página
+  closeMenu();
+  if (n === 3) { if (RANGE.on) rangeToggle(); MX.want = true; MX.start(); }
+  else if ((n === 2) !== RANGE.on) rangeToggle();
+}
 function renderMenu() {
-  let h = '';
-  ACTIONS.forEach((a, i) => {
+  let h = '<div class="sec">MAPA</div>';
+  MAPS.forEach((m, i) => { h += '<div class="row' + (i === selIdx ? ' sel' : '') + '" data-i="' + i + '"><span>' + m[1] + '</span><b>' + (m[0] === curMap() ? '● actual' : (MX.on ? 'recarga' : 'ir')) + '</b></div>'; });
+  h += '<div class="sec">MANDO</div>';
+  ACTIONS.forEach((a, k) => { const i = NM + k;
     const w = rebind && rebind.type === 'btn' && rebind.key === a[0];
     h += '<div class="row' + (i === selIdx ? ' sel' : '') + (w ? ' wait' : '') + '" data-i="' + i + '"><span>' + a[1] + '</span><b>' + (w ? 'Pulsa el botón…' : bn(BIND[a[0]])) + '</b></div>';
   });
   [['L', 'Calibrar stick izquierdo'], ['R', 'Calibrar stick derecho']].forEach((a, n) => {
-    const i = ACTIONS.length + n, w = rebind && rebind.type === 'stick' && rebind.side === a[0];
+    const i = NM + ACTIONS.length + n, w = rebind && rebind.type === 'stick' && rebind.side === a[0];
     h += '<div class="row' + (i === selIdx ? ' sel' : '') + (w ? ' wait' : '') + '" data-i="' + i + '"><span>' + a[1] + '</span><b>' + (w ? (rebind.x === null ? 'Mueve a izq./der.' : 'Mueve arriba/abajo') : 'Calibrar') + '</b></div>';
   });
   $('cfgRows').innerHTML = h;
   for (const r of $('cfgRows').children) r.addEventListener('click', () => { selIdx = +r.dataset.i; startRebind(selIdx); });
+  const se = $('cfgRows').querySelector('.sel'); if (se && se.scrollIntoView) se.scrollIntoView({ block: 'nearest' });
   updateHelp();
 }
 function startRebind(i) {
-  const g = getPad();
+  if (i < NM) { chooseMap(MAPS[i][0]); return; }
+  i -= NM; const g = getPad();
   if (i < ACTIONS.length) rebind = { type: 'btn', key: ACTIONS[i][0] };
   else rebind = { type: 'stick', side: i === ACTIONS.length ? 'L' : 'R', x: null, armed: true, base: g ? g.axes.slice() : null };
   renderMenu();
 }
-function openMenu() { menuOpen = true; mouse.down = false; mouse.rdown = false; rebind = null; $('cfg').style.display = 'flex'; renderMenu(); }
+function openMenu() { menuOpen = true; selIdx = curMap() - 1; mouse.down = false; mouse.rdown = false; rebind = null; $('cfg').style.display = 'flex'; renderMenu(); }
 function closeMenu() { menuOpen = false; rebind = null; $('cfg').style.display = 'none'; save(); }
 function menuTick() {
   const g = getPad();
@@ -838,8 +853,9 @@ function menuTick() {
       break;
     }
   } else {
-    if (edge(12)) { selIdx = (selIdx + ACTIONS.length + 1) % (ACTIONS.length + 2); renderMenu(); }
-    if (edge(13)) { selIdx = (selIdx + 1) % (ACTIONS.length + 2); renderMenu(); }
+    const NT = NM + ACTIONS.length + 2;
+    if (edge(12)) { selIdx = (selIdx + NT - 1) % NT; renderMenu(); }
+    if (edge(13)) { selIdx = (selIdx + 1) % NT; renderMenu(); }
     if (edge(0)) startRebind(selIdx);
     if (edge(9)) closeMenu();
   }

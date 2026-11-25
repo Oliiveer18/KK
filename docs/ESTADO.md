@@ -1,4 +1,6 @@
-# Estado — v0.2.2
+# Estado — v0.3.9
+
+- v0.3.9: selector de mapa en el menú de Options (pausa el juego). Probado solo en automático (cambio 1↔2↔3, recarga desde 3, navegación con mando simulado); sin probar en iPhone con DualSense.
 
 ## Estado al cierre del 25-11-2026 (v0.3.8)
 - Mapa 3: partida 6 vs 6 a 100 bajas (`src/partida.js`), escudo 50 + vida 100, barras profesionales y números de daño, bots con IA y A*, armería en la base azul, ranuras 2 principales + pistola (△ tocar / mantener). Tests: `partida.py`, `partida_armas.py`, `partida_escudo.py`, `horizontal.py`.

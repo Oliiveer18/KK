@@ -1,5 +1,9 @@
 # Controles — v0.2.2
 
+## Cambiar de mapa (en cualquier momento)
+- **Options** (mando) / **P·Esc** (teclado) / botón **⚙ Menú** (táctil): abre el menú con el juego en pausa. Arriba está MAPA: ↑↓ elegir, ✕ aceptar (o tocar la fila). Options vuelve a cerrar.
+- Mapas 1 (arena) y 2 (polígono) y paso a mapa 3: al instante. Desde el mapa 3 a 1/2 se recarga la página (hay que tocar la pantalla para empezar). También por URL: `?mapa=1|2|3`.
+
 ## Mapa 3 (partida 6 vs 6)
 - △/Q: tocar = alternar las 2 principales; mantener (≥0,3 s) = pistola, mantener otra vez = volver a la principal.
 - Armería en la base azul (izquierda): pisar una peana equipa el arma; pad verde = munición completa.
