@@ -30,6 +30,21 @@ El mapa 3 es el ensayo de combate 6 contra 6. Los bots ya navegan con A*, percib
 | Mercado, viviendas y plaza | Explorar interiores, patios y alturas, encontrar grupos, cruzar una zona evacuada por la horda o evitar una avenida ocupada. |
 | Subestación e infraestructura regional | Posible ampliación para restablecer servicios con una interacción local y efectos visibles en otro barrio. Validar tras el primer distrito. El transporte ferroviario funcional y los vehículos también son ampliaciones, no requisitos iniciales. |
 
+### Control de ubicaciones en la región completa
+
+Propuesta de distribución para probar. Los puntos capturables llevan un único icono de control. El resto de los edificios y rutas se usa directamente. El mapa distingue propiedad, disponibilidad del servicio y posibilidad de reaparecer.
+
+| Ubicación | Control y efecto |
+|---|---|
+| Refugio de facción | Capturable al asegurar el patio. Da acceso al almacén y, estando operativo, a la reaparición. Destruido o infestado queda inhabilitado. |
+| Clínica de distrito | Capturable. Recuperación y posible puesto avanzado una vez habilitado y seguro. Las farmacias pequeñas son de acceso libre. |
+| Estación principal y depósito ferroviario | Un único recinto capturable. Su control permite habilitar un punto de reagrupamiento junto al corredor ferroviario. |
+| Taller central con almacén | Capturable. Guarda materiales, facilita reparaciones y puede habilitarse como puesto alternativo. Los pequeños talleres y almacenes de barrio son libres. |
+| Subestación regional | Capturable en la ampliación que introduzca electricidad por sectores. Controla el servicio eléctrico local. No otorga reaparición. |
+| Tiendas, supermercados, farmacias, gasolineras y mercado | Acceso libre para buscar, recoger o transportar suministros. |
+| Viviendas, patios, plazas, aparcamientos y naves industriales comunes | Acceso libre. Ofrecen rutas, cobertura y espacio para expediciones e infectados. |
+| Puentes, vías, carreteras y caminos rurales | Control físico. Se pueden vigilar, bloquear o despejar sin cambiar de propietario en el mapa. |
+
 ## 4. Zombis y frentes
 
 Los infectados son una población independiente que ocupa edificios, calles y barrios. Los cercanos investigan ruidos locales. Una pelea sostenida o una alarma puede desviar una horda existente. El jugador debe poder oírla, verla llegar, interpretar por dónde avanza y aprovechar la zona que deja libre. Alternar lugares tranquilos, interiores con pocos infectados y concentraciones grandes. La distancia de atracción y la persistencia del ruido se ajustarán jugando.
@@ -55,7 +70,7 @@ Cada facción mantiene una guardia y distribuye a los demás agentes según las 
 1. **Recibir compañías.** Vigilar accesos, abrir a quienes regresan y decidir cuándo cerrar si se aproxima una horda.
 2. **Auxiliar y reparar.** Atender a los caídos, cerrar brechas y devolver instalaciones a su estado operativo. Los agentes priorizan peligro inmediato y accesos críticos.
 3. **Organizar expediciones.** Reunirse en el patio, señalar el destino y dejar que el jugador se incorpore. Mantener personal suficiente en casa.
-4. **Gestionar suministros.** Recibir cajas, colocarlas y despachar material a quienes lo necesitan. Tres reservas físicas y reconocibles: materiales, munición y botiquines. El almacén muestra sus existencias mediante estantes, símbolos y cajas visibles. Se puede cargar, entregar o escoltar a quien transporta. Evitar medidores de hambre o sed y cadenas obligatorias de fabricación.
+4. **Gestionar suministros.** Recibir cajas, colocarlas y despachar material a quienes lo necesitan. Tres reservas físicas y reconocibles: materiales, munición y material médico. La reserva médica distingue botiquines de curación y kits de reanimación. El almacén muestra sus existencias mediante estantes, símbolos y cajas visibles. Se puede cargar, entregar o escoltar a quien transporta. Evitar medidores de hambre o sed y cadenas obligatorias de fabricación.
 
 Reparar devuelve la funcionalidad y conserva las mejoras adquiridas. Mejorar cambia una capacidad de manera permanente mientras se conserve la estructura: reforzar un portón para resistir más daño o ampliar un estante para guardar más cajas. Mostrar en el propio elemento la acción contextual, el coste y el resultado antes de gastar. Los agentes pueden efectuar reparaciones ordinarias con las reservas disponibles. Hacer visibles el trabajo y el resultado. Validar quién decide el gasto de mejoras cuando coincidan varios jugadores online.
 
@@ -69,9 +84,9 @@ Una brecha abre un acceso. El refugio todavía puede defenderse. Una facción ri
 
 **Acuerdo:** una caída reciente puede dar lugar a un rescate. Reanimar ocurre en el lugar de la caída, antes de la muerte definitiva. Reaparecer usa un puesto válido después de morir. Perder un refugio afecta a la reaparición, incluso si un compañero todavía puede auxiliarte sobre el terreno.
 
-**Primera regla de equilibrio propuesta, pendiente de probar:** al agotarse la vida, un aliado queda abatido por un tiempo limitado. Mientras esté abatido deja de combatir y se señala a los aliados próximos. Un jugador o bot se acerca y mantiene «Reanimar». Un indicador muestra el tiempo restante. Alejarse, soltar la acción o recibir daño interrumpe al rescatador. La reanimación completada consume un botiquín y devuelve al compañero con salud parcial. Un único rescate puede completarse por caído, con un solo consumo aunque dos aliados lo intenten. Si se agota el plazo, se aplica la muerte definitiva.
+**Primera regla de equilibrio propuesta, pendiente de probar:** al agotarse la vida, un aliado queda abatido por un tiempo limitado. Mientras esté abatido deja de combatir y se señala a los aliados próximos. Un jugador o bot que lleve un kit de reanimación se acerca y mantiene «Reanimar». Un indicador muestra el tiempo restante. Alejarse, soltar la acción o recibir daño interrumpe al rescatador. La reanimación completada consume un kit de reanimación de un solo uso y devuelve al compañero con salud parcial. Un único rescate puede completarse por caído, con un solo consumo aunque dos aliados lo intenten. El abatido sigue recibiendo daño de enemigos y zombis. Si ese daño resulta letal o se agota el plazo, muere y queda sujeto a las reglas de reaparición. Si muere durante el rescate, se cancela la acción sin consumir el kit. El botiquín común sirve para curar a un aliado en pie.
 
-Como punto de partida, permitir **una reanimación por vida**. Si el mismo personaje vuelve a caer antes de reaparecer, pasa a muerte definitiva. La duración, salud recuperada y disponibilidad de botiquines se ajustarán en partidas. La IA debe valorar si puede alcanzar al herido y evitar que varios agentes abandonen la guardia por un mismo rescate. Probar también la caída simultánea de los últimos aliados, para resolver la campaña sin esperas indefinidas.
+Como punto de partida, permitir **una reanimación por vida**. Si el mismo personaje vuelve a caer antes de reaparecer, pasa a muerte definitiva. La duración, salud recuperada y disponibilidad de kits de reanimación se ajustarán en partidas. La IA debe valorar si puede alcanzar al herido y evitar que varios agentes abandonen la guardia por un mismo rescate. Probar también la caída simultánea de los últimos aliados, para resolver la campaña sin esperas indefinidas.
 
 ## 9. IA, rendimiento y futura red
 
@@ -88,7 +103,7 @@ Como punto de partida, permitir **una reanimación por vida**. Si el mismo perso
 | 1. Distrito y guerra | Cuatro facciones, compañías, dos frentes, infectados y una horda. | Entrar, elegir entre dos destinos y encontrar un frente cambiado al regresar. La horda se aproxima por una ruta legible y altera una decisión. |
 | 2. Entorno y refugios | Primer recorrido entre tienda, gasolinera, clínica, estación, taller y refugio. Accesos y materiales con comportamientos distintos. | Bot y jugador usan una brecha recién abierta. El carro pasa por el patio de carga. Al volver se entiende en segundos si conviene abrir, auxiliar o reparar. |
 | 3. Logística y mejoras | Recogida, entrega, almacenamiento, reparación y mejora de un portón o estante. | Una caja recogida por una compañía llega físicamente al almacén y permite reparar una entrada. Interrumpir o repetir la acción no duplica el material. |
-| 4. Caídas y cambios de control | Reanimación, conquista, infestación, destrucción, retirada y puesto alternativo. | Probar rescate interrumpido, rescate simultáneo, segunda caída y pérdida del puesto durante la espera. Con la base destruida se reaparece únicamente en otro puesto válido. |
+| 4. Caídas y cambios de control | Reanimación, conquista, infestación, destrucción, retirada y puesto alternativo. | Probar rescate sin kit, muerte por daño durante el rescate, rescate interrumpido, rescate simultáneo, segunda caída y pérdida del puesto durante la espera. Con la base destruida se reaparece únicamente en otro puesto válido. |
 | 5. Escala y decisión online | Multiplicar compañías y sectores tras validar el primer distrito. | Probar quince minutos sin límite de bajas, tanto en un sector concurrido como entre frentes. Registrar decisiones espontáneas, rescates repetidos, tiempos de regreso y rendimiento real. Decidir después si avanzar al ensayo multijugador. |
 
 Para trabajar en paralelo, dividir por entregas que puedan probarse y coordinar cambios que compartan navegación, reglas de vida o generación del juego. Documentar en cada entrega lo verificado automáticamente, lo probado jugando y lo pendiente en dispositivo real.
