@@ -49,13 +49,14 @@ canvas{display:block}
 #rangePanel { display: none !important; }
 /* móvil en horizontal (pantalla baja): botones y HUD recolocados para que quepan, con márgenes seguros (muesca) */
 @media (orientation:landscape) and (max-height:520px){
-#ammo{bottom:calc(26px + var(--b));right:calc(var(--r) + 80px);font-size:40px}#ammo small{font-size:16px}
-#wname{bottom:calc(78px + var(--b));right:calc(var(--r) + 80px);font-size:11px}#gren{bottom:calc(94px + var(--b));right:calc(var(--r) + 80px);font-size:10px}
-#rl{bottom:calc(18px + var(--b));right:calc(var(--r) + 80px);width:130px}#dash{bottom:calc(6px + var(--b));right:calc(var(--r) + 80px);width:130px;height:10px}
-#fps{font-size:15px;padding:2px 8px}#mode{font-size:11px;max-width:calc(50vw - 130px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#cfgBtn{top:44px}
+:root{--r:max(14px,env(safe-area-inset-right));--l:max(14px,env(safe-area-inset-left));--t:max(8px,env(safe-area-inset-top))}
+#ammo{bottom:calc(26px + var(--b) * .5);right:var(--r);font-size:40px}#ammo small{font-size:16px}
+#wname{bottom:calc(78px + var(--b) * .5);right:var(--r);font-size:11px}#gren{bottom:calc(94px + var(--b) * .5);right:var(--r);font-size:10px}
+#rl{bottom:calc(18px + var(--b) * .5);right:var(--r);width:130px}#dash{bottom:calc(6px + var(--b) * .5);right:var(--r);width:130px;height:10px}
+#fps{font-size:15px;padding:2px 8px}#mode{font-size:11px;max-width:calc(50vw - 130px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#cfgBtn{top:34px}
 .tbtn{width:58px;height:58px;font-size:10px;letter-spacing:0}
 #bDash,#bCrouch{bottom:calc(12px + var(--b))}#bRel,#bSwap{bottom:calc(80px + var(--b))}#bGren,#bSmk{bottom:calc(148px + var(--b))}
-.mxpb{bottom:calc(116px + var(--b)) !important;right:calc(var(--r) + 80px) !important}
+.mxpb{bottom:calc(116px + var(--b) * .5) !important;right:var(--r) !important}
 }
 @media (orientation:portrait){.mxpb{bottom:196px !important}}
 </style>
