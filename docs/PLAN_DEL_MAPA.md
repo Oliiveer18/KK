@@ -81,3 +81,28 @@ Todo lo del boceto son objetos interactivos reales de `objetos.js` (muros y port
 - **Zombis como tercer actor:** nidos dormidos repartidos entre los ejes y una horda itinerante que recorre la Calle Central de norte a sur; el ruido de combate la desvía hacia donde se pelea.
 - **Mapa por capas de lectura:** zonas de partida (~165 m), tierra de nadie, objetivos numerados, rutas de flanqueo. Los sectores lejanos se simplifican (M2) sin perder esto.
 Imagen: `docs/img/mapa_propuesta_1km.png` (con la leyenda táctica).
+
+## 7. Lo que queda para terminar el mapa de 1 km² (26-11, estado real)
+Hecho: motor de mapa por datos, calles curvas, composiciones, `MAPA.put`/`MAPA.fp` (los 76 tipos), objetos y edificios (otra sesión), navegación reactiva a `OBJ.on`, zombis con rodeo de obstáculos, precalentado de shaders, boceto aprobado (v3). Mapa 5 sigue siendo M1 (250×250, rejilla recta, 31/76 tipos).
+**A. Montar el distrito (M2→M3)**
+1. Datos del trazado del boceto (calles curvas, manzanas, plaza, parque, vía, bosques, campos) en sectores de 250×250: 16 sectores.
+2. Colocar con composiciones: atascos, 12+ barricadas y cortes, puestos de control, torres, mobiliario, restos, 8 objetivos, nidos de zombis y horda.
+3. Edificios: los 11 tipos (hoy 3) colocados con sus aparcamientos y entornos; casas y viviendas (varias decenas).
+4. Recogibles (13 tipos) repartidos por nivel.
+5. Ambientación apocalíptica: niebla y luz, coches quemados, humo e incendios, cráter, helicóptero, puesto militar, valla de cuarentena (objetos nuevos o composiciones).
+6. `tests/mapa_cobertura.py --estricto` en verde (76 tipos, 11 edificios, 13 recogibles) + test de jugabilidad: sin solapes, pasillos ≥ 2 m, objetivos alcanzables desde los 4 refugios, cortes rodeables o forzables, bots sin atascos.
+**B. Motor (M2)**
+7. Carga y simulación por sectores y LOD: sólo los sectores cercanos en detalle; bots y zombis lejanos como grupos (posición y recuento) que se reanudan al acercarse.
+8. Navegación por sector (A* por sectores o jerárquico; hoy una malla de 258×258 para 250 m, para 1 km² haría falta jerarquía).
+9. Fusión de geometría estática (hoy ~7.900 mallas; 16 sectores se disparan) y descongelado al dañar.
+10. Minimapa / mapa estratégico (ver todo el distrito, objetivos, frentes).
+11. Población: 100 combatientes y zombis repartidos por sectores; reaparición y hordas por sector.
+**C. Entrega 2 (refugio y combate táctico)**
+12. Refugio definitivo ×4 (patio, paso interior, brechas, armería, almacén, enfermería, tablón).
+13. Visión de los bots a través de cristales; altura transitable; torres ocupables; aspilleras a ras de suelo.
+**D. Rendimiento**
+14. Medir en iPhone (FPS por zona, llamadas de dibujo) y ajustar sin bajar calidad.
+**E. Lo que decide o prueba el usuario**
+15. Probar `?mapa=5` y las composiciones en iPhone; aprobar sonidos (cristal, alarma, rotura, zombis); decidir los nombres de calles y lugares.
+**F. Fuera del mapa pero lo hace jugable como campaña (entregas 3–5)**
+16. Inventario y equipo; reparar y mejorar (muro → portón → torre por niveles); conquista e infestación de refugios; guardia y destinos por grupo.
