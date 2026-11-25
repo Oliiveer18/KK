@@ -4,6 +4,9 @@
 - **Options** (mando) / **P·Esc** (teclado) / botón **⚙ Menú** (táctil): abre el menú con el juego en pausa. Arriba está MAPA: ↑↓ elegir, ✕ aceptar (o tocar la fila). Options vuelve a cerrar.
 - Mapas 1 (arena) y 2 (polígono) y paso a mapa 3: al instante. Desde el mapa 3 a 1/2 se recarga la página (hay que tocar la pantalla para empezar). También por URL: `?mapa=1|2|3`.
 
+## Campaña (?mapa=4)
+- Reanimar a un aliado abatido: acércate (≤1,5 m) y **mantén ✕ (mando) o E (teclado)** 3 s. Necesitas kit (✚ junto al escudo). Soltar, alejarte o recibir daño lo interrumpe. Si caes abatido, espera ayuda (25 s).
+
 ## Mapa 3 (partida 6 vs 6)
 - Pantalla: vida y escudo abajo a la izquierda; arma, munición, granadas y dash abajo a la derecha; kill feed arriba a la derecha (tus bajas con borde dorado). Ya no hay chuleta de controles en pantalla: están aquí.
 - △/Q: tocar = alternar las 2 principales; mantener (≥0,3 s) = pistola, mantener otra vez = volver a la principal.

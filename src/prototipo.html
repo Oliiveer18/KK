@@ -158,7 +158,7 @@ const border = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeome
 border.position.y = 0.15; scene.add(border);
 
 /* ---------- partida 6 vs 6 (mapa 3): ganchos hacia src/partida.js; con MX.on = false todo funciona como antes ---------- */
-const MX = { on: false, want: false, campaign: false, foes: [], ents: [] };
+const MX = { on: false, want: false, campaign: false, rev: false, foes: [], ents: [] };
 const WORLD = { x: 39, z: 39 };                                                    // límites jugables (mapa 3 los cambia)
 /* ---------- obstáculos (AABB) ---------- */
 const boxes = [], OBST = [];
@@ -1945,6 +1945,7 @@ function update(dt) {
     rawX = rx; rawY = ry;
     if (rm > 0.02) { ax = rx; ay = ry; stickAim = rm; mode = 'pad'; }
     const down = k => !!(g.buttons[k] && (g.buttons[k].pressed || g.buttons[k].value > .3)), edge = k => down(k) && !prevBtn[k];
+    if (down(0)) MX.rev = true;                                    // ✕: mantener para reanimar (campaña)
     const tv = k => (g.buttons[k] ? g.buttons[k].value || (g.buttons[k].pressed ? 1 : 0) : 0);   // gatillos analógicos: umbral según el arma
     if (tv(BIND.fire) >= cur.tr) { trig = true; mode = 'pad'; }
     if (tv(BIND.ads) >= cur.ta) ads = true;

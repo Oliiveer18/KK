@@ -166,7 +166,7 @@ const border = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeome
 border.position.y = 0.15; scene.add(border);
 
 /* ---------- partida 6 vs 6 (mapa 3): ganchos hacia src/partida.js; con MX.on = false todo funciona como antes ---------- */
-const MX = { on: false, want: false, campaign: false, foes: [], ents: [] };
+const MX = { on: false, want: false, campaign: false, rev: false, foes: [], ents: [] };
 const WORLD = { x: 39, z: 39 };                                                    // límites jugables (mapa 3 los cambia)
 /* ---------- obstáculos (AABB) ---------- */
 const boxes = [], OBST = [];
@@ -1953,6 +1953,7 @@ function update(dt) {
     rawX = rx; rawY = ry;
     if (rm > 0.02) { ax = rx; ay = ry; stickAim = rm; mode = 'pad'; }
     const down = k => !!(g.buttons[k] && (g.buttons[k].pressed || g.buttons[k].value > .3)), edge = k => down(k) && !prevBtn[k];
+    if (down(0)) MX.rev = true;                                    // ✕: mantener para reanimar (campaña)
     const tv = k => (g.buttons[k] ? g.buttons[k].value || (g.buttons[k].pressed ? 1 : 0) : 0);   // gatillos analógicos: umbral según el arma
     if (tv(BIND.fire) >= cur.tr) { trig = true; mode = 'pad'; }
     if (tv(BIND.ads) >= cur.ta) ads = true;
@@ -2569,7 +2570,7 @@ function teamColor(team) {
 }
 function makeEnt(team, n, isPlayer) {
   const e = { id: ['A', 'R', 'M', 'V'][team] + (n + 1), team, isPlayer: !!isPlayer, bot: !isPlayer, p: isPlayer ? P.pos : new V3(), v: isPlayer ? P.vel : new V3(),
-    yaw: 0, body: 0, hp: HP, sh: SH, bH: { fill: HP, chunk: HP, wait: 0 }, bS: { fill: SH, chunk: SH, wait: 0 }, dead: true, deadT: 0, respT: 0, inv: 0, kills: 0, deaths: 0, cover: null, lastHurt: -99, lastAtt: null, lastAttT: -99 };
+    yaw: 0, body: 0, hp: HP, sh: SH, bH: { fill: HP, chunk: HP, wait: 0 }, bS: { fill: SH, chunk: SH, wait: 0 }, dead: true, deadT: 0, respT: 0, inv: 0, kills: 0, deaths: 0, cover: null, lastHurt: -99, lastAtt: null, lastAttT: -99, dwn: false, revived: false, kits: 1, rescuer: null, rt: null, revP: 0 };
   e.tgp = { hp: HP, g: { visible: true, position: e.p } };
   if (!isPlayer) initBot(e);
   return e;
@@ -2649,18 +2650,20 @@ function unbake(e) { e.root.position.set(0, 0, 0); e.root.quaternion.identity();
 const DWN_RING = new THREE.RingGeometry(.62, .78, 40), DWN_AMB = new THREE.MeshBasicMaterial({ color: 0xffb020, transparent: true, opacity: .8, side: THREE.DoubleSide, depthWrite: false }),
   DWN_WHT = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .95, depthWrite: false }), DWN_RED = new THREE.MeshBasicMaterial({ color: 0xff4a38, transparent: true, opacity: .95, depthWrite: false }),
   DWN_GRN = new THREE.MeshBasicMaterial({ color: 0x6dff9a, transparent: true, opacity: .9, side: THREE.DoubleSide, depthWrite: false });
-MX.setDowned = (e, on, dx, dz) => {
+const DWN_T = 25, DWN_HP = 40, REV_T = 3, REV_R = 1.5, REV_HP = 50;            // abatido: tiempo máx., vida extra antes de morir; reanimar: tiempo, alcance y vida al volver
+function dwnFxMake(e) {
+  if (e.dwnFx) return;
+  const g = new THREE.Group(), ring = new THREE.Mesh(DWN_RING, DWN_AMB.clone()); ring.rotation.x = -Math.PI / 2; ring.position.y = .035; g.add(ring);
+  const cr = new THREE.Group(), pl = new THREE.Mesh(geoBox, DWN_WHT); pl.scale.set(.46, .46, .04); cr.add(pl);                    // placa blanca con cruz roja, inclinada hacia la cámara
+  for (const [w, h] of [[.36, .1], [.1, .36]]) { const m = new THREE.Mesh(geoBox, DWN_RED); m.scale.set(w, h, .03); m.position.z = .03; cr.add(m); }
+  cr.rotation.x = -.99; cr.position.y = 1.5; g.add(cr);
+  g.position.set(e.p.x, 0, e.p.z); scene.add(g); e.dwnFx = { g, ring, cr, prog: null, pm: null };
+}
+function dwnFxClear(e) { if (e.dwnFx) { scene.remove(e.dwnFx.g); e.dwnFx = null; } }
+MX.setDowned = (e, on, dx, dz) => {                                                 // solo aspecto (pruebas y capturas): sin reglas
   if (on === !!e.dwn || e.dead) return;
-  if (on) {
-    e.dwn = true; e.dwT = 0; bake(e, dx === undefined ? Math.sin(e.yaw) : dx, dz === undefined ? Math.cos(e.yaw) : dz);
-    const g = new THREE.Group(), ring = new THREE.Mesh(DWN_RING, DWN_AMB.clone()); ring.rotation.x = -Math.PI / 2; ring.position.y = .035; g.add(ring);
-    const cr = new THREE.Group(), pl = new THREE.Mesh(geoBox, DWN_WHT); pl.scale.set(.46, .46, .04); cr.add(pl);                    // placa blanca con cruz roja, inclinada hacia la cámara
-    for (const [w, h] of [[.36, .1], [.1, .36]]) { const m = new THREE.Mesh(geoBox, DWN_RED); m.scale.set(w, h, .03); m.position.z = .03; cr.add(m); }
-    cr.rotation.x = -.99; cr.position.y = 1.5; g.add(cr);
-    g.position.set(e.p.x, 0, e.p.z); scene.add(g); e.dwnFx = { g, ring, cr, prog: null, pm: null };
-  } else {
-    e.dwn = false; unbake(e); if (e.dwnFx) { scene.remove(e.dwnFx.g); e.dwnFx = null; }
-  }
+  if (on) { e.dwn = true; e.dwT = 0; bake(e, dx === undefined ? Math.sin(e.yaw) : dx, dz === undefined ? Math.cos(e.yaw) : dz); dwnFxMake(e); }
+  else { e.dwn = false; unbake(e); dwnFxClear(e); }
 };
 MX.reviveFx = (e, p) => {                                                           // progreso de reanimación 0..1 (null = sin rescate)
   const f = e.dwnFx; if (!f) return;
@@ -2670,11 +2673,17 @@ MX.reviveFx = (e, p) => {                                                       
     f.pm = new THREE.Mesh(new THREE.RingGeometry(.82, .98, 40, 1, Math.PI / 2, -Math.PI * 2 * clamp(p, .001, 1)), DWN_GRN); f.pm.rotation.x = -Math.PI / 2; f.pm.position.y = .04; f.g.add(f.pm); f.prog = p;
   }
 };
+function dwnFxTick(e) {
+  const f = e.dwnFx; if (!f) return;
+  const ax = e.fallAx; f.g.position.set(e.p.x - ax.z * .9, 0, e.p.z + ax.x * .9);
+  const left = MX.campaign ? 1 - e.dwT / DWN_T : 1, fast = left < .3 ? 12 : 5;      // al agotarse el tiempo, el marcador late más rápido
+  f.ring.material.opacity = .45 + .4 * (.5 + .5 * Math.sin(M.t * fast)); f.ring.scale.setScalar(1 + .06 * Math.sin(M.t * fast));
+  f.cr.position.y = 1.45 + .08 * Math.sin(M.t * 3);
+}
 function dwnTick(e, dt) {
   e.dwT += dt; const k = smooth(e.dwT / .5); e.root.quaternion.setFromAxisAngle(e.fallAx, k * 1.3);
-  const f = e.dwnFx; if (!f) return;
-  f.g.position.set(e.p.x - e.fallAx.z * .9, 0, e.p.z + e.fallAx.x * .9); f.ring.material.opacity = .45 + .4 * (.5 + .5 * Math.sin(M.t * 5)); f.ring.scale.setScalar(1 + .06 * Math.sin(M.t * 5));
-  f.cr.position.y = 1.45 + .08 * Math.sin(M.t * 3);
+  dwnFxTick(e);
+  if (MX.campaign && e.dwT >= DWN_T && !M.over) { endRescueOn(e); kill(e, e.lastAttT > -90 && M.t - e.lastAttT < 40 ? e.lastAtt : null, 0, 1); }   // se desangra
 }
 
 /* ============================ IA DE LOS BOTS ============================ */
@@ -2866,6 +2875,7 @@ function botTick(e, dt) {
     if (e.reloadT >= 1.55) { e.reloadT = -1; e.ammo = w.max; e.rp = 0; }
   } else if (e.ammo <= 0) { if (e.vis) playAt(w.sid + '_dry', e.p.x, e.p.z, { vol: .6 }); startReload(e); }
   else if (e.ammo < w.max * .3 && !e.vis) startReload(e);
+  if (MX.campaign && rescueBot(e, dt)) return;
   moveBot(e, dt); aimFire(e, dt);
 }
 
@@ -2879,12 +2889,13 @@ function pickSpawn(team) {
   return c[0].s;
 }
 function respawn(e) {
-  const s = pickSpawn(e.team); e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = SH; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.yaw = e.body = s.yaw; e.cover = null;
+  const s = pickSpawn(e.team); e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = SH; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e);
   if (e.isPlayer) return respawnPlayer(e);
   unbake(e); setWeapon(e, pickWeaponIdx()); e.gCount = 3; e.sCount = 2; e.st = 'push'; e.goal = null; e.path = null; e.tgt = null; e.vis = false; e.reactT = 0; e.canShoot = false; e.wantThrow = null; e.holdT = 0;
   e.crouch = e.crouchT = 0; e.kick = 0; e.fireCd = rr(.2, .6); e.pause = 0; e.burst = 0; e.gCd = rr(4, 10); e.sCd = 6; e.walk = 0; e.stuckN = 0; e.nudge = 0; e.py = 1.1; e.thinkT = rnd() * .12; e.ring.visible = true; e.root.visible = true;
 }
 let corpseP = null;
+MX.corpse = () => !!corpseP;
 function respawnPlayer(e) {
   if (corpseP) { scene.remove(corpseP); corpseP = null; }
   for (const m of RL) m.visible = true; weapon.visible = true; P.dead = false;
@@ -2903,25 +2914,77 @@ function regen(e, dt) {                                                         
   if (M.t - e.lastHurt <= SH_DELAY) return;
   if (e.sh < SH) e.sh = Math.min(SH, e.sh + SH_RATE * dt); else if (e.hp < HP) { e.hp = Math.min(HP, e.hp + HP_RATE * dt); e.tgp.hp = e.hp; }
 }
+/* ---- campaña: abatido y reanimación (reglas del diseño: una reanimación por vida, kit de un solo uso, un solo rescatador por caído, el daño al rescatador lo interrumpe) ---- */
+const canDown = e => MX.campaign && !e.revived && !M.over && M.ents.some(o => o !== e && o.team === e.team && !o.dead && !o.dwn);   // sin aliados en pie no hay a quien esperar
+function endRescueOn(t) { if (t.rescuer) { if (t.rescuer.rt === t) t.rescuer.rt = null; t.rescuer = null; } t.revP = 0; MX.reviveFx(t, null); }
+function cancelRescue(by) { const t = by.rt; if (t) { if (t.rescuer === by) { t.rescuer = null; t.revP = 0; MX.reviveFx(t, null); } by.rt = null; } }
+function goDown(e, dx, dz) {
+  e.dwn = true; e.dwT = 0; e.dwHp = DWN_HP; e.revP = 0; e.rescuer = null; e.rt = null; e.hp = 0; e.tgp.hp = DWN_HP; e.v.set(0, 0, 0);
+  if (e.isPlayer) { if (!e.fallAx) e.fallAx = new V3(); playerCorpse(dx, dz); e.fallAx.copy(corpseP.userData.ax); for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(160, .7, .5); }
+  else { bake(e, dx, dz); e.ring.visible = false; e.flash.visible = false; e.wantThrow = null; e.firing = false; e.goal = null; e.path = null; e.tgt = null; }
+  dwnFxMake(e);
+}
+function revive(t, by) {                                                           // completada: gasta el kit, vuelve con vida parcial y no puede volver a ser reanimado en esta vida
+  by.kits--; if (by.rt === t) by.rt = null;
+  t.dwn = false; t.revived = true; t.rescuer = null; t.revP = 0; t.hp = REV_HP; t.sh = 0; t.bH.fill = t.bH.chunk = REV_HP; t.bS.fill = t.bS.chunk = 0; t.tgp.hp = REV_HP; t.inv = .8; t.lastHurt = M.t;
+  dwnFxClear(t);
+  if (t.isPlayer) { if (corpseP) { scene.remove(corpseP); corpseP = null; } for (const m of RL) m.visible = true; weapon.visible = true; P.vel.set(0, 0, 0); }
+  else { unbake(t); t.crouch = 0; t.st = 'push'; t.goal = null; t.path = null; t.holdT = 0; }
+}
+function rescueBot(e, dt) {                                                        // true = el bot está ocupado con un rescate (no combate ni vaga)
+  if (e.kits <= 0 || e.dwn) { cancelRescue(e); return false; }
+  if (e.vis || M.t - e.lastHurt < 1.2) { cancelRescue(e); return false; }          // ve a un enemigo o le han dañado: se interrumpe (progreso perdido)
+  let t = e.rt; if (t && (!t.dwn || t.dead || t.rescuer !== e)) t = e.rt = null;
+  if (!t) {
+    let best = 1e9; for (const o of M.ents) if (o !== e && o.dwn && !o.dead && o.team === e.team && !o.rescuer) { const d = Math.hypot(o.p.x - e.p.x, o.p.z - e.p.z); if (d < 28 && d < best) { best = d; t = o; } }
+    if (!t) return false; e.rt = t; t.rescuer = e;                                 // reserva: solo un rescatador por caído
+  }
+  const dx = t.p.x - e.p.x, dz = t.p.z - e.p.z, d = Math.hypot(dx, dz);
+  if (d > REV_R * .8) {
+    if (t.revP > 0) { t.revP = 0; MX.reviveFx(t, null); }
+    e.st = 'push'; e.flee = null; e.holdT = 0; if (!e.goal || Math.hypot(e.goal.x - t.p.x, e.goal.z - t.p.z) > 1) setGoal(e, t.p.x, t.p.z);
+    moveBot(e, dt); return true;
+  }
+  e.v.set(0, 0, 0); e.yaw = e.body = Math.atan2(dx, dz); e.crouch = damp(e.crouch, 1, 7, dt); e.firing = false;      // arrodillado junto al caído
+  t.revP += dt / REV_T; MX.reviveFx(t, t.revP);
+  if (t.revP >= 1) revive(t, e);
+  return true;
+}
+function rescuePlayer(pl, dt) {                                                    // el jugador mantiene ✕ / E junto a un aliado abatido
+  const held = !!(MX.rev || keys.KeyE); let near = null, nd = REV_R;
+  if (!pl.dead && !pl.dwn) for (const o of M.ents) if (o !== pl && o.dwn && !o.dead && o.team === pl.team && (!o.rescuer || o.rescuer === pl)) { const d = Math.hypot(o.p.x - pl.p.x, o.p.z - pl.p.z); if (d <= nd) { nd = d; near = o; } }
+  if (pl.rt && pl.rt !== near) cancelRescue(pl);
+  if (!near) return '';
+  if (pl.kits <= 0) return 'Sin kit de reanimación';
+  if (held && M.t - pl.lastHurt > .4) { pl.rt = near; near.rescuer = pl; near.revP += dt / REV_T; MX.reviveFx(near, near.revP); if (near.revP >= 1) revive(near, pl); return 'Reanimando a ' + near.id + '…'; }
+  cancelRescue(pl); return 'Mantén ✕ / E para reanimar a ' + near.id;
+}
 MX.hit = (e, dmg, from, dx, dz, w) => {
   if (e.dead || e.inv > 0 || M.over || dmg <= 0) return;
   const hm = !!(w && from && from.isPlayer && !e.isPlayer && e.team !== from.team);   // «hit» de confirmación: solo cuando una bala del jugador entra en un rival
+  if (e.dwn) {                                                                     // un abatido sigue recibiendo daño; al agotarse su vida extra muere
+    e.dwHp -= dmg; e.bH.flash = 1; e.lastHurt = M.t; e.bShow = M.t; e.lastSrc = w ? w.sid : null; if (from) { e.lastAtt = from; e.lastAttT = M.t; }
+    if (from && (from.isPlayer || e.isPlayer)) popNum(e, dmg);
+    if (e.dwHp <= 0) { endRescueOn(e); kill(e, from, dx, dz); } else if (hm) playSnd('HIT_marker', { vol: 1 });
+    return;
+  }
   const tot = dmg; let rest = dmg;
   if (e.sh > 0) { const a = Math.min(e.sh, rest); e.sh -= a; rest -= a; e.bS.flash = 1; }                  // el escudo absorbe primero; el sobrante pasa a la vida en el mismo golpe
   if (rest > 0) { e.hp -= rest; e.bH.flash = 1; }
   e.tgp.hp = e.hp; e.lastHurt = M.t; e.bShow = M.t; e.lastSrc = w ? w.sid : null;
   if (from && (from.isPlayer || e.isPlayer)) popNum(e, tot); if (from) { e.lastAtt = from; e.lastAttT = M.t; }
   if (e.isPlayer) { M.hurt = Math.min(1, M.hurt + dmg / 45); P.shake = Math.max(P.shake, .06 + Math.min(.14, dmg * .004)); rumble(70, .55, .4); }
-  if (e.hp <= 0) kill(e, from, dx, dz); else if (hm) playSnd('HIT_marker', { vol: 1 });   // si la bala mata, suena solo el sonido de baja (HIT_kill)
+  if (e.hp <= 0) { if (canDown(e)) goDown(e, dx, dz); else kill(e, from, dx, dz); } else if (hm) playSnd('HIT_marker', { vol: 1 });   // si la bala mata, suena solo el sonido de baja (HIT_kill)
 };
 function kill(v, killer, dx, dz) {
   if (!killer && v.lastAtt && M.t - v.lastAttT < 8 && v.lastAtt.team !== v.team) killer = v.lastAtt;     // fuego o explosión sin autor claro: cuenta quien le hirió hace poco
+  const wasDown = !!v.dwn; if (wasDown) { v.dwn = false; dwnFxClear(v); }
   v.dead = true; v.deaths++; v.hp = 0; v.tgp.hp = 0; v.respT = RESPAWN + (v.isPlayer ? 0 : rnd() * .8); v.inv = 0;
   addFeed(killer && killer !== v ? killer : null, v, v.lastSrc);
   if (killer && killer !== v && killer.team !== v.team) { killer.kills++; M.score[killer.team]++; if (killer.isPlayer) playSnd('HIT_kill') || playSnd('HIT_marker'); }          // bajas a compañeros y suicidios no puntúan
   for (let i = 0; i < 8; i++) spawn('red', _kp.set(v.p.x, .9, v.p.z), _kv.set((Math.random() - .5) * 4 + dx * 2, 1 + Math.random() * 3, (Math.random() - .5) * 4 + dz * 2), .5, .04, .04, .04, true, 8);
-  if (v.isPlayer) { P.dead = true; playerCorpse(dx, dz); for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(200, .8, .6); }
-  else { bake(v, dx, dz); v.ring.visible = false; v.flash.visible = false; v.wantThrow = null; }
+  if (v.isPlayer) { P.dead = true; if (!corpseP) playerCorpse(dx, dz); for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(200, .8, .6); }
+  else { if (wasDown) v.deadT = .55; else bake(v, dx, dz); v.ring.visible = false; v.flash.visible = false; v.wantThrow = null; }
   if (!MX.campaign && (M.score[0] >= GOAL || M.score[1] >= GOAL)) endMatch(M.score[0] >= GOAL ? 0 : 1);
 }
 const _kp = new V3(), _kv = new V3();
@@ -2936,13 +2999,14 @@ MX.explosion = (p, R, sc, own) => {
 };
 MX.fireDmg = (f, dt) => { for (const e of M.ents) if (!e.dead && e.inv <= 0 && Math.hypot(e.p.x - f.x, e.p.z - f.z) < f.r) MX.hit(e, 16 * dt, null, 0, 0); };
 MX.propGone = p => { const i = M.props.indexOf(p); if (i >= 0) M.props.splice(i, 1); M.propQ.push({ t: M.t + 40, spec: p.spec }); };
-MX.frozen = () => M.built && (M.ents[0].dead || M.over);
+MX.frozen = () => M.built && (M.ents[0].dead || M.ents[0].dwn || M.over);
 
 /* ============================ HUD ============================ */
 const hud = document.createElement('div'); hud.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2';
 hud.innerHTML = '<div id="mxScore" style="position:absolute;top:max(10px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;gap:14px;align-items:baseline;white-space:nowrap;font-weight:700;font-size:clamp(15px,4.2vmin,22px);text-shadow:0 2px 8px #000;background:#0c1018aa;padding:4px 18px;border-radius:10px;font-variant-numeric:tabular-nums"><span id="mxA" style="color:#4aa3ff">AZUL 0</span><span style="opacity:.5;font-size:12px;font-weight:500">/ 100</span><span id="mxB" style="color:#ff5a4a">0 ROJO</span></div>' +
   '<div id="mxHurt" style="position:absolute;inset:0;opacity:0;background:radial-gradient(ellipse at center,transparent 45%,#c01818dd 100%)"></div><div id="mxDead" style="position:absolute;inset:0;opacity:0;background:#0c1018"></div>';
 hud.style.display = 'none'; document.body.appendChild(hud);
+const mxMsg = document.createElement('div'); mxMsg.style.cssText = 'position:absolute;left:50%;bottom:calc(120px + env(safe-area-inset-bottom));transform:translateX(-50%);display:none;padding:6px 14px;border-radius:8px;background:#0c1018c8;box-shadow:0 0 0 1px #ffb02099;color:#ffe2a0;font:700 14px system-ui,sans-serif;letter-spacing:.04em;white-space:nowrap;pointer-events:none'; hud.appendChild(mxMsg);
 /* ---- barras profesionales: escudo + vida con drenaje suave, trozo de daño naranja que se vacía tras una espera, destello, pulso, color por estado ---- */
 const SEGN = 5;                                                                       // el escudo se dibuja en 5 segmentos (10 puntos cada uno)
 { const st = document.createElement('style'); st.textContent = '@keyframes mxPulse{0%,100%{box-shadow:0 0 6px #ff3a2a66,inset 0 0 0 1px #ff6a5acc}50%{box-shadow:0 0 16px #ff3a2add,inset 0 0 0 1px #ff6a5a}}.mxlow{animation:mxPulse .9s ease-in-out infinite}@media (max-height:520px){.mxpb .mxhp{font-size:22px !important}}'; document.head.appendChild(st); }
@@ -2957,6 +3021,7 @@ function mkBar(w, h, num) {                                                     
     b.shT = mk('font:700 13px/1 system-ui,sans-serif;color:#5ac8ff;display:flex;gap:4px;align-items:center;text-shadow:0 1px 4px #000', top);
     b.shT.innerHTML = '<svg viewBox="0 0 12 12" width="12" height="12" style="fill:#5ac8ff"><path d="M6 0l5 2v4c0 3-2.2 4.8-5 6C3.2 10.8 1 9 1 6V2z"/></svg><span></span>';
     b.shN = b.shT.lastChild;
+    b.kitT = mk('font:700 13px/1 system-ui,sans-serif;color:#fff;display:none;gap:4px;align-items:center;text-shadow:0 1px 4px #000', top); b.kitT.innerHTML = '<span style="color:#ff5a4a;font-size:15px">✚</span><span></span>'; b.kitN = b.kitT.lastChild;
   } else b.pip = mk('width:5px;height:5px;margin:0 auto 3px;transform:rotate(45deg);box-shadow:0 0 0 1px #000a;background:#888', el);
   b.sRow = mk('display:flex;gap:' + (num ? 3 : 2) + 'px;margin-bottom:' + (num ? 3 : 2) + 'px', el);
   for (let k = 0; k < SEGN; k++) {
@@ -2987,7 +3052,8 @@ function drawBar(b, e, dt) {
   if (e.sh <= 0 && b.pSh > 0) b.brk = 1; b.pSh = e.sh; b.brk = Math.max(0, (b.brk || 0) - dt * 3); b.sRow.style.filter = b.brk > .01 ? 'brightness(' + (1 + b.brk * 3) + ')' : '';   // escudo roto: destello breve
   const fl = Math.max(e.bH.flash || 0, e.bS.flash || 0), sh = fl * 3 * (b.num ? 1 : .5);
   b.el.dataset.s = ((1 + fl * .25) + '|' + (fl > .1 ? (Math.random() - .5) * sh * 2 : 0));
-  if (b.num) { b.shN.textContent = Math.ceil(Math.max(0, e.sh)); b.shT.style.opacity = e.sh > .5 ? 1 : .35; b.hpN.textContent = Math.ceil(Math.max(0, e.hp)); b.hpT.style.color = low ? '#ff6a5a' : '#fff'; }
+  if (b.num) { b.kitT.style.display = MX.campaign ? 'flex' : 'none'; if (MX.campaign) { b.kitN.textContent = e.kits; b.kitT.style.opacity = e.kits > 0 ? 1 : .35; }
+    b.shN.textContent = Math.ceil(Math.max(0, e.sh)); b.shT.style.opacity = e.sh > .5 ? 1 : .35; b.hpN.textContent = Math.ceil(Math.max(0, e.hp)); b.hpT.style.color = low ? '#ff6a5a' : '#fff'; }
   else {
     if (b.team !== e.team) { b.team = e.team; b.pip.style.background = teamColor(e.team); }
     const age = M.t - (e.bShow || -99); b.el.style.opacity = clamp(age / .1, 0, 1) * clamp((4 - age) / .6, 0, 1);               // aparece y se desvanece
@@ -3073,15 +3139,19 @@ MX.update = dt => {
   for (let i = M.propQ.length - 1; i >= 0; i--) { const q = M.propQ[i]; if (M.t >= q.t) { if (placeProp(q.spec, true)) M.propQ.splice(i, 1); else q.t = M.t + 4; } }
   armoryTick(dt);
   const pl = M.ents[0];
-  if (pl.dead) {                                                                     // abatido: cuerpo que cae y cuenta atrás
-    pl.respT -= dt; for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false;
-    if (corpseP) { corpseP.userData.t += dt; corpseP.quaternion.setFromAxisAngle(corpseP.userData.ax, smooth(corpseP.userData.t / .55) * 1.45); corpseP.position.y = -smooth((corpseP.userData.t - 2.3) / .7) * .6; }
-    if (pl.respT <= 0 && !M.over) respawn(pl);
+  if (pl.dead || pl.dwn) {                                                           // caído (muerto o abatido): cuerpo que cae; el muerto cuenta atrás para reaparecer
+    if (pl.dead) pl.respT -= dt; else { pl.dwT += dt; dwnFxTick(pl); if (MX.campaign && pl.dwT >= DWN_T && !M.over) { endRescueOn(pl); kill(pl, pl.lastAtt && M.t - pl.lastAttT < 40 ? pl.lastAtt : null, 0, 1); } }
+    for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false;
+    if (corpseP) { corpseP.userData.t += dt; corpseP.quaternion.setFromAxisAngle(corpseP.userData.ax, smooth(corpseP.userData.t / .55) * (pl.dwn ? 1.3 : 1.45)); corpseP.position.y = pl.dwn ? 0 : -smooth((corpseP.userData.t - 2.3) / .7) * .6; }
+    if (pl.dead && pl.respT <= 0 && !M.over) respawn(pl);
   } else {
     if (pl.inv > 0) { pl.inv -= dt; const on = Math.floor(M.t * 14) % 2 === 0 || pl.inv <= 0; for (const m of RL) m.visible = on; }
     regen(pl, dt);
   }
   pl.yaw = P.aim;
+  let msg = '';
+  if (MX.campaign) { msg = rescuePlayer(pl, dt); if (pl.dwn) msg = 'ABATIDO · espera ayuda · ' + Math.max(0, Math.ceil(DWN_T - pl.dwT)) + ' s'; }
+  mxMsg.textContent = msg; mxMsg.style.display = msg ? 'block' : 'none'; MX.rev = false;
   MX.foes.length = 0;
   for (const e of M.ents) {
     if (e.isPlayer) continue;
@@ -3108,7 +3178,7 @@ MX.update = dt => {
   drawBar(PB, pl, dt); PB.el.style.transform = 'scale(' + (PB.el.dataset.s.split('|')[0]) + ') translateX(' + PB.el.dataset.s.split('|')[1] + 'px)';
   updNums(dt); updFeed(dt);
   M.hurt = Math.max(0, M.hurt - dt * 1.6); $('mxHurt').style.opacity = clamp(M.hurt, 0, 1) * .85 + (pl.hp < 30 && !pl.dead ? .15 : 0);
-  $('mxDead').style.opacity = pl.dead ? Math.min(.55, (RESPAWN - pl.respT) * 1.2) : 0;
+  $('mxDead').style.opacity = pl.dead ? Math.min(.55, (RESPAWN - pl.respT) * 1.2) : pl.dwn ? .22 : 0;
   if (M.over) { M.endT += dt; const g = getPad(); if (g && M.endT > 1.5 && g.buttons[0] && g.buttons[0].pressed) MX.restart(); }
 };
 })();
