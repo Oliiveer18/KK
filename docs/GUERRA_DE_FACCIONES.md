@@ -26,9 +26,8 @@ El mapa 3 es el ensayo de combate 6 contra 6. Los bots ya navegan con A*, percib
 | Gasolinera | Punto reconocible de abastecimiento y encuentro por carretera. Tiendas y gasolineras son de uso libre. En la primera prueba se prescinde de transportar bidones y generadores. |
 | Clínica | Auxiliar y recuperar aliados. Puede servir como puesto avanzado cuando se habilita, está asegurada y su zona de reaparición es utilizable. |
 | Estación, depósito y puente | Conectar barrios y abrir o perder rutas. Una estación despejada puede permitir el reagrupamiento aunque quede lejos del refugio. Una horda en los andenes puede inutilizarla. |
-| Taller y almacén | Encontrar materiales, reparar elementos y habilitar un puesto de reserva en un lugar asegurado. |
 | Mercado, viviendas y plaza | Explorar interiores, patios y alturas, encontrar grupos, cruzar una zona evacuada por la horda o evitar una avenida ocupada. |
-| Subestación e infraestructura regional | Posible ampliación para restablecer servicios con una interacción local y efectos visibles en otro barrio. Validar tras el primer distrito. El transporte ferroviario funcional y los vehículos también son ampliaciones, no requisitos iniciales. |
+| Subestación e infraestructura regional | Posible ampliación para restablecer servicios con una interacción local y efectos visibles en otro barrio. Validar tras el primer distrito. Los raíles en desuso sirven como referencia visual junto a la estación. |
 
 ### Control de ubicaciones en la región completa
 
@@ -39,7 +38,6 @@ Propuesta de distribución para probar. Los puntos capturables llevan un único 
 | Refugio de facción | Capturable al asegurar el patio. Da acceso al almacén y, estando operativo, a la reaparición. Destruido o infestado queda inhabilitado. |
 | Clínica de distrito | Capturable. Recuperación y posible puesto avanzado una vez habilitado y seguro. Las farmacias pequeñas son de acceso libre. |
 | Estación principal y depósito ferroviario | Un único recinto capturable. Su control permite habilitar un punto de reagrupamiento junto al corredor ferroviario. |
-| Taller central con almacén | Capturable. Guarda materiales, facilita reparaciones y puede habilitarse como puesto alternativo. Los pequeños talleres y almacenes de barrio son libres. |
 | Subestación regional | Capturable en la ampliación que introduzca electricidad por sectores. Controla el servicio eléctrico local. No otorga reaparición. |
 | Tiendas, supermercados, farmacias, gasolineras y mercado | Acceso libre para buscar, recoger o transportar suministros. |
 | Viviendas, patios, plazas, aparcamientos y naves industriales comunes | Acceso libre. Ofrecen rutas, cobertura y espacio para expediciones e infectados. |
@@ -59,9 +57,9 @@ Ampliar el sistema existente de materiales y objetos. Ya hay cajas, vallas, barr
 |---|---|
 | Accesos | Portones, puertas dobles, verjas correderas, persianas, pasarelas, escaleras de servicio y tramos de muro reforzado. Alteran recorridos, protección y visibilidad. |
 | Mobiliario urbano | Bancos de hormigón, jardineras, marquesinas, quioscos y contenedores con ruedas. Distinguir de un vistazo lo fijo, lo rompible y lo empujable. |
-| Comercio y transporte | Carros de carga, palés, jaulas metálicas, mostradores, estanterías, taquillas, armarios de farmacia y cajas de suministros. Los objetos se recogen y transportan en el inventario personal. |
+| Comercio y transporte | Palés, jaulas metálicas, mostradores, estanterías, taquillas, armarios de farmacia y cajas de suministros. Los objetos se recogen y transportan en el inventario personal. |
 | Sonido y visibilidad | Alarmas de tienda, persianas ruidosas, focos de patio y cristaleras. Sus cambios se ven o se oyen desde el entorno. |
-| Refugio | Puesto de recepción, camillas, mesas de reparación, depósitos de munición, tablón de expediciones y módulos de almacén. Cada pieza comunica qué se puede hacer cerca de ella. |
+| Refugio | Patio de recepción, camillas, depósitos de munición, tablón de expediciones y módulos de almacén. Cada pieza comunica qué se puede hacer cerca de ella. |
 
 ## 6. Vida, logística y mejora del refugio
 
@@ -78,11 +76,11 @@ Cada facción tiene un único refugio: la base fortificada donde empieza su gent
 
 Cada facción se distingue por el emblema, una franja de color y la silueta de la entrada. Probar el emblema sobre un travesaño, entre dos pilares, en una marquesina corta o en un panel escalonado. Igualar protección inicial, anchura útil de los accesos y distancia de reaparición a la salida. Al conquistar un refugio cambian las señales de propiedad; las piezas, mejoras y reparaciones siguen contando la historia del edificio.
 
-Desde dentro del refugio, jugadores y bots pueden ocupar los puestos de vigilancia y disparar a rivales o zombis con línea de visión, incluso cuando ya han cruzado una brecha. Cada puesto cubre un acceso distinto con protección parcial. La defensa depende de quién ocupa cada puesto y de cuándo se desplaza a cubrir el patio. La instalación interior que organiza las reparaciones se llama **Mantenimiento**. El término «taller» se reserva para ubicaciones del mapa.
+Desde dentro del refugio, jugadores y bots pueden ocupar los puestos de vigilancia y disparar a rivales o zombis con línea de visión, incluso cuando ya han cruzado una brecha. Cada puesto cubre un acceso distinto con protección parcial. La defensa depende de quién ocupa cada puesto y de cuándo se desplaza a cubrir el patio.
 
 ### Reparación y mejora por pieza
 
-Cada pieza tiene un nivel y una integridad independientes. Una reparación recupera al 100 % una pieza dañada o reconstruye una pieza rota en su nivel anterior. Una mejora exige que la pieza elegida esté intacta al 100 % y avanza exactamente un nivel. Los daños de otra pieza permiten seguir mejorando las que estén intactas. Cada tramo de muro se gestiona por separado. Las cuatro facciones comienzan con las seis partes en nivel 1, con idénticas opciones hasta el nivel 3. El refugio carece de nivel global.
+Cada pieza tiene un nivel y una integridad independientes. Una reparación recupera al 100 % una pieza dañada o reconstruye una pieza rota en su nivel anterior. Una mejora exige que la pieza elegida esté intacta al 100 % y avanza exactamente un nivel. Los daños de otra pieza permiten seguir mejorando las que estén intactas. Cada tramo de muro se gestiona por separado. Las cuatro facciones comienzan con las cinco partes en nivel 1, con idénticas opciones hasta el nivel 3. El refugio carece de nivel global.
 
 | Parte | Nivel 1 | Nivel 2 | Nivel 3 |
 |---|---|---|---|
@@ -90,18 +88,17 @@ Cada pieza tiene un nivel y una integridad independientes. Una reparación recup
 | Portón principal | Portón de acero estándar. | Marco y hojas reforzados. | Segunda puerta interior que permite cerrar el paso aunque caiga la exterior. |
 | Almacén | Un módulo de estantería por tipo de reserva. | Dos módulos por reserva, el doble de capacidad inicial. | Tres módulos por reserva, el triple de capacidad inicial. |
 | Enfermería | Una camilla operativa. | Dos aliados atendidos simultáneamente. | Tres aliados atendidos simultáneamente. |
-| Mantenimiento | Un puesto de reparación. | Dos reparaciones simultáneas. | Tres reparaciones simultáneas. Cada trabajo requiere un agente y materiales disponibles. |
 | Puesto de vigilancia | Un puesto en la entrada. | Segundo puesto que cubre otro sector. | Tercer puesto para el acceso trasero. Cada puesto requiere un agente y visión directa. |
 
 Al acercarse a una pieza dañada se ofrece «Reparar». Una vez intacta, si aún puede subir de nivel, la acción indica la mejora concreta, su coste y su efecto antes de confirmar. Ejemplo: un portón de nivel 2 al 40 % primero se repara; al llegar al 100 % permite elegir «Mejorar a nivel 3 · Añadir puerta interior». En nivel 3 sigue siendo reparable.
 
-Los agentes atienden reparaciones ordinarias con las existencias del almacén. El jugador elige las inversiones de su facción y las facciones controladas por bots priorizan según daños, ocupación y reservas. Al confirmar una mejora, el almacén reserva los materiales una vez. Un agente ejecuta el trabajo, el jugador puede ayudar y una alarma permite interrumpirlo y retomarlo. La reparación se reconoce por las piezas repuestas y la mejora por la nueva estructura visible. Quedan por equilibrar costes y tiempos, y por decidir cómo se autoriza el gasto compartido en el futuro online.
+Jugadores y bots usan los materiales de su inventario directamente en la pieza. Pueden recogerlos en el mapa o retirarlos del almacén del refugio. El jugador elige las inversiones de su facción y las facciones controladas por bots priorizan según daños, ocupación y reservas. La acción sobre la pieza consume el coste una sola vez. Una alarma puede interrumpir el trabajo y después se puede retomar. La reparación se reconoce por las piezas repuestas y la mejora por la nueva estructura visible. Quedan por equilibrar costes y tiempos, y por decidir cómo se autoriza el gasto compartido en el futuro online.
 
 ## 7. Pérdida de refugios, ocupación y reaparición
 
 Una brecha abre un acceso. El refugio todavía puede defenderse. Una facción rival que despeja y mantiene el patio puede conquistar el recinto. Si lo desbordan los zombis queda infestado. Las reservas que siguen dentro pueden caer en manos del conquistador o quedar allí para una recuperación posterior. Poder evacuar suministros en el inventario o a un compañero antes de perder la base da valor a la retirada.
 
-**Un refugio destruido jamás sirve como punto de reaparición mientras siga destruido.** Tampoco se reaparece en un recinto infestado o perdido ante otra facción. El estado de cada punto debe comprobarse al reaparecer, incluso si cambió después de seleccionarlo. Los supervivientes conservan su ubicación. La facción puede haber habilitado otra clínica, taller o puesto seguro antes de perder la base, o buscar uno después. Quienes caigan esperan si no existe un puesto operativo. Para la campaña de prueba, se propone eliminación cuando la facción se queda sin puesto y sin miembros vivos capaces de recuperarla. No se concede un refugio permanente ni una reaparición automática en las afueras.
+**Un refugio destruido jamás sirve como punto de reaparición mientras siga destruido.** Tampoco se reaparece en un recinto infestado o perdido ante otra facción. El estado de cada punto debe comprobarse al reaparecer, incluso si cambió después de seleccionarlo. Los supervivientes conservan su ubicación. La facción puede haber habilitado una clínica u otro puesto seguro antes de perder la base, o buscar uno después. Quienes caigan esperan si no existe un puesto operativo. Para la campaña de prueba, se propone eliminación cuando la facción se queda sin puesto y sin miembros vivos capaces de recuperarla. No se concede un refugio permanente ni una reaparición automática en las afueras.
 
 ## 8. Reanimación de compañeros
 
@@ -124,8 +121,8 @@ Como punto de partida, permitir **una reanimación por vida**. Si el mismo perso
 | Etapa | Entrega jugable | Cómo saber si funciona |
 |---|---|---|
 | 1. Distrito y guerra | Cuatro facciones, compañías, dos frentes, infectados y una horda. | Entrar, elegir entre dos destinos y encontrar un frente cambiado al regresar. La horda se aproxima por una ruta legible y altera una decisión. |
-| 2. Entorno y refugios | Primer recorrido entre tienda, gasolinera, clínica, estación, taller y refugio. Accesos y materiales con comportamientos distintos. | Bot y jugador usan una brecha recién abierta. Probar la defensa desde dentro con un jugador y un bot ante enemigos que llegan al portón o atraviesan una brecha. Al volver se entiende en segundos si conviene abrir, auxiliar o reparar. |
-| 3. Logística y mejoras | Recogida, entrega y reservas. Validar primero portón, almacén y enfermería, y completar las seis partes y sus tres niveles. | Un integrante recoge materiales en su inventario y los deposita en el almacén para reparar una entrada. Comprobar que reparar conserva el nivel, que solo se mejora la pieza elegida al 100 % y que interrumpir o repetir la acción no duplica materiales. Verificar el efecto de cada nivel, incluida la segunda puerta tras caer la exterior. |
+| 2. Entorno y refugios | Primer recorrido entre tienda, gasolinera, clínica, estación y refugio. Accesos y materiales con comportamientos distintos. | Bot y jugador usan una brecha recién abierta. Probar la defensa desde dentro con un jugador y un bot ante enemigos que llegan al portón o atraviesan una brecha. Al volver se entiende en segundos si conviene abrir, auxiliar o reparar. |
+| 3. Logística y mejoras | Recogida, entrega y reservas. Validar primero portón, almacén y enfermería, y completar las cinco partes y sus tres niveles. | Un integrante retira materiales del almacén, se acerca a la entrada dañada y la repara allí. Comprobar que reparar conserva el nivel, que solo se mejora la pieza elegida al 100 % y que interrumpir o repetir la acción no duplica materiales. Verificar el efecto de cada nivel, incluida la segunda puerta tras caer la exterior. |
 | 4. Caídas y cambios de control | Reanimación, conquista, infestación, destrucción, retirada y puesto alternativo. | Probar rescate sin kit, muerte por daño durante el rescate, rescate interrumpido, rescate simultáneo, segunda caída y pérdida del puesto durante la espera. Con la base destruida se reaparece únicamente en otro puesto válido. |
 | 5. Escala y decisión online | Multiplicar compañías y sectores tras validar el primer distrito. | Probar quince minutos sin límite de bajas, tanto en un sector concurrido como entre frentes. Registrar decisiones espontáneas, rescates repetidos, tiempos de regreso y rendimiento real. Decidir después si avanzar al ensayo multijugador. |
 
