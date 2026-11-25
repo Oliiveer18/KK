@@ -2462,7 +2462,7 @@ function initBot(e) {
   e.R = { pelvis: mkm(geoBox, T.body, .32, .18, .2), torso: mkm(geoBox, T.body, .42, .5, .25), head: mkm(geoBall, T.limb, .13, .13, .13), visor: mkm(geoBox, T.acc, .17, .05, .1),
     thigh: pair(() => mkm(geoCyl, T.limb, .07, 1, .07)), shin: pair(() => mkm(geoCyl, T.limb, .06, 1, .06)), knee: pair(() => mkm(geoBall, T.limb, .07, .07, .07)), foot: pair(() => mkm(geoBox, T.acc, .12, .07, .27)),
     upper: pair(() => mkm(geoCyl, T.limb, .055, 1, .055)), fore: pair(() => mkm(geoCyl, T.limb, .05, 1, .05)), hand: pair(() => mkm(geoBall, T.acc, .06, .06, .06)), shoulder: pair(() => mkm(geoBall, T.body, .08, .08, .08)) };
-  e.bar = mkBar(54, 5); e.bar.el.style.display = 'none'; e.ring = new THREE.Mesh(RING_G, RING[e.team]); e.ring.rotation.x = -Math.PI / 2; e.ring.visible = false; scene.add(e.ring);
+  e.bar = mkBar(84, 6); e.bar.el.style.display = 'none'; e.ring = new THREE.Mesh(RING_G, RING[e.team]); e.ring.rotation.x = -Math.PI / 2; e.ring.visible = false; scene.add(e.ring);
   e.flash = new THREE.Mesh(flashMesh.geometry, flashMesh.material); e.flash.visible = false; scene.add(e.flash);
   Object.assign(e, { gun: null, w: WP[0], wi: 0, ammo: 0, reloadT: -1, rp: 0, fireCd: 0, pause: 0, burst: 0, spread: 0, kick: 0, flashT: 0, gCount: 3, sCount: 2, gReg: 0, sReg: 0, gCd: rr(5, 12), sCd: 8, wantThrow: null, throwT: 0,
     st: 'push', goal: null, path: null, pi: 0, needPath: false, pathT: -9, thinkT: rnd() * .12, tgt: null, vis: false, canShoot: false, dT: 99, seenT: -99, reactT: 0, leadK: 1, ls: { x: 0, z: 0 }, err: 0, errT: 0,
@@ -2790,11 +2790,31 @@ hud.innerHTML = '<div id="mxScore" style="position:absolute;top:max(10px,env(saf
   '<div id="mxHurt" style="position:absolute;inset:0;opacity:0;background:radial-gradient(ellipse at center,transparent 45%,#c01818dd 100%)"></div><div id="mxDead" style="position:absolute;inset:0;opacity:0;background:#0c1018"></div>';
 hud.style.display = 'none'; document.body.appendChild(hud);
 /* ---- barras profesionales: escudo + vida con drenaje suave, trozo de daño naranja que se vacía tras una espera, destello, pulso, color por estado ---- */
-function mkBar(w, h, num) {
-  const el = document.createElement('div'); el.style.cssText = 'position:absolute;width:' + w + 'px;transform-origin:50% 100%;will-change:transform';
-  const row = (hh, id) => { const r = document.createElement('div'); r.style.cssText = 'position:relative;height:' + hh + 'px;margin-top:' + (id ? 0 : 0) + 'px;background:#0b0f18cc;border-radius:' + hh / 2 + 'px;overflow:hidden;box-shadow:0 0 0 1px #00000088'; const c = document.createElement('i'), f = document.createElement('i'); c.style.cssText = f.style.cssText = 'position:absolute;left:0;top:0;height:100%;width:100%;transform-origin:0 50%'; c.style.background = '#ff9440'; r.appendChild(c); r.appendChild(f); el.appendChild(r); return { c, f }; };
-  const b = { el, w, S: row(Math.max(3, h * .5)), H: row(h) }; b.H.f.parentNode.style.marginTop = '2px';
-  if (num) { b.t = document.createElement('div'); b.t.style.cssText = 'font:700 12px sans-serif;text-align:right;margin-top:3px;text-shadow:0 1px 4px #000;color:#dfe8f5;font-variant-numeric:tabular-nums'; el.appendChild(b.t); }
+const SEGN = 5;                                                                       // el escudo se dibuja en 5 segmentos (10 puntos cada uno)
+{ const st = document.createElement('style'); st.textContent = '@keyframes mxPulse{0%,100%{box-shadow:0 0 6px #ff3a2a66,inset 0 0 0 1px #ff6a5acc}50%{box-shadow:0 0 16px #ff3a2add,inset 0 0 0 1px #ff6a5a}}.mxlow{animation:mxPulse .9s ease-in-out infinite}@media (max-height:520px){.mxpb .mxhp{font-size:22px !important}}'; document.head.appendChild(st); }
+function mkBar(w, h, num) {                                                           // num = barra grande del jugador (con números); si no, barra pequeña sobre la cabeza
+  const mk = (css, par) => { const d = document.createElement('div'); d.style.cssText = css; if (par) par.appendChild(d); return d; };
+  const el = mk('position:absolute;width:' + w + 'px;transform-origin:50% 100%;will-change:transform,opacity;filter:drop-shadow(0 2px 5px #000a)');
+  const b = { el, w, segs: [], num };
+  if (num) {
+    const top = mk('display:flex;align-items:baseline;justify-content:flex-end;gap:10px;margin-bottom:4px;font-variant-numeric:tabular-nums', el);
+    b.shT = mk('font:700 13px/1 system-ui,sans-serif;color:#5ac8ff;display:flex;gap:4px;align-items:center;text-shadow:0 1px 4px #000', top);
+    b.shT.innerHTML = '<svg viewBox="0 0 12 12" width="12" height="12" style="fill:#5ac8ff"><path d="M6 0l5 2v4c0 3-2.2 4.8-5 6C3.2 10.8 1 9 1 6V2z"/></svg><span></span>';
+    b.shN = b.shT.lastChild;
+    b.hpT = mk('font:800 30px/1 system-ui,sans-serif;letter-spacing:-.02em;color:#fff;text-shadow:0 2px 6px #000', top); b.hpT.className = 'mxhp';
+    b.hpT.innerHTML = '<span></span><b style="font-size:11px;opacity:.55;font-weight:700;margin-left:3px;letter-spacing:.1em">HP</b>'; b.hpN = b.hpT.firstChild;
+  } else b.pip = mk('width:6px;height:6px;margin:0 auto 3px;transform:rotate(45deg);box-shadow:0 0 0 1px #000a;background:#888', el);
+  b.sRow = mk('display:flex;gap:' + (num ? 3 : 2) + 'px;margin-bottom:' + (num ? 3 : 2) + 'px', el);
+  for (let k = 0; k < SEGN; k++) {
+    const sp = mk('flex:1;height:' + (num ? 5 : 3) + 'px;transform:skewX(-22deg);background:#0b0f18b8;box-shadow:inset 0 0 0 1px #ffffff1a;position:relative;overflow:hidden', b.sRow);
+    const c = mk('position:absolute;inset:0;background:#ff9440;transform-origin:0 50%', sp), f = mk('position:absolute;inset:0;background:linear-gradient(#9be4ff,#3aa9e6);transform-origin:0 50%', sp);
+    b.segs.push({ c, f });
+  }
+  b.hb = mk('position:relative;height:' + h + 'px;transform:skewX(-22deg);background:#0b0f18c8;box-shadow:inset 0 0 0 1px #ffffff22,0 0 0 1px #000a;overflow:hidden', el);
+  b.Hc = mk('position:absolute;left:0;top:0;height:100%;width:100%;transform-origin:0 50%;background:#ff9440', b.hb);
+  b.Hf = mk('position:absolute;left:0;top:0;height:100%;width:100%;transform-origin:0 50%', b.hb);
+  mk('position:absolute;inset:0;background:linear-gradient(#ffffff55 0,#ffffff00 45%,#00000030 100%)', b.Hf);
+  if (num) for (const q of [25, 50, 75]) mk('position:absolute;top:0;bottom:0;width:1px;background:#0009;left:' + q + '%', b.hb);
   hud.appendChild(el); return b;
 }
 function stepBar(o, tgt, dt) {                                                       // o = {fill, chunk, wait, flash}
@@ -2805,14 +2825,22 @@ function stepBar(o, tgt, dt) {                                                  
 }
 function drawBar(b, e, dt) {
   stepBar(e.bH, e.hp, dt); stepBar(e.bS, e.sh, dt);
-  const paint = (r, o, max, col) => { r.c.style.transform = 'scaleX(' + clamp(o.chunk / max, 0, 1) + ')'; r.f.style.transform = 'scaleX(' + clamp(o.fill / max, 0, 1) + ')'; r.f.style.background = col; r.f.style.filter = 'brightness(' + (1 + (o.flash || 0) * 1.6) + ')'; };
-  paint(b.S, e.bS, SH, '#5ac8ff'); paint(b.H, e.bH, HP, e.hp > 60 ? '#6dff9a' : e.hp > 30 ? '#ffd24a' : '#ff5a4a');
+  const sv = e.bS.fill / SH * SEGN, sc = e.bS.chunk / SH * SEGN, sb = 'brightness(' + (1 + (e.bS.flash || 0) * 1.6) + ')';
+  b.segs.forEach((g, k) => { g.c.style.transform = 'scaleX(' + clamp(sc - k, 0, 1) + ')'; g.f.style.transform = 'scaleX(' + clamp(sv - k, 0, 1) + ')'; g.f.style.filter = sb; });
+  b.Hc.style.transform = 'scaleX(' + clamp(e.bH.chunk / HP, 0, 1) + ')'; b.Hf.style.transform = 'scaleX(' + clamp(e.bH.fill / HP, 0, 1) + ')';
+  b.Hf.style.background = e.hp > 60 ? '#6dff9a' : e.hp > 30 ? '#ffd24a' : '#ff5a4a'; b.Hf.style.filter = 'brightness(' + (1 + (e.bH.flash || 0) * 1.6) + ')';
+  const low = e.hp > 0 && e.hp < 30; if (low !== b.low) { b.low = low; b.hb.classList.toggle('mxlow', low); }
+  if (e.sh <= 0 && b.pSh > 0) b.brk = 1; b.pSh = e.sh; b.brk = Math.max(0, (b.brk || 0) - dt * 3); b.sRow.style.filter = b.brk > .01 ? 'brightness(' + (1 + b.brk * 3) + ')' : '';   // escudo roto: destello breve
   const fl = Math.max(e.bH.flash || 0, e.bS.flash || 0), sh = fl * 3 * (b.num ? 1 : .5);
   b.el.dataset.s = ((1 + fl * .25) + '|' + (fl > .1 ? (Math.random() - .5) * sh * 2 : 0));
-  if (b.t) b.t.textContent = (e.sh > .5 ? Math.ceil(e.sh) + ' + ' : '') + Math.ceil(Math.max(0, e.hp));
+  if (b.num) { b.shN.textContent = Math.ceil(Math.max(0, e.sh)); b.shT.style.opacity = e.sh > .5 ? 1 : .35; b.hpN.textContent = Math.ceil(Math.max(0, e.hp)); b.hpT.style.color = low ? '#ff6a5a' : '#fff'; }
+  else {
+    if (b.team !== e.team) { b.team = e.team; b.pip.style.background = e.team === 0 ? '#4aa3ff' : '#ff5a4a'; }
+    const age = M.t - (e.bShow || -99); b.el.style.opacity = clamp(age / .1, 0, 1) * clamp((4 - age) / .6, 0, 1);               // aparece y se desvanece
+  }
 }
 function placeBar(b, x, y, fl) { const [sc, jx] = b.el.dataset.s.split('|'); b.el.style.transform = 'translate(' + (x - b.w / 2 + +jx) + 'px,' + y + 'px) translateY(-100%) scale(' + sc + ')'; b.el.style.display = 'block'; }
-const PB = mkBar(190, 9, true); PB.num = true; PB.el.className = 'mxpb'; PB.el.style.right = 'var(--r)'; PB.el.style.bottom = '196px'; PB.el.style.transformOrigin = '100% 100%';
+const PB = mkBar(210, 12, true); PB.num = true; PB.el.className = 'mxpb'; PB.el.style.right = 'var(--r)'; PB.el.style.bottom = '196px'; PB.el.style.transformOrigin = '100% 100%'; MX.PB = PB;
 /* ---- números de daño: aparecen, suben y se desvanecen; el tamaño crece con el daño y cada uno sale hacia un lado distinto ---- */
 const NUMS = []; let numSide = 1; const _np = new V3();
 function popNum(e, dmg) {
