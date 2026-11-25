@@ -166,7 +166,7 @@ const border = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeome
 border.position.y = 0.15; scene.add(border);
 
 /* ---------- partida 6 vs 6 (mapa 3): ganchos hacia src/partida.js; con MX.on = false todo funciona como antes ---------- */
-const MX = { on: false, want: false, campaign: false, rev: false, foes: [], ents: [] };
+const MX = { on: false, want: false, campaign: false, rev: false, revCtx: false, foes: [], ents: [] };
 const WORLD = { x: 39, z: 39 };                                                    // límites jugables (mapa 3 los cambia)
 /* ---------- obstáculos (AABB) ---------- */
 const boxes = [], OBST = [];
@@ -1956,7 +1956,7 @@ function update(dt) {
     rawX = rx; rawY = ry;
     if (rm > 0.02) { ax = rx; ay = ry; stickAim = rm; mode = 'pad'; }
     const down = k => !!(g.buttons[k] && (g.buttons[k].pressed || g.buttons[k].value > .3)), edge = k => down(k) && !prevBtn[k];
-    if (down(0)) MX.rev = true;                                    // ✕: mantener para reanimar (campaña)
+    if (down(BIND.reload)) MX.rev = true;                          // □ (o el botón de recargar): mantener = reanimar a un aliado, o reaparecer si estás abatido (campaña)
     const tv = k => (g.buttons[k] ? g.buttons[k].value || (g.buttons[k].pressed ? 1 : 0) : 0);   // gatillos analógicos: umbral según el arma
     if (tv(BIND.fire) >= cur.tr) { trig = true; mode = 'pad'; }
     if (tv(BIND.ads) >= cur.ta) ads = true;
@@ -2092,6 +2092,7 @@ function update(dt) {
     }
     if (W.swapT >= .36) W.swapT = -1;
   }
+  if (MX.on && MX.revCtx) flags.reload = false;                                      // junto a un aliado abatido, recargar/mantener □ es reanimar: no se recarga el arma
   if (flags.reload && !reloading && W.swapT < 0 && P.gState === 0 && W.ammo < W.max) { W.reload = 0; W.dropped = false; W.rp = 0; }
   flags.reload = false;
   const pressed = trig && !W.trigPrev; W.trigPrev = trig;
@@ -2654,7 +2655,7 @@ function unbake(e) { e.root.position.set(0, 0, 0); e.root.quaternion.identity();
 const DWN_RING = new THREE.RingGeometry(.62, .78, 40), DWN_AMB = new THREE.MeshBasicMaterial({ color: 0xffb020, transparent: true, opacity: .8, side: THREE.DoubleSide, depthWrite: false }),
   DWN_WHT = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .95, depthWrite: false }), DWN_RED = new THREE.MeshBasicMaterial({ color: 0xff4a38, transparent: true, opacity: .95, depthWrite: false }),
   DWN_GRN = new THREE.MeshBasicMaterial({ color: 0x6dff9a, transparent: true, opacity: .9, side: THREE.DoubleSide, depthWrite: false });
-const DWN_T = 25, DWN_HP = 40, REV_T = 3, REV_R = 1.5, REV_HP = 50;            // abatido: tiempo máx., vida extra antes de morir; reanimar: tiempo, alcance y vida al volver
+const DWN_T = 25, DWN_HP = 40, REV_T = 3, REV_R = 1.5, REV_HP = 50, SUR_T = .8;          // SUR_T: segundos manteniendo □ para reaparecer estando abatido            // abatido: tiempo máx., vida extra antes de morir; reanimar: tiempo, alcance y vida al volver
 function dwnFxMake(e) {
   if (e.dwnFx) return;
   const g = new THREE.Group(), ring = new THREE.Mesh(DWN_RING, DWN_AMB.clone()); ring.rotation.x = -Math.PI / 2; ring.position.y = .035; g.add(ring);
@@ -2965,14 +2966,16 @@ function rescueBot(e, dt) {                                                     
   if (t.revP >= 1) revive(t, e);
   return true;
 }
-function rescuePlayer(pl, dt) {                                                    // el jugador mantiene ✕ / E junto a un aliado abatido
-  const held = !!(MX.rev || keys.KeyE); let near = null, nd = REV_R;
+const KEYN = () => mode === 'pad' ? bn(BIND.reload) : 'R';                         // nombre de la tecla de reanimar/reaparecer (□ en el mando)
+function rescuePlayer(pl, dt) {                                                    // el jugador mantiene □ (mando) o R/E junto a un aliado abatido
+  const held = !!(MX.rev || keys.KeyE || keys.KeyR); MX.revCtx = false; let near = null, nd = REV_R;
   if (!pl.dead && !pl.dwn) for (const o of M.ents) if (o !== pl && o.dwn && !o.dead && o.team === pl.team && (!o.rescuer || o.rescuer === pl)) { const d = Math.hypot(o.p.x - pl.p.x, o.p.z - pl.p.z); if (d <= nd) { nd = d; near = o; } }
   if (pl.rt && pl.rt !== near) cancelRescue(pl);
   if (!near) return '';
+  MX.revCtx = pl.kits > 0;
   if (pl.kits <= 0) return 'Sin kit de reanimación';
   if (held && M.t - pl.lastHurt > .4) { pl.rt = near; near.rescuer = pl; near.revP += dt / REV_T; MX.reviveFx(near, near.revP); if (near.revP >= 1) revive(near, pl); return 'Reanimando a ' + near.id + '…'; }
-  cancelRescue(pl); return 'Mantén ✕ / E para reanimar a ' + near.id;
+  cancelRescue(pl); return 'Mantén ' + KEYN() + ' para reanimar a ' + near.id;
 }
 MX.hit = (e, dmg, from, dx, dz, w, src) => {
   if (e.dead || e.inv > 0 || M.over || dmg <= 0) return;
@@ -3172,7 +3175,14 @@ MX.update = dt => {
   }
   pl.yaw = P.aim;
   let msg = '';
-  if (MX.campaign) { msg = rescuePlayer(pl, dt); if (pl.dwn) msg = 'ABATIDO · espera ayuda · ' + Math.max(0, Math.ceil(DWN_T - pl.dwT)) + ' s'; }
+  if (MX.campaign) {
+    msg = rescuePlayer(pl, dt);
+    if (pl.dwn) {                                                                  // abatido: espera ayuda o mantén □ (R) para volver a tu refugio sin esperar
+      const held = !!(MX.rev || keys.KeyE || keys.KeyR); pl.surT = held ? (pl.surT || 0) + dt : Math.max(0, (pl.surT || 0) - dt * 2);
+      msg = pl.surT > .05 ? 'Reapareciendo en tu refugio… ' + Math.min(100, Math.round(pl.surT / SUR_T * 100)) + ' %' : 'ABATIDO · ' + Math.max(0, Math.ceil(DWN_T - pl.dwT)) + ' s · espera ayuda o mantén ' + KEYN() + ' para reaparecer';
+      if (pl.surT >= SUR_T) { pl.surT = 0; endRescueOn(pl); kill(pl, null, 0, 1); pl.respT = 0; }   // se rinde: cuenta como baja y reaparece en su refugio al instante
+    } else pl.surT = 0;
+  }
   mxMsg.textContent = msg; mxMsg.style.display = msg ? 'block' : 'none'; MX.rev = false;
   MX.foes.length = 0;
   for (const e of M.ents) {
