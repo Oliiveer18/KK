@@ -163,7 +163,7 @@ Coordenadas del mundo en metros: **x** hacia la derecha (este), **z** hacia abaj
 | Nido de zombis (casco) | Violeta | 62 | 187 |
 | Nido de zombis (casco) | Ámbar | -187 | 62 |
 
-Árboles: 1500.
+Árboles: 1572.
 
 ## Edificios (436)
 | Tipo | x | z |
@@ -606,7 +606,7 @@ Coordenadas del mundo en metros: **x** hacia la derecha (este), **z** hacia abaj
 | warehouse | 70 | 391 |
 
 ## Objetos colocados (por tipo)
-bwallSolid 4308, bwallGlass 1656, door 416, tvUnit 400, sofa 400, kitchenUnit 400, table 400, bed 400, wardrobe 400, car 388, chainFence 252, wall1 160, fence 160, sandbags 136, barrier 88, wallLow1 84, wall2 84, dumpster 70, floodlight 64, crateS 60, barrel 58, wheelie 56, pallet 56, bench 52, crate 52, cart 48, planter 48, palletBoxes 46, pillar 46, wall3 46, fridge 44, palletRack 40, cage 38, stall 36, cot 32, pharmaCab 28, pump 28, shopDoor 24, blocks 24, counter 20, gondola3 20, busStop 20, supplyMed 18, waitSeat 16, gate1 16, supplyMat 14, shelf 14, forklift 12, checkout 12, slideGate 12, switchCab 12, shutter 12, glassPane 12, tower1 12, supplyAmmo 10, rollDoor 8, gondola4 8, transformer 8, rack 8, barrelFuel 8, tower2 8, board 6, locker 4, gateInner 4, storeMat 4, storeAmmo 4, storeMed 4, kiosk 4, stairs 4, gate2 4, gate3 2, tower3 2, catwalk 2, emblem0 1, emblem1 1, emblem3 1, emblem2 1
+bwallSolid 4308, bwallGlass 1656, fence 1228, car 440, door 416, tvUnit 400, sofa 400, kitchenUnit 400, table 400, bed 400, wardrobe 400, chainFence 252, sandbags 224, wall1 160, crate 152, barrier 148, barrel 146, pallet 142, crateS 118, palletBoxes 116, dumpster 86, wallLow1 84, wall2 84, wheelie 80, blocks 80, cage 76, cart 64, bench 64, floodlight 64, planter 48, pillar 46, wall3 46, fridge 44, stall 44, palletRack 40, cot 32, pharmaCab 28, pump 28, forklift 24, shopDoor 24, counter 20, gondola3 20, busStop 20, supplyMed 18, waitSeat 16, gate1 16, supplyMat 14, shelf 14, checkout 12, slideGate 12, switchCab 12, shutter 12, glassPane 12, tower1 12, supplyAmmo 10, rollDoor 8, gondola4 8, transformer 8, rack 8, barrelFuel 8, tower2 8, board 6, locker 4, gateInner 4, storeMat 4, storeAmmo 4, storeMed 4, kiosk 4, stairs 4, gate2 4, gate3 2, tower3 2, catwalk 2, emblem0 1, emblem1 1, emblem3 1, emblem2 1
 
 ## Puntos de aparición de cada refugio (primero de 6)
 Azul (-455, -427), Rojo (427, -455), Ámbar (-427, 435), Violeta (435, 427)

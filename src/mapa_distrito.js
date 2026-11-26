@@ -204,6 +204,57 @@ MAPA.data.M2 = function () {
   /* ---------- 8. nidos de zombis (en el interior de las manzanas y en los bosques) ---------- */
   for (const [x, z, nm] of [[-62, -312, 'residencial 1'], [-312, -62, 'residencial 2'], [-330, -448, 'bosque 1'], [-448, -330, 'bosque 2'], [-62, -187, 'casco']]) {
     const w = spot(x, z); if (w) { hot(w[0], w[1]); COMP.scatter(D, { x: w[0], z: w[1], r: 12, n: 8, seed: ++sd, types: ['crate', 'crateS', 'barrier', 'blocks', 'pallet', 'barrel'] }); place('NIDO', 'Nido de zombis (' + nm + ')', w[0], w[1]); } }
+  /* ---------- 8b. relleno táctico de cada zona (cuarto Azul; COMP lo copia girado a los otros tres) ----------
+     Que ninguna manzana sea un campo abierto: líneas de vallas que parten los patios (con pasos), barricadas improvisadas (coche cruzado, bloques y sacos),
+     arboledas, contenedores y restos; vallas de huerto y de campo; campamentos abandonados en el bosque; carga apilada en la Fábrica y la Estación. */
+  { const okPt = (x, z, c) => D.RI.gap(x, z) > (c || 5) && free(x, z, 1.5);
+    const rp = (z, m) => { for (let t = 0; t < 50; t++) { const x = z.x0 + m + rng() * (z.x1 - z.x0 - 2 * m), zz = z.z0 + m + rng() * (z.z1 - z.z0 - 2 * m); if (okPt(x, zz)) return [x, zz]; } return null; };
+    const fenceLine = (x0, z0, x1, z1) => { const X = Math.abs(x1 - x0) >= Math.abs(z1 - z0), L = X ? x1 - x0 : z1 - z0, n = Math.floor(Math.abs(L) / 2.25);
+      for (let i = 0; i < n; i++) { if (i % 8 === 4 || i % 8 === 5) continue; const a = (X ? x0 : z0) + Math.sign(L) * (1.1 + i * 2.25), x = X ? a : x0, z = X ? z0 : a; if (D.RI.gap(x, z) > 4 && free(x, z, .3)) COMP.put(D, 'fence', x, z, X ? 0 : H, null, .05); } };   // pasos de 4,5 m cada 18 m
+    const barricade = (x, z) => { const rot = rng() < .5 ? 0 : H, ax = rot ? 0 : 1, az = rot ? 1 : 0; if (!COMP.put(D, 'car', x, z, rot, null, .3)) return;
+      for (const sg of [-1, 1]) COMP.put(D, rng() < .5 ? 'blocks' : 'barrier', x + ax * sg * 3.3, z + az * sg * 3.3, rot, null, .1);
+      for (const sg of [-1, 1]) COMP.put(D, 'sandbags', x + az * sg * 1.6 + ax * sg * 1.2, z + ax * sg * 1.6 + az * sg * 1.2, rot, null, .1); };
+    const grove = (x, z, n) => { for (let i = 0; i < n; i++) { const a = rng() * 6.28, r = 3 + rng() * 6, tx = x + Math.cos(a) * r, tz = z + Math.sin(a) * r; if (D.RI.gap(tx, tz) > 8 && free(tx, tz, 2.5) && GT.every(t => Math.hypot(t[0] - tx, t[1] - tz) > 5)) GT2.push([tx, tz, +(.8 + rng() * .3).toFixed(2)]); } };
+    const GT2 = [], SC = (x, z, types, n, r) => COMP.scatter(D, { x, z, r: r || 6, n: n || 5, seed: ++sd, types });
+    const GARDEN = ['wheelie', 'pallet', 'crateS', 'barrel', 'fence', 'bench'], DEBRIS = ['crate', 'crateS', 'pallet', 'palletBoxes', 'barrel', 'blocks', 'barrier', 'dumpster'];
+    for (const zn of D.info.zones.filter(z => / · Azul$/.test(z.name))) {
+      const base = zn.name.split(' · ')[0], cx = (zn.x0 + zn.x1) / 2, cz = (zn.z0 + zn.z1) / 2, W = zn.x1 - zn.x0, Dd = zn.z1 - zn.z0;
+      if (/^Residencial/.test(base)) {
+        if (W >= Dd) fenceLine(zn.x0 + 14, cz, zn.x1 - 14, cz); else fenceLine(cx, zn.z0 + 14, cx, zn.z1 - 14);      // parte los patios traseros
+        grove(cx + (rng() - .5) * 20, cz + (rng() - .5) * 20, 7);
+        for (let k = 0; k < 3; k++) { const q = rp(zn, 12); if (q) SC(q[0], q[1], GARDEN, 4, 5); }
+        for (let k = 0; k < 2; k++) { const q = rp(zn, 14); if (q) COMP.put(D, 'car', q[0], q[1], rng() < .5 ? 0 : H, null, .4); }
+      } else if (/^Casco/.test(base)) {
+        if (W >= Dd) fenceLine(zn.x0 + 14, cz + 8, zn.x1 - 14, cz + 8); else fenceLine(cx + 8, zn.z0 + 14, cx + 8, zn.z1 - 14);
+        for (let k = 0; k < 3; k++) { const q = rp(zn, 14); if (q) barricade(q[0], q[1]); }
+        for (let k = 0; k < 3; k++) { const q = rp(zn, 12); if (q) SC(q[0], q[1], DEBRIS, 5, 6); }
+        grove(cx, cz, 4);
+      } else if (/^Comercios/.test(base)) {
+        for (let k = 0; k < 2; k++) { const q = rp(zn, 14); if (q) barricade(q[0], q[1]); }
+        for (let k = 0; k < 2; k++) { const q = rp(zn, 14); if (q) { COMP.put(D, 'stall', q[0], q[1], 0, null, .3); SC(q[0], q[1] + 4, ['cart', 'crate', 'crateS', 'palletBoxes'], 4, 4); } }
+        const q = rp(zn, 12); if (q) SC(q[0], q[1], DEBRIS, 6, 7);
+      } else if (/^Aldea/.test(base)) {
+        fenceLine(zn.x0 + 70, zn.z0 + 14, zn.x0 + 70, zn.z0 + 54); fenceLine(zn.x0 + 80, zn.z0 + 84, zn.x1 - 12, zn.z0 + 84);   // huertos
+        for (let k = 0; k < 4; k++) { const q = rp(zn, 10); if (q) SC(q[0], q[1], ['pallet', 'palletBoxes', 'barrel', 'cage', 'crate', 'wheelie'], 5, 5); }
+        grove(zn.x0 + 95, zn.z0 + 30, 6);
+      } else if (/^Puesto avanzado/.test(base)) {
+        for (let k = 0; k < 3; k++) { const q = rp(zn, 14); if (q) barricade(q[0], q[1]); }
+        for (const [dx, dz, f] of [[-22, -18, 'n'], [22, -18, 'n'], [0, 26, 's']]) { const x = cx + dx, z = cz + dz; if (okPt(x, z, 4)) COMP.nest(D, { x, z, face: f }); }
+      } else if (/^Granja/.test(base)) {
+        const field = zn.name.startsWith('Granja 1') ? { x: -187, z: -458, w: 104, d: 56 } : { x: -458, z: -187, w: 56, d: 104 };
+        const fx0 = field.x - field.w / 2 - 1.5, fx1 = field.x + field.w / 2 + 1.5, fz0 = field.z - field.d / 2 - 1.5, fz1 = field.z + field.d / 2 + 1.5;
+        if (field.w > field.d) { fenceLine(fx0, fz1, fx1, fz1); fenceLine(fx0, fz0, fx0, fz1); } else { fenceLine(fx1, fz0, fx1, fz1); fenceLine(fx0, fz0, fx1, fz0); }   // cercado del campo (dos lados, con pasos)
+        for (let k = 0; k < 3; k++) { const q = rp(zn, 8); if (q) SC(q[0], q[1], ['pallet', 'palletBoxes', 'cage', 'barrel', 'crate'], 5, 5); }
+      } else if (/^Bosque/.test(base)) {
+        for (let k = 0; k < 2; k++) { const q = rp(zn, 12); if (q) SC(q[0], q[1], ['crate', 'crateS', 'barrel', 'blocks', 'pallet', 'sandbags'], 6, 5); }   // campamentos abandonados
+      }
+    }
+    for (const t of GT2) for (const k of KS(4)) { const [a, b] = R(k, t[0], t[1]); D.trees.push([+a.toFixed(1), +b.toFixed(1), t[2]]); }
+    withSym(2, () => {                                                                // objetivos de borde: más cobertura de carga
+      for (const [x, z] of [[-45, -405], [45, -405], [0, -470], [-100, -440], [100, -440]]) SC(x, z, ['palletBoxes', 'pallet', 'crate', 'crateS', 'forklift', 'barrel', 'cage'], 6, 7);
+      for (const [x, z] of [[-420, -80], [-420, 80], [-480, -60], [-480, 60]]) SC(x, z, ['crate', 'crateS', 'pallet', 'palletBoxes', 'barrel', 'dumpster', 'cart'], 5, 6);
+    });
+  }
   /* ---------- 9. bosques propios (en L junto al refugio): árboles instanciados que esquivan calles, edificios y refugios ---------- */
   const FOR = [[-410, -495, -258, -386, 'Bosque 1'], [-495, -366, -386, -258, 'Bosque 2']];
   const treeOk = (x, z) => D.RI.gap(x, z) > 10 && D.occ.every(o => Math.abs(o.x - x) > o.hx + 5 || Math.abs(o.z - z) > o.hz + 5);
