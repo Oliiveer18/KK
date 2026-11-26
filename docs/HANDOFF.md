@@ -1,6 +1,8 @@
-# Traspaso a una nueva sesión — v0.3.9
+# Traspaso a una nueva sesión — v0.3.19
 
 Lee esto primero. Resume lo necesario para seguir sin perder contexto.
+
+> **Mapa de 1 km², zombis, bots, rendimiento y lo hecho el 25–26-11: lee `docs/TRASPASO_MAPA.md`** (estado, historial de propuestas y comentarios del usuario, API, tests, lecciones, preguntas pendientes y orden de trabajo). **El usuario NO está convencido del distrito v2 actual (`?mapa=6`): empezar preguntándole qué no le convence.**
 
 ## Proyecto
 Prototipo de shooter 3D en el navegador, sin assets externos (personaje procedural con IK, mando PS5 + teclado + táctil). Meta a largo plazo: juego online de mundo persistente por facciones, con estrategia y tácticas. El usuario quiere que destaque por los **detalles** y que todo se haga «profesionalmente».

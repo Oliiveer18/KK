@@ -1,5 +1,7 @@
 # Propuestas pendientes (índice) — NO empezar ninguna sin que el usuario la pida
 
+- **Mapa de 1 km² (26-11):** trazado v2 sin aprobar; orden de trabajo, preguntas y lecciones en `docs/TRASPASO_MAPA.md` §6–§7. Lista exacta de ubicaciones: `docs/DISTRITO_V2.md`.
+
 - Modo de facciones: equipo (casco, chaleco, mochila) y vida 100–200, decidido el 25-11 y sin implementar: ver `docs/EQUIPO_Y_VIDA.md`.
 
 - Mapa 3: probar a mano (mando/móvil), ajustar dificultad, ambiente y tamaño; sonidos propios de partida (ElevenLabs). Hecho en v0.3.9: HUD (barras, kill feed), tabla de resultados, selector de mapa, `HIT_marker`/`HIT_kill`.
