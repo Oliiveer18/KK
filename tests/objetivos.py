@@ -1,4 +1,4 @@
-"""Objetivos del distrito (capa estratégica, escuadras.js): 24 propios (6 por facción, empiezan siendo suyos) y 5 comunes (de nadie); captura en ~20 s
+"""Objetivos del distrito (capa estratégica, escuadras.js): 24 propios (6 por facción, empiezan siendo suyos) y 5 comunes (de nadie); captura por dominio (10 s neutralizar + 10 s capturar)
 con un solo bando dentro, se congela si está disputado; suministros al pasar por uno propio; la reaparición se acorta con los comunes que se tienen;
 reaparición adelantada en el puesto avanzado propio; el mando ataca los comunes que no son suyos."""
 import os, sys
@@ -18,9 +18,9 @@ with sync_playwright() as p:
     chk(r['n'] == 29 and r['own'] == [6, 6, 6, 6] and r['neutral'] == 5, '29 objetivos: 6 propios por facción y 5 comunes de nadie')
     # captura de la farmacia azul por un rojo
     r = ev('''()=>{const o=MX.SQ.objs.find(q=>q.id==="FAR"&&q.home===0);window.O=o;const R=MX.ents.find(e=>e.bot&&e.team===1);R.keep=true;window.Rb=R;R.dead=false;R.dwn=false;R.hp=1e9;R.inv=1e9;R.fireCd=1e9;
-      R.sqd.mission={type:'hold',x:o.x,z:o.z};R.sqd.missionT=MX.M.t;R.p.set(o.x,0,o.z);__run(60*10);const half=o.cap;__run(60*14);return {half,owner:o.owner}}''')
+      R.sqd.mission={type:'hold',x:o.x,z:o.z};R.sqd.missionT=MX.M.t;R.p.set(o.x,0,o.z);__run(60*10.6);const half=[o.owner,o.capBy];__run(60*10.6);return {half,owner:o.owner}}''')
     print(r)
-    chk(0.3 < r['half'] < 0.7 and r['owner'] == 1, 'un rojo solo dentro de la Farmacia azul la toma en ~20 s (50 %% a los 10 s: %.0f %%)' % (r['half'] * 100))
+    chk(r['half'] == [-1, 1] and r['owner'] == 1, 'un rojo solo dentro de la Farmacia azul: a los 10 s la neutraliza (%s) y a los 20 s es suya' % r['half'])
     r = ev('''()=>{const o=MX.SQ.objs.find(q=>q.id==="TIE"&&q.home===0);const A=MX.ents.find(e=>e.bot&&e.team===0);A.keep=true;A.dead=false;A.dwn=false;A.hp=1e9;A.inv=1e9;A.fireCd=1e9;Rb.fireCd=1e9;
       Rb.p.set(o.x,0,o.z);A.p.set(o.x+2,0,o.z);for(let i=0;i<60*12;i++){__clear();Rb.p.set(o.x,0,o.z);A.p.set(o.x+2,0,o.z);Rb.fireCd=A.fireCd=1e9;update(1/60)}return {owner:o.owner,cap:o.cap,cont:o.contested}}''')
     print(r)

@@ -1,5 +1,13 @@
 # Changelog
 
+## Dominio con meta e interfaz por esquinas (28-11)
+- Dominio de ubicaciones: zonas de 8 m (12 m Plaza, Fábricas y Estaciones) con mástil y banderola del color del dueño y aro de progreso en el suelo. Punto enemigo: neutralizar 10 s (gris) y capturar 10 s; neutral: 10 s. Más compañeros aceleran (hasta ×1,6); con enemigos dentro, DISPUTADO (congelado); al salir lo avanzado baja poco a poco. Comunes con letra A–E (también en el mapa y el minimapa).
+- Puntuación: cada 5 s, +1 por punto propio y +2 por común; la primera facción en llegar a 1.500 gana (pantalla de fin con marcador y mejores de tu facción; «Jugar otra vez»). Tonos cortos al capturar, neutralizar, perder y cuando te están tomando un punto.
+- Interfaz por esquinas (iPhone primero): minimapa arriba a la izquierda; marcador de dominio arriba en el centro; ⚙ y FPS discretos arriba a la derecha; vida abajo a la izquierda con la escuadra compacta encima (una ficha por miembro con su vida; se despliega 3 s al dar una orden); barra de captura abajo en el centro sólo dentro de un punto; arma abajo a la derecha. Fuera el título de la partida; con mando no se ve «Mochila». Nada se pisa y el centro queda libre.
+- Tests `tests/dominio.py`, `tests/hud_iphone.py`; `tests/objetivos.py` con la captura en dos fases.
+- Bots: al guardar un punto se reparten DENTRO de la zona en círculo, cada uno vigilando un sector distinto (72° con 5), y nunca son estatuas: barren su sector con la mirada, dan pasos cortos, se recolocan junto a su puesto cada 25–45 s, se agachan o se asoman un rato y recargan en calma; tiempos al azar para que nadie se mueva a la vez. En el refugio siguen de pie tras el muro bajo (sólo se agachan para recargar o con poca vida).
+- Reacción humana: al ver a alguien nuevo tardan ~0,75 s en disparar de frente y ~1 s si les pillan de espaldas, y la puntería se asienta en ~1,1 s (los primeros disparos fallan más). Emboscada de 5 a campo abierto: antes 1,05 s de media hasta caer, ahora 1,39 s (combate realista, con un instante para reaccionar). Sin indicador de dirección de daño. Test `tests/bots_defensa.py`.
+
 ## Optimización sin perder calidad y parpadeo en tiendas (28-11)
 - Memoria JS del distrito 373 → ~200 MB, mallas 168.000 → 48.000, texturas en la GPU 37,4 → 3,7 MPx, ~30–50 % menos llamadas de dibujo: materiales/texturas/geometrías compartidos, objetos intactos soldados (vuelven a sus piezas reales idénticas al tocarlos), dibujo en lote de lo repetido y colores de zombis compactos. Detalle y cifras en `docs/RENDIMIENTO.md`.
 - Carga con pantalla y barra de progreso por pasos.

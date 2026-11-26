@@ -50,6 +50,10 @@ canvas{display:block}
 #start h1{margin:0 0 8px;font-size:20px}
 #start p{margin:6px 0;font-size:14px;opacity:.8;line-height:1.5}
 #rangePanel { display: none !important; }
+/* campaña: esquina de arriba a la derecha discreta (⚙ y FPS pequeños); el marcador de dominio va arriba en el centro y el minimapa arriba a la izquierda */
+body.camp #cfgBtn{left:auto;right:var(--r);top:var(--t);opacity:.5;font-size:11px;padding:4px 8px}
+body.camp #fps{font-size:10px !important;font-weight:600;color:#ffffffaa;background:none;padding:0;text-shadow:0 1px 2px #000;top:calc(var(--t) + 30px)}
+body.camp.pad #invBtn{display:none !important}
 /* móvil en horizontal (pantalla baja): botones y HUD recolocados para que quepan, con márgenes seguros (muesca) */
 @media (orientation:landscape) and (max-height:520px){
 :root{--r:max(14px,env(safe-area-inset-right));--l:max(14px,env(safe-area-inset-left));--t:max(8px,env(safe-area-inset-top))}
@@ -60,6 +64,7 @@ canvas{display:block}
 .tbtn{width:58px;height:58px;font-size:10px;letter-spacing:0}
 #bDash,#bCrouch{bottom:calc(12px + var(--b))}#bRel,#bSwap{bottom:calc(80px + var(--b))}#bGren,#bSmk{bottom:calc(148px + var(--b))}
 .mxpb{bottom:calc(14px + var(--b) * .5) !important}
+body.camp .mxpb{width:170px !important}body.camp #ammo{font-size:34px}body.camp #ammo small{font-size:14px}
 }
 </style>
 </head>
@@ -705,6 +710,7 @@ function getPad() {
   return null;
 }
 addEventListener('gamepadconnected', () => { mode = 'pad'; });
+setInterval(() => document.body.classList.toggle('pad', mode === 'pad'), 400);   // con mando: fuera los botones que sólo sirven sin él (Mochila)
 addEventListener('gamepaddisconnected', () => { if (!getPad()) mode = isTouch ? 'touch' : 'kb'; });
 function stick(x, y, dz) {
   const m = Math.hypot(x, y); if (m < dz) return [0, 0, 0];
@@ -2438,7 +2444,7 @@ function update(dt) {
   sun.target.position.set(P.pos.x, 0, P.pos.z); sun.position.set(P.pos.x - 8, 16, P.pos.z + 6);
 
   // HUD
-  $('wname').textContent = cur.name + (P.cover ? '  ·  COBERTURA' : P.sprintLatch ? '  ·  CORRIENDO' : ''); $('vig').style.opacity = P.ads * .6; $('gren').textContent = 'GRANADAS ' + P.gCount + '   HUMO ' + P.sCount; $('amax').textContent = '/ ' + W.max; $('am').textContent = W.ammo; $('am').style.color = W.ammo < 8 ? '#ff6a4a' : '';
+  $('wname').textContent = cur.name + (P.cover ? '  ·  COBERTURA' : P.sprintLatch ? '  ·  CORRIENDO' : ''); $('vig').style.opacity = P.ads * .6; $('gren').textContent = MX.campaign ? '● ' + P.gCount + '   ◌ ' + P.sCount : 'GRANADAS ' + P.gCount + '   HUMO ' + P.sCount;   /* campaña: granadas ● y humo ◌ en corto */ $('amax').textContent = '/ ' + W.max; $('am').textContent = W.ammo; $('am').style.color = W.ammo < 8 ? '#ff6a4a' : '';
   $('rl').style.opacity = rt >= 0 ? 1 : 0; $('rlb').style.width = (Math.max(rt, 0) / 1.55 * 100) + '%';
   { const act = P.dash > 0, rdy = !act && P.dashCD <= 0, mx = P.dashMax || .9;                      // barra de dash: se vacía al usarlo, se recarga, destella al estar lista y se atenúa en reposo
     if (rdy && !P.wasRdy) P.rdyFlash = .3; P.wasRdy = rdy; P.rdyT = rdy ? (P.rdyT || 0) + dt : 0; P.rdyFlash = Math.max(0, (P.rdyFlash || 0) - dt); P.deny = Math.max(0, (P.deny || 0) - dt);

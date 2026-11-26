@@ -156,7 +156,7 @@ const INVENTARIO = (() => {
   }
   const openButton=document.createElement('button'), panel=document.createElement('dialog');
   openButton.textContent='Mochila'; openButton.hidden=true;
-  openButton.style.cssText='position:fixed;right:12px;top:46%;z-index:12;padding:6px 10px';
+  openButton.id='invBtn'; openButton.style.cssText='position:fixed;right:max(14px,env(safe-area-inset-right));top:calc(56px + env(safe-area-inset-top));z-index:12;padding:4px 9px;font:600 11px system-ui,-apple-system,sans-serif;color:#e8eef8;background:#151b28cc;border:1px solid #2b3650;border-radius:8px;opacity:.75';   /* con mando no se muestra (se abre manteniendo el touchpad) */
   panel.style.cssText='max-width:min(90vw,390px);max-height:78vh;overflow:auto;background:#18212a;color:white;border:1px solid #73808e;border-radius:8px;padding:16px';
   document.body.append(openButton,panel);
   function close() { if(panel.open) panel.close(); }

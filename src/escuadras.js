@@ -146,6 +146,14 @@ function holdPoint(s, e, c, face) {                                             
   const q = holdPoint0(s, e, c, face); e._hpK = key; e._hp = q; return q;
 }
 function holdPoint0(s, e, c, face) {
+  const ob = SQ.objs.find(o => Math.hypot(o.x - c.x, o.z - c.z) < 3);
+  if (ob) {                                                                          // punto de dominio: todos DENTRO de la zona, repartidos en círculo, cada uno vigilando su sector
+    const i = slotOf(s, e) + (e === s.leader ? 0 : 1), n = Math.max(1, s.members.length), a = face + i / n * Math.PI * 2, r = ob.r * (i % 2 ? .45 : .7);
+    let p = navNear(c.x + Math.sin(a) * r, c.z + Math.cos(a) * r); const cp = coverPoint({ p }, c.x + Math.sin(a) * 30, c.z + Math.cos(a) * 30);
+    if (cp && dist(cp, p) < 3 && dist(cp, ob) < ob.r - 1) p = cp; if (dist(p, ob) > ob.r - 1) p = navNear(c.x + Math.sin(a) * ob.r * .4, c.z + Math.cos(a) * ob.r * .4);
+    e._hpFace = a; return p;
+  }
+  e._hpFace = undefined;
   const i = slotOf(s, e) + (e === s.leader ? 0 : 1), n = Math.max(2, s.members.length), a = face + (i / (n - 1) - .5) * 2.2, r = 5 + (i % 2) * 3;
   const p = navNear(c.x + Math.sin(a) * r, c.z + Math.cos(a) * r);
   const cp = coverPoint({ p }, c.x + Math.sin(face) * 30, c.z + Math.cos(face) * 30); if (cp && dist(cp, p) < 5) return cp;
@@ -179,12 +187,12 @@ SQ.goalFor = e => {                                                             
     const fol = s.members.filter(x => x !== L && alive(x) && (!x.isPlayer || dist(x.p, L.p) < 60)), far = fol.filter(x => dist(x.p, L.p) > 24).length;
     if (far > fol.length / 2 && dist(L.p, m) > 15) return { x: L.p.x, z: L.p.z, speed: 0, hold: true, face: L.yaw };                 // reagrupa antes de seguir
     const dm = dist(L.p, m);
-    if (dm < 12) { const face = Math.atan2(-m.x, -m.z) + (m.type === 'defend' ? Math.PI : 0); s.holdFace = face; const q = holdPoint(s, e, m, face); return { x: q.x, z: q.z, speed: 3.6, hold: true, face, crouch: true }; }
+    if (dm < 12) { const face = Math.atan2(-m.x, -m.z) + (m.type === 'defend' ? Math.PI : 0); s.holdFace = face; const q = holdPoint(s, e, m, face); return { x: q.x, z: q.z, speed: 3.6, hold: true, face: e._hpFace !== undefined ? e._hpFace : face, crouch: true }; }
     if (m.type === 'attack' && dm < 80) return bound(s, e, m);
     return { x: m.x, z: m.z, speed: m.type === 'recon' ? 4.4 : 5, hold: false };
   }
   const m = s.mission;
-  if (m && m.x !== undefined && dist(L.p, m) < 12) { const q = holdPoint(s, e, m, s.holdFace); return { x: q.x, z: q.z, speed: 3.6, hold: true, face: s.holdFace, crouch: true }; }
+  if (m && m.x !== undefined && dist(L.p, m) < 12) { const q = holdPoint(s, e, m, s.holdFace); return { x: q.x, z: q.z, speed: 3.6, hold: true, face: e._hpFace !== undefined ? e._hpFace : s.holdFace, crouch: true }; }
   if (m && m.type === 'attack' && s.ap && dist(L.p, m) < 80) return bound(s, e, m);
   const q = formPoint(s, e, L.goal && !L.isPlayer ? { x: L.p.x, z: L.p.z } : L.p, facingOf(s), m && m.type === 'recon' ? 1.3 : 1);
   return { x: q.x, z: q.z, speed: dist(e.p, q) > 12 ? 6.2 : 5, hold: false, face: facingOf(s) };
@@ -286,31 +294,74 @@ SQ.onRespawn = e => { e.lifeStart = M.t; e.supp = 0; };
    munición, granadas y kit al pasar por él (cada 25 s); cada objetivo común acorta la reaparición de toda la facción (9 s base, −1 s por objetivo común, mín. 4 s);
    con el puesto avanzado propio, la escuadra que opera cerca reaparece allí (si no hay enemigos a 35 m). El mando de cada facción ataca los comunes
    que no son suyos y recupera los propios perdidos. */
-const OBJ_R = { PLAZA: 22, FAB: 18, EST: 18 }, CAP_T = 20, TEAM_COL = [0x4aa0ff, 0xff5a48, 0xffb020, 0xb07cff];
-SQ.objs = [];
+const OBJ_R = { PLAZA: 12, FAB: 12, EST: 12 }, CAP_N = 10, CAP_C = 10, TEAM_COL = [0x4aa0ff, 0xff5a48, 0xffb020, 0xb07cff];
+/* DOMINIO: cada punto se toma quedándose dentro, como en los juegos de dominio. Si es enemigo, primero se NEUTRALIZA (10 s, pasa a gris) y después se
+   CAPTURA (10 s, pasa a tu color). Más compañeros dentro aceleran (hasta ×1,6). Con enemigos vivos dentro: DISPUTADO (se congela). Si sales, lo avanzado
+   baja poco a poco (y deprisa si los dueños vuelven a pisarlo). Cada 5 s cada facción suma 1 punto por punto propio y 2 por punto común: la primera en
+   llegar a la META gana la partida. Zonas de 8 m (12 m la Plaza, las Fábricas y las Estaciones); los comunes llevan letra (A–E). */
+const META = 1500, TICK = 5, CODES = { PLAZA: ['A'], FAB: ['B', 'C'], EST: ['D', 'E'] };
+SQ.objs = []; SQ.score = [0, 0, 0, 0]; SQ.meta = META; SQ.scoreT = 0; SQ.winner = -1;
 function objInit() {
-  SQ.objs = []; const info = MAPA.built && MAPA.built.info && MX.district ? MAPA.built.info : null; if (!info) return;
+  SQ.objs = []; SQ.score = [0, 0, 0, 0]; SQ.scoreT = 0; SQ.winner = -1; const info = MAPA.built && MAPA.built.info && MX.district ? MAPA.built.info : null; if (!info) return;
+  const used = {};
   for (const p of info.places) {
     const own = ['PUE', 'FAR', 'TIE', 'CLI', 'GRA'].includes(p.id) && p.fac >= 0, shared = ['FAB', 'EST', 'PLAZA'].includes(p.id); if (!own && !shared) continue;
-    SQ.objs.push({ id: p.id, name: p.name.split(' · ')[0] + (own ? ' ' + TN[KTEAM[p.fac]] : ''), x: p.x, z: p.z, r: OBJ_R[p.id] || 14, owner: own ? KTEAM[p.fac] : -1, home: own ? KTEAM[p.fac] : -1, shared, cap: 0, capBy: -1, contested: false, ring: null });
+    const code = shared ? CODES[p.id][used[p.id] = (used[p.id] || 0) + 1, used[p.id] - 1] || p.id[0] : '';
+    SQ.objs.push({ id: p.id, code, name: (code ? code + ' · ' : '') + p.name.split(' · ')[0].replace(/\s*\(.*?\)/g, '') + (own ? ' ' + TN[KTEAM[p.fac]] : ''), x: p.x, z: p.z, r: OBJ_R[p.id] || 8, owner: own ? KTEAM[p.fac] : -1, home: own ? KTEAM[p.fac] : -1, shared, cap: 0, capBy: -1, contested: false, ring: null, n: [0, 0, 0, 0] });
   }
 }
+SQ.objState = o => o.contested ? 'DISPUTADO' : o.capBy >= 0 && o.cap > 0 ? (o.owner >= 0 ? 'Neutralizando' : 'Capturando') : o.owner >= 0 ? 'de ' + TN[o.owner] : 'Neutral';
 function objTick(dt) {
-  const pl = MX.pl;
+  const pl = MX.pl; if (SQ.winner >= 0) return;
   for (const o of SQ.objs) {
     const n = [0, 0, 0, 0]; for (const e of M.ents) if (alive(e) && (e.p.x - o.x) ** 2 + (e.p.z - o.z) ** 2 < o.r * o.r) n[e.team]++;
     const teams = n.map((c, t) => c ? t : -1).filter(t => t >= 0); o.contested = teams.length > 1; o.n = n;
-    if (teams.length === 1 && teams[0] !== o.owner) {
-      const t = teams[0]; if (o.capBy !== t) { o.capBy = t; o.cap = 0; }
-      o.cap += dt / CAP_T * Math.min(1.6, 1 + (n[t] - 1) * .15);
-      if (o.cap >= 1) { const prev = o.owner; o.owner = t; o.cap = 0; o.capBy = -1;
-        if (pl && t === pl.team) toast('Hemos tomado ' + o.name); else if (pl && prev === pl.team) toast('Hemos perdido ' + o.name + ' (' + TN[t] + ')'); }
-    } else if (!teams.length) o.cap = Math.max(0, o.cap - dt / CAP_T * .5);
+    if (o.contested) continue;                                                       // disputado: congelado
+    const t = teams.length ? teams[0] : -1;
+    if (t >= 0 && t !== o.owner) {                                                   // atacantes solos dentro
+      if (o.capBy !== t) { if (o.cap > 0 && o.capBy >= 0) { o.cap = Math.max(0, o.cap - dt / CAP_N * 2); continue; } o.capBy = t; o.cap = 0; }   // otro bando a medias: primero lo deshace
+      o.cap += dt / (o.owner >= 0 ? CAP_N : CAP_C) * Math.min(1.6, 1 + (n[t] - 1) * .15);
+      if (o.cap >= 1) {
+        const prev = o.owner; o.cap = 0;
+        if (prev >= 0) { o.owner = -1; o.capBy = t;                                  // neutralizado: sigue la captura sin soltar
+          if (pl && t === pl.team) { toast('Neutralizado ' + o.name); beep('neu'); } else if (pl && prev === pl.team) { toast('Nos han neutralizado ' + o.name); beep('lost'); } }
+        else { o.owner = t; o.capBy = -1;
+          if (pl && t === pl.team) { toast('Capturado ' + o.name); beep('cap'); } else if (pl && dist(pl.p, o) < 120) toast(TN[t] + ' captura ' + o.name); }
+      } else if (pl && t !== pl.team && o.owner === pl.team && (!o.warnT || M.t - o.warnT > 20)) { o.warnT = M.t; toast('¡Están tomando ' + o.name + '!'); beep('warn'); }
+    } else if (t === o.owner && t >= 0) o.cap = Math.max(0, o.cap - dt / CAP_N * 1.5);   // los dueños lo pisan: deshacen lo avanzado
+    else if (t < 0) { o.cap = Math.max(0, o.cap - dt / (CAP_N * 4)); if (o.cap <= 0) o.capBy = -1; }   // vacío: lo avanzado baja poco a poco
     /* suministros para los dueños que pasan por él */
     if (o.owner >= 0) for (const e of M.ents) { if (!alive(e) || e.team !== o.owner || (e.p.x - o.x) ** 2 + (e.p.z - o.z) ** 2 > o.r * o.r || M.t - (e.supT || -99) < 25) continue;
       e.supT = M.t; if (e.isPlayer) { if (MX.refill) MX.refill(); e.kits = 1; if (MX.syncKit) MX.syncKit(e); toast('Reabastecido en ' + o.name); } else { e.ammo = e.w.max; e.gCount = Math.min(3, e.gCount + 1); e.kits = 1; } }
   }
+  /* puntuación de dominio */
+  SQ.scoreT += dt; while (SQ.scoreT >= TICK) { SQ.scoreT -= TICK; for (const o of SQ.objs) if (o.owner >= 0) SQ.score[o.owner] += o.shared ? 2 : 1; }
+  const w = SQ.score.findIndex(v => v >= META); if (w >= 0) endCampaign(w);
 }
+/* tonos cortos sintetizados para el dominio (sin muestras): capturado, neutralizado, aviso, perdido */
+function beep(k) {
+  try { const a = typeof ac !== 'undefined' && ac, bus = typeof mixBus !== 'undefined' && mixBus; if (!a || !bus) return; const t0 = a.currentTime;
+    const seq = { cap: [[660, 0], [880, .09], [1320, .18]], neu: [[520, 0], [700, .1]], warn: [[440, 0], [440, .16]], lost: [[520, 0], [390, .12], [300, .24]] }[k] || [];
+    for (const [f, d] of seq) { const o = a.createOscillator(), g = a.createGain(); o.type = 'triangle'; o.frequency.value = f; g.gain.setValueAtTime(0, t0 + d); g.gain.linearRampToValueAtTime(.12, t0 + d + .012); g.gain.exponentialRampToValueAtTime(.001, t0 + d + .16); o.connect(g); g.connect(bus); o.start(t0 + d); o.stop(t0 + d + .18); }
+  } catch (e) { }
+}
+SQ.beep = beep;
+/* fin de partida: gana la primera facción en llegar a la meta */
+const endEl = document.createElement('div'); endEl.id = 'domEnd'; endEl.style.cssText = 'position:fixed;inset:0;z-index:7;display:none;align-items:center;justify-content:center;background:#0c1018d9;font:600 14px system-ui,-apple-system,sans-serif;color:#e8eef8;padding:16px';
+document.body.appendChild(endEl);
+function endCampaign(w) {
+  if (SQ.winner >= 0) return; SQ.winner = w; M.over = true; M.endT = 0; const pl = MX.pl, mine = pl && w === pl.team, hex = t => '#' + TEAM_COL[t].toString(16).padStart(6, '0');
+  const order = [0, 1, 2, 3].sort((a, b) => SQ.score[b] - SQ.score[a]);
+  const best = M.ents.filter(e => pl && e.team === pl.team).sort((a, b) => b.kills - a.kills).slice(0, 5);
+  endEl.innerHTML = '<div style="background:#151b28;border:1px solid #2b3650;border-radius:14px;padding:18px 26px;text-align:center;max-width:min(520px,92vw)"><div style="font-size:26px;font-weight:800;color:' + hex(w) + '">' + (mine ? 'VICTORIA' : 'DERROTA') + '</div>' +
+    '<div style="opacity:.75;margin:2px 0 12px">' + (mine ? 'Tu facción domina el distrito' : 'Gana ' + TN[w]) + '</div>' +
+    '<div style="display:flex;gap:14px;justify-content:center;font-variant-numeric:tabular-nums;margin-bottom:12px">' + order.map(t => '<div style="color:' + hex(t) + '"><div style="font-size:12px;opacity:.8">' + TN[t].toUpperCase() + '</div><div style="font-size:20px;font-weight:800">' + SQ.score[t] + '</div></div>').join('') + '</div>' +
+    '<div style="font-size:12px;opacity:.7;margin-bottom:4px">Mejores de tu facción (bajas)</div><div style="font-size:13px">' + best.map(e => (e.isPlayer ? '<b style="color:#ffd24a">TÚ</b>' : e.id) + ' ' + e.kills).join(' · ') + '</div>' +
+    '<button id="domRe" style="margin-top:16px;font-size:15px;padding:10px 26px;border-radius:8px;border:0;background:#ff9440;color:#111;font-weight:700;cursor:pointer">JUGAR OTRA VEZ</button></div>';
+  endEl.style.display = 'flex'; const re = () => location.reload(); document.getElementById('domRe').addEventListener('click', re); document.getElementById('domRe').addEventListener('touchstart', e => { e.preventDefault(); re(); });
+  beep(mine ? 'cap' : 'lost');
+}
+SQ.endCampaign = endCampaign;
 SQ.respawnTime = e => { if (!SQ.objs.length) return null; const k = SQ.objs.filter(o => o.shared && o.owner === e.team).length; return Math.max(4, 9 - k) + (e.isPlayer ? 0 : rnd() * .8); };
 SQ.spawnFor = e => {                                                                 // reaparición adelantada en el puesto avanzado propio
   const pue = SQ.objs.find(o => o.id === 'PUE' && o.owner === e.team && o.home === e.team); if (!pue) return null;
@@ -320,14 +371,42 @@ SQ.spawnFor = e => {                                                            
 };
 function objHud() {
   for (const o of SQ.objs) {
-    if (!o.ring) { o.ring = new THREE.Mesh(new THREE.RingGeometry(o.r - .35, o.r, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .35, depthWrite: false, side: THREE.DoubleSide })); o.ring.rotation.x = -Math.PI / 2; o.ring.position.set(o.x, .05, o.z); scene.add(o.ring); }
-    o.ring.material.color.setHex(o.owner >= 0 ? TEAM_COL[o.owner] : 0xe8e8e8); o.ring.material.opacity = o.contested ? .35 + .25 * Math.sin(M.t * 8) : o.capBy >= 0 && o.cap > 0 ? .55 : .3;
+    if (!o.ring) { o.ring = new THREE.Mesh(new THREE.RingGeometry(o.r - .3, o.r, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .35, depthWrite: false, side: THREE.DoubleSide })); o.ring.rotation.x = -Math.PI / 2; o.ring.position.set(o.x, .05, o.z); scene.add(o.ring);
+      /* mástil con banderola del color del dueño en el centro */
+      const g = new THREE.Group(); g.position.set(o.x, 0, o.z); const pole = new THREE.Mesh(new THREE.CylinderGeometry(.05, .06, 4.2, 6), new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: .6, roughness: .4 }));
+      pole.position.y = 2.1; pole.castShadow = true; g.add(pole); o.flagM = new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: .8, side: THREE.DoubleSide, flatShading: true });
+      o.flag = new THREE.Mesh(new THREE.PlaneGeometry(1.2, .75), o.flagM); o.flag.position.set(.62, 3.7, 0); o.flag.castShadow = true; g.add(o.flag); scene.add(g); o.pole = g;
+      o.fill = new THREE.Mesh(new THREE.RingGeometry(o.r - .9, o.r - .35, 64, 1, 0, .001), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .7, depthWrite: false, side: THREE.DoubleSide })); o.fill.rotation.x = -Math.PI / 2; o.fill.position.set(o.x, .055, o.z); scene.add(o.fill); }
+    const col = o.owner >= 0 ? TEAM_COL[o.owner] : 0xe8e8e8; o.ring.material.color.setHex(col); o.flagM.color.setHex(col);
+    o.ring.material.opacity = o.contested ? .35 + .3 * Math.sin(M.t * 8) : .45; o.flag.position.y = 3.7 - (o.capBy >= 0 && o.owner >= 0 ? o.cap * 1.6 : 0); o.flag.rotation.y = Math.sin(M.t * 2.1 + o.x) * .25;
+    const prog = o.capBy >= 0 ? o.cap : 0; o.fill.visible = prog > .005;
+    if (o.fill.visible && Math.abs((o.fillP || 0) - prog) > .01) { o.fill.geometry.dispose(); o.fill.geometry = new THREE.RingGeometry(o.r - .9, o.r - .35, 64, 1, Math.PI / 2, -prog * Math.PI * 2); o.fillP = prog; }
+    if (o.fill.visible) o.fill.material.color.setHex(TEAM_COL[o.capBy]);
   }
-  const pl = MX.pl, here = pl && SQ.objs.find(o => dist(pl.p, o) < o.r);
-  return here ? '<div style="margin-top:4px;padding-top:4px;border-top:1px solid #ffffff22">' + here.name + ': ' + (here.contested ? 'DISPUTADO' : here.owner === pl.team ? 'nuestro' : here.capBy === pl.team ? 'capturando ' + Math.round(here.cap * 100) + ' %' : here.owner >= 0 ? 'de ' + TN[here.owner] : 'de nadie') + '</div>' : '';
 }
-SQ.objHtml = () => { const own = [0, 0, 0, 0]; for (const o of SQ.objs) if (o.owner >= 0) own[o.owner]++; return SQ.objs.length ? '<div style="opacity:.8;margin-top:2px">Objetivos · ' + own.map((c, t) => '<span style="color:#' + TEAM_COL[t].toString(16).padStart(6, '0') + '">' + c + '</span>').join(' · ') + '</div>' : ''; };
-
+/* marcador de dominio (arriba en el centro) y barra de captura (abajo en el centro, sólo dentro de un punto) */
+{ const st = document.createElement('style'); st.textContent = `
+#domScore{position:fixed;left:50%;top:calc(6px + env(safe-area-inset-top));transform:translateX(-50%);z-index:3;pointer-events:none;display:none;gap:4px;align-items:center;font:800 12px/1 system-ui,-apple-system,sans-serif;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #000}
+#domScore .f{position:relative;min-width:40px;padding:3px 5px 5px;border-radius:5px;background:#0b0f18b8;text-align:center}#domScore .f.me{box-shadow:inset 0 0 0 1px #ffffff55}
+#domScore .f i{position:absolute;left:3px;right:3px;bottom:2px;height:2px;background:#ffffff1c;border-radius:1px;overflow:hidden}#domScore .f i b{display:block;height:100%}
+#domScore .f s{text-decoration:none;font-size:9px;opacity:.75;margin-left:3px;font-weight:700}#domScore .m{font-size:9px;opacity:.6;margin-left:4px;font-weight:700}
+#capBar{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:3;pointer-events:none;display:none;width:min(260px,40vw);text-align:center;font:700 11px/1.2 system-ui,-apple-system,sans-serif;color:#fff;text-shadow:0 1px 2px #000}
+#capBar .t{margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#capBar .b{height:6px;border-radius:3px;background:#0b0f18c8;box-shadow:inset 0 0 0 1px #ffffff26;overflow:hidden}#capBar .b i{display:block;height:100%;transition:width .2s}
+@media (min-height:521px){#domScore{font-size:15px;top:calc(10px + env(safe-area-inset-top))}#domScore .f{min-width:60px}#capBar{font-size:13px;bottom:calc(40px + env(safe-area-inset-bottom))}}
+`; document.head.appendChild(st); }
+const domEl = document.createElement('div'); domEl.id = 'domScore'; document.body.appendChild(domEl);
+const capEl = document.createElement('div'); capEl.id = 'capBar'; document.body.appendChild(capEl);
+SQ.capTick = () => {
+  objHud(); const pl = MX.pl, on = MX.on && SQ.objs.length && !menuOpen && !TM.open;
+  domEl.style.display = on ? 'flex' : 'none'; if (!on) { capEl.style.display = 'none'; return; }
+  const hex = t => '#' + TEAM_COL[t].toString(16).padStart(6, '0'), held = [0, 0, 0, 0]; for (const o of SQ.objs) if (o.owner >= 0) held[o.owner]++;
+  domEl.innerHTML = [0, 1, 2, 3].map(t => '<div class="f' + (pl && t === pl.team ? ' me' : '') + '" style="color:' + hex(t) + '">' + SQ.score[t] + '<s>' + held[t] + '⚑</s><i><b style="width:' + Math.min(100, SQ.score[t] / META * 100) + '%;background:' + hex(t) + '"></b></i></div>').join('') + '<span class="m">/' + META + '</span>';
+  const here = pl && !pl.dead && SQ.objs.find(o => dist(pl.p, o) < o.r);
+  capEl.style.display = here ? 'block' : 'none'; if (!here) return;
+  const st = SQ.objState(here), prog = here.capBy >= 0 ? here.cap : here.owner >= 0 ? 1 : 0, c = here.contested ? '#ffd24a' : hex(here.capBy >= 0 ? here.capBy : here.owner >= 0 ? here.owner : pl.team);
+  capEl.innerHTML = '<div class="t">' + here.name + ' · ' + (here.contested ? '<span style="color:#ffd24a">DISPUTADO</span>' : here.owner === pl.team && !(here.capBy >= 0 && here.cap > 0) ? 'Nuestro' : here.capBy >= 0 && here.cap > 0 ? st + ' ' + Math.round(here.cap * 100) + ' %' : here.owner >= 0 ? 'de ' + TN[here.owner] + ' · quédate para neutralizarlo' : 'Neutral · quédate para capturarlo') + '</div><div class="b"><i style="width:' + Math.round(prog * 100) + '%;background:' + c + '"></i></div>';
+};
+SQ.objHtml = () => '';
 /* ---------- MAPA TÁCTICO (touchpad del mando · tecla M): el distrito entero con calles, zonas y edificios, refugios, objetivos con el color de su dueño,
    tu escuadra, tus aliados y DÓNDE HAY FUEGO: disparos y explosiones recientes (se apagan en 30 s) e incendios. Los enemigos no se ven (sólo el ruido del combate).
    Capa fija dibujada una vez por mapa; capa viva cada fotograma mientras está abierto. Mientras está abierto, el personaje no se mueve ni dispara. ---------- */
@@ -398,7 +477,8 @@ function mapDraw() {
   if (typeof FIRES !== 'undefined') for (const f of FIRES) { x.fillStyle = '#ff4a2a'; x.beginPath(); const fx = P2(f.x), fz = P2(f.z); x.moveTo(fx, fz - 5); x.lineTo(fx + 4.5, fz + 3.5); x.lineTo(fx - 4.5, fz + 3.5); x.closePath(); x.fill(); }
   /* objetivos con el color del dueño y su progreso de captura */
   for (const o of SQ.objs) { const cx = P2(o.x), cz = P2(o.z), r = Math.max(4, o.r * g.k); x.lineWidth = 2.2; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.globalAlpha = o.contested ? .5 + .5 * pulse : 1; x.beginPath(); x.arc(cx, cz, r, 0, 6.283); x.stroke(); x.globalAlpha = 1;
-    if (o.capBy >= 0 && o.cap > 0) { x.strokeStyle = col(o.capBy); x.lineWidth = 3; x.beginPath(); x.arc(cx, cz, r + 3, -1.571, -1.571 + 6.283 * o.cap); x.stroke(); } }
+    if (o.capBy >= 0 && o.cap > 0) { x.strokeStyle = col(o.capBy); x.lineWidth = 3; x.beginPath(); x.arc(cx, cz, r + 3, -1.571, -1.571 + 6.283 * o.cap); x.stroke(); }
+    if (o.code) { x.globalAlpha = 1; x.fillStyle = o.owner >= 0 ? col(o.owner) : '#0c1018'; x.font = '800 ' + Math.max(11, Math.round(r * 1.1)) + 'px system-ui,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(o.code, cx, cz); } }
   /* aliados (los enemigos no se ven): tu escuadra más grande; líderes con estrella */
   const ps = pl && pl.sqd;
   for (const e of M.ents) { if (e.dead || e.team !== team || e.isPlayer) continue; const mine = ps && e.sqd === ps, cx = P2(e.p.x), cz = P2(e.p.z);
@@ -409,17 +489,17 @@ function mapDraw() {
   /* encabezado: facción, objetivos por facción y combate activo */
   const live = cells.filter(h => !h.ally && h.young < 5).length, allyF = cells.filter(h => h.ally && h.young < 8).length, own = [0, 0, 0, 0]; for (const o of SQ.objs) if (o.owner >= 0) own[o.owner]++;
   let h = '<span style="color:' + col(team) + '">MAPA TÁCTICO · ' + TN[team].toUpperCase() + '</span>' + (live ? ' · <span style="color:#ff9a4a">' + live + (live === 1 ? ' zona con disparos cerca' : ' zonas con disparos cerca') + '</span>' : ' · sin disparos cerca') + (allyF ? ' · <span style="color:#ff6a6a">' + allyF + (allyF === 1 ? ' grupo aliado bajo fuego' : ' grupos aliados bajo fuego') + '</span>' : '');
-  if (SQ.objs.length) h += ' &nbsp;·&nbsp; objetivos: ' + [0, 1, 2, 3].map(t => '<span style="color:' + col(t) + '">' + TN[t] + ' ' + own[t] + '</span>').join(' · ');
+  if (SQ.objs.length) h += ' &nbsp;·&nbsp; dominio: ' + [0, 1, 2, 3].map(t => '<span style="color:' + col(t) + '">' + TN[t] + ' ' + SQ.score[t] + ' (' + own[t] + '⚑)</span>').join(' · ') + ' &nbsp;/ ' + META;
   if (mapHead.innerHTML !== h) mapHead.innerHTML = h;
 }
 /* ---- minimapa (arriba a la izquierda, siempre visible en campaña): centrado en ti, norte arriba, 220 × 220 m; mismas reglas de fuego que el mapa grande ---- */
 const MM = { el: null, cv: null, t: 0, R: 110 };
 function miniTick(dt) {
-  if (!MM.el) { MM.el = document.createElement('div'); MM.el.style.cssText = 'position:fixed;left:calc(12px + env(safe-area-inset-left));top:calc(100px + env(safe-area-inset-top));z-index:3;pointer-events:none;border-radius:50%;overflow:hidden;box-shadow:0 0 0 2px #ffffff30,0 4px 14px #000a;display:none';
+  if (!MM.el) { MM.el = document.createElement('div'); MM.el.id = 'miniMap'; MM.el.style.cssText = 'position:fixed;left:calc(12px + env(safe-area-inset-left));top:calc(8px + env(safe-area-inset-top));z-index:3;pointer-events:none;border-radius:50%;overflow:hidden;box-shadow:0 0 0 2px #ffffff30,0 4px 14px #000a;display:none';
     MM.cv = document.createElement('canvas'); MM.el.appendChild(MM.cv); document.body.appendChild(MM.el); }
-  const on = MX.on && MX.campaign && !TM.open && !menuOpen; MM.el.style.display = on ? 'block' : 'none'; panel.style.top = on ? 'calc(' + (MM.size || 140) + 'px + 112px + env(safe-area-inset-top))' : 'calc(100px + env(safe-area-inset-top))';
+  const on = MX.on && MX.campaign && !TM.open && !menuOpen; MM.el.style.display = on ? 'block' : 'none';
   if (!on) return; MM.t -= dt; if (MM.t > 0) return; MM.t = .1;                     // 10 veces por segundo basta
-  const size = Math.round(Math.min(150, Math.max(110, Math.min(innerWidth, innerHeight) * .2))), dpr = Math.min(2, devicePixelRatio || 1); MM.size = size;
+  const size = Math.round(Math.min(140, Math.max(84, Math.min(innerWidth, innerHeight) * .26))), dpr = Math.min(2, devicePixelRatio || 1); MM.size = size;
   if (MM.cv.width !== size * dpr) { MM.cv.width = MM.cv.height = size * dpr; MM.cv.style.width = MM.cv.style.height = size + 'px'; }
   const x = MM.cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
   const G = mapGeom(), base = mapBase(G), k = size / (2 * MM.R), cx = P.pos.x, cz = P.pos.z, pl = MX.pl, team = pl ? pl.team : 0, col = t => '#' + TEAM_COL[t].toString(16).padStart(6, '0');
@@ -432,7 +512,7 @@ function miniTick(dt) {
     const r = Math.min(14, 4 + Math.sqrt(h.w) * 2), rgb = h.ally ? '255,60,60' : '255,140,40', gr = x.createRadialGradient(px, pz, 0, px, pz, r);
     gr.addColorStop(0, 'rgba(' + rgb + ',' + Math.min(.9, .3 + h.w * .06) + ')'); gr.addColorStop(1, 'rgba(' + rgb + ',0)'); x.fillStyle = gr; x.beginPath(); x.arc(px, pz, r, 0, 6.283); x.fill();
     if (h.young < 2.5) { x.strokeStyle = 'rgba(' + rgb + ',' + (.5 + .5 * pulse) + ')'; x.lineWidth = 1.4; x.beginPath(); x.arc(px, pz, r * .5 + pulse * 2, 0, 6.283); x.stroke(); } }
-  for (const o of SQ.objs) { const [px, pz] = W2(o.x, o.z); if (px < -10 || pz < -10 || px > size + 10 || pz > size + 10) continue; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.lineWidth = 1.6; x.beginPath(); x.arc(px, pz, Math.max(3, o.r * k), 0, 6.283); x.stroke(); }
+  for (const o of SQ.objs) { const [px, pz] = W2(o.x, o.z); if (px < -10 || pz < -10 || px > size + 10 || pz > size + 10) continue; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.lineWidth = 1.6; x.beginPath(); x.arc(px, pz, Math.max(3, o.r * k), 0, 6.283); x.stroke(); if (o.code) { x.fillStyle = o.owner >= 0 ? col(o.owner) : '#0c1018'; x.font = '800 9px system-ui,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(o.code, px, pz); } }
   const ps = pl && pl.sqd; for (const e of M.ents) { if (e.dead || e.team !== team || e.isPlayer) continue; const [px, pz] = W2(e.p.x, e.p.z); if (px < 0 || pz < 0 || px > size || pz > size) continue; x.fillStyle = e.dwn ? '#ffb020' : col(team); x.globalAlpha = ps && e.sqd === ps ? 1 : .55; x.beginPath(); x.arc(px, pz, ps && e.sqd === ps ? 2.6 : 1.8, 0, 6.283); x.fill(); x.globalAlpha = 1; }
   x.save(); x.translate(size / 2, size / 2); x.rotate(-P.aim + Math.PI); x.fillStyle = '#fff'; x.strokeStyle = '#000'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(0, -7); x.lineTo(5, 5); x.lineTo(0, 2.5); x.lineTo(-5, 5); x.closePath(); x.fill(); x.stroke(); x.restore();
   x.fillStyle = '#ffffffaa'; x.font = '700 9px system-ui'; x.textAlign = 'center'; x.textBaseline = 'top'; x.fillText('N', size / 2, 3);
@@ -440,13 +520,25 @@ function miniTick(dt) {
 SQ.mapTick = () => { if (TM.open) { if (!MX.on || menuOpen || (MX.pl && (MX.pl.dead || MX.pl.dwn))) { if (!MX.on || menuOpen) MX.mapClose(); } mapDraw(); } };
 
 /* ---------- HUD: panel de la escuadra (arriba a la izquierda), avisos y marca de la orden ---------- */
-const panel = document.createElement('div'); panel.id = 'sqPanel';
-panel.style.cssText = 'position:fixed;left:calc(12px + env(safe-area-inset-left));top:calc(100px + env(safe-area-inset-top));z-index:3;pointer-events:none;font:600 12px/1.35 system-ui,-apple-system,Segoe UI,sans-serif;color:#e8eef8;background:#0b0f18b0;border:1px solid #ffffff1c;border-radius:8px;padding:7px 10px;min-width:170px;display:none;text-shadow:0 1px 2px #000';
-document.body.appendChild(panel);
-const toastEl = document.createElement('div');
-toastEl.style.cssText = 'position:fixed;left:50%;top:calc(64px + env(safe-area-inset-top));transform:translateX(-50%);z-index:3;pointer-events:none;font:700 14px system-ui,-apple-system,sans-serif;color:#fff;background:#0b0f18d0;border:1px solid #6dff9a55;border-radius:8px;padding:6px 14px;display:none;text-shadow:0 1px 2px #000';
-document.body.appendChild(toastEl);
-function toast(t) { SQ.toasts.push({ t, at: M.t }); if (SQ.toasts.length > 3) SQ.toasts.shift(); SQ.lastToast = t; }
+/* Diseño por esquinas (pensado primero para el iPhone en horizontal): arriba a la izquierda el minimapa; arriba en el centro el marcador de
+   facciones y los avisos cortos; abajo a la izquierda la vida y, justo encima, la escuadra en compacto; abajo a la derecha el arma.
+   La escuadra se ve en una línea (nombre y orden) y una ficha por miembro con su vida; al dar una orden o cambiar la escuadra se despliega 3 s. */
+{ const st = document.createElement('style'); st.textContent = `
+#sqPanel{position:fixed;left:calc(14px + env(safe-area-inset-left));bottom:calc(64px + env(safe-area-inset-bottom));z-index:3;pointer-events:none;font:600 11px/1.3 system-ui,-apple-system,Segoe UI,sans-serif;color:#e8eef8;text-shadow:0 1px 2px #000;display:none;max-width:min(300px,40vw)}
+#sqPanel .hd{display:flex;gap:6px;align-items:baseline;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
+#sqPanel .nm{font-weight:800;letter-spacing:.06em}#sqPanel .od{opacity:.8;overflow:hidden;text-overflow:ellipsis}
+#sqPanel .ch{display:flex;gap:3px;flex-wrap:wrap}
+#sqPanel .c{position:relative;width:26px;height:18px;border-radius:3px;background:#0b0f18c0;box-shadow:inset 0 0 0 1px #ffffff26;overflow:hidden;font:700 9px/18px system-ui,sans-serif;text-align:center}
+#sqPanel .c i{position:absolute;left:0;bottom:0;height:3px;background:#6dff9a}#sqPanel .c.ld{box-shadow:inset 0 0 0 1px #ffd24a}#sqPanel .c.me{background:#1d3352d0}
+#sqPanel .c.dn{background:#4a3208d0}#sqPanel .c.dd{opacity:.35}
+#sqPanel .ex{margin-top:5px;background:#0b0f18b8;border-radius:6px;padding:5px 8px;box-shadow:inset 0 0 0 1px #ffffff1c}
+#sqPanel .ex div{display:flex;gap:6px;align-items:center}#sqPanel .ex b{width:40px;font-weight:700}#sqPanel .ex span{flex:1;height:3px;background:#ffffff22;border-radius:2px;overflow:hidden}#sqPanel .ex span i{display:block;height:100%}
+#sqToast{position:fixed;left:50%;top:calc(40px + env(safe-area-inset-top));transform:translateX(-50%);z-index:3;pointer-events:none;font:700 12px system-ui,-apple-system,sans-serif;color:#fff;background:#0b0f18c8;border-radius:6px;padding:4px 12px;display:none;text-shadow:0 1px 2px #000;white-space:nowrap;max-width:70vw;overflow:hidden;text-overflow:ellipsis}
+@media (min-height:521px){#sqPanel{bottom:calc(92px + env(safe-area-inset-bottom));font-size:12px}#sqPanel .c{width:30px;height:20px;line-height:20px;font-size:10px}#sqToast{top:calc(52px + env(safe-area-inset-top));font-size:14px}}
+`; document.head.appendChild(st); }
+const panel = document.createElement('div'); panel.id = 'sqPanel'; document.body.appendChild(panel);
+const toastEl = document.createElement('div'); toastEl.id = 'sqToast'; document.body.appendChild(toastEl);
+function toast(t) { SQ.toasts.push({ t, at: M.t }); if (SQ.toasts.length > 3) SQ.toasts.shift(); SQ.lastToast = t; SQ.expandT = M.t; }
 SQ.toast = toast;
 let hudAcc = 0;
 function hudTick(dt) {
@@ -459,9 +551,12 @@ function hudTick(dt) {
   if (hudAcc < .25) return; hudAcc = 0;
   if (!s || !MX.on) { panel.style.display = 'none'; return; }
   panel.style.display = 'block';
-  const L = s.leader, what = s.playerLead ? 'Orden: ' + ORDER_N[(s.order || { type: 'follow' }).type] : 'Misión: ' + (MISSION_N[s.mission.type] || '') + (s.mission.name ? ' · ' + s.mission.name : '');
-  const rows = s.members.map(m => { const st = m.dead ? '✝' : m.dwn ? '⚠' : ''; const hp = m.dead ? 0 : Math.round(m.hp); const lead = m === L ? '★ ' : '';
-    return '<div style="display:flex;gap:6px;align-items:center;opacity:' + (m.dead ? .45 : 1) + '"><span style="width:44px">' + lead + (m.isPlayer ? 'Tú' : m.id) + '</span><span style="flex:1;height:4px;background:#ffffff22;border-radius:2px;overflow:hidden"><span style="display:block;height:100%;width:' + hp + '%;background:' + (m.dwn ? '#ffb020' : hp < 40 ? '#ff6a4a' : '#6dff9a') + '"></span></span><span>' + st + '</span></div>'; }).join('');
-  panel.innerHTML = SQ.objHtml() + '<div style="font-weight:800;letter-spacing:.04em">' + s.name.toUpperCase() + ' · ' + s.members.length + '</div><div style="opacity:.85">Líder: ' + (L ? (L.isPlayer ? 'tú' : L.id) : '—') + '</div><div style="opacity:.85;margin-bottom:4px">' + what + '</div>' + rows + objHud();
+  const L = s.leader, what = s.playerLead ? ORDER_N[(s.order || { type: 'follow' }).type] : (MISSION_N[s.mission.type] || '') + (s.mission.name ? ' · ' + s.mission.name : '');
+  const hpc = m => m.dwn ? '#ffb020' : m.hp < 40 ? '#ff6a4a' : '#6dff9a', num = m => m.isPlayer ? 'TÚ' : String(m.id).replace(/^\D+/, '');
+  const chips = s.members.map(m => '<div class="c' + (m === L ? ' ld' : '') + (m.isPlayer ? ' me' : '') + (m.dead ? ' dd' : m.dwn ? ' dn' : '') + '">' + (m.dead ? '✝' : num(m)) + '<i style="width:' + (m.dead ? 0 : Math.round(m.hp)) + '%;background:' + hpc(m) + '"></i></div>').join('');
+  const open = M.t - (SQ.expandT || -99) < 3;                                         // desplegado 3 s tras una orden o un cambio en la escuadra
+  const ex = open ? '<div class="ex"><div style="opacity:.8;margin-bottom:2px">Líder: ' + (L ? (L.isPlayer ? 'tú' : L.id) : '—') + '</div>' + s.members.map(m => '<div style="opacity:' + (m.dead ? .45 : 1) + '"><b>' + (m === L ? '★ ' : '') + (m.isPlayer ? 'Tú' : m.id) + '</b><span><i style="width:' + (m.dead ? 0 : Math.round(m.hp)) + '%;background:' + hpc(m) + '"></i></span>' + (m.dead ? '✝' : m.dwn ? '⚠' : '') + '</div>').join('') + '</div>' : '';
+  panel.innerHTML = '<div class="hd"><span class="nm">' + s.name.toUpperCase() + '</span><span class="od">' + (s.playerLead ? '★ ' : '') + what + '</span></div><div class="ch">' + chips + '</div>' + ex;
+  if (SQ.capTick) SQ.capTick();
 }
 })();
