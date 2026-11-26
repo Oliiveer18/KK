@@ -1,4 +1,4 @@
-"""El distrito completo (?mapa=6) tiene sentido: carreteras unidas, nada que no deba estar en la calzada, retenes por los que se puede pasar, edificios y árboles fuera de las calles,
+"""El distrito completo (?mapa=6, v3 simétrico) tiene sentido e igualdad entre facciones: carreteras unidas, nada que no deba estar en la calzada, retenes por los que se puede pasar, edificios y árboles fuera de las calles,
 refugios con salida, todo alcanzable a pie, los 76 tipos y los 11 edificios presentes."""
 import os, sys
 from playwright.sync_api import sync_playwright
@@ -11,8 +11,8 @@ with sync_playwright() as p:
     pg = b.new_page(viewport={'width': 1100, 'height': 700}); pg.on('pageerror', lambda e: errs.append(str(e))); ev = pg.evaluate
     pg.goto('file://' + os.path.abspath('index.html') + '?mapa=6'); pg.wait_for_timeout(1000); ev('begin()'); pg.wait_for_timeout(1500)
     # 1) carreteras unidas: cada extremo de calle está en el borde del mapa o sobre otra calle
-    r = ev('''()=>{const D=MAPA.data.M2(),RI=MAPA.roadIndex(D.roads),out=[];for(const r of D.roads){for(const [i,e] of [[0,r.pts[0]],[1,r.pts[r.pts.length-1]]]){
-        const edge=Math.abs(e[0])>=495||Math.abs(e[1])>=495;let onOther=false;if(!edge){onOther=RI.near(e[0],e[1],0.5,r)}if(!edge&&!onOther)out.push([r.name,i?'fin':'inicio',Math.round(e[0]),Math.round(e[1])])}}
+    r = ev('''()=>{const D=MAPA.data.M2(),RI=MAPA.roadIndex(D.roads),out=[];for(const r of D.roads){const P=r.pts||(r.axis==='x'?[[r.a0,r.c],[r.a1,r.c]]:[[r.c,r.a0],[r.c,r.a1]]);for(const [i,e] of [[0,P[0]],[1,P[P.length-1]]]){
+        const edge=Math.abs(e[0])>=495||Math.abs(e[1])>=495||D.refuges.some(f=>Math.abs(e[0]-f.x)<=f.w/2+6&&Math.abs(e[1]-f.z)<=f.d/2+6);let onOther=false;if(!edge){onOther=RI.near(e[0],e[1],3.8,r)}   /* hasta la acera de la otra calle: las esquinas se prolongan para cerrar la acera */if(!edge&&!onOther)out.push([r.name,i?'fin':'inicio',Math.round(e[0]),Math.round(e[1])])}}
       return {sueltas:out,n:D.roads.length}}''')
     print('calles:', r['n'], '· extremos sueltos:', r['sueltas'])
     chk(not r['sueltas'], 'todas las carreteras se unen entre sí o llegan al borde del mapa (sin trozos sueltos)')
@@ -46,5 +46,15 @@ with sync_playwright() as p:
     chk(r['kinds'] == 11 and r['houses'] >= 40, 'los 11 tipos de edificio y %d casas' % r['houses'])
     chk(r['spawns'] == [6, 6, 6, 6] and all(x == 0 for x in r['alc']), 'desde los 4 refugios se llega a pie a todos los puntos de interés %s' % r['alc'])
     chk(not r['faltan'], 'los 76 tipos de objeto aparecen en el mapa %s' % r['faltan'])
+    # 5) igualdad: cada objeto y edificio tiene su copia girada 90° (mismo tipo y giro); árboles igual
+    r = ev('''()=>{const D=MAPA.data.M2(),key=(t,x,z,g)=>t+'|'+Math.round(x)+'|'+Math.round(z)+'|'+(((Math.round((g||0)/(Math.PI/2))%4)+4)%4);
+      const ES=new Set(['FAB','EST']),edge=o=>(Math.abs(o.x)<130&&Math.abs(o.z)>376)||(Math.abs(o.z)<130&&Math.abs(o.x)>376);
+      const S=new Set();for(const o of D.objects)S.add(key(o.t,o.x,o.z,o.g));for(const b of D.buildings)S.add(key(b.k,b.x,b.z,b.rot));
+      let f=0,n=0;const chk=(t,x,z,g,k2)=>{n++;const [a,b]=k2?[-x,-z]:[-z,x];if(!S.has(key(t,a,b,g-(k2?Math.PI:Math.PI/2))))f++};
+      for(const o of D.objects)chk(o.t,o.x,o.z,o.g,edge(o));for(const b of D.buildings)chk(b.k,b.x,b.z,b.rot,edge(b));
+      const T=new Set(D.trees.map(t=>Math.round(t[0])+'|'+Math.round(t[1])));let tf=0;for(const t of D.trees)if(!T.has(Math.round(-t[1])+'|'+Math.round(t[0])))tf++;
+      const R=D.refuges.map(r=>[r.x,r.z]),H=D.hot.length;return {n,f,tf,R,H}}''')
+    print('igualdad:', r)
+    chk(r['f'] == 0 and r['tf'] == 0, 'igualdad: todo objeto, edificio y árbol tiene su copia girada (90° en los cuartos, 180° en los objetivos de borde) (%d sin copia de %d)' % (r['f'], r['n']))
     chk(not errs, 'sin errores JS ' + str(errs[:2]))
 sys.exit(1 if bad else 0)

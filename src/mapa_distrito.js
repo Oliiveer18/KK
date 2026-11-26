@@ -37,105 +37,142 @@ MAPA.data.M1 = function () {
   return D;
 };
 
-/* ===================== DISTRITO COMPLETO v2 (1 km², cuadrícula orgánica; `?mapa=6`) =====================
-   Retícula de arterias cada 250 m con pequeñas curvas, que se unen siempre en nodos exactos (los cruces son puntos de control comunes de las dos calles); calles de barrio ortogonales que
-   nacen y mueren sobre otra calle (nada suelto). 16 celdas con su uso: 4 refugios en las esquinas, residencial, casco antiguo, comercial, estación, industria, parque y 3 bosques.
-   Norma de colocación: los muros y portones sólo cierran refugios, patios y recintos (nunca la calzada); los retenes son chicanes de vehículos con sacos en la acera; los sacos van en aceras y esquinas;
-   las torres, en parcelas junto a la acera. Todo en coordenadas del mundo (x → derecha, z → abajo, norte arriba). Determinista. Ver docs/DISTRITO_V2.md (lista exacta de ubicaciones). */
+/* ===================== DISTRITO v3 (1 km², cuadrícula recta y simétrica; `?mapa=6`) =====================
+   Igualdad total entre facciones: se diseña UN cuarto (el del Azul, noroeste) y se copia girado 90°, 180° y 270° alrededor del centro (Azul → Rojo → Violeta → Ámbar).
+   Con D.sym = 4, COMP.put / COMP.building / COMP.reserve colocan cada cosa en las 4 copias o en ninguna. Los objetivos de borde van con D.sym = 2 (giro de 180°):
+   Fábrica al norte y al sur, Estación y supermercado al este y al oeste (cada facción tiene uno de cada a 437 m). La Plaza Mayor está en el centro exacto (618 m de cada refugio).
+   Calles rectas en 4 categorías: avenidas en cruz (14 m), ronda interior (±250, 11 m), ronda exterior (±375, 8 m) y calles de barrio y de aldea (7 m). Manzanas de 125 m.
+   Coordenadas del mundo: x → este, z → sur, norte arriba. Determinista. Lista exacta de ubicaciones: docs/DISTRITO_V3.md (tools/foto_distrito.py). */
 MAPA.data.M2 = function () {
   const rng = (a => () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; })(20261126);
-  const half = 500, E = 498, D = { half, ground: 'grass', roads: [], surfaces: [], lots: [], refuges: [], buildings: [], objects: [], rails: [], hot: [], occ: [], trees: [], info: { nodes: [], places: [], blocks: [], roads: [] } };
-  const road = (pts, w, step, name) => { const r = { pts, w, step: step || 2, name }; D.roads.push(r); D.info.roads.push({ name, w, pts }); return r; };
-  /* — nodos de la retícula (cruces exactos) — */
-  const X = [-250, 0, 250], Z = [-250, 0, 250], OFF = [[[-12, 8], [8, 14], [-14, -6]], [[10, -10], [0, 0], [12, 10]], [[14, 12], [-10, -12], [6, -14]]];   // OFF[i][j] = desplazamiento del nodo (columna i, fila j)
-  const N = X.map((x, i) => Z.map((z, j) => [x + OFF[i][j][0], z + OFF[i][j][1]]));
-  N.forEach((c, i) => c.forEach((p, j) => D.info.nodes.push({ id: 'N' + i + j, x: p[0], z: p[1] })));
-  const bend = (a, b, k, axis) => { const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; if (axis === 'v') m[0] += k; else m[1] += k; return m; };       // punto intermedio que curva el tramo
-  const V = [], Hh = [];
-  for (let i = 0; i < 3; i++) { const p = [[X[i] + (i === 1 ? 6 : -6), -E]], k = [16, -14, 12, -10]; for (let j = 0; j < 3; j++) { if (j > 0) p.push(bend(N[i][j - 1], N[i][j], k[(i + j) % 4], 'v')); p.push(N[i][j]); } p.push(bend(N[i][2], [X[i] + 8, E], k[(i + 3) % 4], 'v'), [X[i] + 8, E]); V.push(road(p, i === 1 ? 12 : 10, 2, i === 1 ? 'Calle Central' : 'Arteria N-S ' + (i ? 'este' : 'oeste'))); }
-  for (let j = 0; j < 3; j++) { const p = [[-E, Z[j] + 6]], k = [-14, 12, -10, 16]; for (let i = 0; i < 3; i++) { if (i > 0) p.push(bend(N[i - 1][j], N[i][j], k[(i + j) % 4], 'h')); p.push(N[i][j]); } p.push(bend(N[2][j], [E, Z[j] - 6], k[(j + 3) % 4], 'h'), [E, Z[j] - 6]); Hh.push(road(p, j === 1 ? 12 : 10, 2, j === 1 ? 'Avenida Mayor' : 'Arteria E-O ' + (j ? 'sur' : 'norte'))); }
-  const ART = D.roads.slice(), dense = r => r._d || (r._d = MAPA.pathPts(r.pts, 1));
-  const ptAtZ = (r, z) => { let b = null, bd = 1e9; for (const q of dense(r)) { const d = Math.abs(q.z - z); if (d < bd) { bd = d; b = q; } } return [b.x, b.z]; };
-  const ptAtX = (r, x) => { let b = null, bd = 1e9; for (const q of dense(r)) { const d = Math.abs(q.x - x); if (d < bd) { bd = d; b = q; } } return [b.x, b.z]; };
-  /* — calles de barrio: ortogonales, de arteria a arteria (o al borde del mapa), con una ligera curva — */
-  const ew = (z, xl, xr, name, lc, rc) => { const a = lc ? ptAtZ(lc, z) : [-E, z], b = rc ? ptAtZ(rc, z) : [E, z], j = (rng() - .5) * 8; return road([a, [a[0] + (b[0] - a[0]) * .33, z + j], [a[0] + (b[0] - a[0]) * .66, z - j], b], 7, 3, name); };
-  const ns = (x, zt, zb, name, tc, bc) => { const a = tc ? ptAtX(tc, x) : [x, -E], b = bc ? ptAtX(bc, x) : [x, E], j = (rng() - .5) * 8; return road([a, [x + j, a[1] + (b[1] - a[1]) * .33], [x - j, a[1] + (b[1] - a[1]) * .66], b], 7, 3, name); };
-  const [V0, V1, V2] = V, [H0, H1, H2] = Hh;
-  const S = {};
-  S.azulAcc = ew(-330, 0, 0, 'Acceso Azul', null, V0); S.azulNS = ns(-420, 0, 0, 'Barrio Colina', null, H0);
-  S.rojoAcc = ew(-330, 0, 0, 'Acceso Rojo', V2, null); S.rojoNS = ns(420, 0, 0, 'Barrio Fábrica', null, H0);
-  S.ambAcc = ew(330, 0, 0, 'Acceso Ámbar', null, V0); S.ambNS = ns(-420, 0, 0, 'Barrio Colegio', H2, null);
-  S.vioAcc = ew(330, 0, 0, 'Acceso Violeta', V2, null); S.vioNS = ns(420, 0, 0, 'Barrio Granjas', H2, null);
-  S.resO = [ew(-125, 0, 0, 'Calle Residencial O', null, V0), ns(-375, 0, 0, 'Calle Residencial O (N-S)', H0, H1)];
-  S.casco = [ew(-190, 0, 0, 'Calle del Casco 1', V0, V1), ew(-70, 0, 0, 'Calle del Casco 2', V0, V1), ns(-190, 0, 0, 'Calle del Casco 3', H0, H1), ns(-60, 0, 0, 'Calle del Casco 4', H0, H1)];
-  S.com = [ew(-140, 0, 0, 'Calle Comercial', V1, V2), ns(125, 0, 0, 'Calle del Mercado', H0, H1)];
-  S.cascoS = [ew(85, 0, 0, 'Calle del Casco Sur', V0, V1), ns(-125, 0, 0, 'Calle de la Iglesia', H1, H2)];
-  S.est = [ew(85, 0, 0, 'Calle de la Estación', V1, V2), ns(125, 0, 0, 'Calle de la Vía', H1, H2)];
-  S.resE = [ew(85, 0, 0, 'Calle Residencial E', V2, null), ns(400, 0, 0, 'Calle Residencial E (N-S)', H1, H2)];
-  S.ind = [ew(330, 0, 0, 'Calle Industrial', V1, V2), ns(125, 0, 0, 'Calle de las Naves', H2, null)];
-  /* — vía: recta de oeste a este al sur del centro, con un leve cambio de dirección — */
-  const RAILZ = 188, rp = [[-500, RAILZ + 6], [-250, RAILZ], [0, RAILZ - 6], [250, RAILZ], [500, RAILZ + 8]];
-  for (let i = 0; i < rp.length - 1; i++) { const a = rp[i], b = rp[i + 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]); D.rails.push({ x: (a[0] + b[0]) / 2, z: (a[1] + b[1]) / 2, len: L, ry: -Math.atan2(b[1] - a[1], b[0] - a[0]) }); }
-  D.info.rail = rp;
+  const half = 500, PI = Math.PI, H = PI / 2;
+  const D = { half, ground: 'grass', roads: [], surfaces: [], lots: [], refuges: [], buildings: [], objects: [], rails: [], hot: [], occ: [], trees: [], sym: 4, info: { roads: [], places: [], blocks: [], zones: [], nodes: [] } };
+  const R = COMP.rot, KS = n => n === 4 ? [0, 1, 2, 3] : n === 2 ? [0, 2] : [0], FN = ['Azul', 'Rojo', 'Violeta', 'Ámbar'];
+  const withSym = (n, f) => { const s = D.sym; D.sym = n; try { return f(); } finally { D.sym = s; } };
+  /* ---------- calles: tramos del cuarto Azul que, girados, forman la red completa (los tramos en línea se funden en una sola calle) ---------- */
+  const SEG = [[0, -375, 0, 0, 14],                     // mitad norte de la Avenida Norte-Sur (girada: las 4 medias avenidas)
+    [-258.7, -250, 258.7, -250, 11],                     // ronda interior, lado norte
+    [-452.2, -375, 375, -375, 8],                        // ronda exterior, lado norte (sigue al oeste hasta el acceso del refugio)
+    [-445, -415, -445, -375, 8],                         // acceso del refugio (de la explanada del portón a la ronda exterior)
+    [-125, -375, -125, 0, 7], [125, -375, 125, 0, 7],    // calles de barrio (mitades norte)
+    [-375, -312.5, -125, -312.5, 7], [-312.5, -375, -312.5, -125, 7]];   // calles de la aldea (cruce en −312,5 / −312,5)
+  const raw = [];
+  for (const [x0, z0, x1, z1, w] of SEG) for (const k of KS(4)) { const a = R(k, x0, z0), b = R(k, x1, z1);
+    if (Math.abs(a[0] - b[0]) < .01) raw.push({ axis: 'z', c: +a[0].toFixed(2), a0: Math.min(a[1], b[1]), a1: Math.max(a[1], b[1]), w });
+    else raw.push({ axis: 'x', c: +a[1].toFixed(2), a0: Math.min(a[0], b[0]), a1: Math.max(a[0], b[0]), w }); }
+  raw.sort((p, q) => (p.axis + p.c + '|' + p.w).localeCompare(q.axis + q.c + '|' + q.w) || p.a0 - q.a0);
+  for (const r of raw) { const l = D.roads[D.roads.length - 1]; if (l && l.axis === r.axis && l.c === r.c && l.w === r.w && r.a0 <= l.a1 + .01) l.a1 = Math.max(l.a1, r.a1); else D.roads.push(Object.assign({}, r)); }
+  const side = (axis, c) => axis === 'x' ? (c < 0 ? 'norte' : 'sur') : (c < 0 ? 'oeste' : 'este');
+  for (const r of D.roads) {
+    const ac = Math.abs(r.c);
+    r.name = r.w === 14 ? (r.axis === 'x' ? 'Avenida Mayor (E-O)' : 'Avenida Norte-Sur') : r.w === 11 ? 'Ronda interior ' + side(r.axis, r.c) : ac === 375 ? 'Ronda exterior ' + side(r.axis, r.c)
+      : r.w === 8 ? 'Acceso al refugio' : ac === 125 ? 'Calle de barrio ' + (r.axis === 'x' ? 'z ' : 'x ') + r.c : 'Calle de la aldea';
+    D.info.roads.push({ name: r.name, w: r.w, pts: r.axis === 'x' ? [[r.a0, r.c], [r.a1, r.c]] : [[r.c, r.a0], [r.c, r.a1]] });
+  }
+  for (const r of D.roads) if (r.axis === 'x') for (const o of D.roads) if (o.axis === 'z' && o.c >= r.a0 - .01 && o.c <= r.a1 + .01 && r.c >= o.a0 - .01 && r.c <= o.a1 + .01) D.info.nodes.push({ id: 'X', x: o.c, z: r.c });
+  const RD = (axis, c, at) => D.roads.find(r => r.axis === axis && Math.abs(r.c - c) < .01 && at >= r.a0 && at <= r.a1);
   D.RI = MAPA.roadIndex(D.roads);
+  /* ---------- ayudas ---------- */
+  const surf = (t, x, z, w, d, n) => { for (const k of KS(n || 4)) { const [a, b] = R(k, x, z); D.surfaces.push({ t, x: a, z: b, w: k % 2 ? d : w, d: k % 2 ? w : d }); } };
+  const NAMES2 = { 0: ' (norte)', 2: ' (sur)' }, NAMES2W = { 0: ' (oeste)', 2: ' (este)' };
+  const place = (id, name, x, z, n, nm2) => { for (const k of KS(n || 4)) { const [a, b] = R(k, x, z); D.info.places.push({ id: id === 'REF' ? 'REF-' + FN[k] : id, name: name + ((n || 4) === 4 ? (id === 'REF' ? ' ' + FN[k] : ' · ' + FN[k]) : (nm2 || NAMES2)[k] || ''), x: Math.round(a), z: Math.round(b), fac: (n || 4) === 4 ? k : -1 }); } };
+  const zone = (name, x0, z0, x1, z1, n, nm2) => { for (const k of KS(n || 4)) { const [a, b] = R(k, x0, z0), [c, d] = R(k, x1, z1); D.info.zones.push({ name: name + ((n || 4) === 4 ? ' · ' + FN[k] : (nm2 || NAMES2)[k] || ''), x0: Math.round(Math.min(a, c)), z0: Math.round(Math.min(b, d)), x1: Math.round(Math.max(a, c)), z1: Math.round(Math.max(b, d)) }); } };
+  const hot = (x, z, n) => { for (const k of KS(n || 4)) D.hot.push(R(k, x, z)); };
+  const SET = 4.6;                                                                                       // fachada a 4,6 m del asfalto (1,4 m detrás de la acera)
+  const front = (kind, axis, c, w, along, sd, extra) => { const f = OBJ.footprint(kind, 0, {}), off = w / 2 + SET + f.hz;
+    return axis === 'x' ? COMP.building(D, Object.assign({ kind, x: along, z: c + sd * off, rot: sd > 0 ? PI : 0, pad: 1 }, extra || {}))
+                        : COMP.building(D, Object.assign({ kind, x: c + sd * off, z: along, rot: sd > 0 ? -H : H, pad: 1 }, extra || {})); };
+  const row = (axis, c, w, sd, from, to, step) => { let n = 0; for (let a = from; a <= to + .01; a += step) if (front('house', axis, c, w, a, sd)) n++; return n; };
   const free = (x, z, m) => D.occ.every(o => Math.abs(o.x - x) > o.hx + (m || 2) || Math.abs(o.z - z) > o.hz + (m || 2)) && D.RI.gap(x, z) > 4;
-  const railDist = (x, z) => { let md = 1e9; for (let i = 0; i < rp.length - 1; i++) { const a = rp[i], b = rp[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], t = Math.max(0, Math.min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz))); md = Math.min(md, Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t)); } return md; };
-  /* — refugios provisionales en las 4 esquinas, con la puerta hacia su calle de acceso (la Entrega 2 los sustituirá) — */
-  const REF = [{ fac: 0, name: 'Azul', x: -390, z: -362, face: 's' }, { fac: 1, name: 'Rojo', x: 390, z: -362, face: 's' }, { fac: 2, name: 'Ámbar', x: -390, z: 362, face: 'n' }, { fac: 3, name: 'Violeta', x: 390, z: 362, face: 'n' }];
-  for (const r of REF) { D.refuges.push({ fac: r.fac, x: r.x, z: r.z, w: 44, d: 40, face: r.face, gate: 8 }); COMP.refugeKit(D, { seed: 900 + r.fac, x: r.x, z: r.z, w: 44, d: 40, face: r.face }); D.info.places.push({ id: 'REF-' + r.name, name: 'Refugio ' + r.name, x: r.x, z: r.z });
-    const dir = { n: [0, -1], s: [0, 1] }[r.face], gy = r.z + dir[1] * 20;                    // portón de madera en el hueco del muro (2 hojas de 4,2 m) y torre de madera a un lado, fuera del muro
-    COMP.put(D, 'gate1', r.x - 2.1, gy, 0, { abierto: true, fac: r.fac }, 0); COMP.put(D, 'gate1', r.x + 2.1, gy, 0, { abierto: true, fac: r.fac }, 0); COMP.towerPost(D, { x: r.x + (r.fac % 2 ? -29 : 29), z: r.z + dir[1] * 14, level: 1, fac: r.fac, seed: 950 + r.fac }); COMP.reserve(D, r.x, r.z, 24, 22, 'refugio'); }
-  /* — plaza mayor y entorno — */
-  const PLAZA = [38, -40]; D.surfaces.push({ t: 'cobble', x: PLAZA[0], z: PLAZA[1], w: 40, d: 40 }); D.info.places.push({ id: 'PLAZA', name: 'Plaza Mayor (campamento)', x: PLAZA[0], z: PLAZA[1] });
-  COMP.camp(D, { x: PLAZA[0], z: PLAZA[1] + 2, seed: 7002 });
-  { const kx = PLAZA[0], kz = PLAZA[1]; COMP.put(D, 'kiosk', kx - 14, kz - 13, 0); COMP.put(D, 'kiosk', kx + 14, kz - 13, 0); for (const dx of [-12, -4, 4, 12]) { COMP.put(D, 'shutter', kx + dx - 2, kz + 17, 0); COMP.put(D, 'glassPane', kx + dx + 2.6, kz + 17, 0); } COMP.reserve(D, PLAZA[0], PLAZA[1], 20, 20, 'plaza'); }
-  /* — edificios con su entorno — */
-  const place = (id, name, b) => { if (b) D.info.places.push({ id, name, x: Math.round(b.x), z: Math.round(b.z), rot: b.rot }); return b; };
-  const F = (kind, at, side, extra) => COMP.frontage(D, Object.assign({ kind, at, side }, extra || {}));
-  place('CLI', 'Clínica', F('clinic', [-130, -125], -1)); place('FAR', 'Farmacia', F('pharm', [-150, 0], -1)); place('MIN', 'Tienda', F('mini', [-80, 0], -1));
-  const sup = place('SUP', 'Supermercado', F('super', [140, 0], -1)); place('MER', 'Mercado', F('market', [130, -140], -1));
-  place('GAS', 'Gasolinera', F('gasshop', [200, 0], 1)); const gc = F('gascanopy', [225, 0], 1, { pad: 0 }); if (gc) { place('GASM', 'Marquesina', gc); for (const dx of [-5, 0, 5]) COMP.put(D, 'pump', gc.x + dx, gc.z, 0); }
-  if (sup) { const tx = Math.abs(sup.nx) > Math.abs(sup.nz) ? 0 : 1, tz = 1 - tx, hs = tx ? sup.f.hx : sup.f.hz, lx = sup.x + tx * (hs + 22), lz = sup.z + tz * (hs + 22); if (D.occ.every(o => Math.abs(o.x - lx) > o.hx + 20 || Math.abs(o.z - lz) > o.hz + 13) && D.RI.gap(lx, lz) > 14) { D.lots.push({ x: lx, z: lz, w: 40, d: 24 }); COMP.reserve(D, lx, lz, 20, 12, 'aparcamiento'); for (let i = 0; i < 6; i++) COMP.put(D, 'car', lx - 15 + i * 6, lz + (i % 2 ? -4 : 4), Math.PI / 2, null, .1); } }
-  { const b = COMP.building(D, { kind: 'station', x: 60, z: 150, rot: 0 }) || COMP.building(D, { kind: 'station', x: 80, z: 150, rot: 0 }); place('EST', 'Estación', b); }
-  for (const [x, z, rot] of [[60, 306, Math.PI], [150, 306, Math.PI], [90, 354, 0]]) place('NAV', 'Nave', COMP.building(D, { kind: 'warehouse', x, z, rot }));
-  { const b = COMP.building(D, { kind: 'substation', x: 330, z: 40, rot: 0 }); if (b) { place('SUB', 'Subestación', b); COMP.fenceRect(D, { x: b.x, z: b.z + 2, w: b.f.hx * 2 + 12, d: b.f.hz * 2 + 10, gateSide: 1 }); } }
-  COMP.yard(D, { x: 205, z: 392, w: 30, d: 22, seed: 7001, n: 12, gateSide: -1 }); D.surfaces.push({ t: 'concrete', x: 205, z: 392, w: 36, d: 28 }); D.info.places.push({ id: 'PAT', name: 'Patio de carga', x: 205, z: 392 });
-  COMP.footbridge(D, { x: 30, z: 215, axis: 'x' });
-  { const c2 = COMP.compound(D, { at: [150, -250], side: -1, level: 2, w: 36, d: 24, seed: 8002, n: 9 }); if (c2) D.info.places.push({ id: 'REC', name: 'Fábrica: recinto de piedra', x: Math.round(c2.x), z: Math.round(c2.z) });
-    const c3 = COMP.compound(D, { at: [-130, 250], side: 1, level: 3, w: 36, d: 24, seed: 8003, n: 9 }); if (c3) D.info.places.push({ id: 'REC', name: 'Depósito: recinto de hierro', x: Math.round(c3.x), z: Math.round(c3.z) });
-    const c1 = COMP.compound(D, { at: [-380, -125], side: 1, level: 1, w: 30, d: 22, seed: 8001, n: 7 }); if (c1) D.info.places.push({ id: 'REC', name: 'Granja: recinto de madera', x: Math.round(c1.x), z: Math.round(c1.z) }); }
-  for (const r of [S.resO[0], S.resO[1], S.resE[0], S.resE[1], S.vioNS, S.ambNS]) for (const sd of [1]) COMP.fenceRun(D, { road: r, side: sd, s0: 20, s1: 170 });
-  /* — casas: a lo largo de las calles de barrio, con la puerta a la calle — */
-  { const resid = [S.azulAcc, S.azulNS, S.rojoAcc, S.rojoNS, S.ambAcc, S.ambNS, S.vioAcc, S.vioNS, ...S.resO, ...S.casco, ...S.cascoS, ...S.resE];
-    const cand = []; for (const r of resid) { const Pt = MAPA.pathPts(r.pts, 1); for (let i = 14; i < Pt.length - 14; i += 17) for (const side of [-1, 1]) cand.push({ q: Pt[i], side, k: rng(), r }); }
-    cand.sort((a, b) => a.k - b.k); let nh = 0; const MAXH = 64;
-    for (const c of cand) { if (nh >= MAXH) break; const nx = -c.q.dz * c.side, nz = c.q.dx * c.side, rot = Math.round(Math.atan2(-nx, -nz) / (Math.PI / 2)) * (Math.PI / 2), f = OBJ.footprint('house', rot, {}); if (!f) continue;
-      const depth = Math.abs(Math.sin(rot)) > .5 ? f.hx : f.hz, off = c.r.w / 2 + 3.2 + 1.5 + depth, x = c.q.x + nx * off, z = c.q.z + nz * off; if (railDist(x, z) < 14) continue;
-      if (COMP.building(D, { kind: 'house', x, z, rot, pad: 2.5 })) nh++; }
-    D.nHouses = nh; }
-  /* — retenes (chicane de vehículos, sacos en la acera): 4 en los brazos del centro, 4 en los accesos de refugio, 4 en los nodos de las esquinas del anillo — */
+  const spot = (x, z) => { for (let r = 0; r <= 40; r += 3) for (let a = 0; a < 6.28; a += .6) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (free(px, pz, 2.5) && Math.abs(px) < half - 8 && Math.abs(pz) < half - 8) return [px, pz]; } return null; };
   let sd = 200;
-  const rb = (r, x, z, extra) => { const n = COMP.nearest(r, x, z); COMP.roadblock(D, Object.assign({ road: r, s: n.s, seed: ++sd }, extra || {})); D.info.places.push({ id: 'RET', name: 'Retén', x: Math.round(n.q.x), z: Math.round(n.q.z) }); };
-  rb(H1, -70, 0); rb(H1, 70, 0); rb(V1, 0, -70); rb(V1, 0, 70);
-  rb(S.azulAcc, -300, -330, { tower: true, level: 2, fac: 0, side: -1 }); rb(S.rojoAcc, 300, -330, { tower: true, level: 2, fac: 1, side: -1 }); rb(S.ambAcc, -300, 330, { tower: true, level: 2, fac: 2, side: 1 }); rb(S.vioAcc, 300, 330, { tower: true, level: 2, fac: 3, side: 1 });
-  rb(V0, N[0][0][0], N[0][0][1] + 30); rb(V2, N[2][0][0], N[2][0][1] + 30); rb(V0, N[0][2][0], N[0][2][1] - 30); rb(V2, N[2][2][0], N[2][2][1] - 30);
-  /* nidos de sacos en las esquinas del centro, en la parcela junto a la acera (mirando a la calle) */
-  for (const [x, z, face] of [[-26, -26, 'e'], [26, 26, 'w'], [-26, 26, 'n'], [26, -26, 's']]) { const q = COMP.roadNear(D, x, z, 40); if (q) COMP.nest(D, { x, z, face }); }
-  /* — atascos por carril (largos en avenida y calle central, cortos en arterias) y mobiliario en la acera — */
-  COMP.jam(D, { road: H1, s0: 30, s1: 420, seed: 31 }); COMP.jam(D, { road: H1, s0: 560, s1: 900, seed: 32 }); COMP.jam(D, { road: V1, s0: 30, s1: 420, seed: 33 }); COMP.jam(D, { road: V1, s0: 560, s1: 900, seed: 34 });
-  for (const r of [H0, H2, V0, V2]) COMP.jam(D, { road: r, s0: 120, s1: 260, gap: [12, 22], seed: ++sd });
-  for (const r of [H1, V1]) COMP.street(D, { road: r, seed: ++sd, every: 34 }); for (const r of [H0, H2, V0, V2]) COMP.street(D, { road: r, seed: ++sd, every: 60 });
-  /* — bosques: 3 celdas completas y dos recortes; los árboles esquivan calles, vía, edificios y refugios (claros y senderos) — */
-  const FOR = [[-232, -498, -18, -262, 'Bosque norte'], [262, -232, 498, -18, 'Bosque este'], [-498, 22, -262, 232, 'Bosque oeste'], [-232, 280, -20, 498, 'Parque y campo sur'], [30, -498, 238, -280, 'Arboleda noreste']];
-  const treeOk = (x, z) => D.RI.gap(x, z) > 12 && railDist(x, z) > 14 && D.occ.every(o => Math.abs(o.x - x) > o.hx + 5 || Math.abs(o.z - z) > o.hz + 5);
-  for (const [x0, z0, x1, z1, name] of FOR) { let n = 0; D.surfaces.push({ t: 'forest', x: (x0 + x1) / 2, z: (z0 + z1) / 2, w: x1 - x0, d: z1 - z0 }); D.info.blocks.push({ name, x0, z0, x1, z1 });
-    for (let k = 0, tr = 0; tr < 5000 && n < 150; tr++) { const x = x0 + 6 + rng() * (x1 - x0 - 12), z = z0 + 6 + rng() * (z1 - z0 - 12); if (!treeOk(x, z)) continue; if (D.trees.some(t => Math.hypot(t[0] - x, t[1] - z) < 7.5)) continue; D.trees.push([+x.toFixed(1), +z.toFixed(1), .9 + rng() * .5]); n++; } }
-  /* — hot points (zombis, objetivos y nidos) en sitios libres, y restos alrededor — */
-  const OBJV = [[38, -40, 'Plaza Mayor'], [-130, -105, 'Clínica'], [140, -30, 'Supermercado'], [200, 25, 'Gasolinera'], [60, 175, 'Estación'], [120, 335, 'Naves'], [-125, 125, 'Calle de la Iglesia'], [-330, 320, 'Colegio']];
-  const NEST = [[-190, 120], [180, 150], [-60, -190], [190, -190], [-250, -60], [260, 100], [60, 260], [-100, 300]];
-  const spot = (x, z) => { for (let r = 0; r <= 40; r += 3) for (let a = 0; a < 6.28; a += .6) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (free(px, pz, 2.5) && Math.abs(px) < half - 8 && Math.abs(pz) < half - 8 && railDist(px, pz) > 8) return [px, pz]; } return null; };
-  for (const [x, z, nm] of OBJV) { const w = spot(x, z); if (w) { D.hot.push(w); COMP.scatter(D, { x: w[0], z: w[1], r: 9, n: 5, seed: ++sd, types: ['crate', 'crateS', 'pallet', 'barrel'] }); D.info.places.push({ id: 'OBJ', name: nm, x: Math.round(w[0]), z: Math.round(w[1]) }); } }
-  for (const [x, z] of NEST) { const w = spot(x, z); if (w) { D.hot.push(w); COMP.scatter(D, { x: w[0], z: w[1], r: 12, n: 8, seed: ++sd, types: ['crate', 'crateS', 'barrier', 'blocks', 'pallet', 'barrel'] }); D.info.places.push({ id: 'NIDO', name: 'Nido de zombis', x: Math.round(w[0]), z: Math.round(w[1]) }); } }
+  /* ---------- 1. refugios (esquinas): 50 × 50 m, portón al sur hacia su acceso; dos torres de madera fuera del muro ---------- */
+  const FACE = ['s', 'w', 'n', 'e'];
+  for (const k of KS(4)) { const [x, z] = R(k, -445, -445); D.refuges.push({ fac: COMP.facRot(0, k), x, z, w: 50, d: 50, face: FACE[k], gate: 8 }); }
+  COMP.refugeKit(D, { seed: 900, x: -445, z: -445, w: 50, d: 50, face: 's' });
+  COMP.put(D, 'gate1', -447.1, -420, 0, { abierto: true, fac: 0 }, 0); COMP.put(D, 'gate1', -442.9, -420, 0, { abierto: true, fac: 0 }, 0);
+  COMP.reserve(D, -445, -445, 26, 26, 'refugio'); surf('concrete', -445, -417.5, 10, 5);                     // explanada entre el portón y el acceso
+  COMP.towerPost(D, { x: -405, z: -458, level: 1, fac: 0, seed: 950 }); COMP.towerPost(D, { x: -462, z: -404, level: 1, fac: 0, seed: 951 });
+  place('REF', 'Refugio', -445, -445); zone('Refugio', -470, -470, -420, -420);
+  /* ---------- 2. Plaza Mayor (centro exacto): 4 cuadros de adoquín en las esquinas del cruce, cada uno con el mismo campamento ---------- */
+  surf('cobble', -30.1, -30.1, 39.8, 39.8);
+  COMP.camp(D, { x: -30, z: -33, seed: 7002 });
+  COMP.put(D, 'kiosk', -44, -18, 0); COMP.put(D, 'busStop', -30, -12.2, 0); COMP.put(D, 'floodlight', -13, -13, 0);
+  for (const dx of [-40, -30, -20]) { COMP.put(D, 'shutter', dx - 2, -49.2, 0); COMP.put(D, 'glassPane', dx + 2.6, -49.2, 0); }
+  COMP.reserve(D, -30.1, -30.1, 19.9, 19.9, 'plaza');
+  D.info.places.push({ id: 'PLAZA', name: 'Plaza Mayor (objetivo central)', x: 0, z: 0, fac: -1 }); D.hot.push([-30, -30], [30, -30], [30, 30], [-30, 30]);
+  zone('Plaza Mayor', -50, -50, 50, 50, 1);
+  /* ---------- 3. retenes (antes que los edificios, para que tengan sitio): media avenida, y la ronda exterior a la salida de cada refugio, con torre ---------- */
+  const rb = (r, x, z, extra) => { const n = COMP.nearest(r, x, z); COMP.roadblock(D, Object.assign({ road: r, s: n.s, seed: ++sd }, extra || {})); place('RET', 'Retén', n.q.x, n.q.z); };
+  rb(RD('z', 0, -300), 0, -312);
+  rb(RD('x', -375, -200), -200, -375, { tower: true, level: 2, fac: 0, side: 1 });
+  rb(RD('z', -375, -200), -375, -200, { tower: true, level: 2, fac: 0, side: -1 });
+  /* ---------- 4. objetivos de borde (comunes a dos facciones vecinas; simetría de 180°) ---------- */
+  withSym(2, () => {
+    // Fábrica (norte y sur): recinto de hierro en el centro con portón a la avenida, dos naves a los lados, dos patios de carga detrás y una pasarela
+    surf('concrete', 0, -438.5, 246, 113, 2);
+    COMP.compound(D, { at: [3, -385], side: -1, level: 3, w: 40, d: 28, seed: 8003, n: 10 });
+    for (const x of [-70, 70]) front('warehouse', 'x', -375, 8, x, -1);
+    COMP.yard(D, { x: -70, z: -458, w: 30, d: 22, seed: 7001, n: 10, gateSide: 1 }); COMP.yard(D, { x: 70, z: -458, w: 30, d: 22, seed: 7004, n: 10, gateSide: 1 });
+    COMP.footbridge(D, { x: 0, z: -484, axis: 'x' });
+    place('FAB', 'Fábrica', 0, -425, 2); hot(0, -425, 2); zone('Fábrica', -125, -500, 125, -379, 2);
+    // Estación y supermercado (oeste y este): supermercado a la ronda, aparcamientos a ambos lados, estación detrás
+    surf('concrete', -438.5, 0, 113, 246, 2);
+    COMP.building(D, { kind: 'super', x: -392.5, z: 0, rot: H });                                  // a la ronda exterior, frente al final de la Avenida Mayor
+    for (const lz of [-40, 40]) { for (const k of KS(2)) { const [a, b] = R(k, -403, lz); D.lots.push({ x: a, z: b, w: 40, d: 24 }); }
+      for (let i = 0; i < 6; i++) COMP.put(D, 'car', -418 + i * 6, lz + (i % 2 ? -4 : 4), H, null, .1); COMP.reserve(D, -403, lz, 20, 12, 'aparcamiento'); }
+    COMP.building(D, { kind: 'station', x: -458, z: 0, rot: H });
+    place('EST', 'Estación y supermercado', -430, 0, 2, NAMES2W); hot(-430, 0, 2); zone('Estación y supermercado', -500, -125, -379, 125, 2, NAMES2W);
+  });
+  /* ---------- 5. objetivos y edificios propios de cada facción (cuarto Azul; se copia a los otros tres) ---------- */
+  // comercios junto a la plaza: clínica a la Avenida Mayor, mercado a la Avenida Norte-Sur
+  { const b = front('clinic', 'x', 0, 14, -80, -1); if (b) { place('CLI', 'Clínica', b.x, b.z); hot(b.x, b.z - 10); } }
+  front('market', 'z', 0, 14, -80, -1);
+  // casco: farmacia (a la Avenida Norte-Sur) y tienda (a la Avenida Mayor)
+  { const b = front('pharm', 'z', 0, 14, -187, -1); if (b) { place('FAR', 'Farmacia', b.x, b.z); hot(b.x - 10, b.z); } }
+  { const b = front('mini', 'x', 0, 14, -187, -1); if (b) { place('TIE', 'Tienda', b.x, b.z); hot(b.x, b.z - 10); } }
+  // puesto avanzado (esquina de la ronda interior): gasolinera a la ronda y recinto de piedra con torre
+  { const gc = front('gascanopy', 'x', -250, 11, -160, 1, { reserve: false, pad: 0 }); if (gc) for (const dx of [-5, 0, 5]) COMP.put(D, 'pump', gc.x + dx, gc.z, 0); front('gasshop', 'x', -250, 11, -205, 1);
+    const c = COMP.compound(D, { at: [-187, -130], side: -1, level: 2, w: 36, d: 26, seed: 8002, n: 9 }); if (c) { place('PUE', 'Puesto avanzado', c.x, c.z); hot(c.x, c.z); } }
+  // granjas (bandas exteriores): recinto de madera a la ronda exterior, casas y campo de cultivo detrás
+  { const c1 = COMP.compound(D, { at: [-187, -380], side: -1, level: 1, w: 30, d: 22, seed: 8001, n: 7 }); if (c1) { place('GRA', 'Granja', c1.x, c1.z); hot(c1.x, c1.z); }
+    const c2 = COMP.compound(D, { at: [-380, -187], side: 1, level: 1, w: 30, d: 22, seed: 8004, n: 7 }); if (c2) { place('GRA', 'Granja', c2.x, c2.z); hot(c2.x, c2.z); }
+    surf('dirt', -187, -458, 104, 56); surf('dirt', -458, -187, 56, 104);
+    for (const x of [-232, -142]) front('house', 'x', -375, 8, x, -1); for (const z of [-232, -142]) front('house', 'z', -375, 8, z, -1);
+    zone('Granja 1', -250, -500, -125, -379); zone('Granja 2', -500, -250, -379, -125); }
+  // aldea (entre las dos rondas, en la esquina): subestación vallada, torre en el cruce y casas a sus dos calles
+  { const b = COMP.building(D, { kind: 'substation', x: -344, z: -346, rot: 0 }); if (b) { COMP.fenceRect(D, { x: -344, z: -344, w: 28, d: 22, gateSide: 1 }); place('SUB', 'Subestación', -344, -346); }
+    COMP.towerPost(D, { x: -299, z: -299, level: 1, seed: 960 }); place('ALD', 'Aldea (cruce)', -312, -312);
+    zone('Aldea', -375, -375, -250, -250); }
+  /* ---------- 6. casas: filas a lo largo de las calles, con la puerta a la calle ---------- */
+  let nh = 0;                                                                                            // densidad contenida hasta tener carga por sectores (B7–B9): cada casa trae su interior
+  nh += row('x', -312.5, 7, -1, -290, -146, 48) + row('x', -312.5, 7, 1, -290, -146, 48) + row('z', -312.5, 7, -1, -290, -146, 48) + row('z', -312.5, 7, 1, -290, -146, 48);   // aldea
+  nh += row('x', -375, 8, 1, -100, -28, 36) + row('z', -375, 8, 1, -100, -28, 36);                                                                                       // residencial norte y oeste (a la ronda exterior)
+  nh += row('x', -250, 11, 1, -100, -28, 36) + row('z', -250, 11, 1, -100, -28, 36);                                                                                     // casco norte y oeste (a la ronda interior)
+  D.nHouses = nh * 4;
+  zone('Residencial 1', -125, -375, 0, -250); zone('Residencial 2', -375, -125, -250, 0); zone('Puesto avanzado', -250, -250, -125, -125);
+  zone('Casco 1 (farmacia)', -125, -250, 0, -125); zone('Casco 2 (tienda)', -250, -125, -125, 0); zone('Comercios', -125, -125, 0, 0);
+  /* ---------- 7. atascos y mobiliario urbano (sólo en las calles del cuarto Azul: al girar cubren todas) ---------- */
+  const CC = RD('z', 0, -300), IRN = RD('x', -250, 0), ORN = RD('x', -375, -200), LW = RD('z', -125, -300), LE = RD('z', 125, -300), AZ = RD('x', -312.5, -200), AX = RD('z', -312.5, -200);
+  for (const [s0, s1] of [[8, 112], [136, 232], [262, 318]]) COMP.jam(D, { road: CC, s0, s1, seed: ++sd });
+  for (const [s0, s1] of [[25, 118], [142, 232]]) COMP.jam(D, { road: IRN, s0, s1, gap: [14, 26], seed: ++sd });
+  COMP.jam(D, { road: ORN, s0: 160, s1: 312, gap: [16, 28], seed: ++sd });
+  COMP.street(D, { road: CC, s0: 6, s1: 362, every: 30, seed: ++sd }); COMP.street(D, { road: IRN, every: 40, seed: ++sd }); COMP.street(D, { road: ORN, s0: 90, every: 50, seed: ++sd });
+  for (const r of [LW, LE]) COMP.street(D, { road: r, s0: 6, s1: 370, every: 45, seed: ++sd });
+  for (const r of [AZ, AX]) COMP.street(D, { road: r, every: 40, seed: ++sd });
+  COMP.fenceRun(D, { road: AZ, side: -1, s0: 14, s1: 236 });                                             // vallas de huerto en la calle de la aldea
+  /* ---------- 8. nidos de zombis (en el interior de las manzanas y en los bosques) ---------- */
+  for (const [x, z, nm] of [[-62, -312, 'residencial 1'], [-312, -62, 'residencial 2'], [-330, -448, 'bosque 1'], [-448, -330, 'bosque 2'], [-62, -187, 'casco']]) {
+    const w = spot(x, z); if (w) { hot(w[0], w[1]); COMP.scatter(D, { x: w[0], z: w[1], r: 12, n: 8, seed: ++sd, types: ['crate', 'crateS', 'barrier', 'blocks', 'pallet', 'barrel'] }); place('NIDO', 'Nido de zombis (' + nm + ')', w[0], w[1]); } }
+  /* ---------- 9. bosques propios (en L junto al refugio): árboles instanciados que esquivan calles, edificios y refugios ---------- */
+  const FOR = [[-410, -495, -258, -386, 'Bosque 1'], [-495, -366, -386, -258, 'Bosque 2']];
+  const treeOk = (x, z) => D.RI.gap(x, z) > 10 && D.occ.every(o => Math.abs(o.x - x) > o.hx + 5 || Math.abs(o.z - z) > o.hz + 5);
+  for (const [x0, z0, x1, z1, name] of FOR) { let n = 0; surf('forest', (x0 + x1) / 2, (z0 + z1) / 2, x1 - x0, z1 - z0); zone(name, x0, z0, x1, z1);
+    for (const k of KS(4)) { const [a, b] = R(k, x0, z0), [c, d] = R(k, x1, z1); D.info.blocks.push({ name: name + ' · ' + FN[k], x0: Math.min(a, c), z0: Math.min(b, d), x1: Math.max(a, c), z1: Math.max(b, d) }); }
+    const mine = [];
+    for (let tr = 0; tr < 5000 && n < 110; tr++) { const x = x0 + 6 + rng() * (x1 - x0 - 12), z = z0 + 6 + rng() * (z1 - z0 - 12); if (!treeOk(x, z)) continue; if (mine.some(t => Math.hypot(t[0] - x, t[1] - z) < 7.5)) continue;
+      const sc = +(.9 + rng() * .5).toFixed(2); mine.push([x, z]); for (const k of KS(4)) { const [a, b] = R(k, x, z); D.trees.push([+a.toFixed(1), +b.toFixed(1), sc]); } n++; } }
+  delete D.sym;
   return D;
 };
 })();

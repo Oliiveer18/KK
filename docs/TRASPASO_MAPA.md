@@ -1,6 +1,9 @@
 # Traspaso: mapa de 1 km² y lo hecho el 25–26-11-2026 (leer antes de tocar el mapa)
 
-## 1. Estado en una frase
+## 0. Actualización 26-11 (tarde): distrito v3
+El usuario pidió **igualdad total entre facciones** y un mapa **recto y cuadriculado**. Aprobó el boceto simétrico (`docs/img/mapa_v3_boceto.png`) y las dos opciones: Fábrica en N/S y Estación con supermercado en E/O. Ya está en el juego como `?mapa=6` con las ubicaciones oficiales: `docs/DISTRITO_V3.md` y `docs/img/distrito_v3*.png`. Cómo funciona y cifras: `ESTADO.md` → «Distrito v3». Lo de abajo (§1–§6) es la historia del v2.
+
+## 1. Estado en una frase (v2, histórico)
 El motor del mapa y las herramientas están hechos y probados, pero **el usuario NO está convencido del trazado actual (distrito v2, `?mapa=6`)** y no ha dicho todavía qué cambiaría. La próxima sesión debe empezar **preguntando qué no le convence** (en el chat, frases sencillas; ver §6) antes de volver a tocar el trazado. Nada de lo siguiente se ha probado en iPhone.
 
 ## 2. Historia de las propuestas y lo que dijo el usuario (para no repetir errores)
@@ -25,9 +28,9 @@ El motor del mapa y las herramientas están hechos y probados, pero **el usuario
 - `src/mapa.js` (generador): calles de rejilla (`axis,c,a0,a1,w`) y **curvas** (`pts,w,step`: Catmull-Rom remuestreado, aceras cortadas en los cruces, marcas), aparcamientos, refugios provisionales, vías (`OBJ.rails`), edificios y objetos (`MAPA.put`), **árboles instanciados** (`D.trees`), `MAPA.pathPts`, `MAPA.roadIndex` (índice espacial: `near/gap/nearest`), `MAPA.fp` (medidas de cualquier tipo), `MAPA.put` (placeObject **+ los 8 originales con addProp**; `placeObject` no conoce los originales).
 - `src/composiciones.js` (`COMP`): `jam`, `barricade`, `checkpoint`, `roadblock` (chicane con sacos en la acera), `nest`, `towerPost`, `scatter`, `street` (mobiliario en acera, evita cruces), `storefront`, `camp`, `yard`, `fenceRect`, `compound` (recinto amurallado nivel 1–3 junto a una calle), `fenceRun`, `footbridge`, `refugeKit`, `building`, `frontage`, `cut`, `put`, `reserve`, `nearest`, `roadNear`. Deterministas por semilla; sin solapes (`D.occ`).
 - `src/mapa_distrito.js`: `MAPA.data.M1` (sector de prueba 250 m, `?mapa=5`, no tocar: regresión) y `MAPA.data.M2` (distrito v2, `?mapa=6`; **es lo que hay que rehacer/ajustar**). `MX.dataId` ('M1'|'M2') elige los datos en `partida.js` (`buildDistrict`).
-- Herramientas: `tools/foto_distrito.py` (foto cenital exacta con cámara ortográfica del propio juego + retícula + etiquetas → `docs/img/distrito_v2*.png` y **`docs/DISTRITO_V2.md`**, lista exacta de ubicaciones; **se regenera tras cualquier cambio**), `tools/boceto_mapa.py` (boceto 2D en SVG de las propuestas v1–v3; solo diseño).
+- Herramientas: `tools/foto_distrito.py` (foto cenital exacta con cámara ortográfica del propio juego + retícula + etiquetas → `docs/img/distrito_v3*.png` y **`docs/DISTRITO_V3.md`**, lista exacta de ubicaciones; **se regenera tras cualquier cambio**), `tools/boceto_mapa.py` (boceto 2D en SVG de las propuestas v1–v3; solo diseño).
 - Tests del mapa: `tests/distrito_sentido.py` (calles unidas, nada indebido en la calzada, árboles/edificios fuera de calles, retenes franqueables, alcanzabilidad desde los 4 refugios, 11 edificios, 76 tipos), `distrito_completo.py`, `composiciones.py`, `calles_curvas.py`, `mapa_cobertura.py [N] [--estricto]`, `mapa.py` (M1), `rendimiento.py`.
-- Cómo cambiar el trazado: editar `MAPA.data.M2` (nodos `OFF`, calles `S.*`, `ZONES`/refugios `REF`, edificios con `F(...)`/`COMP.building`, retenes `rb(...)`, bosques `FOR`), `python3 -I tools/build.py`, `python3 -I tests/distrito_sentido.py`, `python3 -I tools/foto_distrito.py`, y enseñar `docs/img/distrito_v2.png`.
+- Cómo cambiar el trazado (v3): editar `MAPA.data.M2` **sólo en coordenadas del cuarto Azul** (calles `SEG`, refugio, retenes `rb(...)`, edificios con `front(...)`/`COMP.building`, casas con `row(...)`, bosques `FOR`); la copia girada a las otras 3 facciones es automática (`D.sym`). Objetivos de borde dentro de `withSym(2, …)`. Después `python3 -I tools/build.py`, `python3 -I tests/distrito_sentido.py` (incluye el test de igualdad), `python3 -I tools/foto_distrito.py`, y enseñar `docs/img/distrito_v3.png`.
 
 ## 5. Lecciones técnicas (ahorran horas)
 - **Giros de objetos múltiplos de π/2** (colisión por cajas alineadas con los ejes): las calles diagonales dejan coches y edificios desalineados; por eso funciona mejor una cuadrícula con curvas suaves. Si se quiere diagonal real, hay que cambiar la colisión (Entrega 2).

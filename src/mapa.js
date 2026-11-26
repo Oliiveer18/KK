@@ -35,7 +35,7 @@ MAPA.pathPts = pathPts;
 /* índice espacial de calles curvas (celdas de 12 m): near(x,z,m,excluir) dice si el punto está sobre el asfalto de alguna calle (±m); gap(x,z) da la distancia al borde del asfalto más cercano */
 MAPA.roadIndex = function (roads) {
   const H = new Map(), CS = 12, key = (i, j) => i * 100003 + j;
-  for (const r of roads) { if (!r.pts) continue; r.idx = r.idx || pathPts(r.pts, 2); for (const q of r.idx) { const k = key(Math.floor(q.x / CS), Math.floor(q.z / CS)); let a = H.get(k); if (!a) H.set(k, a = []); a.push({ x: q.x, z: q.z, hw: r.w / 2, r }); } }
+  for (const r of roads) { r.idx = r.idx || pathPts(r.pts || (r.axis === 'x' ? [[r.a0, r.c], [r.a1, r.c]] : [[r.c, r.a0], [r.c, r.a1]]), 2); for (const q of r.idx) { const k = key(Math.floor(q.x / CS), Math.floor(q.z / CS)); let a = H.get(k); if (!a) H.set(k, a = []); a.push({ x: q.x, z: q.z, hw: r.w / 2, r }); } }
   const each = (x, z, f) => { const ci = Math.floor(x / CS), cj = Math.floor(z / CS); for (let i = ci - 1; i <= ci + 1; i++) for (let j = cj - 1; j <= cj + 1; j++) { const a = H.get(key(i, j)); if (a) for (const q of a) { const r = f(q); if (r) return r; } } return null; };
   return {
     near: (x, z, m, ex) => !!each(x, z, q => q.r !== ex && (q.x - x) * (q.x - x) + (q.z - z) * (q.z - z) < (q.hw + m) * (q.hw + m)),
@@ -77,19 +77,22 @@ MAPA.build = function (D) {
   for (const r of roads) {
     const X = r.axis === 'x', len = r.a1 - r.a0, mid = (r.a0 + r.a1) / 2, cr = crossings(r);
     if (X) rect('asphalt', mid, r.c, len, r.w); else rect('asphalt', r.c, mid, r.w, len);
-    const gaps = cr.map(o => [o.c - o.w / 2, o.c + o.w / 2]).sort((a, b) => a[0] - b[0]), segs = []; let cur = r.a0;     // tramos entre cruces
-    for (const g of gaps) { if (g[0] > cur) segs.push([cur, g[0]]); cur = Math.max(cur, g[1]); } if (cur < r.a1) segs.push([cur, r.a1]);
-    for (const [a, b] of segs) {
+    const tramos = list => { const gaps = list.map(o => [o.c - o.w / 2, o.c + o.w / 2]).sort((a, b) => a[0] - b[0]), segs = []; let cur = r.a0;   // tramos entre cruces
+      for (const g of gaps) { if (g[0] > cur) segs.push([cur, g[0]]); cur = Math.max(cur, g[1]); } if (cur < r.a1) segs.push([cur, r.a1]); return segs; };
+    const reaches = (o, sg) => sg < 0 ? o.a0 < r.c - r.w / 2 - .1 : o.a1 > r.c + r.w / 2 + .1;     // la otra calle sale por este lado (en una T, la acera del lado contrario sigue entera)
+    for (const sg of [-1, 1]) for (const [a, b] of tramos(cr.filter(o => reaches(o, sg)))) {
+      const L = b - a, m = (a + b) / 2, o = sg * (r.w / 2 + SW / 2), e = sg * (r.w / 2 - .35);
+      if (!curves.length) { if (X) rect('sidewalk', m, r.c + o, L, SW); else rect('sidewalk', r.c + o, m, SW, L); }
+      else for (let t = a; t < b - .01; t += 2) { const l2 = Math.min(2, b - t), mm = t + l2 / 2, px = X ? mm : r.c + o, pz = X ? r.c + o : mm; if (onCurve(px, pz, null, .9)) continue; if (X) rect('sidewalk', mm, r.c + o, l2 + .02, SW); else rect('sidewalk', r.c + o, mm, SW, l2 + .02); }
+      if (X) mark('white', m, r.c + e, L, .16); else mark('white', r.c + e, m, .16, L);                                                              // borde
+    }
+    for (const [a, b] of tramos(cr)) {
       const L = b - a, m = (a + b) / 2;
-      for (const sg of [-1, 1]) { const o = sg * (r.w / 2 + SW / 2);
-        if (!curves.length) { if (X) rect('sidewalk', m, r.c + o, L, SW); else rect('sidewalk', r.c + o, m, SW, L); continue; }
-        for (let t = a; t < b - .01; t += 2) { const l2 = Math.min(2, b - t), mm = t + l2 / 2, px = X ? mm : r.c + o, pz = X ? r.c + o : mm; if (onCurve(px, pz, null, .9)) continue; if (X) rect('sidewalk', mm, r.c + o, l2 + .02, SW); else rect('sidewalk', r.c + o, mm, SW, l2 + .02); } }
-      for (const sg of [-1, 1]) { const o = sg * (r.w / 2 - .35); if (X) mark('white', m, r.c + o, L, .16); else mark('white', r.c + o, m, .16, L); }          // bordes
       const dbl = r.w >= 10;                                                                                                                       // avenidas: doble línea amarilla; calles: discontinua blanca
       if (dbl) { for (const sg of [-1, 1]) { if (X) mark('yellow', m, r.c + sg * .22, L, .14); else mark('yellow', r.c + sg * .22, m, .14, L); } }
       else for (let t = a + 1.5; t < b - 3; t += 8) { if (X) mark('white', t + 1.5, r.c, 3, .16); else mark('white', r.c, t + 1.5, .16, 3); }
     }
-    for (const o of cr) for (const sg of [-1, 1]) { const at = o.c + sg * (o.w / 2 + 1.4);                                                       // pasos de cebra a cada lado del cruce
+    for (const o of cr) for (const sg of [-1, 1]) { const at = o.c + sg * (o.w / 2 + 1.4); if (at - .75 < r.a0 || at + .75 > r.a1) continue;          // pasos de cebra a cada lado del cruce (no fuera de la calle)
       for (let k = -r.w / 2 + .8; k <= r.w / 2 - .7; k += 1.05) { if (X) mark('white', at, r.c + k, 1.5, .55); else mark('white', r.c + k, at, .55, 1.5); } }
   }
   /* calles curvas: asfalto, aceras (cortadas donde se cruzan con otra calle), bordes y línea central (doble amarilla si w ≥ 10, discontinua si no) */

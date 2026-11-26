@@ -1,4 +1,4 @@
-"""Distrito completo (?mapa=6): trazado del boceto, 11 tipos de edificio, casas, cortes y atascos; sin solapes; refugios con salida y todos los puntos de interés alcanzables a pie desde los 4 refugios."""
+"""Distrito completo (?mapa=6, v3 simétrico): 11 tipos de edificio (4 de cada objetivo propio, uno por facción), casas, retenes y atascos; sin solapes; refugios con salida y todos los puntos de interés alcanzables a pie desde los 4 refugios."""
 import os, sys, time
 from playwright.sync_api import sync_playwright
 bad = 0; errs = []
@@ -16,10 +16,10 @@ with sync_playwright() as p:
         for(let j=i+1;j<ps.length;j++){const q=ps[j];if(Math.abs(a.x-q.x)<a.hx+q.hx-E&&Math.abs(a.z-q.z)<a.hz+q.hz-E){ov++;if(window.__ovs===undefined)window.__ovs=[];if(__ovs.length<6)__ovs.push([a.type,q.type,+a.x.toFixed(0),+a.z.toFixed(0)])}}}
       return {c,m,props:ps.length,ov,out,spawns:D.spawns.map(a=>a.length),hot:D.hot.length,ovs:window.__ovs||[]}}''')
     print('begin() %d ms · mallas %d · props %d · edificios %s' % (t, r['m'], r['props'], r['c']))
-    chk(len(r['c']) == 11 - 0 and r['c'].get('house', 0) >= 40 and r['c'].get('gascanopy') == 1, 'los 11 tipos de edificio y %d casas' % r['c'].get('house', 0))
+    chk(len(r['c']) == 11 - 0 and r['c'].get('house', 0) >= 40 and r['c'].get('gascanopy') == 4, 'los 11 tipos de edificio y %d casas' % r['c'].get('house', 0))
     chk(r['spawns'] == [6, 6, 6, 6], 'cada refugio tiene 6 puntos de aparición')
     print('solapes de props:', r['ov'], r['ovs'])
-    chk(r['ov'] <= 12, 'solapes de objetos entre sí: %d (los de edificios con sus muebles no cuentan para el generador)' % r['ov'])
+    chk(r['ov'] <= 16, 'solapes de objetos entre sí: %d (sólo los de siempre: emblema sobre el portón del refugio ×8 y las esquinas de muro de la clínica ×8)' % r['ov'])
     chk(r['out'] == 0, 'todo dentro del mapa')
     # alcanzabilidad sobre la malla de navegación (la misma que usan bots y zombis)
     a = ev('''()=>{const N=MX.NV,D=MAPA.built,cell=(x,z)=>Math.floor((z-N.oz)/N.cs)*N.w+Math.floor((x-N.ox)/N.cs);

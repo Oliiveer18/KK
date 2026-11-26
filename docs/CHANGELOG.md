@@ -1,5 +1,11 @@
 # Changelog
 
+## Distrito v3 simétrico (26-11, rama claude/practical-euler-9gm8eq)
+- `?mapa=6` pasa a ser una cuadrícula recta con los 4 cuartos idénticos (copia girada del cuarto Azul): igualdad total entre facciones. Fábrica N/S, Estación con supermercado E/O, Plaza Mayor en el centro.
+- `COMP` con simetría (`D.sym` 4 o 2, `COMP.rot`, `COMP.facRot`); `MAPA.roadIndex` también para calles rectas; aceras de las T sin cortar del lado contrario; pasos de cebra sólo dentro de la calle.
+- Ubicaciones oficiales y foto real: `docs/DISTRITO_V3.md`, `docs/img/distrito_v3*.png` (sustituyen a las del v2). Boceto: `tools/boceto_simetrico.py` → `docs/img/mapa_v3_boceto.png`.
+- Tests: `distrito_sentido.py` con test de igualdad; `distrito_completo.py` ajustado a 4 objetivos por tipo. Sólo probado en Chrome headless; no en iPhone.
+
 ## Objetos de campaña (sin versionar; rama claude/funny-hypatia-uvl1wv)
 - Nuevo `src/objetos.js`: 68 tipos de objeto del catálogo (accesos, muros y portones de 3 niveles, puesto de vigilancia, pasarela y escalera, mobiliario urbano, comercio y transporte, escaparates con alarma, foco, surtidor, almacén por reservas, camilla, tablón, armero y emblemas de las 4 facciones), 13 recogibles (material, munición, botiquín, kit, casco/chaleco/mochila en 3 niveles) y raíles. Material nuevo `glass`.
 - Revisión de estilo (25-11): muros, portones y torres en 3 niveles madera → piedra → hierro, paleta cálida, texturas procedurales, desgaste, color de facción (`OBJ.fac`) y colores propios por objeto. Ver `docs/CATALOGO_OBJETOS.md` §12–13.

@@ -10,23 +10,37 @@ const rngOf = s => { let a = (s || 1) >>> 0; return () => { a = (a + 0x6D2B79F5)
 const snap = g => Math.round((g || 0) / (Math.PI / 2)) * (Math.PI / 2), PI2 = Math.PI / 2;
 function occOf(D) { return D.occ || (D.occ = []); }
 /* intenta colocar un objeto: devuelve true si cabe (no solapa con nada de D.occ) y lo añade */
+/* simetría (igualdad entre facciones): con D.sym = 4 cada cosa se coloca también girada 90°, 180° y 270° alrededor del centro (Azul → Rojo → Violeta → Ámbar);
+   con D.sym = 2, también girada 180°. Se coloca en todas las copias o en ninguna, así el mapa queda idéntico para todos. */
+const FAC_ORDER = [0, 1, 3, 2];                                                           // orden horario de los refugios: Azul NO, Rojo NE, Violeta SE, Ámbar SO
+COMP.rot = (k, x, z) => k === 0 ? [x, z] : k === 1 ? [-z, x] : k === 2 ? [-x, -z] : [z, -x];
+COMP.facRot = (fac, k) => fac === undefined || fac === null || fac < 0 ? fac : FAC_ORDER[(FAC_ORDER.indexOf(fac) + k) % 4];
+COMP.ks = D => D.sym === 4 ? [0, 1, 2, 3] : D.sym === 2 ? [0, 2] : [0];
+const optRot = (o, k) => o && o.fac !== undefined && o.fac !== null && k ? Object.assign({}, o, { fac: COMP.facRot(o.fac, k) }) : o;
 function put(D, t, x, z, g, o, pad) {
-  g = snap(g); const f = MAPA.fp(t, g); if (!f) return false; pad = pad === undefined ? .15 : pad;
-  const hx = f.hx + pad, hz = f.hz + pad, occ = occOf(D);
-  if (Math.abs(x) + f.hx > D.half - .5 || Math.abs(z) + f.hz > D.half - .5) return false;
-  for (const b of occ) if (Math.abs(b.x - x) < b.hx + hx && Math.abs(b.z - z) < b.hz + hz) return false;
-  occ.push({ x, z, hx: f.hx, hz: f.hz, t }); (D.objects || (D.objects = [])).push({ t, x, z, g, o }); COMP.used.add(t); return true;
+  g = snap(g); pad = pad === undefined ? .15 : pad; const occ = occOf(D), cps = [];
+  for (const k of COMP.ks(D)) {
+    const [xk, zk] = COMP.rot(k, x, z), gk = g - k * PI2, f = MAPA.fp(t, gk); if (!f) return false;
+    if (cps.some(c => Math.abs(c.x - xk) < .05 && Math.abs(c.z - zk) < .05)) continue;          // la copia cae en el mismo sitio (centro exacto)
+    const hx = f.hx + pad, hz = f.hz + pad;
+    if (Math.abs(xk) + f.hx > D.half - .5 || Math.abs(zk) + f.hz > D.half - .5) return false;
+    for (const b of occ) if (Math.abs(b.x - xk) < b.hx + hx && Math.abs(b.z - zk) < b.hz + hz) return false;
+    for (const b of cps) if (Math.abs(b.x - xk) < b.hx + hx && Math.abs(b.z - zk) < b.hz + hz) return false;
+    cps.push({ x: xk, z: zk, hx: f.hx, hz: f.hz, t, g: gk, o: optRot(o, k) });
+  }
+  for (const c of cps) { occ.push({ x: c.x, z: c.z, hx: c.hx, hz: c.hz, t }); (D.objects || (D.objects = [])).push({ t, x: c.x, z: c.z, g: c.g, o: c.o }); }
+  COMP.used.add(t); return true;
 }
 COMP.put = put;
 /* reserva la huella de algo ya colocado (edificios, calles de rejilla no: sólo objetos sólidos) */
-COMP.reserve = (D, x, z, hx, hz, t) => occOf(D).push({ x, z, hx, hz, t: t || 'reserva' });
+COMP.reserve = (D, x, z, hx, hz, t) => { for (const k of COMP.ks(D)) { const [xk, zk] = COMP.rot(k, x, z); occOf(D).push({ x: xk, z: zk, hx: k % 2 ? hz : hx, hz: k % 2 ? hx : hz, t: t || 'reserva' }); } };
 /* convierte una calle (curva o de rejilla) en puntos remuestreados cada 1 m con tangente */
 function roadPts(r) { if (r._p1) return r._p1; const pts = r.pts || (r.axis === 'x' ? [[r.a0, r.c], [r.a1, r.c]] : [[r.c, r.a0], [r.c, r.a1]]); return r._p1 = MAPA.pathPts(pts, 1); }
 COMP.roadPts = roadPts;
 /* punto de la calle más cercano a (x,z): { s (índice en metros), q (punto con tangente), d (distancia) } */
 COMP.nearest = function (r, x, z) { const P = roadPts(r); let bi = 0, bd = 1e9; for (let i = 0; i < P.length; i++) { const d = (P[i].x - x) * (P[i].x - x) + (P[i].z - z) * (P[i].z - z); if (d < bd) { bd = d; bi = i; } } return { s: bi, q: P[bi], d: Math.sqrt(bd) }; };
 /* la calle (de D.roads) más cercana a un punto */
-COMP.roadNear = function (D, x, z, maxD) { let b = null; for (const r of D.roads) { if (!r.pts) continue; const n = COMP.nearest(r, x, z); if (n.d <= (maxD || 60) && (!b || n.d < b.d)) b = Object.assign({ road: r }, n); } return b; };
+COMP.roadNear = function (D, x, z, maxD) { let b = null; for (const r of D.roads) { const n = COMP.nearest(r, x, z); if (n.d <= (maxD || 60) && (!b || n.d < b.d)) b = Object.assign({ road: r }, n); } return b; };
 const yawAlong = (dx, dz) => Math.abs(dx) >= Math.abs(dz) ? 0 : PI2;
 
 /* atasco: coches abandonados en sus carriles, alineados con la calle (un sentido por carril); a veces dos juntos y huecos para poder pasar. Restos sólo en el bordillo o la acera. */
@@ -99,11 +113,16 @@ COMP.storefront = function (D, o) {
 };
 /* edificio suelto con huella reservada (reserve:false para marquesinas que dejan colocar cosas debajo) */
 COMP.building = function (D, o) {
-  const rot = snap(o.rot || 0), f = OBJ.footprint(o.kind, rot, {}); if (!f) return false; const occ = occOf(D), pad = o.pad === undefined ? 1 : o.pad;
-  if (Math.abs(o.x) + f.hx > D.half - 2 || Math.abs(o.z) + f.hz > D.half - 2) return false;
-  for (const b of occ) if (Math.abs(b.x - o.x) < b.hx + f.hx + pad && Math.abs(b.z - o.z) < b.hz + f.hz + pad) return false;
-  if (D.RI) for (const [px, pz] of [[0, 0], [1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]]) if (D.RI.gap(o.x + px * f.hx, o.z + pz * f.hz) < (o.clear === undefined ? 3.6 : o.clear)) return false;   // fuera del asfalto y de la acera
-  (D.buildings || (D.buildings = [])).push({ k: o.kind, x: o.x, z: o.z, rot, fac: o.fac }); if (o.reserve !== false) COMP.reserve(D, o.x, o.z, f.hx, f.hz, 'edif:' + o.kind); COMP.used.add(o.kind); return { x: o.x, z: o.z, rot, f };
+  const rot = snap(o.rot || 0), occ = occOf(D), pad = o.pad === undefined ? 1 : o.pad, cps = [];
+  for (const k of COMP.ks(D)) {
+    const [x, z] = COMP.rot(k, o.x, o.z), rk = rot - k * PI2, f = OBJ.footprint(o.kind, rk, {}); if (!f) return false;
+    if (Math.abs(x) + f.hx > D.half - 2 || Math.abs(z) + f.hz > D.half - 2) return false;
+    for (const b of occ.concat(cps)) if (Math.abs(b.x - x) < b.hx + f.hx + pad && Math.abs(b.z - z) < b.hz + f.hz + pad) return false;
+    if (D.RI) for (const [px, pz] of [[0, 0], [1, 1], [1, -1], [-1, 1], [-1, -1], [1, 0], [-1, 0], [0, 1], [0, -1]]) if (D.RI.gap(x + px * f.hx, z + pz * f.hz) < (o.clear === undefined ? 3.6 : o.clear)) return false;   // fuera del asfalto y de la acera
+    cps.push({ x, z, hx: f.hx, hz: f.hz, rot: rk, fac: COMP.facRot(o.fac, k) });
+  }
+  for (const c of cps) { (D.buildings || (D.buildings = [])).push({ k: o.kind, x: c.x, z: c.z, rot: c.rot, fac: c.fac }); if (o.reserve !== false) occ.push({ x: c.x, z: c.z, hx: c.hx, hz: c.hz, t: 'edif:' + o.kind }); }
+  COMP.used.add(o.kind); return { x: o.x, z: o.z, rot, f: OBJ.footprint(o.kind, rot, {}) };
 };
 /* edificio frente a una calle: junto al punto más cercano a `at`, del lado `side` (±1), con la puerta mirando a la calle; si choca se aleja hasta 14 m */
 COMP.frontage = function (D, o) {
