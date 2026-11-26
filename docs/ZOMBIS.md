@@ -1,5 +1,10 @@
 # Zombis de la campaña (v0.3.9, rama de campaña; `?mapa=4`)
 
+## Postura y disparos en Distrito completo
+
+Los cuatro tipos caminan con una inclinación moderada, hombros desiguales y movimiento de cabeza. En reposo y al rondar llevan los brazos más bajos; al perseguir o atacar los levantan. El láser y las balas comparten la comprobación de impacto en el plano del juego, con la posición animada de pecho y cabeza además del volumen del cuerpo. Con ratón, apuntar directamente al pecho o la cabeza tiene en cuenta la perspectiva de la cámara. Los impactos conservan el daño del arma y los obstáculos siguen interceptando los disparos.
+
+
 Implementado en `src/zombis.js` (se incrusta con `tools/build.py`). Decisiones del usuario (25-11): los zombis atacan por igual a las 4 facciones y hay 4 tipos. **Los combatientes caídos NO se convierten en zombis** (se había implementado y se quitó el mismo día).
 
 ## Tipos

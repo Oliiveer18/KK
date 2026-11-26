@@ -85,6 +85,39 @@ function newHorde(x, z, mix) {
   return h;
 }
 
+// La balística del juego se resuelve en XZ. Conservamos el volumen corporal
+// y añadimos el pecho y la cabeza en las coordenadas de la pose dibujada.
+let visiblePoses = [];
+function circleEntry(ox,oz,dx,dz,x,z,r,start) {
+  const fx=ox+dx*start-x, fz=oz+dz*start-z;
+  const outside=fx*fx+fz*fz-r*r;
+  if (outside<=0) return start;
+  const along=fx*dx+fz*dz, disc=along*along-outside;
+  return along<0 && disc>=0 ? start-along-Math.sqrt(disc) : Infinity;
+}
+function hitDistance(z,ox,oz,dx,dz,start,end) {
+  const reach=2*z.sc;
+  if (Math.abs(z.p.x-ox-dx*(start+end)/2)>Math.abs(dx)*(end-start)/2+reach ||
+      Math.abs(z.p.z-oz-dz*(start+end)/2)>Math.abs(dz)*(end-start)/2+reach) return Infinity;
+  let t=circleEntry(ox,oz,dx,dz,z.p.x,z.p.z,z.r,start);
+  if (z.ri>=0) t=Math.min(t,circleEntry(ox,oz,dx,dz,z.hdx,z.hdz,z.hdr,start),
+                            circleEntry(ox,oz,dx,dz,z.chx,z.chz,z.chr,start));
+  return t<=end?t:Infinity;
+}
+const pointerVolume=new THREE.Sphere(), pointerHit=new V3();
+function aimAtPose(pointer, point) {
+  let nearest=Infinity;
+  for (const z of visiblePoses) {
+    if (z.dead) continue;
+    for (let head=0;head<2;head++) {
+      pointerVolume.center.set(head?z.hdx:z.chx,head?z.hdy:z.chy,head?z.hdz:z.chz);
+      pointerVolume.radius=head?z.hdr:z.chr;
+      if (!pointer.intersectSphere(pointerVolume,pointerHit)) continue;
+      const d=pointer.origin.distanceToSquared(pointerHit);
+      if (d<nearest) {nearest=d;point.copy(pointerVolume.center);}
+    }
+  }
+}
 /* ---- ruido ---- */
 function noise(x, z, R, scream) {
   for (const zb of Z) {
@@ -102,6 +135,7 @@ MX.zom = { list: Z, count: () => nAlive || Z.filter(z => !z.dead).length, noise,
   shot: (x, z, w) => { if (!MX.campaign || !M.built) return; if (M.t - lastShot < .1 && lastShotSid === w.sid) return; lastShot = M.t; lastShotSid = w.sid; noise(x, z, NOISE_R[w.sid] || 30); },
   blast: (p, R, own) => { if (!MX.campaign) return; noise(p.x, p.z, 62);
     for (const z of Z) { if (z.dead) continue; const d = Math.hypot(z.p.x - p.x, z.p.z - p.z); if (d < R + z.r) hitZ(z, 260 * (1 - d / (R + z.r)) + 30, own, z.p.x - p.x, z.p.z - p.z, null, true); } },
+  hitDistance, aimAtPose,
   hit: (z, dmg, from, dx, dz, w) => hitZ(z, dmg, from, dx, dz, w), total: () => nextId - 1, spawn: (type, x, z, o) => newZ(type, x, z, o), horde: (x, z, mix) => newHorde(x, z, mix) };
 
 /* ---- daño ---- */
@@ -214,6 +248,12 @@ function pose(z, dt) {
   z.twT -= dt; if (z.twT <= 0 && alive) { z.twT = rr(2.5, 7); z.tw0 = .35; } z.tw0 = Math.max(0, z.tw0 - dt);          // espasmo ocasional
   const tw = z.tw0 > 0 ? Math.sin(z.tw0 * 60) * z.tw0 * .5 : 0, br = Math.sin(zt * (dorm ? 1.4 : 2.4) + z.seed * 9) * .02;
   let lean = (dorm ? .66 : T.lean + amp * .12) + z.slouch + Math.sin(ph * .5 + z.seed * 6) * .05 + z.stag * .35 - (scr ? .75 : 0) + (atk ? .3 * Math.sin(Math.min(1, z.atk * 1.6) * Math.PI) : 0);
+  const district=MX.dataId==='M2';
+  if (district) {
+    const rest=dorm ? .13:T.lean*.25;
+    lean=rest + z.slouch*.35 + amp*.055 + Math.sin(ph*.5+z.seed*6)*.035
+      + z.stag*.14 - (scr ? .26:0) + (atk ? .17*Math.sin(Math.min(1,z.atk*1.6)*Math.PI):0);
+  }
   const sink = z.st === 'dead' && z.deadT > 11 ? -(z.deadT - 11) * .3 : 0, twist = Math.sin(ph * .5 + z.seed) * .22 * amp + tw * .4, roll = Math.sin(ph * .5) * .06 * amp * (z.type === 'brute' ? 2.4 : 1);
   _e.set(z.lie * 1.5, z.yaw, roll, 'YXZ'); _q.setFromEuler(_e);
   const B = _m1.compose(_p.set(z.p.x, sink + (alive ? Math.abs(Math.sin(ph)) * .03 * amp : 0), z.p.z), _q, _s.set(s, s, s));
@@ -226,7 +266,9 @@ function pose(z, dt) {
   put('abd', 0, S, 0, .14, 0, 0, 0, 0, (.28 + (z.type === 'brute' ? .1 : 0)) * wd, .24, .19 * (big ? 1.2 : 1));
   put('che', 0, C, 0, .02, 0, 0, 0, 0, .39 * wd, .31, .23 * (big ? 1.15 : 1));
   put('sho', 0, C, 0, .15, 0, 0, 0, z.shR, .46 * wd, .08, .18);
-  const hp = dorm ? .6 : (scr ? -.75 : .24 + Math.sin(ph * .5 + 1) * .09 + z.slouch * .5), hy = Math.sin(ph * .25 + z.seed * 9) * .14 + tw * .6, hr = Math.sin(ph * .33 + z.seed * 4) * .12 + (dorm ? .08 : .1);
+  _p.set(0,.02,0).applyMatrix4(C);
+  z.chx=_p.x; z.chy=_p.y; z.chz=_p.z; z.chr=.21*wd*s;
+  const hp = district ? (scr ? -.40 : (dorm ? .24 : .13)+Math.sin(ph*.5+1)*.06) : dorm ? .6 : (scr ? -.75 : .24 + Math.sin(ph * .5 + 1) * .09 + z.slouch * .5), hy = Math.sin(ph * .25 + z.seed * 9) * .14 + tw * .6, hr = Math.sin(ph * .33 + z.seed * 4) * .12 + (dorm ? .08 : .1);
   const Hd = fr(MH, C, 0, .2, .02, hp, hy, hr);                                         // cabeza (cae hacia delante, bambolea)
   put('nek', 0, C, 0, .15, .01, hp * .5, hy * .5, 0, .075 * (z.type === 'screamer' ? 1.35 : big ? 1.5 : 1), .12, .075 * (z.type === 'screamer' ? 1.35 : big ? 1.5 : 1));
   const hs = T.hs * z.hs0, jawOpen = scr ? .85 : atk ? .55 + .2 * Math.sin(z.atk * 20) : dorm ? .06 : .16 + .07 * Math.sin(ph * 2 + z.seed * 3) + (z.stag > 0 ? .3 : 0);
@@ -237,7 +279,9 @@ function pose(z, dt) {
   const ey = alive && !dorm ? 1 : 0;
   for (let q = 0; q < 2; q++) { const sg = q ? 1 : -1; put('sk', q, Hd, sg * .045 * hs, .12 * hs, .11 * hs, 0, 0, 0, .05 * hs, .038 * hs, .02); put('ey', q, Hd, sg * .045 * hs, .12 * hs, .118 * hs, 0, 0, 0, .036 * ey, .024 * ey, .018); }
   /* brazos: hombro, codo y mano; en reposo cuelgan, al perseguir se estiran hacia delante con el antebrazo caído */
-  const swing = Math.sin(ph) * amp, armB = dorm ? -.1 : (scr ? -2.6 : T.arm);
+  const swing = Math.sin(ph) * amp;
+  const reaching = z.st==='chase' || atk;
+  const armB = dorm ? -.1 : scr ? -2.6 : district && !reaching ? -.22 : T.arm;
   for (let q = 0; q < 2; q++) {
     const sg = q ? 1 : -1, Sh = fr(MA, C, sg * (.24 * wd + (big ? .05 : 0)), .13, 0, 0, 0, 0);
     let ua, fa, hd; const side = (q ? 1 : -1);
@@ -419,6 +463,7 @@ MX.zom.update = dt => {
   if (vis.length > RMAX) { vis.sort((a, b) => a.d2 - b.d2); for (let i = RMAX; i < vis.length; i++) vis[i].ri = -1; vis.length = RMAX; }
   let recol = false;
   vis.forEach((z, i) => { if (z.ri !== i) { z.ri = i; recol = true; const C = z.cols; for (let q = 0; q < C.length; q += 5) { const k = KL[C[q]]; if (IM[k].instanceColor) IM[k].setColorAt(i * MUL[k] + C[q + 1], _c.setRGB(C[q + 2], C[q + 3], C[q + 4])); } } pose(z, dt); });
+  visiblePoses=vis;
   slotMax = vis.length;
   for (const k in IM) { const m = IM[k]; m.count = slotMax * MUL[k]; m.visible = slotMax > 0; m.instanceMatrix.needsUpdate = true; if (recol && m.instanceColor) m.instanceColor.needsUpdate = true; }
   nAlive = 0; for (const z of Z) if (!z.dead) nAlive++;
