@@ -20,13 +20,16 @@ with sync_playwright() as p:
         n1 = ev("[...document.getElementById('mxFeed').children].filter(c=>c.style.display!=='none').length"); txt = ev("[...document.getElementById('mxFeed').children].filter(c=>c.style.display!=='none').map(c=>c.innerText).join(' | ')"); print('feed:', txt)
         chk(n1 == 2 and 'TÚ' in txt and 'F1' in txt, 'el feed muestra 2 bajas, con «TÚ» y el arma')
         ev('''()=>{const E=MX.ents;E[0].hp=1;E[0].sh=0;E[0].inv=0;const a=E[7];a.dead=false;a.p.set(8,0,0);MX.hit(E[0],50,a,1,0,WP[MX.WI.F1])}''')
-        run(5); pg.screenshot(path='/tmp/feed_%s.png' % name)
         sh = ev("[...document.getElementById('mxFeed').children].filter(c=>c.style.display!=='none').map(c=>c.style.boxShadow.includes('255, 210, 74')?'dorado':c.style.boxShadow.includes('255, 90, 74')?'rojo':'neutro').join(',')"); print('bordes', sh)
         chk('dorado' in sh and 'rojo' in sh, 'borde dorado en tus bajas y rojo en la que te mata')
+        run(5); pg.screenshot(path='/tmp/feed_%s.png' % name)
         for i in range(6):
             ev('''()=>{const E=MX.ents;const v=E[1+%d%%5];v.dead=false;v.hp=1;v.sh=0;v.inv=0;MX.hit(v,50,E[7],1,0,WP[MX.WI.F1])}''' % i)
         chk(ev("[...document.getElementById('mxFeed').children].filter(c=>c.style.display!=='none').length") == 5, 'el feed nunca pasa de 5 líneas')
-        pg.wait_for_timeout(5400); chk(ev("[...document.getElementById('mxFeed').children].filter(c=>c.style.display!=='none').length") == 0, 'las líneas desaparecen solas a los 5 s')
+        t0 = ev('performance.now()')
+        try: pg.wait_for_function("[...document.getElementById('mxFeed').children].every(c=>c.style.display==='none')", timeout=9000); el = (ev('performance.now()') - t0) / 1000
+        except Exception: el = 99
+        chk(4.5 <= el <= 7, 'las líneas desaparecen solas a los ~5 s (%.1f s)' % el)
         pg.close()
     print('ERRORES JS:', errs or 'ninguno'); bad += len(errs)
 sys.exit(1 if bad else 0)

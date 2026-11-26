@@ -9,12 +9,12 @@ with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])
     pg = b.new_page(viewport={'width': 1100, 'height': 700}); pg.on('pageerror', lambda e: errs.append(str(e)))
     pg.goto('file://' + os.path.abspath('index.html') + '?mapa=4&bots=4'); pg.wait_for_timeout(1000); ev = pg.evaluate
-    ev('begin()'); pg.wait_for_timeout(300); ev('MX.pl.inv=99')
+    ev('begin()'); pg.wait_for_timeout(300); ev('()=>{menuOpen=true;MX.pl.inv=99}')   # bucle real en pausa: el tiempo de juego sólo avanza con los update() del test (determinista)
     ev('MX.zom.noRestock=true')
     ev('for(let i=0;i<120;i++) update(1/60)')
     def run(n): ev('()=>{for(let i=0;i<%d;i++){for(const e of MX.ents) if(e.bot&&e.dead) e.respT=1e9; update(1/60)}}' % n)
     # escenario: equipos 1-3 fuera; A1 jugador, A2..A4 aliados
-    SETUP = '''()=>{boxes.length=0;const E=MX.ents;window.E=E;if(MX.zom){for(const z of MX.zom.list){z.dead=true;z.st='dead';z.deadT=99}}
+    SETUP = '''()=>{boxes.length=0;const E=MX.ents;window.E=E;for(const k of OBJ.pickups.slice())OBJ.removePickup(k);   /* cada escenario sin objetos sueltos: las mochilas de los caídos (con su kit) no pasan al siguiente */if(MX.zom){for(const z of MX.zom.list){z.dead=true;z.st='dead';z.deadT=99}}
       for(const e of E){e.inv=0;e.dwn=false;e.revived=false;e.kits=1;e.rescuer=null;e.rt=null;e.revP=0;e.dead=false;e.hp=100;e.sh=50;e.vis=false;e.lastHurt=-99}
       for(const e of E) if(e.team!==0){e.dead=true;e.respT=1e9}
       for(const e of E) if(e.bot){e.fireCd=1e9;e.gCount=0;e.sCount=0;e.gCd=e.sCd=1e9}
@@ -28,7 +28,7 @@ with sync_playwright() as p:
     # b) el jugador lo reanima (A3/A4 sin kit)
     ev('()=>{P.pos.set(6.8,0,0)}'); ev('()=>{MX.rev=true}')
     ev('()=>{update(1/60)}'); msg = ev("[...document.querySelectorAll('div')].find(d=>d.style.color==='rgb(255, 226, 160)').textContent"); print('mensaje:', msg)
-    ev('()=>{for(let i=0;i<240;i++){P.pos.set(6.8,0,0);MX.rev=true;update(1/60)}}')               # todo en una sola evaluación: el bucle real corre en paralelo y soltar ✕ interrumpe
+    ev('()=>{for(let i=0;i<240&&E[1].dwn;i++){P.pos.set(6.8,0,0);MX.rev=true;update(1/60)}}')               # mantiene ✕ hasta que se completa (máx. 4 s): la vida se mira en ese instante, antes de que se cure o regenere
     d = ev('()=>({dwn:E[1].dwn,hp:Math.round(E[1].hp),rev:E[1].revived,kits:E[0].kits,fx:!!E[1].dwnFx})')
     print('reanimado por el jugador:', d)
     chk(not d['dwn'] and d['hp'] == 50 and d['rev'] and d['kits'] == 0 and not d['fx'], 'jugador mantiene ✕ 3 s: vuelve con 50 de vida, gasta su kit y desaparece el marcador')
@@ -68,7 +68,7 @@ with sync_playwright() as p:
     ev('()=>{E[2].p.set(1.0,0,0);E[1].kits=0;E[3].kits=0;E[1].p.set(30,0,30);E[3].p.set(30,0,-30);hitL(E[0])}'); run(3)
     d = ev('()=>({dwn:E[0].dwn,corpse:MX.corpse(),rig:rig.torso.visible})'); print('jugador abatido:', d)
     chk(d['dwn'] and d['corpse'] and not d['rig'], 'jugador abatido: cuerpo tumbado, rig oculto')
-    run(60 * 8)
+    ev('()=>{for(let i=0;i<60*8&&E[0].dwn;i++){for(const e of MX.ents) if(e.bot&&e.dead) e.respT=1e9; update(1/60)}}')   # hasta que lo reanimen (máx. 8 s): la vida se mira en ese instante, antes de que empiece la regeneración
     d = ev('()=>({dwn:E[0].dwn,hp:Math.round(E[0].hp),corpse:MX.corpse(),rig:rig.torso.visible,dead:E[0].dead})'); print('jugador tras rescate:', d)
     chk(not d['dwn'] and not d['dead'] and d['hp'] == 50 and not d['corpse'] and d['rig'], 'un bot reanima al jugador: vuelve con 50 de vida, rig visible y sin cadáver')
     # j) un enemigo no reanima a un rival
@@ -85,6 +85,7 @@ with sync_playwright() as p:
     chk(ev('()=>E[0].dwn&&!E[0].dead'), 'una pulsación corta (0,5 s) no basta: sigue abatido')
     ev('()=>{for(let i=0;i<30;i++){update(1/60)}}')
     ev('()=>{for(let i=0;i<70;i++){MX.rev=true;update(1/60)}}')
+    ev('()=>{for(let i=0;i<60*2;i++)update(1/60)}')                                                 # pasa el parpadeo de invulnerabilidad (1,8 s) antes de mirar si se ve el cuerpo
     d = ev('()=>({dwn:E[0].dwn,dead:E[0].dead,deaths:E[0].deaths,x:Math.round(P.pos.x),hp:E[0].hp,rig:rig.torso.visible,corpse:MX.corpse()})'); print('tras mantener:', d)
     chk(not d['dwn'] and not d['dead'] and d['deaths'] == 1 and d['x'] < -30 and d['hp'] == 100 and d['rig'] and not d['corpse'], 'manteniendo 0,8 s reaparece en su refugio con la vida completa (cuenta como baja)')
     # reanimar con □: junto a un aliado abatido no se recarga el arma
