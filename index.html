@@ -6788,13 +6788,13 @@ const OBJ_R = { PLAZA: 12, FAB: 12, EST: 12, REF: 12 }, CAP_N = 10, CAP_C = 10, 
    CAPTURA (10 s, pasa a tu color). Más compañeros dentro aceleran (hasta ×1,6). Con enemigos vivos dentro: DISPUTADO (se congela). Si sales, lo avanzado
    baja poco a poco (y deprisa si los dueños vuelven a pisarlo). Cada 5 s cada facción suma 1 punto por punto propio y 2 por punto común: la primera en
    llegar a la META gana la partida. Zonas de 8 m (12 m la Plaza, las Fábricas y las Estaciones); los comunes llevan letra (A–E). */
-const META = 1500, TICK = 5, CODES = { PLAZA: ['A'], FAB: ['B', 'C'], EST: ['D', 'E'] };
+const META = 1000, TICK = 5, CODES = { PLAZA: ['A'], FAB: ['B', 'C'], EST: ['D', 'E'] };
 SQ.objs = []; SQ.score = [0, 0, 0, 0]; SQ.meta = META; SQ.scoreT = 0; SQ.winner = -1;
 function objInit() {
   SQ.objs = []; SQ.score = [0, 0, 0, 0]; SQ.scoreT = 0; SQ.winner = -1; const info = MAPA.built && MAPA.built.info && MX.district ? MAPA.built.info : null; if (!info) return;
   const used = {};
   for (const p of info.places) {
-    const own = ['PUE', 'FAR', 'TIE', 'CLI', 'GRA'].includes(p.id) && p.fac >= 0, shared = ['FAB', 'EST', 'PLAZA'].includes(p.id); if (!own && !shared) continue;
+    const own = p.id === 'PUE' && p.fac >= 0,   /* 13 puntos: 4 refugios, 4 puestos avanzados y 5 comunes (farmacia, tienda, clínica y granjas quedan como lugares con botín) */ shared = ['FAB', 'EST', 'PLAZA'].includes(p.id); if (!own && !shared) continue;
     const code = shared ? CODES[p.id][used[p.id] = (used[p.id] || 0) + 1, used[p.id] - 1] || p.id[0] : '';
     SQ.objs.push({ id: p.id, code, name: (code ? code + ' · ' : '') + p.name.split(' · ')[0].replace(/\s*\(.*?\)/g, '') + (own ? ' ' + TN[KTEAM[p.fac]] : ''), x: p.x, z: p.z, r: OBJ_R[p.id] || 8, owner: -1, home: own ? KTEAM[p.fac] : -1, shared, cap: 0, capBy: -1, contested: false, ring: null, n: [0, 0, 0, 0] });
   }

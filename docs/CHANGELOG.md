@@ -1,5 +1,8 @@
 # Changelog
 
+## 13 puntos de dominio (28-11)
+- Se dejan 13 puntos capturables: los 4 refugios, los 4 puestos avanzados (uno por cuarto) y los 5 comunes (A Plaza Mayor, B/C Fábricas, D/E Estación y supermercado). Farmacia, tienda, clínica y granjas siguen siendo lugares con botín, sin bandera. Puntos cada 5 s: puesto avanzado +1, comunes y refugios +2; meta 1.000.
+
 ## Refugios dominables, todo neutral al empezar y Share para mapa y mochila (28-11)
 - Cada facción empieza teniendo sólo su refugio; los otros 29 puntos (24 de los cuartos y 5 comunes) empiezan neutrales y se capturan. El refugio también se domina (zona de 12 m) y suma 2 puntos cada 5 s, como los comunes. Si te lo quitan, se reaparece en el punto propio más cercano a él que esté a salvo (o en el refugio si no queda ninguno); los bots van a recuperarlo primero.
 - Share (mando): mapa táctico con la mochila al lado; ○ o Share cierran. Safari en el iPhone no da el touchpad del DualSense, por eso no abría nada. En campaña Share ya no abre el polígono de tiro. En el menú de Options, ○ sale al momento.

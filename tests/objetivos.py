@@ -1,4 +1,4 @@
-"""Objetivos del distrito (capa estratégica, escuadras.js): 33 puntos: los 4 refugios (lo ÚNICO que cada facción tiene al empezar), 24 de los cuartos y 5 comunes, todos neutrales al empezar; captura por dominio (10 s neutralizar + 10 s capturar)
+"""Objetivos del distrito (capa estratégica, escuadras.js): 13 puntos: los 4 refugios (lo ÚNICO que cada facción tiene al empezar), los 4 puestos avanzados y 5 comunes (A–E), neutrales al empezar; captura por dominio (10 s neutralizar + 10 s capturar)
 con un solo bando dentro, se congela si está disputado; suministros al pasar por uno propio; la reaparición se acorta con los comunes que se tienen;
 reaparición adelantada en el puesto avanzado propio; el mando ataca los comunes que no son suyos."""
 import os, sys
@@ -15,24 +15,24 @@ with sync_playwright() as p:
       window.__run=n=>{for(let i=0;i<n;i++){__clear();update(1/60)}};MX.pl.inv=1e9;MX.pl.hp=1e9;P.pos.set(-445,0,-430)}''')
     r = ev('()=>({n:MX.SQ.objs.length,own:[0,1,2,3].map(t=>MX.SQ.objs.filter(o=>o.owner===t).length),neutral:MX.SQ.objs.filter(o=>o.owner<0).length})')
     print(r)
-    chk(r['n'] == 33 and r['own'] == [1, 1, 1, 1] and r['neutral'] == 29, '33 puntos: cada facción empieza sólo con su refugio; los otros 29 son neutrales %s' % r)
+    chk(r['n'] == 13 and r['own'] == [1, 1, 1, 1] and r['neutral'] == 9, '13 puntos (4 refugios, 4 puestos avanzados, 5 comunes): cada facción empieza sólo con su refugio %s' % r)
     # captura de la farmacia azul por un rojo
     r = ev('''()=>{P.pos.set(470,0,470);MX.pl.p.set(470,0,470);const o=MX.SQ.objs.find(q=>q.refuge&&q.home===0);window.O=o;const R=MX.ents.find(e=>e.bot&&e.team===1);R.keep=true;window.Rb=R;R.dead=false;R.dwn=false;R.hp=1e9;R.inv=1e9;R.fireCd=1e9;
       R.sqd.mission={type:'hold',x:o.x,z:o.z};R.sqd.missionT=MX.M.t;const run2=n=>{for(let i=0;i<n;i++){__clear();R.p.set(o.x+2,0,o.z);update(1/60)}};run2(60*11.5);const half=[o.owner,o.capBy];run2(60*10.6);return {half,owner:o.owner}}''')
     print(r)
     chk(r['half'] == [-1, 1] and r['owner'] == 1, 'un rojo solo dentro del refugio azul: a los 10 s lo neutraliza (%s) y a los 20 s es suyo' % r['half'])
-    r = ev('''()=>{const o=MX.SQ.objs.find(q=>q.id==="TIE"&&q.home===0);o.owner=0;const A=MX.ents.find(e=>e.bot&&e.team===0);A.keep=true;A.dead=false;A.dwn=false;A.hp=1e9;A.inv=1e9;A.fireCd=1e9;Rb.fireCd=1e9;
+    r = ev('''()=>{const o=MX.SQ.objs.find(q=>q.id==="PUE"&&q.home===0);o.owner=0;const A=MX.ents.find(e=>e.bot&&e.team===0);A.keep=true;A.dead=false;A.dwn=false;A.hp=1e9;A.inv=1e9;A.fireCd=1e9;Rb.fireCd=1e9;
       Rb.p.set(o.x,0,o.z);A.p.set(o.x+2,0,o.z);for(let i=0;i<60*12;i++){__clear();Rb.p.set(o.x,0,o.z);A.p.set(o.x+2,0,o.z);Rb.fireCd=A.fireCd=1e9;update(1/60)}return {owner:o.owner,cap:o.cap,cont:o.contested}}''')
     print(r)
     chk(r['owner'] == 0 and r['cont'], 'con los dos bandos dentro, disputado: no cambia de dueño')
     # suministros al jugador en un objetivo propio
-    r = ev('''()=>{const o=MX.SQ.objs.find(q=>q.id==="PUE"&&q.home===0);o.owner=0;P.gCount=0;MX.pl.supT=-99;P.pos.set(o.x,0,o.z);__run(60*2);return P.gCount}''')
+    r = ev('''()=>{Rb.dead=true;Rb.p.set(480,0,480);for(const e of MX.ents)if(e.bot&&e.keep&&e.team===0){e.dead=true;e.p.set(480,0,480)}const o=MX.SQ.objs.find(q=>q.id==="PUE"&&q.home===0);o.owner=0;P.gCount=0;MX.pl.supT=-99;P.pos.set(o.x,0,o.z);__run(60*2);return P.gCount}''')
     chk(r == 3, 'al pasar por un objetivo propio, el jugador se reabastece (granadas %d)' % r)
     # reaparición: 9 s sin comunes; 7 s con 2 comunes
     r = ev('''()=>{const a=MX.SQ.respawnTime(MX.pl);MX.SQ.objs.filter(o=>o.shared).slice(0,2).forEach(o=>o.owner=0);const b2=MX.SQ.respawnTime(MX.pl);return [a,b2]}''')
     chk(abs(r[0] - 9) < .01 and abs(r[1] - 7) < .01, 'reaparición 9 s sin objetivos comunes y 7 s con dos (%s)' % r)
     # reaparición adelantada
-    r = ev('''()=>{const pue=MX.SQ.objs.find(o=>o.id==="PUE"&&o.home===0);pue.owner=0;MX.SQ.objs.find(o=>o.refuge&&o.home===0).owner=0;const q=MX.SQ.list.find(s=>s.team===0&&!s.playerLead&&s.members.length>=2),L=q.members[0],A=q.members[1];
+    r = ev('''()=>{const pue=MX.SQ.objs.find(o=>o.id==="PUE"&&o.home===0);pue.owner=0;Rb.dead=true;Rb.p.set(480,0,480);MX.SQ.objs.find(o=>o.refuge&&o.home===0).owner=0;const q=MX.SQ.list.find(s=>s.team===0&&!s.playerLead&&s.members.length>=2),L=q.members[0],A=q.members[1];
       L.keep=true;L.dead=false;L.dwn=false;q.leader=L;L.p.set(pue.x+5,0,pue.z);const s=MX.SQ.spawnFor(A);return s&&Math.hypot(s.x-pue.x,s.z-pue.z)}''')
     chk(r is not None and r < 10, 'con el puesto avanzado propio y su líder cerca, el bot reaparece allí (a %s m)' % r)
     # el mando ataca comunes que no son suyos
