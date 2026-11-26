@@ -1155,7 +1155,7 @@ function explode(p, R, sc, kind, own) {
     const d = Math.hypot(pr.x - p.x, pr.z - p.z); if (pr.dead || d > R + 1) continue; const k = clamp(1 - d / (R + 1), 0, 1), l = d || 1;
     pushProp(pr, (pr.x - p.x) / l * 40 * k, (pr.z - p.z) / l * 40 * k);
     pr.by = own;
-    if (pr.explosive) { if (pr.fuse < 0) pr.fuse = .12 + d * .06; } else damageProp(pr, 150 * sc * k, pr.x, pr.z, (pr.x - p.x) / l, (pr.z - p.z) / l, 'blast');
+    if (pr.explosive) { if (pr.fuse < 0) { pr.fuse = .12 + d * .06; AWAKE.add(pr); } } else damageProp(pr, 150 * sc * k, pr.x, pr.z, (pr.x - p.x) / l, (pr.z - p.z) / l, 'blast');
   }
   const dp = Math.hypot(P.pos.x - p.x, P.pos.z - p.z);
   P.shake = Math.max(P.shake, clamp(.7 - dp * .05, 0, .6)); { const q = clamp(1 - dp / 14, 0, 1); if (q > .05) rumble(160 + 200 * q, q, q * .8); }
@@ -1369,6 +1369,7 @@ for (const key in HOLE_K) HOLE_GEO[key] = [0, 1, 2].map(() => makeHoleGeo(HOLE_K
 /* rastro de líquido que baja por la chapa desde el agujero (triángulo alargado hacia abajo, más ancho arriba) */
 const WET_GEO = (() => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([-.5, 0, 0, .5, 0, 0, .22, -7, 0, -.3, -7.5, 0], 3)); g.setIndex([0, 1, 2, 0, 2, 3]); return g; })();
 const WET_MAT = { water: new THREE.MeshBasicMaterial({ color: 0x0a1a2c, transparent: true, opacity: .38, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 }), fuel: new THREE.MeshBasicMaterial({ color: 0x0b0805, transparent: true, opacity: .55, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3 }) };
+const AWAKE = new Set();      /* objetos que hay que atender cada fotograma: todos menos los dormidos (soldados e intactos). Recorrer los ~17.000 objetos entre tres bucles costaba ~1,5 ms/fotograma en el PC */
 const props = [], DEB = [], FIRES = [], PUDDLES = [], PICKS = [];
 const FLAMES = [];
 for (let i = 0; i < 70; i++) { const m = new THREE.Mesh(geoBall, new THREE.MeshBasicMaterial({ color: 0xff8a30, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending })); m.visible = false; scene.add(m); FLAMES.push({ m, v: new V3(), age: 0, life: 0, s0: .2 }); }
@@ -1400,7 +1401,7 @@ function updateFires(dt) {
     if (MX.on) MX.fireDmg(f, dt);
     for (const tg of targets) if (tg.hp > 0 && Math.hypot(tg.g.position.x - f.x, tg.g.position.z - f.z) < f.r) { tg.hp -= 16 * dt; tg.flash = Math.max(tg.flash, .4); if (tg.hp <= 0) tg.dead = 0; }
     for (const p of props) if (!p.dead && Math.hypot(p.x - f.x, p.z - f.z) < f.r + Math.max(p.hx, p.hz)) {
-      if (p.mat === 'wood') { p.burnT = 5; } else if (p.explosive) damageProp(p, 20 * dt, p.x, p.z, 0, 0, 'fire'); else if (p.mat === 'plastic') damageProp(p, 7 * dt, p.x, p.z, 0, 0, 'fire');
+      if (p.mat === 'wood') { p.burnT = 5; AWAKE.add(p); } else if (p.explosive) damageProp(p, 20 * dt, p.x, p.z, 0, 0, 'fire'); else if (p.mat === 'plastic') damageProp(p, 7 * dt, p.x, p.z, 0, 0, 'fire');
     }
     for (const q of PUDDLES) if (q.fuel && !q.lit && Math.hypot(q.x - f.x, q.z - f.z) < f.r + q.r) { q.lit = true; igniteZone(q.x, q.z, Math.max(.7, q.r), 5); }
   }
@@ -1650,7 +1651,7 @@ function addProp(type, x, z, rot) {
   const b = sp.build(g), sw = Math.abs(Math.sin(rot || 0)) > .5; noCoplanar(b.out, g);
   const p = { uid: ++PUID, type, mat: sp.mat, g, x, z, hx: sw ? b.hz : b.hx, hz: sw ? b.hx : b.hz, h: b.h, hp: sp.hp, maxHp: sp.hp, stage: 0, pieces: b.out, pushable: sp.push, mass: sp.mass, fric: sp.fric, v: new V3(), dead: false,
     pen: sp.pen === undefined ? MT[sp.mat].pen : sp.pen, explosive: !!sp.explosive, fluid: sp.fluid ? 1 : 0, fluidKind: sp.fluid || null, holes: [], fuse: -1, burnT: 0, wob: 0, wobS: 1, dashT: -9, burning: false };
-  p.box = { x, z, hx: p.hx, hz: p.hz, prop: p }; boxes.push(p.box); props.push(p); g.updateMatrixWorld(true); return p;
+  p.box = { x, z, hx: p.hx, hz: p.hz, prop: p }; boxes.push(p.box); props.push(p); AWAKE.add(p); g.updateMatrixWorld(true); return p;
 }
 function tryPlace(type, x, z, rot) {
   const sp = PSPEC[type]; if (Math.hypot(x, z) < 5 || Math.abs(x) > WORLD.x - 2 || Math.abs(z) > WORLD.z - 2) return null;
@@ -1758,7 +1759,7 @@ function destroyProp(p, dx, dz, power) {
     if (p.mat === 'metal' && p.type !== 'barrel') { if (p.fluid > .05) puddleAt(p.x, p.z, p.fluidKind === 'fuel').r = .8; }
     for (let i = 0; i < 6; i++) emitPuff(p.x + (Math.random() - .5) * p.hx, .4 + Math.random() * .5, p.z + (Math.random() - .5) * p.hz, (Math.random() - .5) * 1.2, .5, (Math.random() - .5) * 1.2, .2, 1, 1.2, p.mat === 'wood' ? .6 : .7);
   }
-  scene.remove(p.g); const pi = props.indexOf(p); if (pi >= 0) props.splice(pi, 1);
+  scene.remove(p.g); const pi = props.indexOf(p); if (pi >= 0) props.splice(pi, 1); AWAKE.delete(p);
   if (MX.on && p.spec) MX.propGone(p);
   P.shake = Math.max(P.shake, .05);
 }
@@ -1838,8 +1839,8 @@ function updateProps(dt) {
     if (d < (p === P.cover ? 1 : .8) && d < bd) { bd = d; cv = p; }
   }
   P.cover = cv;
-  for (let i = props.length - 1; i >= 0; i--) {
-    const p = props[i]; if (p.dead) continue;
+  for (const p of AWAKE) {                                                           // sólo los despiertos (los soldados e intactos no tienen nada que actualizar: cualquier toque los despierta, MAPA.wake)
+    if (p.dead) { AWAKE.delete(p); continue; }
     if (p.fuse >= 0) { p.fuse -= dt; if (p.fuse < 0) { destroyProp(p, 0, 0, 1.5); continue; } if (Math.random() < dt * 25) flame(p.x, .9, p.z, .12); }
     if (p.burnT > 0) {                                                               // madera ardiendo: se carboniza y pierde vida
       p.burnT -= dt; loopAt('pb' + p.uid, 'FIRE_loop', p.x, p.z, .6); if (!p.charred) { p.charred = true; if (p.lz) MAPA.wake(p); for (const pc of p.pieces) if (!pc.gone && pc.obj.material === PM.plank) pc.obj.material = PM.char; }
@@ -1905,7 +1906,7 @@ function rangeLabel(txt, x, z, w) {
 const RANGE_PROPS = [['crate', 'CAJA madera'], ['crateS', 'CAJA pequeña'], ['barrier', 'BARRERA plástico'], ['barrel', 'BARRIL metal'], ['barrelFuel', 'BARRIL combustible'], ['fence', 'VALLA madera'], ['sandbags', 'SACOS arena'], ['blocks', 'BLOQUES hormigón']];
 const RANGE_T = [[-24, 0], [-12, 0], [0, 0], [12, 1], [24, 1]];
 function rangeFill() {
-  RANGE.props.forEach(p => { if (p.g.parent) scene.remove(p.g); const bi = boxes.indexOf(p.box); if (bi >= 0) boxes.splice(bi, 1); const pi = props.indexOf(p); if (pi >= 0) props.splice(pi, 1); }); RANGE.props = [];
+  RANGE.props.forEach(p => { if (p.g.parent) scene.remove(p.g); const bi = boxes.indexOf(p.box); if (bi >= 0) boxes.splice(bi, 1); const pi = props.indexOf(p); if (pi >= 0) props.splice(pi, 1); AWAKE.delete(p); }); RANGE.props = [];
   [-33, -26].forEach(z => RANGE_PROPS.forEach((a, i) => { RANGE.props.push(addProp(a[0], -28 + i * 8, z, 0)); }));
   RANGE.tg.forEach(t => { t.hp = t.maxHp || 100; t.dead = 0; t.g.rotation.x = 0; });
 }

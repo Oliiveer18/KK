@@ -947,7 +947,7 @@
     else if (o.roll) for (const lf of o.leaves) roll(lf, e, lf.H);
   }
   function tick(dt) {
-    for (const p of props) {
+    for (const p of AWAKE) {                                                         // sólo objetos despiertos (+ farolas, que siempre se atienden)
       if (p.dead || !p.o) continue; const o = p.o;
       if (o.leaves) { const tgt = p.open ? 1 : 0; if (p.oT !== tgt) { p.oT = tgt > p.oT ? Math.min(tgt, p.oT + dt * POSE_SPEED) : Math.max(tgt, p.oT - dt * POSE_SPEED); pose(p); } }
       if (o.lamp && o.glow) { const on = !o.lamp.gone; o.glow.visible = on; }
@@ -999,7 +999,7 @@
     return rows;
   };
   OBJ.gallery = function (types, facOf2) {                                             // coloca los tipos pedidos en filas; cada uno con una facción distinta (por defecto 0,1,2,3…)
-    OBJ.clearBuildings(); for (const p of props.slice()) { dropBoxes(p); scene.remove(p.g); const i = props.indexOf(p); if (i >= 0) props.splice(i, 1); }
+    OBJ.clearBuildings(); for (const p of props.slice()) { dropBoxes(p); scene.remove(p.g); const i = props.indexOf(p); if (i >= 0) props.splice(i, 1); AWAKE.delete(p); }
     boxes.length = 0; types = types || OBJ.types; const cols = 8, gx = 6.2, gz = 6, out = [];
     types.forEach((t, i) => { const one = types.length === 1, x = one ? 0 : (i % cols - (cols - 1) / 2) * gx, z = one ? 0 : -8 + Math.floor(i / cols) * gz; out.push(OBJ.place(t, x, z, 0, facOf2 ? facOf2(i) : i % 4)); });
     P.pos.set(0, 0, 0); return out;
@@ -1145,7 +1145,7 @@
     return null;
   };
   OBJ.clearBuildings = function () { for (const b of OBJ.buildings.slice()) OBJ.removeBuilding(b); };
-  OBJ.removeBuilding = function (b) { for (const p of b.props.slice()) if (!p.dead) { dropBoxes(p); scene.remove(p.g); const i = props.indexOf(p); if (i >= 0) props.splice(i, 1); } scene.remove(b.group); const i = OBJ.buildings.indexOf(b); if (i >= 0) OBJ.buildings.splice(i, 1); };
+  OBJ.removeBuilding = function (b) { for (const p of b.props.slice()) if (!p.dead) { dropBoxes(p); scene.remove(p.g); const i = props.indexOf(p); if (i >= 0) props.splice(i, 1); AWAKE.delete(p); } scene.remove(b.group); const i = OBJ.buildings.indexOf(b); if (i >= 0) OBJ.buildings.splice(i, 1); };
   function buildingsTick(dt) {
     for (const b of OBJ.buildings) {
       b.inside = false;
@@ -1186,7 +1186,7 @@
   };
   OBJ.removeObject = function (r) {
     if (!r) return; if (r.isBuilding) return OBJ.removeBuilding(r);
-    dropBoxes(r); scene.remove(r.g); const i = props.indexOf(r); if (i >= 0) props.splice(i, 1); r.dead = true;
+    dropBoxes(r); scene.remove(r.g); const i = props.indexOf(r); if (i >= 0) props.splice(i, 1); AWAKE.delete(r); r.dead = true;
   };
   OBJ.placeObject = placeObject; OBJ._warned = {}; window.placeObject = placeObject;
   if (/[?&]galeria=1/.test(location.search)) setTimeout(() => OBJ.gallery(), 400);

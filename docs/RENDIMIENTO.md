@@ -10,6 +10,9 @@ La cuadrícula inicial se calcula entera. Al actualizarla durante la partida, el
 Verificación contra `a4d8b4e9` en Chromium: ocho estados del terreno, 1.016.064 celdas por estado, 262 rutas idénticas y tres capturas idénticas (refugio azul, plaza y estación oeste). Para repetir la comparación se puede ejecutar `python3 tests/navegacion_distrito.py --referencia /ruta/al/index-anterior.html`. Con 120 desplazamientos de una caja en el distrito cargado, la actualización de navegación pasó de 2,88 a 0,02 ms de media en la máquina de prueba. El tiempo corresponde únicamente a esa operación.
 
 
+## Hecho el 26-11 (tras medir en el iPhone: p50 24 ms, p95 30, p99 39; límite = CPU, lógica 12 ms + dibujo 6 ms)
+1. **Lista de objetos despiertos (`AWAKE`)**: `updateProps`, el `tick` de objetos y `hotExplosives` recorrían los ~17.600 objetos cada fotograma (tres veces) aunque el 99,9 % estuviera dormido (soldado e intacto). Ahora sólo se atiende a los despiertos (`MAPA.wake` los añade; `lazify` los quita; una mecha o un incendio directo los añade a mano). Perfil en PC: 5,9 → 4,9 ms de lógica por fotograma (−17 %); en el iPhone se espera más. Sin cambio visual ni de comportamiento (tests `objetos`, `fusion_identico`, `rendimiento`, `escuadras`, `dominio`).
+
 ## Hecho el 28-11 (distrito, `?mapa=6`): memoria, carga y llamadas de dibujo, sin quitar calidad
 Medido en Chrome headless (swiftshader); en el iPhone se ve en el diagnóstico (tocar el contador de FPS: ahora muestra también carga, geometrías,
 texturas y memoria JS cuando el navegador la da).

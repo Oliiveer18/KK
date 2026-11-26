@@ -50,7 +50,7 @@ function navResize(half) {                                                      
 function buildDistrict() {                                                           // campaña sobre el distrito generado por MAPA (src/mapa.js + mapa_distrito.js)
   for (const o of OBST) { o.m.visible = false; const i = boxes.indexOf(o.bx); if (i >= 0) boxes.splice(i, 1); }
   for (const p of props.slice()) { scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); }
-  props.length = 0; for (const tg of targets) scene.remove(tg.g); targets.length = 0;
+  props.length = 0; AWAKE.clear(); for (const tg of targets) scene.remove(tg.g); targets.length = 0;
   grid.visible = false;                                                             // la cuadrícula de referencia de la arena no se usa en el distrito
   const D = MAPA.build(MAPA.data[MX.dataId || 'M1']());
   if (D.info && D.info.refugeRects && typeof OBRAS !== 'undefined' && OBRAS.adopt) OBRAS.adopt(D.info.refugeRects);   // muros y portones de los refugios del distrito: obras de su facción (reparar y mejorar)
@@ -65,7 +65,7 @@ function buildMap() {
   /* se aparta la arena original (mapa 1) y los blancos: aquí los rivales son los bots */
   for (const o of OBST) { o.m.visible = false; const i = boxes.indexOf(o.bx); if (i >= 0) boxes.splice(i, 1); }
   for (const p of props.slice()) { scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); }
-  props.length = 0; for (const t of targets) scene.remove(t.g); targets.length = 0;
+  props.length = 0; AWAKE.clear(); for (const t of targets) scene.remove(t.g); targets.length = 0;
   WORLD.x = 49.6; WORLD.z = 29.6; border.scale.set(WORLD.x / 40, 1, WORLD.z / 40);
   /* suelo: bases, plaza central y carriles */
   floorRect(-43.8, 0, 12.4, 22.4, 0x1b2d4d, .006); floorRect(43.8, 0, 12.4, 22.4, 0x4d1f1b, .006);
@@ -448,7 +448,12 @@ function perceive(e) {
 }
 /* explosivos a punto de estallar (con mecha o ardiendo): una sola pasada por fotograma para todos los bots, no una por bot */
 let _hxT = -1, _hxL = [];
-function hotExplosives() { if (_hxT === M.t) return _hxL; _hxT = M.t; _hxL = []; for (const p of props) if (!p.dead && p.explosive && (p.fuse >= 0 || p.burning)) _hxL.push(p); return _hxL; }
+let _exP = [], _exN = -1, _exT = -9;                                               // lista de explosivos (barriles…): se rehace si cambia el número de objetos o cada 0,5 s, no recorriendo los 11.000 cada fotograma
+function hotExplosives() {
+  if (_hxT === M.t) return _hxL; _hxT = M.t; _hxL = [];
+  if (props.length !== _exN || M.t - _exT > .5 || M.t < _exT) { _exN = props.length; _exT = M.t; _exP = props.filter(p => p.explosive); }
+  for (const p of _exP) if (!p.dead && (p.fuse >= 0 || p.burning)) _hxL.push(p); return _hxL;
+}
 function dangerVec(e) {
   let fx = 0, fz = 0, n = 0;
   const add = (x, z, r) => { const dx = e.p.x - x, dz = e.p.z - z, d = Math.hypot(dx, dz); if (d < r) { const k = (1 - d / r) + .2; fx += dx / (d || 1) * k; fz += dz / (d || 1) * k; n++; } };
@@ -979,7 +984,7 @@ function endMatch(win) {
 }
 MX.restart = () => {
   if (!M.over) return; if (MX.campaign) { location.reload(); return; }   // campaña: partida nueva clearFeed(); M.over = false; M.win = -1; M.score = [0, 0]; endEl.style.display = 'none';
-  for (const p of M.props.slice()) { scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); const j = props.indexOf(p); if (j >= 0) props.splice(j, 1); } M.props.length = 0; M.propQ.length = 0;
+  for (const p of M.props.slice()) { scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); const j = props.indexOf(p); if (j >= 0) props.splice(j, 1); AWAKE.delete(p); } M.props.length = 0; M.propQ.length = 0;
   for (const s of M.specs) placeProp(s, false);
   clouds.length = 0; FIRES.length = 0; for (const g of grens) { g.on = false; g.m.visible = false; } for (const b of BUL) { b.on = false; b.m.visible = false; }
   for (const e of M.ents) { e.kills = e.deaths = 0; e.dead = true; respawn(e); } navBuild();

@@ -45,7 +45,7 @@ with sync_playwright() as p:
     r = ev('''()=>{const lz=props.filter(p=>p.lz).length;const f=props.find(p=>p.lz&&p.type==='fence');const n0=f.g.children.length;P.pos.set(f.x,0,f.z-6);
       BUL.forEach(q=>{q.on=false});spawnBullet(f.x,.5,f.z-3,0,1,WP[1],null);for(let i=0;i<30;i++)updateBullets(1/60);
       const d=props.find(p=>p.lz&&p.o&&p.o.leaves&&!p.open);const dn=d.g.children.length;OBJ.setOpen(d,true,true);
-      const w=props.find(p=>p.lz&&p.pieces.length===0&&p.mat==='wood'&&p.type==='crate');w.burnT=1;updateProps(1/60);
+      const w=props.find(p=>p.lz&&p.pieces.length===0&&p.mat==='wood'&&p.type==='crate');w.burnT=1;AWAKE.add(w);updateProps(1/60);
       const br=props.find(p=>p.lz&&p.type==='barrelFuel');let ok=true;if(br){damageProp(br,999,br.x,br.z,1,0,'blast')}
       return {lz,total:props.length,fenceWoke:!f.lz,fenceHit:f.hp<f.maxHp,fenceDecal:!!(f.decals&&f.decals.length),pieces:f.pieces.length,n0,doorWoke:!d.lz,doorOpen:d.open&&d.oT===1,doorPieces:d.pieces.length,
         burnt:w.charred&&w.pieces.some(pc=>pc.obj.material===PM.char),barrel:!br||br.dead}}''')

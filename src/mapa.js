@@ -289,7 +289,7 @@ MAPA.lazify = function (list) {
     const vk = p.lzRnd === 0 && !(p.o && p.o.leaves && p.oT) ? p.type + '|' + p.lzFac + '|' + lzPKey(p.lzParam) : null, V = vk && VAR.get(vk);
     if (V) { const merged = V.map(v => { const m = new THREE.Mesh(v.geo, v.mat); m.castShadow = v.cs; m.receiveShadow = v.rs; m.frustumCulled = v.fc; m.userData.lz = true; return m; });
       for (const c of g.children.slice()) g.remove(c); for (const m of merged) g.add(m); g.updateMatrixWorld(true);
-      p.lz = { merged, kept: [] }; g.__prop = p; p.pieces = []; n++; meshes += merged.length; reused++; continue; } g.updateMatrixWorld(true);
+      p.lz = { merged, kept: [] }; if (!(p.o && p.o.lamp)) AWAKE.delete(p); g.__prop = p; p.pieces = []; n++; meshes += merged.length; reused++; continue; } g.updateMatrixWorld(true);
     const all = []; g.traverse(o => { if (o !== g) all.push(o); });
     /* una pieza sólo se suelda si todo lo que cuelga de ella también se suelda (si no, al ocultarla desaparecería su hijo) */
     const ok = new Set(all.filter(lzOk)), bad = new Set();
@@ -317,7 +317,7 @@ MAPA.lazify = function (list) {
     for (const c of g.children.slice()) if (kept.indexOf(c) < 0) g.remove(c);
     for (const m of merged) g.add(m);
     g.updateMatrixWorld(true);
-    p.lz = { merged, kept }; g.__prop = p; p.pieces = []; n++; meshes += merged.length;
+    p.lz = { merged, kept }; if (!(p.o && p.o.lamp)) AWAKE.delete(p); g.__prop = p; p.pieces = []; n++; meshes += merged.length;
   }
   return { objetos: n, piezas: pcs, mallas: meshes, reutilizados: reused };
 };
@@ -347,7 +347,7 @@ MAPA.post = function (step) {
   if ((all || step === 'instance') && !/nolazy|noinst/.test(q)) out.inst = MAPA.instance(out.sectors);
 };
 MAPA.wake = function (p) {                                                          // vuelve a poner las piezas reales (idénticas) de un objeto fusionado
-  const L = p && p.lz; if (!L) return; p.lz = null;
+  const L = p && p.lz; if (!L) return; p.lz = null; AWAKE.add(p);
   for (const it of L.inst || []) { it.im.setMatrixAt(it.i, _Z4); it.im.instanceMatrix.needsUpdate = true; }
   for (const m of L.merged) p.g.remove(m); for (const o of L.kept) if (o.parent) o.parent.remove(o);
   OBJ.rebuild(p); if (MAPA.canon) MAPA.canon(p.g); p.g.updateMatrixWorld(true);
