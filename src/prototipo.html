@@ -312,10 +312,12 @@ function dress(R, fi, L) {
     target.add(g); R._gear.push(g);
   }
 }
+// Las piezas del equipo son hijas de estas mallas y heredan su transformación.
+const playerBodyMeshes = Object.values(rig).flat();
 dress(rig, 0);
 
 /* estela del dash: 3 siluetas translúcidas que se desvanecen rápido */
-const GH = { list: Object.values(rig).flat(), g: [], i: 0, t: 0 };
+const GH = { list: playerBodyMeshes, g: [], i: 0, t: 0 };
 for (let n = 0; n < 3; n++) {
   const mat = new THREE.MeshBasicMaterial({ color: 0x7ec0ff, transparent: true, opacity: 0, depthWrite: false });
   const meshes = GH.list.map(m => { const c = new THREE.Mesh(m.geometry, mat); c.visible = false; scene.add(c); return c; });

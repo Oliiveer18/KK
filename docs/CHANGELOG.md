@@ -1,5 +1,9 @@
 # Changelog
 
+## Caída del jugador
+
+El cuerpo conserva una sola copia del equipo al morir o quedar abatido. La estela del dash utiliza las mismas mallas base. Prueba de regresión: `tests/caida_jugador.py`.
+
 ## Objetos de campaña (sin versionar; rama claude/funny-hypatia-uvl1wv)
 - Nuevo `src/objetos.js`: 68 tipos de objeto del catálogo (accesos, muros y portones de 3 niveles, puesto de vigilancia, pasarela y escalera, mobiliario urbano, comercio y transporte, escaparates con alarma, foco, surtidor, almacén por reservas, camilla, tablón, armero y emblemas de las 4 facciones), 13 recogibles (material, munición, botiquín, kit, casco/chaleco/mochila en 3 niveles) y raíles. Material nuevo `glass`.
 - Revisión de estilo (25-11): muros, portones y torres en 3 niveles madera → piedra → hierro, paleta cálida, texturas procedurales, desgaste, color de facción (`OBJ.fac`) y colores propios por objeto. Ver `docs/CATALOGO_OBJETOS.md` §12–13.
