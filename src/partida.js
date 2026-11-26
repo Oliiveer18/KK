@@ -204,7 +204,7 @@ function findPath(sx, sz, gx, gz) {
   while (i < pts.length - 1) { let j = pts.length - 1; while (j > i + 1 && !lineFree(pts[i], pts[j])) j--; out.push(pts[j]); i = j; }
   return out.length ? out : [{ x: gx, z: gz }];
 }
-MX.findPath = findPath; MX.navAt = navAt; MX.lineFree = lineFree; MX.HOT = HOT; MX.coverPoint = (e, tx, tz) => coverPoint(e, tx, tz); MX.segClear = (...a) => segClear(...a);   // para escuadras.js
+MX.refill = () => refillAll(); MX.syncKit = e => syncKit(e); MX.findPath = findPath; MX.navAt = navAt; MX.lineFree = lineFree; MX.HOT = HOT; MX.coverPoint = (e, tx, tz) => coverPoint(e, tx, tz); MX.segClear = (...a) => segClear(...a);   // para escuadras.js
 
 /* ---- visibilidad: línea libre entre dos puntos (ignorando, si se pide, los objetos bajos: se ve por encima de ellos) y humo ---- */
 function segClear(ax, az, bx, bz, ign1, ign2, lowIgnore) {
@@ -633,8 +633,8 @@ function pickSpawn(team) {
   return c[0].s;
 }
 function respawn(e) {
-  const s0 = pickSpawn(e.team), s = { x: s0.x, z: s0.z, yaw: s0.yaw };
-  if (MX.campaign) for (let k = 0; k < 8; k++) { const x = s0.x + rr(-3, 3), z = s0.z + rr(-3, 3); if (navAt(x, z)) { s.x = x; s.z = z; break; } }   // campaña: 25 por facción, se reparten junto al punto de aparición
+  const fw = MX.campaign && MX.SQ && M.t > 1 ? MX.SQ.spawnFor(e) : null, s0 = fw || pickSpawn(e.team), s = { x: s0.x, z: s0.z, yaw: s0.yaw };   // con el puesto avanzado propio, se puede reaparecer allí
+  if (MX.campaign && !fw) for (let k = 0; k < 8; k++) { const x = s0.x + rr(-3, 3), z = s0.z + rr(-3, 3); if (navAt(x, z)) { s.x = x; s.z = z; break; } }   // campaña: 25 por facción, se reparten junto al punto de aparición
   e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = SH; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.hitSrc = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); syncKit(e);
   if (MX.SQ && MX.campaign) MX.SQ.onRespawn(e);
   if (e.isPlayer) return respawnPlayer(e);
@@ -736,7 +736,7 @@ MX.hit = (e, dmg, from, dx, dz, w, src) => {
 function kill(v, killer, dx, dz) {
   if (!killer && v.lastAtt && M.t - v.lastAttT < 8 && v.lastAtt.team !== v.team) killer = v.lastAtt;     // fuego o explosión sin autor claro: cuenta quien le hirió hace poco
   const wasDown = !!v.dwn; if (wasDown) { v.dwn = false; dwnFxClear(v); }
-  v.dead = true; v.deaths++; v.hp = 0; v.tgp.hp = 0; if (MX.SQ && MX.campaign) MX.SQ.onDeath(v); v.respT = RESPAWN + (v.isPlayer ? 0 : rnd() * .8); v.inv = 0;
+  v.dead = true; v.deaths++; v.hp = 0; v.tgp.hp = 0; if (MX.SQ && MX.campaign) MX.SQ.onDeath(v); v.respT = (MX.campaign && MX.SQ && MX.SQ.respawnTime(v)) || RESPAWN + (v.isPlayer ? 0 : rnd() * .8); v.respMax = v.respT; v.inv = 0;   // campaña: la reaparición depende de los objetivos comunes que tiene la facción
   addFeed(killer && killer !== v ? killer : null, v, v.lastSrc);
   if (killer && killer !== v && killer.team !== v.team) { killer.kills++; M.score[killer.team]++; if (killer.isPlayer) playSnd('HIT_kill') || playSnd('HIT_marker'); }          // bajas a compañeros y suicidios no puntúan
   for (let i = 0; i < 8; i++) spawn('red', _kp.set(v.p.x, .9, v.p.z), _kv.set((Math.random() - .5) * 4 + dx * 2, 1 + Math.random() * 3, (Math.random() - .5) * 4 + dz * 2), .5, .04, .04, .04, true, 8);
@@ -961,7 +961,7 @@ MX.update = dt => {
   drawBar(PB, pl, dt); PB.el.style.transform = 'scale(' + (PB.el.dataset.s.split('|')[0]) + ') translateX(' + PB.el.dataset.s.split('|')[1] + 'px)';
   updNums(dt); updFeed(dt);
   M.hurt = Math.max(0, M.hurt - dt * 1.6); $('mxHurt').style.opacity = clamp(M.hurt, 0, 1) * .85 + (pl.hp < 30 && !pl.dead ? .15 : 0);
-  $('mxDead').style.opacity = pl.dead ? Math.min(.55, (RESPAWN - pl.respT) * 1.2) : pl.dwn ? .22 : 0;
+  $('mxDead').style.opacity = pl.dead ? Math.min(.55, ((pl.respMax || RESPAWN) - pl.respT) * 1.2) : pl.dwn ? .22 : 0;
   if (M.over) { M.endT += dt; const g = getPad(); if (g && M.endT > 1.5 && g.buttons[0] && g.buttons[0].pressed) MX.restart(); }
 };
 })();

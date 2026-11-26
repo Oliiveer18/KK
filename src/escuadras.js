@@ -66,6 +66,7 @@ SQ.init = () => {
   for (const e of M.ents) { e.vet = e.isPlayer ? 0 : rr(0, 4); e.lifeStart = 0; e.supp = 0; }
   const ps = MX.pl && MX.pl.sqd; if (ps) { ps.playerLead = true; ps.order = { type: 'follow' }; ps.mission = { type: 'free' }; }
   for (const s of SQ.list) electLeader(s, true);
+  objInit();
 };
 
 /* ---------- liderazgo: el mejor vivo y en pie ---------- */
@@ -97,8 +98,11 @@ function assignMission(s) {
     if (!(s.mission.arr ? M.t - s.mission.arr > stay : M.t - s.missionT > 260)) return; }
   let tg = null;
   if (type === 'defend') { const c = { x: ref.x * .9, z: ref.z * .9 }; tg = navNear(c.x, c.z); tg.name = 'refugio'; }                                     // delante del portón
-  else if (type === 'hold') { const own = pl.own[t]; const pue = own.find(p => p.id === 'PUE'); tg = (s.n % 2 === 1 && pue) ? pue : own[(rnd() * own.length) | 0] || ref; }
-  else if (type === 'attack') { const c = pl.shared.map(p => ({ p, d: dist(p, ref) + rnd() * 120 + (p.id === 'PLAZA' ? 60 : 0) })).sort((a, b) => a.d - b.d); tg = c.length ? c[0].p : ref; }
+  else if (type === 'hold') { const lost = SQ.objs.filter(o => o.home === t && o.owner !== t).sort((a, b) => dist(a, ref) - dist(b, ref))[0];   // primero, recuperar lo propio perdido
+    const own = pl.own[t]; const pue = own.find(p => p.id === 'PUE'); tg = lost || ((s.n % 2 === 1 && pue) ? pue : own[(rnd() * own.length) | 0] || ref); }
+  else if (type === 'attack') {                                                      // objetivos comunes que no son nuestros; si los tenemos todos, el puesto avanzado enemigo más cercano
+    const ob = SQ.objs.length ? SQ.objs.filter(o => o.shared && o.owner !== t) : pl.shared, alt = SQ.objs.filter(o => o.id === 'PUE' && o.owner !== t);
+    const c = (ob.length ? ob : alt.length ? alt : pl.shared).map(p => ({ p, d: dist(p, ref) + rnd() * 120 + (p.id === 'PLAZA' ? 60 : 0) })).sort((a, b) => a.d - b.d); tg = c.length ? c[0].p : ref; }
   else if (type === 'recon') { const c = pl.all.filter(p => dist(p, ref) < 520 && dist(p, ref) > 40); tg = c.length ? c[(rnd() * c.length) | 0] : ref; }
   else tg = ref;
   s.mission = { type, x: tg.x, z: tg.z, name: tg.name || '' }; s.missionT = M.t; s.ap = null;
@@ -261,10 +265,59 @@ SQ.update = dt => {
   SQ.balT -= dt; if (SQ.balT <= 0) { SQ.balT = SQ_BAL; for (let t = 0; t < 4; t++) rebalance(t); }
   const s = MX.pl && MX.pl.sqd;
   if (s && s.order) { if (s.order.type === 'cover' && M.t - s.order.t > 10) s.order = s.order.prev; if (s.order.type === 'regroup' && M.t - s.order.t > 12) s.order = { type: 'follow' }; }
+  if (SQ.objs.length) { SQ.objT = (SQ.objT || 0) - dt; if (SQ.objT <= 0) { objTick(.5 - SQ.objT); SQ.objT = .5; } }
   hudTick(dt);
 };
 SQ.onDeath = e => { const s = e.sqd; if (s && s.leader === e) electLeader(s); };
 SQ.onRespawn = e => { e.lifeStart = M.t; e.supp = 0; };
+
+/* ---------- OBJETIVOS (capa estratégica, distrito): se capturan quedándose dentro sin enemigos; dan suministros y refuerzos ----------
+   Propios de cada facción (puesto avanzado, farmacia, tienda, clínica, 2 granjas) empiezan siendo suyos; los comunes (2 Fábricas, 2 Estaciones, Plaza Mayor), de nadie.
+   Captura: 20 s con un solo bando dentro (más rápido con más gente, hasta ×1,6); disputado = se congela. Recompensas para quien lo tiene:
+   munición, granadas y kit al pasar por él (cada 25 s); cada objetivo común acorta la reaparición de toda la facción (9 s base, −1 s por objetivo común, mín. 4 s);
+   con el puesto avanzado propio, la escuadra que opera cerca reaparece allí (si no hay enemigos a 35 m). El mando de cada facción ataca los comunes
+   que no son suyos y recupera los propios perdidos. */
+const OBJ_R = { PLAZA: 22, FAB: 18, EST: 18 }, CAP_T = 20, TEAM_COL = [0x4aa0ff, 0xff5a48, 0xffb020, 0xb07cff];
+SQ.objs = [];
+function objInit() {
+  SQ.objs = []; const info = MAPA.built && MAPA.built.info && MX.district ? MAPA.built.info : null; if (!info) return;
+  for (const p of info.places) {
+    const own = ['PUE', 'FAR', 'TIE', 'CLI', 'GRA'].includes(p.id) && p.fac >= 0, shared = ['FAB', 'EST', 'PLAZA'].includes(p.id); if (!own && !shared) continue;
+    SQ.objs.push({ id: p.id, name: p.name.split(' · ')[0] + (own ? ' ' + TN[KTEAM[p.fac]] : ''), x: p.x, z: p.z, r: OBJ_R[p.id] || 14, owner: own ? KTEAM[p.fac] : -1, home: own ? KTEAM[p.fac] : -1, shared, cap: 0, capBy: -1, contested: false, ring: null });
+  }
+}
+function objTick(dt) {
+  const pl = MX.pl;
+  for (const o of SQ.objs) {
+    const n = [0, 0, 0, 0]; for (const e of M.ents) if (alive(e) && (e.p.x - o.x) ** 2 + (e.p.z - o.z) ** 2 < o.r * o.r) n[e.team]++;
+    const teams = n.map((c, t) => c ? t : -1).filter(t => t >= 0); o.contested = teams.length > 1; o.n = n;
+    if (teams.length === 1 && teams[0] !== o.owner) {
+      const t = teams[0]; if (o.capBy !== t) { o.capBy = t; o.cap = 0; }
+      o.cap += dt / CAP_T * Math.min(1.6, 1 + (n[t] - 1) * .15);
+      if (o.cap >= 1) { const prev = o.owner; o.owner = t; o.cap = 0; o.capBy = -1;
+        if (pl && t === pl.team) toast('Hemos tomado ' + o.name); else if (pl && prev === pl.team) toast('Hemos perdido ' + o.name + ' (' + TN[t] + ')'); }
+    } else if (!teams.length) o.cap = Math.max(0, o.cap - dt / CAP_T * .5);
+    /* suministros para los dueños que pasan por él */
+    if (o.owner >= 0) for (const e of M.ents) { if (!alive(e) || e.team !== o.owner || (e.p.x - o.x) ** 2 + (e.p.z - o.z) ** 2 > o.r * o.r || M.t - (e.supT || -99) < 25) continue;
+      e.supT = M.t; if (e.isPlayer) { if (MX.refill) MX.refill(); e.kits = 1; if (MX.syncKit) MX.syncKit(e); toast('Reabastecido en ' + o.name); } else { e.ammo = e.w.max; e.gCount = Math.min(3, e.gCount + 1); e.kits = 1; } }
+  }
+}
+SQ.respawnTime = e => { if (!SQ.objs.length) return null; const k = SQ.objs.filter(o => o.shared && o.owner === e.team).length; return Math.max(4, 9 - k) + (e.isPlayer ? 0 : rnd() * .8); };
+SQ.spawnFor = e => {                                                                 // reaparición adelantada en el puesto avanzado propio
+  const pue = SQ.objs.find(o => o.id === 'PUE' && o.owner === e.team && o.home === e.team); if (!pue) return null;
+  if (M.ents.some(o => alive(o) && o.team !== e.team && dist(o.p, pue) < 35)) return null;
+  const L = e.sqd && e.sqd.leader, ref = places().ref[e.team]; if (!L || L === e || dist(L.p, pue) > dist(L.p, ref)) return null;
+  const q = navNear(pue.x + rr(-4, 4), pue.z + rr(-4, 4)); return { x: q.x, z: q.z, yaw: Math.atan2(-q.x, -q.z) };
+};
+function objHud() {
+  for (const o of SQ.objs) {
+    if (!o.ring) { o.ring = new THREE.Mesh(new THREE.RingGeometry(o.r - .35, o.r, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .35, depthWrite: false, side: THREE.DoubleSide })); o.ring.rotation.x = -Math.PI / 2; o.ring.position.set(o.x, .05, o.z); scene.add(o.ring); }
+    o.ring.material.color.setHex(o.owner >= 0 ? TEAM_COL[o.owner] : 0xe8e8e8); o.ring.material.opacity = o.contested ? .35 + .25 * Math.sin(M.t * 8) : o.capBy >= 0 && o.cap > 0 ? .55 : .3;
+  }
+  const pl = MX.pl, here = pl && SQ.objs.find(o => dist(pl.p, o) < o.r);
+  return here ? '<div style="margin-top:4px;padding-top:4px;border-top:1px solid #ffffff22">' + here.name + ': ' + (here.contested ? 'DISPUTADO' : here.owner === pl.team ? 'nuestro' : here.capBy === pl.team ? 'capturando ' + Math.round(here.cap * 100) + ' %' : here.owner >= 0 ? 'de ' + TN[here.owner] : 'de nadie') + '</div>' : '';
+}
+SQ.objHtml = () => { const own = [0, 0, 0, 0]; for (const o of SQ.objs) if (o.owner >= 0) own[o.owner]++; return SQ.objs.length ? '<div style="opacity:.8;margin-top:2px">Objetivos · ' + own.map((c, t) => '<span style="color:#' + TEAM_COL[t].toString(16).padStart(6, '0') + '">' + c + '</span>').join(' · ') + '</div>' : ''; };
 
 /* ---------- HUD: panel de la escuadra (arriba a la izquierda), avisos y marca de la orden ---------- */
 const panel = document.createElement('div'); panel.id = 'sqPanel';
@@ -289,6 +342,6 @@ function hudTick(dt) {
   const L = s.leader, what = s.playerLead ? 'Orden: ' + ORDER_N[(s.order || { type: 'follow' }).type] : 'Misión: ' + (MISSION_N[s.mission.type] || '') + (s.mission.name ? ' · ' + s.mission.name : '');
   const rows = s.members.map(m => { const st = m.dead ? '✝' : m.dwn ? '⚠' : ''; const hp = m.dead ? 0 : Math.round(m.hp); const lead = m === L ? '★ ' : '';
     return '<div style="display:flex;gap:6px;align-items:center;opacity:' + (m.dead ? .45 : 1) + '"><span style="width:44px">' + lead + (m.isPlayer ? 'Tú' : m.id) + '</span><span style="flex:1;height:4px;background:#ffffff22;border-radius:2px;overflow:hidden"><span style="display:block;height:100%;width:' + hp + '%;background:' + (m.dwn ? '#ffb020' : hp < 40 ? '#ff6a4a' : '#6dff9a') + '"></span></span><span>' + st + '</span></div>'; }).join('');
-  panel.innerHTML = '<div style="font-weight:800;letter-spacing:.04em">' + s.name.toUpperCase() + ' · ' + s.members.length + '</div><div style="opacity:.85">Líder: ' + (L ? (L.isPlayer ? 'tú' : L.id) : '—') + '</div><div style="opacity:.85;margin-bottom:4px">' + what + '</div>' + rows;
+  panel.innerHTML = SQ.objHtml() + '<div style="font-weight:800;letter-spacing:.04em">' + s.name.toUpperCase() + ' · ' + s.members.length + '</div><div style="opacity:.85">Líder: ' + (L ? (L.isPlayer ? 'tú' : L.id) : '—') + '</div><div style="opacity:.85;margin-bottom:4px">' + what + '</div>' + rows + objHud();
 }
 })();

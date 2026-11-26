@@ -1,5 +1,10 @@
 # Changelog
 
+## Objetivos, suministros y refuerzos (26-11)
+- 29 objetivos en el distrito: 6 propios por facción (empiezan siendo suyos) y 5 comunes (2 Fábricas, 2 Estaciones, Plaza Mayor). Captura en ~20 s con un solo bando dentro (hasta ×1,6 con más gente); disputado = congelado. Anillo en el suelo con el color del dueño.
+- Recompensas: munición, granadas y kit al pasar por uno propio (cada 25 s); reaparición 9 s menos 1 s por objetivo común (mín. 4 s); reaparición adelantada en el puesto avanzado propio. El mando ataca los comunes que no son suyos y recupera los propios perdidos.
+- Panel: objetivos por facción y estado del objetivo en el que estás. Test `tests/objetivos.py`.
+
 ## Muchos más zombis, realistas (26-11)
 - Distrito: ~600 zombis por zonas (casco y comercios llenos, bosques casi vacíos), dormidos dentro de edificios, 4 hordas que migran; igual para las 4 facciones. Simulación barata lejos de los combatientes y dibujo sólo de los cercanos a la cámara. Detalle en `docs/ZOMBIS.md`.
 

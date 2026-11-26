@@ -148,3 +148,10 @@ Sustituye al trazado diagonal anterior. Decisión del usuario (26-11): las carre
 - Norma de colocación (la comprueba `tests/distrito_sentido.py`): muros, portones, torres, sacos, farolas y mobiliario nunca en la calzada; árboles a >8 m del asfalto; edificios fuera de calle y acera; retenes = chicane de vehículos con sacos en la acera, siempre franqueables (12/12), lejos de los cruces; atascos por carril alineados con la calle; recintos amurallados (nivel 1/2/3) sólo en parcelas junto a una calle con el portón hacia ella; refugios con portón de madera y torre.
 - 750 árboles instanciados (3 mallas) con caja de colisión en el tronco; bosque norte, este y oeste, arboleda noreste y parque sur.
 - 11 tipos de edificio, 64 casas, 76/76 tipos de objeto. Pendiente: recogibles (A4), ambiente (A5), rendimiento B7–B9 (~38.000 mallas).
+
+## Campaña táctica (26-11): escuadras, zombis y objetivos
+- **Escuadras** (`src/escuadras.js`): 2–6 por escuadra, iguales en las 4 facciones; misión del mando de cada facción; líder por mérito y relevo; formación abierta, avance por saltos, apoyo y supresión, sin persecuciones; el jugador da órdenes con la cruceta (ver `CONTROLES.md`), toma/cede el mando, se une a otra escuadra o va por libre; los bots se reparten entre escuadras.
+- **Coches**: cobertura baja en capó y maletero, alta en la cabina.
+- **Zombis**: ~600 en el distrito por zonas e interiores, 4 hordas migratorias; simulación por cercanía y dibujo sólo de los cercanos (`ZOMBIS.md`).
+- **Objetivos**: 29 capturables con suministros y refuerzos.
+- Medido en headless (100 combatientes + ~600 zombis): ~4 ms por actualización de lógica. Ritmo: primer combate a los ~2,5 min, capturas a partir de los ~2 min. **Nada de esto se ha probado en iPhone.**
