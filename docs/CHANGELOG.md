@@ -1,5 +1,8 @@
 # Changelog
 
+## Mapa táctico y minimapa (27-11)
+- Touchpad: toque = mapa táctico (antes lo ocupaba la mochila: ahora se abre manteniéndolo). Disparos que se oyen (150 m, 20 s) y fuego contra tu facción a cualquier distancia; objetivos, escuadra y aliados. Minimapa siempre visible. Tests `tests/mapa_tactico.py`; `tests/obras.py` abre el panel manteniendo el touchpad.
+
 ## Refugio compacto con muro bajo (26-11)
 - Refugios del distrito de 23,4 × 16 m (79 m de perímetro, antes 200): todo el perímetro es parapeto de troncos (`wallLow1`, 1,2 m: de pie se dispara por encima; agachado cubre), portón alto de dos hojas, tabique alto con puerta interior (almacén, armero y catres detrás), nidos de sacos fuera del portón y 25 m despejados delante. Igual en las 4 facciones.
 - Nuevos `wallLow1/2/3` (troncos, piedra, hierro), 1,2 m: de pie se dispara por encima (expuesto de hombros arriba: le llega la mitad de las balas); agachado, cubierto y oculto. Los bots defienden de pie y se agachan sólo para recargar o con poca vida. Se reparan y mejoran con las obras (`OBRAS.adopt` registra los 30 elementos de cada refugio con su facción; la puerta interior del portón de hierro se coloca hacia dentro en cualquier orientación).

@@ -210,13 +210,15 @@ const INVENTARIO = (() => {
     ev.stopImmediatePropagation();
     if(ev.code==='KeyI' || ev.code==='Escape'){ev.preventDefault();if(!ev.repeat)panel.open?close():open();}
   },true);
-  let previous=[];
+  let previous=[], tpT=0, tpDone=false;
   function input(){
     if(!MX.campaign || !MX.on)return false;
     const pad=getPad(), down=pad?Array.from(pad.buttons,b=>b.pressed):[];
     const edge=i=>down[i]&&!previous[i], wasOpen=panel.open;
-    if(edge(17)) panel.open?close():open();
-    else if(panel.open){
+    /* touchpad: toque = mapa táctico (escuadras.js); mantener 0,5 s = mochila. Con la mochila abierta, un toque la cierra */
+    if(down[17]){ tpT=(tpT||0)+1/60; if(!tpDone && tpT>=.5 && !panel.open){ tpDone=true; if(MX.mapClose)MX.mapClose(); open(); } }
+    else if(previous[17]){ if(!tpDone){ if(panel.open) close(); else if(MX.mapToggle) MX.mapToggle(); } tpT=0; tpDone=false; }
+    if(panel.open){
       const list=buttons(), current=list.indexOf(document.activeElement);
       if(edge(12)||edge(13))list[(current+(edge(12)?-1:1)+list.length)%list.length].focus();
       if(edge(0))document.activeElement.click();

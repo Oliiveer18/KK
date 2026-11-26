@@ -735,6 +735,7 @@ function hitSrc(e, dx, dz) {                                                    
 }
 MX.hit = (e, dmg, from, dx, dz, w, src) => {
   if (e.dead || e.inv > 0 || M.over || dmg <= 0) return;
+  if (MX.combat && from && from.team !== undefined && from.team !== e.team) MX.combat('hit', e.p.x, e.p.z, from.team, e.team);   // mapa táctico: fuego contra esta facción (visible a cualquier distancia)
   const hm = !!(w && from && from.isPlayer && !e.isPlayer && e.team !== from.team);   // «hit» de confirmación: solo cuando una bala del jugador entra en un rival
   if (e.dwn) {                                                                     // un abatido sigue recibiendo daño; al agotarse su vida extra muere
     e.dwHp -= dmg; e.bH.flash = 1; e.lastHurt = M.t; e.bShow = M.t; e.lastSrc = src || (w ? w.sid : null); if (from) { e.lastAtt = from; e.lastAttT = M.t; }

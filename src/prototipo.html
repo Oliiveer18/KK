@@ -841,6 +841,7 @@ function spawnBullet(x, y, z, dx, dz, w, own) {
   let b = BUL.find(q => !q.on);
   if (!b) { if (BUL.length >= 260) return; b = { on: false, m: new THREE.Mesh(geoCyl, bulMat), passed: new Set(), pxc: new Map() }; b.m.visible = false; scene.add(b.m); BUL.push(b); }
   if (MX.on && MX.zom) MX.zom.shot(x, z, w);                                      // ruido: despierta zombis y desvía hordas
+  if (MX.on && MX.combat) MX.combat('shot', x, z, own ? own.team : 0);             // mapa táctico: disparos
   b.on = true; b.ox = x; b.oz = z; b.y = y; b.dx = dx; b.dz = dz; b.d = 0; b.age = 0; b.w = w; b.v = w.bal.v * (1 + (Math.random() - .5) * .05); b.dm = w.dmg; b.own = own || null; b.cover = own ? own.cover : P.cover; b.stand = (own ? own.crouch : P.crouch) < .5; b.passed.clear(); b.pxc.clear(); b.pel = w.pellets > 1;
   const th = b.pel ? .01 : w.dmg >= 80 ? .026 : .018; b.m.scale.set(th, 1, th); b.m.position.set(x, y, z); b.m.visible = true;
 }
@@ -1112,7 +1113,7 @@ function sfxBoom() {
 }
 const R_FRAG = 3.5, R_LAUNCH = 3;                                                  // radio de explosión: granada de mano y lanzagranadas (antes 4,6 y 3,8)
 function explode(p, R, sc, kind, own) {
-  R = R || R_FRAG; sc = sc || 1; if (MX.on) MX.explosion(p, R, sc, own);
+  R = R || R_FRAG; sc = sc || 1; if (MX.on) MX.explosion(p, R, sc, own); if (MX.on && MX.combat) MX.combat('boom', p.x, p.z);
   for (let i = 0; i < 36; i++) spawn('spark', p, new V3((Math.random() - .5) * 16, Math.random() * 9, (Math.random() - .5) * 16), .5 + Math.random() * .5, .06, .06, .06, true, 10);
   for (let i = 0; i < 12; i++) spawn('smoke', p, new V3((Math.random() - .5) * 3, 1 + Math.random() * 3, (Math.random() - .5) * 3), 1.2 + Math.random() * .6, .3, .3, .3, false, 2, -1.5);
   const b = booms.find(q => q.t < 0); if (b) { b.t = 0; b.R = R; b.ring.position.set(p.x, .06, p.z); b.fire.position.set(p.x, .5, p.z); b.ring.visible = b.fire.visible = true; }
@@ -2054,7 +2055,7 @@ function update(dt) {
     }
     stickUI('sL', T.move); stickUI('sR', T.aim);
   } else if ($('sL').style.display !== 'none') { stickUI('sL', null); stickUI('sR', null); }
-  if (MX.on && MX.frozen()) { mx = mz = 0; trig = false; ads = false; gren = smk = false; dHeld = crHeld = sprint = false; stickAim = 0; ax = ay = 0; flags.reload = flags.dash = flags.crouch = flags.swap = false; swHeld = false; }   // abatido o partida terminada
+  if (MX.on && (MX.frozen() || MX.mapOpen)) { mx = mz = 0;   /* con el mapa táctico abierto el mundo sigue, pero el personaje no se mueve ni dispara */ trig = false; ads = false; gren = smk = false; dHeld = crHeld = sprint = false; stickAim = 0; ax = ay = 0; flags.reload = flags.dash = flags.crouch = flags.swap = false; swHeld = false; }   // abatido o partida terminada
   let imag = Math.hypot(mx, mz); if (imag > 1) { mx /= imag; mz /= imag; imag = 1; }
   if (P.sprintLatch) {   // correr "enganchado": sigue mientras te muevas; parar, apuntar, disparar o lanzar lo cancela
     sprint = true;

@@ -60,15 +60,16 @@ with sync_playwright() as pw:
       const pad={connected:true,buttons:Array.from({length:18},()=>({pressed:false}))};
       Object.defineProperty(navigator,'getGamepads',{configurable:true,value:()=>[pad]});
       function press(i){pad.buttons[i].pressed=true;INVENTARIO.input();pad.buttons[i].pressed=false;INVENTARIO.input()}
+      function hold(i){pad.buttons[i].pressed=true;for(let k=0;k<40;k++)INVENTARIO.input();pad.buttons[i].pressed=false;INVENTARIO.input()}   // touchpad: toque = mapa; mantener = mochila y obras
       for (const kind of ['wall','gate']){
         const piece=props.find(s=>s.type===kind+'3');
         damage(piece,20);supplies(1);p.p.set(piece.x+1.4,0,piece.z);
-        press(17);const btn=find('Reparar');
+        hold(17);const btn=find('Reparar');
         check(btn,'acción del mando');
         for(let n=0; n<buttons().length && document.activeElement!==btn; n++)press(13);
         press(0);check(p.buildSite,'confirmación con cruz');
         advance(1);p.lastHurt=MX.M.t;advance(.01);check(!p.buildSite,'interrupción por daño');
-        press(17);const resume=find('Retomar');
+        hold(17);const resume=find('Retomar');
         for(let n=0;n<buttons().length && document.activeElement!==resume;n++)press(13);
         press(0);advance(6);check(!p.bag.material && !p.buildSite,'reanudar con mando');
         p.lastHurt=-99;

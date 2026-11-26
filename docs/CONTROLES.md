@@ -88,3 +88,11 @@ Retira materiales de la estantería del refugio (48 unidades iniciales en esta p
 | Portón | 2 materiales, 5 s | 4 materiales, 12 s | 8 materiales, 12 s |
 
 La reparación parcial cuesta en proporción al daño, con un mínimo de una unidad. Reconstruir conserva el nivel. Solo una pieza intacta admite mejora. El tercer nivel del portón añade una segunda puerta que se puede abrir y reparar por separado. Alejarse, recibir daño o una alarma a menos de 25 m interrumpe la obra. Al retomar la misma acción se conserva el avance y los materiales se descuentan una sola vez, al terminar. El distrito oficial conserva su propia distribución.
+
+## Mapa táctico y minimapa (campaña)
+- **Touchpad (toque)** o **M**: abre y cierra el mapa táctico a pantalla completa. **Touchpad mantenido (½ s)** o **I**: mochila y obras.
+- Con el mapa abierto el mundo sigue en marcha, pero tu personaje no se mueve ni dispara.
+- **Minimapa** arriba a la izquierda, siempre visible: centrado en ti, norte arriba, 220 × 220 m.
+- **Disparos:** se ven los que oyes (a menos de 150 m; explosiones a menos de 250 m), en naranja, y se apagan en 20 s; laten si son de los últimos segundos. **Aliados bajo fuego** (balas que alcanzan o rozan a alguien de tu facción): en rojo y a cualquier distancia; en el minimapa, flecha roja en el borde si quedan fuera.
+- También: calles, edificios, refugios, objetivos con el color de su dueño y su captura, tu escuadra, tus aliados y la línea de tu orden. Los enemigos no aparecen.
+

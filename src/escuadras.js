@@ -212,7 +212,7 @@ MX.bulletPass = (b, x0, z0, x1, z1) => {                                        
     if (e.dead || e.team === team) continue;
     const ex = e.p.x, ez = e.p.z; if (ex < Math.min(x0, x1) - 3 || ex > Math.max(x0, x1) + 3 || ez < Math.min(z0, z1) - 3 || ez > Math.max(z0, z1) + 3) continue;
     const t = clamp(((ex - x0) * dx + (ez - z0) * dz) / L2, 0, 1), d = Math.hypot(x0 + dx * t - ex, z0 + dz * t - ez);
-    if (d < 2.5) { e.supp = Math.min(1, (e.supp || 0) + (2.5 - d) * .16); e.suppT = M.t; if (own && own.p) { e.suppFrom = { x: own.p.x, z: own.p.z }; } }
+    if (d < 2.5) { if (MX.combat) MX.combat('hit', e.p.x, e.p.z, team, e.team); e.supp = Math.min(1, (e.supp || 0) + (2.5 - d) * .16); e.suppT = M.t; if (own && own.p) { e.suppFrom = { x: own.p.x, z: own.p.z }; } }
   }
 };
 
@@ -273,6 +273,7 @@ SQ.update = dt => {
   SQ.balT -= dt; if (SQ.balT <= 0) { SQ.balT = SQ_BAL; for (let t = 0; t < 4; t++) rebalance(t); }
   const s = MX.pl && MX.pl.sqd;
   if (s && s.order) { if (s.order.type === 'cover' && M.t - s.order.t > 10) s.order = s.order.prev; if (s.order.type === 'regroup' && M.t - s.order.t > 12) s.order = { type: 'follow' }; }
+  SQ.mapTick(); miniTick(dt);
   if (SQ.objs.length) { SQ.objT = (SQ.objT || 0) - dt; if (SQ.objT <= 0) { objTick(.5 - SQ.objT); SQ.objT = .5; } }
   hudTick(dt);
 };
@@ -326,6 +327,117 @@ function objHud() {
   return here ? '<div style="margin-top:4px;padding-top:4px;border-top:1px solid #ffffff22">' + here.name + ': ' + (here.contested ? 'DISPUTADO' : here.owner === pl.team ? 'nuestro' : here.capBy === pl.team ? 'capturando ' + Math.round(here.cap * 100) + ' %' : here.owner >= 0 ? 'de ' + TN[here.owner] : 'de nadie') + '</div>' : '';
 }
 SQ.objHtml = () => { const own = [0, 0, 0, 0]; for (const o of SQ.objs) if (o.owner >= 0) own[o.owner]++; return SQ.objs.length ? '<div style="opacity:.8;margin-top:2px">Objetivos · ' + own.map((c, t) => '<span style="color:#' + TEAM_COL[t].toString(16).padStart(6, '0') + '">' + c + '</span>').join(' · ') + '</div>' : ''; };
+
+/* ---------- MAPA TÁCTICO (touchpad del mando · tecla M): el distrito entero con calles, zonas y edificios, refugios, objetivos con el color de su dueño,
+   tu escuadra, tus aliados y DÓNDE HAY FUEGO: disparos y explosiones recientes (se apagan en 30 s) e incendios. Los enemigos no se ven (sólo el ruido del combate).
+   Capa fija dibujada una vez por mapa; capa viva cada fotograma mientras está abierto. Mientras está abierto, el personaje no se mueve ni dispara. ---------- */
+const CMB = [];                                                                       // eventos de combate: { x, z, t, k: 'shot' | 'boom' | 'hit', team (quien dispara), vic (facción atacada) }
+const HEAR_R = 150, BOOM_R = 250, FADE = 20;                                         // se oyen los disparos a 150 m y las explosiones a 250 m; la marca dura 20 s
+MX.combat = (k, x, z, team, vic) => { if (!MX.on || !MX.campaign) return; const last = CMB[CMB.length - 1];
+  if (k === 'shot' && last && last.k === 'shot' && M.t - last.t < .15 && Math.hypot(last.x - x, last.z - z) < 6) return;   // ráfagas: un evento cada 0,15 s por zona
+  if (k === 'hit') { for (let i = CMB.length - 1; i >= 0 && M.t - CMB[i].t < .5; i--) if (CMB[i].k === 'hit' && CMB[i].vic === vic && Math.hypot(CMB[i].x - x, CMB[i].z - z) < 8) return; }
+  CMB.push({ x, z, t: M.t, k, team: team === undefined ? -1 : team, vic: vic === undefined ? -1 : vic }); if (CMB.length > 1500) CMB.splice(0, CMB.length - 1500); };
+/* qué ve la facción `team` desde (px,pz): los disparos y explosiones que oye (a su alcance) y, a cualquier distancia, el fuego contra su facción */
+SQ.combatCells = (t, x, z, a) => combatCells(t, x, z, a || FADE);
+function combatCells(team, px, pz, maxAge) {
+  const cells = new Map();
+  for (const e of CMB) { const age = M.t - e.t; if (age > maxAge) continue;
+    const ally = e.vic === team, d = Math.hypot(e.x - px, e.z - pz);
+    if (!ally && (e.k === 'hit' || (e.k === 'shot' && d > HEAR_R) || (e.k === 'boom' && d > BOOM_R))) continue;
+    const key = (ally ? 'a' : 'f') + Math.floor(e.x / 20) + ',' + Math.floor(e.z / 20), c = cells.get(key) || { x: 0, z: 0, w: 0, boom: 0, young: 99, ally };
+    const w = (e.k === 'boom' ? 6 : e.k === 'hit' ? 3 : 1) * (1 - age / maxAge); c.x += e.x * w; c.z += e.z * w; c.w += w; if (e.k === 'boom') c.boom = Math.max(c.boom, 1 - age / maxAge); c.young = Math.min(c.young, age); cells.set(key, c); }
+  return [...cells.values()].filter(c => c.w > 0);
+}
+const TM = { open: false, cv: null, ctx: null, base: null, baseKey: '', t0: 0 };
+const mapEl = document.createElement('div');
+mapEl.style.cssText = 'position:fixed;inset:0;z-index:12;display:none;flex-direction:column;gap:6px;align-items:center;justify-content:center;background:#05070bcc;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)';
+const mapCv = document.createElement('canvas'); mapCv.style.cssText = 'border-radius:10px;box-shadow:0 10px 40px #000c,0 0 0 1px #ffffff22';
+const mapLeg = document.createElement('div'); mapLeg.style.cssText = 'position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);font:600 12px system-ui,-apple-system,sans-serif;color:#dfe6f2;background:#0b0f18d0;border:1px solid #ffffff1c;border-radius:8px;padding:6px 12px;white-space:nowrap;text-shadow:0 1px 2px #000';
+mapLeg.innerHTML = '<span style="color:#ff7a2a">●</span> disparos que oyes (150 m) &nbsp; <span style="color:#ff4a4a">●</span> aliados bajo fuego &nbsp; <span style="color:#ffd24a">✸</span> explosión &nbsp; <span style="color:#ff4a2a">▲</span> incendio &nbsp; <span style="color:#fff">➤</span> tú &nbsp; ★ líder &nbsp; ◯ objetivo (color del dueño) &nbsp; · touchpad / M para cerrar';
+const mapHead = document.createElement('div'); mapHead.style.cssText = 'font:700 13px system-ui,-apple-system,sans-serif;color:#dfe6f2;text-shadow:0 1px 2px #000;white-space:nowrap';
+mapEl.append(mapHead, mapCv, mapLeg); document.body.appendChild(mapEl);
+for (const ev of ['pointerdown', 'mousedown', 'touchstart']) mapEl.addEventListener(ev, e => { e.stopPropagation(); MX.mapClose(); });
+MX.mapToggle = () => TM.open ? MX.mapClose() : mapOpen();
+MX.mapClose = () => { TM.open = false; mapEl.style.display = 'none'; };
+Object.defineProperty(MX, 'mapOpen', { get: () => TM.open });
+addEventListener('keydown', ev => { if (ev.code === 'KeyM' && !ev.repeat && MX.on && MX.campaign && !menuOpen) { ev.preventDefault(); MX.mapToggle(); } });
+function mapOpen() { if (!MX.on || !MX.campaign || menuOpen) return; TM.open = true; mapEl.style.display = 'flex'; TM.t0 = M.t; mapDraw(); }
+function mapGeom() {                                                                   // tamaño del lienzo (cabe en pantalla) y escala mundo → píxeles
+  const half = (MAPA.built && MAPA.built.half) || (typeof WORLD !== 'undefined' ? Math.max(WORLD.x, WORLD.z) : 50), sz = Math.floor(Math.min(innerWidth * .94, (innerHeight - 110) * .97));
+  return { half, sz, k: sz / (2 * half) };
+}
+function mapBase(g) {                                                                  // capa fija: suelo, zonas, calles, edificios, refugios
+  const key = g.sz + '|' + g.half + '|' + (MAPA.built ? MAPA.built.half : 0) + '|' + OBJ.buildings.length; if (TM.baseKey === key && TM.base) return TM.base;
+  const c = document.createElement('canvas'), dpr = Math.min(2, devicePixelRatio || 1); c.width = c.height = Math.round(g.sz * dpr); const x = c.getContext('2d'); x.scale(dpr, dpr);
+  const P2 = v => (v + g.half) * g.k; x.fillStyle = '#2d3a28'; x.fillRect(0, 0, g.sz, g.sz);
+  const info = MAPA.built && MAPA.built.info;
+  if (info && info.zones) for (const z of info.zones) { const n = z.name; x.fillStyle = /^Bosque/.test(n) ? '#203a1f' : /^Granja/.test(n) ? '#4a4530' : /^(Fábrica|Estación)/.test(n) ? '#3c4048' : /^Plaza/.test(n) ? '#5a5248' : /^Refugio/.test(n) ? '#4a4a52' : '#38432f'; x.fillRect(P2(z.x0), P2(z.z0), (z.x1 - z.x0) * g.k, (z.z1 - z.z0) * g.k); }
+  x.strokeStyle = '#8e939c'; x.lineCap = 'square';
+  if (info && info.roads) for (const r of info.roads) { x.lineWidth = Math.max(1.2, (r.w + 6.4) * g.k); x.beginPath(); x.moveTo(P2(r.pts[0][0]), P2(r.pts[0][1])); for (const q of r.pts.slice(1)) x.lineTo(P2(q[0]), P2(q[1])); x.stroke(); }
+  if (info && info.roads) { x.strokeStyle = '#4b4f57'; for (const r of info.roads) { x.lineWidth = Math.max(.8, r.w * g.k); x.beginPath(); x.moveTo(P2(r.pts[0][0]), P2(r.pts[0][1])); for (const q of r.pts.slice(1)) x.lineTo(P2(q[0]), P2(q[1])); x.stroke(); } }
+  x.fillStyle = '#b9ad98'; x.strokeStyle = '#00000066'; x.lineWidth = .6;
+  for (const b of OBJ.buildings) { const sw = Math.abs(Math.sin(b.rot || 0)) > .5, hx = (sw ? b.D : b.W) / 2, hz = (sw ? b.W : b.D) / 2; x.fillRect(P2(b.x - hx), P2(b.z - hz), 2 * hx * g.k, 2 * hz * g.k); x.strokeRect(P2(b.x - hx), P2(b.z - hz), 2 * hx * g.k, 2 * hz * g.k); }
+  if (!info) { x.fillStyle = '#5b6272'; for (const w of M.walls) x.fillRect(P2(w.x - w.hx), P2(w.z - w.hz), 2 * w.hx * g.k, 2 * w.hz * g.k); }
+  if (info && info.refugeRects) for (const r of info.refugeRects) { x.fillStyle = '#' + TEAM_COL[r.fac].toString(16).padStart(6, '0') + '55'; x.strokeStyle = '#' + TEAM_COL[r.fac].toString(16).padStart(6, '0'); x.lineWidth = 2; x.fillRect(P2(r.x - r.hx), P2(r.z - r.hz), 2 * r.hx * g.k, 2 * r.hz * g.k); x.strokeRect(P2(r.x - r.hx), P2(r.z - r.hz), 2 * r.hx * g.k, 2 * r.hz * g.k); }
+  x.strokeStyle = '#ffffff14'; x.lineWidth = 1; for (let v = -g.half; v <= g.half; v += 125) { x.beginPath(); x.moveTo(P2(v), 0); x.lineTo(P2(v), g.sz); x.stroke(); x.beginPath(); x.moveTo(0, P2(v)); x.lineTo(g.sz, P2(v)); x.stroke(); }
+  TM.base = c; TM.baseKey = key; return c;
+}
+function mapDraw() {
+  if (!TM.open) return;
+  const g = mapGeom(), dpr = Math.min(2, devicePixelRatio || 1); if (mapCv.width !== Math.round(g.sz * dpr)) { mapCv.width = mapCv.height = Math.round(g.sz * dpr); mapCv.style.width = mapCv.style.height = g.sz + 'px'; }
+  const x = mapCv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.drawImage(mapBase(g), 0, 0, g.sz, g.sz);
+  const P2 = v => (v + g.half) * g.k, pl = MX.pl, team = pl ? pl.team : 0, col = t => '#' + TEAM_COL[t].toString(16).padStart(6, '0');
+  /* fuego: los disparos que se oyen (≤ 150 m de ti; explosiones ≤ 250 m) y, a cualquier distancia, el fuego contra tu facción (rojo, late); se apagan en 20 s */
+  const cells = combatCells(team, P.pos.x, P.pos.z, FADE), pulse = .5 + .5 * Math.sin(M.t * 6);
+  if (pl) { x.strokeStyle = '#ffffff22'; x.setLineDash([3, 4]); x.lineWidth = 1; x.beginPath(); x.arc(P2(P.pos.x), P2(P.pos.z), HEAR_R * g.k, 0, 6.283); x.stroke(); x.setLineDash([]); }   // alcance del oído
+  for (const h of cells) { const cx = P2(h.x / h.w), cz = P2(h.z / h.w), r = Math.min(26, 6 + Math.sqrt(h.w) * 3.2), a = Math.min(.85, .25 + h.w * .05), rgb = h.ally ? '255,60,60' : '255,140,40';
+    const gr = x.createRadialGradient(cx, cz, 0, cx, cz, r); gr.addColorStop(0, 'rgba(' + rgb + ',' + a + ')'); gr.addColorStop(1, 'rgba(' + rgb + ',0)'); x.fillStyle = gr; x.beginPath(); x.arc(cx, cz, r, 0, 6.283); x.fill();
+    if (h.young < 3) { x.strokeStyle = h.ally ? 'rgba(255,110,110,' + (.5 + .5 * pulse) + ')' : 'rgba(255,190,90,' + (.4 + .5 * pulse) + ')'; x.lineWidth = h.ally ? 2.2 : 1.5; x.beginPath(); x.arc(cx, cz, r * .55 + pulse * 3, 0, 6.283); x.stroke(); }   // ahora mismo: late
+    if (h.boom > 0) { x.fillStyle = 'rgba(255,215,80,' + (.4 + .6 * h.boom) + ')'; x.font = '700 ' + Math.round(10 + 6 * h.boom) + 'px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('✸', cx, cz); }
+    if (h.ally && h.young < 6) { x.fillStyle = '#ff8a8a'; x.font = '800 10px system-ui'; x.textAlign = 'center'; x.textBaseline = 'bottom'; x.fillText('ALIADOS BAJO FUEGO', cx, cz - r * .6 - 2); } }
+  if (typeof FIRES !== 'undefined') for (const f of FIRES) { x.fillStyle = '#ff4a2a'; x.beginPath(); const fx = P2(f.x), fz = P2(f.z); x.moveTo(fx, fz - 5); x.lineTo(fx + 4.5, fz + 3.5); x.lineTo(fx - 4.5, fz + 3.5); x.closePath(); x.fill(); }
+  /* objetivos con el color del dueño y su progreso de captura */
+  for (const o of SQ.objs) { const cx = P2(o.x), cz = P2(o.z), r = Math.max(4, o.r * g.k); x.lineWidth = 2.2; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.globalAlpha = o.contested ? .5 + .5 * pulse : 1; x.beginPath(); x.arc(cx, cz, r, 0, 6.283); x.stroke(); x.globalAlpha = 1;
+    if (o.capBy >= 0 && o.cap > 0) { x.strokeStyle = col(o.capBy); x.lineWidth = 3; x.beginPath(); x.arc(cx, cz, r + 3, -1.571, -1.571 + 6.283 * o.cap); x.stroke(); } }
+  /* aliados (los enemigos no se ven): tu escuadra más grande; líderes con estrella */
+  const ps = pl && pl.sqd;
+  for (const e of M.ents) { if (e.dead || e.team !== team || e.isPlayer) continue; const mine = ps && e.sqd === ps, cx = P2(e.p.x), cz = P2(e.p.z);
+    x.fillStyle = e.dwn ? '#ffb020' : col(team); x.globalAlpha = mine ? 1 : .55; x.beginPath(); x.arc(cx, cz, mine ? 3.2 : 2.2, 0, 6.283); x.fill(); x.globalAlpha = 1;
+    if (e.sqd && e.sqd.leader === e) { x.fillStyle = '#fff'; x.font = '700 10px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('★', cx, cz - 7); } }
+  if (ps && ps.playerLead && ps.order && ps.order.x !== undefined) { const ox = P2(ps.order.type === 'cover' ? ps.order.tx : ps.order.x), oz = P2(ps.order.type === 'cover' ? ps.order.tz : ps.order.z); x.strokeStyle = ps.order.type === 'cover' ? '#ff7a3a' : ps.order.type === 'move' ? '#4aa0ff' : '#6dff9a'; x.lineWidth = 2; x.setLineDash([4, 3]); x.beginPath(); x.moveTo(P2(P.pos.x), P2(P.pos.z)); x.lineTo(ox, oz); x.stroke(); x.setLineDash([]); x.beginPath(); x.arc(ox, oz, 5, 0, 6.283); x.stroke(); }
+  if (pl && !pl.dead) { const cx = P2(P.pos.x), cz = P2(P.pos.z), a = P.aim; x.save(); x.translate(cx, cz); x.rotate(-a + Math.PI); x.fillStyle = '#fff'; x.strokeStyle = '#000'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(0, -9); x.lineTo(6, 6); x.lineTo(0, 3); x.lineTo(-6, 6); x.closePath(); x.fill(); x.stroke(); x.restore(); }
+  /* encabezado: facción, objetivos por facción y combate activo */
+  const live = cells.filter(h => !h.ally && h.young < 5).length, allyF = cells.filter(h => h.ally && h.young < 8).length, own = [0, 0, 0, 0]; for (const o of SQ.objs) if (o.owner >= 0) own[o.owner]++;
+  let h = '<span style="color:' + col(team) + '">MAPA TÁCTICO · ' + TN[team].toUpperCase() + '</span>' + (live ? ' · <span style="color:#ff9a4a">' + live + (live === 1 ? ' zona con disparos cerca' : ' zonas con disparos cerca') + '</span>' : ' · sin disparos cerca') + (allyF ? ' · <span style="color:#ff6a6a">' + allyF + (allyF === 1 ? ' grupo aliado bajo fuego' : ' grupos aliados bajo fuego') + '</span>' : '');
+  if (SQ.objs.length) h += ' &nbsp;·&nbsp; objetivos: ' + [0, 1, 2, 3].map(t => '<span style="color:' + col(t) + '">' + TN[t] + ' ' + own[t] + '</span>').join(' · ');
+  if (mapHead.innerHTML !== h) mapHead.innerHTML = h;
+}
+/* ---- minimapa (arriba a la izquierda, siempre visible en campaña): centrado en ti, norte arriba, 220 × 220 m; mismas reglas de fuego que el mapa grande ---- */
+const MM = { el: null, cv: null, t: 0, R: 110 };
+function miniTick(dt) {
+  if (!MM.el) { MM.el = document.createElement('div'); MM.el.style.cssText = 'position:fixed;left:calc(12px + env(safe-area-inset-left));top:calc(100px + env(safe-area-inset-top));z-index:3;pointer-events:none;border-radius:50%;overflow:hidden;box-shadow:0 0 0 2px #ffffff30,0 4px 14px #000a;display:none';
+    MM.cv = document.createElement('canvas'); MM.el.appendChild(MM.cv); document.body.appendChild(MM.el); }
+  const on = MX.on && MX.campaign && !TM.open && !menuOpen; MM.el.style.display = on ? 'block' : 'none'; panel.style.top = on ? 'calc(' + (MM.size || 140) + 'px + 112px + env(safe-area-inset-top))' : 'calc(100px + env(safe-area-inset-top))';
+  if (!on) return; MM.t -= dt; if (MM.t > 0) return; MM.t = .1;                     // 10 veces por segundo basta
+  const size = Math.round(Math.min(150, Math.max(110, Math.min(innerWidth, innerHeight) * .2))), dpr = Math.min(2, devicePixelRatio || 1); MM.size = size;
+  if (MM.cv.width !== size * dpr) { MM.cv.width = MM.cv.height = size * dpr; MM.cv.style.width = MM.cv.style.height = size + 'px'; }
+  const x = MM.cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const G = mapGeom(), base = mapBase(G), k = size / (2 * MM.R), cx = P.pos.x, cz = P.pos.z, pl = MX.pl, team = pl ? pl.team : 0, col = t => '#' + TEAM_COL[t].toString(16).padStart(6, '0');
+  x.fillStyle = '#1d2619'; x.fillRect(0, 0, size, size);
+  const bs = base.width / G.sz; x.drawImage(base, (cx - MM.R + G.half) * G.k * bs, (cz - MM.R + G.half) * G.k * bs, 2 * MM.R * G.k * bs, 2 * MM.R * G.k * bs, 0, 0, size, size);
+  const W2 = (wx, wz) => [(wx - cx + MM.R) * k, (wz - cz + MM.R) * k], pulse = .5 + .5 * Math.sin(M.t * 6);
+  for (const h of combatCells(team, cx, cz, FADE)) { let [px, pz] = W2(h.x / h.w, h.z / h.w); const out = px < 6 || pz < 6 || px > size - 6 || pz > size - 6;
+    if (out) { if (!h.ally) continue; const dx = px - size / 2, dz = pz - size / 2, l = Math.hypot(dx, dz) || 1; px = size / 2 + dx / l * (size / 2 - 9); pz = size / 2 + dz / l * (size / 2 - 9);   // aliados bajo fuego fuera del minimapa: flecha en el borde
+      x.save(); x.translate(px, pz); x.rotate(Math.atan2(dz, dx)); x.fillStyle = 'rgba(255,80,80,' + (.6 + .4 * pulse) + ')'; x.beginPath(); x.moveTo(7, 0); x.lineTo(-4, -5); x.lineTo(-4, 5); x.closePath(); x.fill(); x.restore(); continue; }
+    const r = Math.min(14, 4 + Math.sqrt(h.w) * 2), rgb = h.ally ? '255,60,60' : '255,140,40', gr = x.createRadialGradient(px, pz, 0, px, pz, r);
+    gr.addColorStop(0, 'rgba(' + rgb + ',' + Math.min(.9, .3 + h.w * .06) + ')'); gr.addColorStop(1, 'rgba(' + rgb + ',0)'); x.fillStyle = gr; x.beginPath(); x.arc(px, pz, r, 0, 6.283); x.fill();
+    if (h.young < 2.5) { x.strokeStyle = 'rgba(' + rgb + ',' + (.5 + .5 * pulse) + ')'; x.lineWidth = 1.4; x.beginPath(); x.arc(px, pz, r * .5 + pulse * 2, 0, 6.283); x.stroke(); } }
+  for (const o of SQ.objs) { const [px, pz] = W2(o.x, o.z); if (px < -10 || pz < -10 || px > size + 10 || pz > size + 10) continue; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.lineWidth = 1.6; x.beginPath(); x.arc(px, pz, Math.max(3, o.r * k), 0, 6.283); x.stroke(); }
+  const ps = pl && pl.sqd; for (const e of M.ents) { if (e.dead || e.team !== team || e.isPlayer) continue; const [px, pz] = W2(e.p.x, e.p.z); if (px < 0 || pz < 0 || px > size || pz > size) continue; x.fillStyle = e.dwn ? '#ffb020' : col(team); x.globalAlpha = ps && e.sqd === ps ? 1 : .55; x.beginPath(); x.arc(px, pz, ps && e.sqd === ps ? 2.6 : 1.8, 0, 6.283); x.fill(); x.globalAlpha = 1; }
+  x.save(); x.translate(size / 2, size / 2); x.rotate(-P.aim + Math.PI); x.fillStyle = '#fff'; x.strokeStyle = '#000'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(0, -7); x.lineTo(5, 5); x.lineTo(0, 2.5); x.lineTo(-5, 5); x.closePath(); x.fill(); x.stroke(); x.restore();
+  x.fillStyle = '#ffffffaa'; x.font = '700 9px system-ui'; x.textAlign = 'center'; x.textBaseline = 'top'; x.fillText('N', size / 2, 3);
+}
+SQ.mapTick = () => { if (TM.open) { if (!MX.on || menuOpen || (MX.pl && (MX.pl.dead || MX.pl.dwn))) { if (!MX.on || menuOpen) MX.mapClose(); } mapDraw(); } };
 
 /* ---------- HUD: panel de la escuadra (arriba a la izquierda), avisos y marca de la orden ---------- */
 const panel = document.createElement('div'); panel.id = 'sqPanel';
