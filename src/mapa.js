@@ -7,7 +7,7 @@
 const MAPA = window.MAPA = { data: {}, built: null };
 const MA = {}; const mat = c => MA[c] || (MA[c] = new THREE.MeshStandardMaterial({ color: c, roughness: .95, flatShading: true }));
 /* superficies: color y altura de la cara superior (las más altas tapan a las más bajas: sin parpadeo) */
-const SURF = { asphalt: [0x35383e, .01], grass: [0x56713f, .02], dirt: [0x6c5a44, .03], concrete: [0x85827c, .05], cobble: [0x7a6d60, .07], refuge: [0x6c685f, .06], sidewalk: [0x9d9b92, .13] };
+const SURF = { asphalt: [0x35383e, .01], grass: [0x56713f, .02], forest: [0x3d5a31, .025], dirt: [0x6c5a44, .03], concrete: [0x85827c, .05], cobble: [0x7a6d60, .07], refuge: [0x6c685f, .06], sidewalk: [0x9d9b92, .13] };
 const MARK = { white: 0xdbd8cb, yellow: 0xe3b942 };
 const _q = new THREE.Quaternion(), _p = new V3(), _s = new V3();
 const mkBox = (x, y, z, w, h, d) => ({ m: new THREE.Matrix4().compose(_p.set(x, y, z), _q.identity(), _s.set(w, h, d)) });
@@ -130,10 +130,19 @@ MAPA.build = function (D) {
     const e = placeObject('emblem' + R.fac, R.x + dir[0] * (hw + .1), R.z + dir[1] * (hd + .1), Math.atan2(dir[0], dir[1]), { fac: R.fac }); if (e) out.props.push(e);
   }
   flush(group, B);
+  if (D.trees && D.trees.length) {                                                        // bosques: árboles instanciados (3 mallas en total) con caja de colisión sólo en el tronco
+    const n = D.trees.length, trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(.22, .3, 2.4, 6), new THREE.MeshStandardMaterial({ color: 0x4e3b2a, roughness: 1, flatShading: true }), n),
+      c1 = new THREE.InstancedMesh(new THREE.ConeGeometry(1.7, 3.2, 7), new THREE.MeshStandardMaterial({ color: 0x2f4a2a, roughness: 1, flatShading: true }), n),
+      c2 = new THREE.InstancedMesh(new THREE.ConeGeometry(1.25, 2.6, 7), new THREE.MeshStandardMaterial({ color: 0x3a5a30, roughness: 1, flatShading: true }), n), M4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new V3(), ps = new V3();
+    D.trees.forEach((t, i) => { const k = t[2] || 1, ry = (t[0] * 7.3 + t[1] * 3.1) % 6.28; q.setFromAxisAngle(_Y, ry);
+      M4.compose(ps.set(t[0], 1.2 * k, t[1]), q, sc.set(k, k, k)); trunk.setMatrixAt(i, M4); M4.compose(ps.set(t[0], (2.4 + 1.3) * k, t[1]), q, sc.set(k, k, k)); c1.setMatrixAt(i, M4); M4.compose(ps.set(t[0], (2.4 + 2.9) * k, t[1]), q, sc.set(k, k, k)); c2.setMatrixAt(i, M4);
+      const bx = { x: t[0], z: t[1], hx: .32 * k, hz: .32 * k, h: 3, wall: true, tree: true }; boxes.push(bx); out.walls.push(bx); });
+    for (const m of [trunk, c1, c2]) { m.castShadow = true; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; m.frustumCulled = false; group.add(m); }
+  }
   for (const r of D.rails || []) out.rails.push(OBJ.rails(r.x, r.z, r.len, r.ry || 0));
   for (const b of D.buildings || []) { const r = placeObject(b.k, b.x, b.z, b.rot || 0, { fac: b.fac }); if (r) out.buildings.push(r); }
   for (const o of D.objects || []) { const r = MAPA.put(o.t, o.x, o.z, o.g || 0, o.o); if (r) out.props.push(r); }
-  MAPA.built = out; return out;
+  out.info = D.info || null; MAPA.built = out; return out;
 };
 MAPA.clear = function () {
   const b = MAPA.built; if (!b) return; scene.remove(b.group); b.group.traverse(o => { if (o.geometry && o.isMesh) o.geometry.dispose(); });

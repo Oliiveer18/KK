@@ -29,16 +29,15 @@ COMP.nearest = function (r, x, z) { const P = roadPts(r); let bi = 0, bd = 1e9; 
 COMP.roadNear = function (D, x, z, maxD) { let b = null; for (const r of D.roads) { if (!r.pts) continue; const n = COMP.nearest(r, x, z); if (n.d <= (maxD || 60) && (!b || n.d < b.d)) b = Object.assign({ road: r }, n); } return b; };
 const yawAlong = (dx, dz) => Math.abs(dx) >= Math.abs(dz) ? 0 : PI2;
 
-/* atasco: coches abandonados a lo largo de una calle (carril aleatorio, algunos cruzados), con restos en el bordillo */
+/* atasco: coches abandonados en sus carriles, alineados con la calle (un sentido por carril); a veces dos juntos y huecos para poder pasar. Restos sólo en el bordillo o la acera. */
 COMP.jam = function (D, o) {
-  const R = rngOf(o.seed), P = roadPts(o.road), w = o.road.w, s0 = o.s0 || 0, s1 = Math.min(o.s1 === undefined ? P.length - 1 : o.s1, P.length - 1), gap = o.gap || [5.5, 9.5];
-  const ex = o.extras === undefined ? .22 : o.extras, extra = o.types || ['dumpster', 'barrier', 'barrel', 'blocks', 'crateS', 'wheelie'];
+  const R = rngOf(o.seed), P = roadPts(o.road), w = o.road.w, s0 = o.s0 || 0, s1 = Math.min(o.s1 === undefined ? P.length - 1 : o.s1, P.length - 1), gap = o.gap || [7, 15];
+  const ex = o.extras === undefined ? .2 : o.extras, extra = o.types || ['dumpster', 'barrel', 'wheelie', 'crateS'];
   let n = 0;
   for (let s = s0; s < s1; s += gap[0] + R() * (gap[1] - gap[0])) {
-    const q = P[Math.floor(s)], nx = -q.dz, nz = q.dx, lane = (R() < .5 ? -1 : 1) * (w * .2 + R() * w * .08);
-    const cross = R() < .12, g = cross ? yawAlong(q.dx, q.dz) + PI2 : yawAlong(q.dx, q.dz) + (R() < .5 ? 0 : Math.PI);
-    if (put(D, o.car || 'car', q.x + nx * lane, q.z + nz * lane, g)) n++;
-    if (R() < ex) { const side = R() < .5 ? -1 : 1, off = w / 2 + 1.2; if (put(D, extra[Math.floor(R() * extra.length)], q.x + nx * side * off, q.z + nz * side * off, R() * 3)) n++; }
+    const q = P[Math.floor(s)], nx = -q.dz, nz = q.dx, lane = (R() < .5 ? -1 : 1), lat = lane * (w * .25 + (R() - .5) * .5), g = yawAlong(q.dx, q.dz) + (lane > 0 ? 0 : Math.PI);
+    if (put(D, o.car || 'car', q.x + nx * lat, q.z + nz * lat, g)) n++;
+    if (R() < ex) { const side = R() < .5 ? -1 : 1, t = extra[Math.floor(R() * extra.length)], f = MAPA.fp(t, 0), dep = Math.abs(q.dx) >= Math.abs(q.dz) ? f.hz : f.hx, off = w / 2 + .5 + dep; if (put(D, t, q.x + nx * side * off, q.z + nz * side * off, 0)) n++; }
   }
   return n;
 };
@@ -81,8 +80,8 @@ COMP.scatter = function (D, o) {
 COMP.street = function (D, o) {
   const R = rngOf(o.seed), P = roadPts(o.road), w = o.road.w, T = o.types || ['bench', 'planter', 'wheelie', 'dumpster', 'floodlight', 'busStop', 'cart'], every = o.every || 22; let n = 0, side = 1;
   for (let s = o.s0 || 6; s < Math.min(o.s1 === undefined ? P.length - 2 : o.s1, P.length - 2); s += every * (.8 + R() * .4)) {
-    const q = P[Math.floor(s)], off = w / 2 + 2.5, t = T[Math.floor(R() * T.length)]; side = -side;
-    if (put(D, t, q.x - q.dz * side * off, q.z + q.dx * side * off, yawAlong(q.dx, q.dz) + (side > 0 ? 0 : Math.PI))) n++;
+    const q = P[Math.floor(s)], t = T[Math.floor(R() * T.length)], f = MAPA.fp(t, 0), alongX = Math.abs(q.dx) >= Math.abs(q.dz), dep = alongX ? f.hz : f.hx, off = w / 2 + .5 + dep; side = -side;   // dentro de la acera: junto al bordillo
+    const px = q.x - q.dz * side * off, pz = q.z + q.dx * side * off; if (dep * 2 <= 2.8 && !(D.RI && D.RI.near(px, pz, 3.6, o.road)) && put(D, t, px, pz, yawAlong(q.dx, q.dz) + (side > 0 ? 0 : Math.PI))) n++;   // no en los cruces
   }
   return n;
 };
@@ -146,6 +145,66 @@ COMP.refugeKit = function (D, o) {
   P('crate', -hw + 8, 4, 0); P('crateS', -hw + 8, -3, 0); P('barrel', hw - 18, -hs + 3, 0); P('barrelFuel', hw - 18, -hs + 5, 0);
   return n;
 };
+/* retén en una calle: dos vehículos escalonados en carriles opuestos (chicane de ≥ 2,5 m para pasar), vallas de plástico, nidos de sacos en ambas aceras mirando a la calle, foco y barriles
+   fuera del asfalto. Nunca muros ni portones atravesados en la calzada. `tower: true` añade una torre en la parcela junto a la acera. */
+COMP.roadblock = function (D, o) {
+  const R = rngOf(o.seed), P = roadPts(o.road), w = o.road.w; let s = Math.max(14, Math.min(P.length - 16, o.s));
+  if (D.RI) { const clear = ss => { for (let a = -13; a <= 13; a += 3) { const p = P[Math.max(0, Math.min(P.length - 1, Math.floor(ss + a)))]; for (const lat of [-(w / 2 + 6), 0, w / 2 + 6]) if (D.RI.near(p.x - p.dz * lat, p.z + p.dx * lat, 1.5, o.road)) return false; } return true; };
+    for (const d of [0, 12, -12, 24, -24, 36, -36, 50, -50, 70, -70]) if (clear(s + d)) { s = Math.max(14, Math.min(P.length - 16, s + d)); break; } }                    // lejos de los cruces
+  const q = P[Math.floor(s)], nx = -q.dz, nz = q.dx, alongX = Math.abs(q.dx) >= Math.abs(q.dz); let n = 0;
+  const at = (a, lat) => { const p = P[Math.max(0, Math.min(P.length - 1, Math.floor(s + a)))]; return [p.x - p.dz * lat, p.z + p.dx * lat]; }, g = yawAlong(q.dx, q.dz), L = R() < .5 ? -1 : 1;
+  const lc = w <= 8 ? w / 2 - 1.5 : w * .3;                                                      // carril de cada coche: deja un pasillo en S de ≥ 1,6 m por el centro
+  { const [x, z] = at(-3.5, L * lc); if (put(D, 'car', x, z, g)) n++; } { const [x, z] = at(3.5, -L * lc); if (put(D, 'car', x, z, g + Math.PI)) n++; }
+  for (const [a, lat] of [[-10, L * lc], [10, -L * lc], [-7.5, -L * (w / 2 - .9)], [7.5, L * (w / 2 - .9)]]) { const [x, z] = at(a, lat); if (put(D, 'barrier', x, z, g)) n++; }
+  for (const side of [-1, 1]) for (const a of [-4.5, 4.5]) { const f = MAPA.fp('sandbags', 0), dep = alongX ? f.hz : f.hx, [x, z] = at(a, side * (w / 2 + .5 + dep)); if (put(D, 'sandbags', x, z, g)) n++; }   // en la acera
+  { const [x, z] = at(0, (R() < .5 ? -1 : 1) * (w / 2 + .9)); if (put(D, 'floodlight', x, z, 0)) n++; }
+  for (const a of [-2, 2]) { const [x, z] = at(a, (w / 2 + 5.2) * (a < 0 ? -1 : 1)); if (put(D, R() < .5 ? 'barrel' : 'barrelFuel', x, z, 0)) n++; }
+  if (o.tower) { const [x, z] = at(-1, (w / 2 + 3.2 + 3.6) * (o.side || 1)); n += COMP.towerPost(D, { x, z, level: o.level || 1, fac: o.fac, seed: o.seed + 9 }); }
+  return n;
+};
+/* nido de sacos de arena: tres sacos en U y una caja detrás, mirando hacia `face` (n,s,e,w); se coloca en aceras y esquinas, nunca en la calzada */
+COMP.nest = function (D, o) {
+  const d = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] }[o.face || 's'], sd = [-d[1], d[0]], g = d[0] ? PI2 : 0; let n = 0;
+  for (const [a, b] of [[0, 0], [0, 1.9], [0, -1.9]]) if (put(D, 'sandbags', o.x + d[0] * a + sd[0] * b, o.z + d[1] * a + sd[1] * b, g)) n++;
+  if (put(D, 'crate', o.x - d[0] * 1.8, o.z - d[1] * 1.8, 0)) n++;
+  return n;
+};
+/* recinto vallado con una verja corredera hacia un lado (+z/−z o ±x): subestaciones, patios */
+COMP.fenceRect = function (D, o) {
+  const w = o.w || 24, d = o.d || 18, gs = o.gateSide || 1, cl = MAPA.fp('chainFence', 0).hx * 2; let n = 0;
+  for (let a = -w / 2 + cl / 2; a <= w / 2 - cl / 2 + .01; a += cl) for (const sg of [-1, 1]) { if (sg === gs && Math.abs(a) < 3.9) continue; if (put(D, 'chainFence', o.x + a, o.z + sg * d / 2, 0, null, 0)) n++; }
+  for (let b = -d / 2 + cl / 2; b <= d / 2 - cl / 2 + .01; b += cl) for (const sg of [-1, 1]) if (put(D, 'chainFence', o.x + sg * w / 2, o.z + b, PI2, null, 0)) n++;
+  if (put(D, 'slideGate', o.x, o.z + gs * d / 2, 0, { abierto: true }, 0)) n++;
+  return n;
+};
+/* recinto amurallado (nivel 1 madera, 2 piedra, 3 hierro) con un portón hacia la calle, torre en una esquina y mercancía dentro: sólo en parcelas junto a una calle, nunca cruzando la calzada */
+COMP.compound = function (D, o) {
+  const lv = o.level || 2, near = COMP.roadNear(D, o.at[0], o.at[1], 90); if (!near) return false; const r = near.road, side = o.side || 1, w = o.w || 30, d = o.d || 22, P = roadPts(r);
+  let cx = 0, cz = 0, hx = 0, hz = 0, alongX = true, nx = 0, nz = 0, ok = false;
+  search: for (const sl of [0, 14, -14, 30, -30, 50, -50, 75, -75]) for (let extra = 0; extra <= 10; extra += 2) {
+    const q = P[Math.max(0, Math.min(P.length - 1, near.s + sl))]; nx = -q.dz * side; nz = q.dx * side; alongX = Math.abs(q.dx) >= Math.abs(q.dz); hz = alongX ? d / 2 : w / 2; hx = alongX ? w / 2 : d / 2;
+    const off = r.w / 2 + 3.2 + 1.5 + extra + (alongX ? hz : hx); cx = q.x + nx * off; cz = q.z + nz * off;
+    if (D.occ.some(b => Math.abs(b.x - cx) < b.hx + hx + 2 && Math.abs(b.z - cz) < b.hz + hz + 2)) continue;
+    if ([-1, 0, 1].some(a => [-1, 0, 1].some(b => D.RI.gap(cx + a * hx, cz + b * hz) < 4))) continue; ok = true; break search;
+  }
+  if (!ok) return false;
+  const wall = 'wall' + lv, gate = 'gate' + lv, ww = MAPA.fp(wall, 0).hx * 2; let n = 0;
+  const gs = alongX ? -Math.sign(nz) : 0, gx = alongX ? 0 : -Math.sign(nx);               // el portón va en el lado que mira a la calle
+  const run = (fx, fz, len, X, hasGate) => { for (let a = -len / 2 + ww / 2; a <= len / 2 - ww / 2 + .01; a += ww) { if (hasGate && Math.abs(a) < 3.9) continue; if (put(D, wall, X ? fx + a : fx, X ? fz : fz + a, X ? 0 : PI2, { fac: o.fac }, 0)) n++; } };
+  run(cx, cz - hz, 2 * hx, true, alongX && gs === -1); run(cx, cz + hz, 2 * hx, true, alongX && gs === 1); run(cx - hx, cz, 2 * hz, false, !alongX && gx === -1); run(cx + hx, cz, 2 * hz, false, !alongX && gx === 1);
+  const gpos = alongX ? [cx, cz + gs * hz, 0] : [cx + gx * hx, cz, PI2];
+  if (put(D, gate, gpos[0], gpos[1], gpos[2], { abierto: true, fac: o.fac }, 0)) n++;
+  n += COMP.towerPost(D, { x: cx - hx + 4, z: cz - hz + 4, level: lv, seed: o.seed });
+  const T = ['pallet', 'palletBoxes', 'cage', 'crate', 'crateS', 'dumpster', 'barrel', 'forklift']; const R = rngOf(o.seed || 5);
+  for (let i = 0, tr = 0; i < (o.n || 8) && tr < 120; tr++) if (put(D, T[Math.floor(R() * T.length)], cx + (R() - .5) * (2 * hx - 9), cz + (R() - .5) * (2 * hz - 9), R() < .5 ? 0 : PI2)) { n++; i++; }
+  COMP.reserve(D, cx, cz, hx + 1, hz + 1, 'recinto'); return { x: cx, z: cz, n };
+};
+/* valla de madera a lo largo de una calle, detrás de la acera, en tramos con huecos (jardines, huertos, límites de parcela) */
+COMP.fenceRun = function (D, o) {
+  const P = roadPts(o.road), w = o.road.w, side = o.side || 1, f = MAPA.fp('fence', 0), len = f.hx * 2; let n = 0;
+  for (let s = o.s0 || 10; s < Math.min(o.s1 || P.length - 10, P.length - 10); s += len + .1) { const q = P[Math.floor(s)], alongX = Math.abs(q.dx) >= Math.abs(q.dz), off = w / 2 + 3.2 + 1.2, x = q.x - q.dz * side * off, z = q.z + q.dx * side * off; if (((s / 24) | 0) % 3 === 2) continue; if (D.RI.gap(x, z) > 3.6 && put(D, 'fence', x, z, alongX ? 0 : PI2, null, 0)) n++; }
+  return n;
+};
 /* campamento / mercado improvisado: puestos, carros, cajas, palés y un barril */
 COMP.camp = function (D, o) {
   const R = rngOf(o.seed); let n = 0;
@@ -155,10 +214,10 @@ COMP.camp = function (D, o) {
 };
 /* patio de carga: valla metálica alrededor con una verja corredera, palés, cajas, jaulas, carretilla y contenedor dentro */
 COMP.yard = function (D, o) {
-  const R = rngOf(o.seed), w = o.w || 30, d = o.d || 22; let n = 0;
+  const R = rngOf(o.seed), w = o.w || 30, d = o.d || 22, gs = o.gateSide || 1; let n = 0;
   const cl = MAPA.fp('chainFence', 0).hx * 2;
-  for (let a = -w / 2 + cl / 2; a <= w / 2 - cl / 2 + .01; a += cl) { for (const sg of [-1, 1]) { if (sg > 0 && Math.abs(a) < 3.9) continue; if (put(D, 'chainFence', o.x + a, o.z + sg * d / 2, 0, null, 0)) n++; } }
-  if (put(D, 'slideGate', o.x, o.z + d / 2, 0, { abierto: !!o.open }, 0)) n++;
+  for (let a = -w / 2 + cl / 2; a <= w / 2 - cl / 2 + .01; a += cl) { for (const sg of [-1, 1]) { if (sg === gs && Math.abs(a) < 3.9) continue; if (put(D, 'chainFence', o.x + a, o.z + sg * d / 2, 0, null, 0)) n++; } }
+  if (put(D, 'slideGate', o.x, o.z + gs * d / 2, 0, { abierto: o.open !== false }, 0)) n++;
   for (let b = -d / 2 + cl / 2; b <= d / 2 - cl / 2 + .01; b += cl) for (const sg of [-1, 1]) if (put(D, 'chainFence', o.x + sg * w / 2, o.z + b, PI2, null, 0)) n++;
   const T = ['pallet', 'palletBoxes', 'palletBoxes', 'cage', 'crate', 'crateS', 'forklift', 'dumpster', 'barrel'];
   for (let i = 0, tr = 0; i < (o.n || 12) && tr < 200; tr++) if (put(D, T[Math.floor(R() * T.length)], o.x + (R() - .5) * (w - 4), o.z + (R() - .5) * (d - 4), R() < .5 ? 0 : PI2)) { n++; i++; }
