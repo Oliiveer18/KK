@@ -509,6 +509,17 @@ function think(e) {
   else if (e.st === 'fight' && M.t - e.seenT > 1.0) { if (tac) { e.st = 'push'; e.goal = null; } else { e.st = 'search'; e.searchStart = M.t; setGoal(e, e.ls.x, e.ls.z); } }
   else if (e.st === 'search' && M.t - e.searchStart > 6) { e.st = 'push'; e.goal = null; }
   if (e.st === 'push' && !e.goal) pickGoal(e);
+  /* dash táctico (todos los combatientes, como el jugador): apartarse de una granada o de algo que va a explotar, cruzar a la carrera hasta la cobertura
+     cuando le disparan o va mal de vida, y salir de la zona batida si está muy suprimido. Sólo si el tramo de 3 m está libre; espera de 2,5–4,5 s. */
+  e.dashCD = (e.dashCD || 0) - .13;
+  if (e.dashCD <= 0 && !(e.dashT > 0) && e.reloadT < 0) {
+    let dir = null;
+    if (e.flee) dir = e.flee;
+    else if (e.st === 'cover' && e.path && (e.vis || M.t - e.lastHurt < 1.5 || e.supp > .4) && e.coverPt && Math.hypot(e.coverPt.x - e.p.x, e.coverPt.z - e.p.z) > 3.5) dir = { x: e.sdx, z: e.sdz };
+    else if (MX.campaign && e.supp > .7 && !e.cover && e.st !== 'fight' && e.goal) dir = { x: e.sdx, z: e.sdz };
+    if (dir && (dir.x || dir.z)) { const l = Math.hypot(dir.x, dir.z) || 1, ux = dir.x / l, uz = dir.z / l;
+      if (navAt(e.p.x + ux * 1.5, e.p.z + uz * 1.5) && navAt(e.p.x + ux * 3, e.p.z + uz * 3)) { e.dashT = .18; e.dashX = ux; e.dashZ = uz; e.dashCD = rr(2.5, 4.5); e.dashN = (e.dashN || 0) + 1; playAt('DASH_start', e.p.x, e.p.z, { vol: .55, gap: 80 }); } }
+  }
   /* granadas: frag al rival a 5,6–8,6 m (cae a 7 m fijos); humo hacia la amenaza al retirarse */
   if (!e.wantThrow && e.reloadT < 0) {
     if (e.vis && e.st !== 'cover' && e.gCount > 0 && e.gCd <= 0 && e.dT > 5.6 && e.dT < 8.6 && e.reactT > df.react && rnd() < .5) { e.wantThrow = 'frag'; e.throwT = 0; }
@@ -603,11 +614,14 @@ function moveBot(e, dt) {
   if (e.nudge) { dx += -dz * e.nudge * .5; dz += dx * e.nudge * .5; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; }
   e.crouchT = crT; e.crouch = damp(e.crouch, crT, 7, dt);
   const sMax = spd * (1 - .5 * e.crouch), tx = dx * sMax, tz = dz * sMax, ax = tx - e.v.x, az = tz - e.v.z, l = Math.hypot(ax, az), step = 32 * dt;
-  if (l <= step) { e.v.x = tx; e.v.z = tz; } else { e.v.x += ax / l * step; e.v.z += az / l * step; }
+  if (e.dashT > 0) { e.dashT -= dt; e.v.x = e.dashX * 17; e.v.z = e.dashZ * 17; e.crouch = 0; }        // dash: 17 m/s durante 0,18 s (como el jugador)
+  else if (l <= step) { e.v.x = tx; e.v.z = tz; } else { e.v.x += ax / l * step; e.v.z += az / l * step; }
   e.p.x += e.v.x * dt; e.p.z += e.v.z * dt; collide(e.p, .38, 2.6);
+  const SEP = MX.campaign ? 1.7 : .85;                                               // espacio personal: en campaña nadie se pega a un compañero (no ir en piña)
   for (const o of M.ents) {                                                          // separación blanda entre personajes
     if (o === e || o.dead) continue; const ox = e.p.x - o.p.x, oz = e.p.z - o.p.z, od = Math.hypot(ox, oz);
     if (od < .85 && od > 1e-3) { const k = (.85 - od) * .5; e.p.x += ox / od * k; e.p.z += oz / od * k; }
+    else if (od < SEP && od > 1e-3 && o.team === e.team && !e.rt) { const k = (SEP - od) * 1.2 * dt; if (navAt(e.p.x + ox / od * .5, e.p.z + oz / od * .5)) { e.p.x += ox / od * k; e.p.z += oz / od * k; } }
   }
   e.stuckT += dt;                                                                    // atasco: si debía moverse y apenas avanza, replantea la ruta
   if (e.stuckT > 1) {

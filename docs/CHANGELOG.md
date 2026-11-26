@@ -1,5 +1,9 @@
 # Changelog
 
+## Bots: dash y espacio personal (27-11)
+- Todos los bots tienen dash (17 m/s, 0,18 s, como el jugador), usado con criterio: apartarse de granadas y explosivos, cruzar a la carrera hasta la cobertura bajo fuego o con poca vida, salir de una zona batida; espera de 2,5–4,5 s y sólo con el tramo libre.
+- Espacio personal de 1,7 m entre compañeros en campaña (antes 0,85 m): mediana al compañero más cercano 3,6 m. Test `tests/bots_pro.py`.
+
 ## Mapa táctico y minimapa (27-11)
 - Touchpad: toque = mapa táctico (antes lo ocupaba la mochila: ahora se abre manteniéndolo). Disparos que se oyen (150 m, 20 s) y fuego contra tu facción a cualquier distancia; objetivos, escuadra y aliados. Minimapa siempre visible. Tests `tests/mapa_tactico.py`; `tests/obras.py` abre el panel manteniendo el touchpad.
 
