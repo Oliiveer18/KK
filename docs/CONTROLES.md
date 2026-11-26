@@ -4,6 +4,14 @@
 - **Options** (mando) / **P·Esc** (teclado) / botón **⚙ Menú** (táctil): abre el menú con el juego en pausa. Arriba está MAPA: ↑↓ elegir, ✕ aceptar (o tocar la fila). Options vuelve a cerrar.
 - Mapas 1 (arena) y 2 (polígono) y paso a mapa 3: al instante. Desde el mapa 3 a 1/2 se recarga la página (hay que tocar la pantalla para empezar). También por URL: `?mapa=1|2|3`.
 
+## Mochila y almacenes (campaña)
+
+Abre **Mochila** en pantalla, pulsa **I** en teclado o el panel táctil del DualSense. En el mando recorre las opciones con ↑/↓, elige con ✕ y cierra con ○. La mochila muestra cantidades, espacio ocupado y acciones para los suministros que estén a tu alcance. En las estanterías puedes depositar y retirar una unidad por acción.
+
+Los materiales, la munición, el botiquín para curar y el kit para reanimar viajan en el inventario. En la mochila puedes usar un botiquín si estás herido o munición si el cargador está incompleto. Para rescatar a un aliado se usa el control de reanimación de siempre. Los depósitos médicos guardan ambos tipos de kit. El equipo se guarda en la estantería de materiales. La primera calibración admite 6 unidades sin mochila y 10, 14 o 18 según su nivel.
+
+Al caer abatido conservas tus objetos. Tras la muerte definitiva, una mochila en el lugar de la baja identifica el equipo del eliminado. Aliados y rivales comparten ese botín. Reapareces con el inventario vacío. Los puntos de recogida, botines y reservas duran la partida actual.
+
 ## Campaña (?mapa=4)
 - **Reanimar** a un aliado abatido: acércate (≤1,5 m) y **mantén □ (mando) o R/E (teclado)** 3 s. Necesitas kit (✚ junto al escudo). Junto a un abatido el □ no recarga el arma. Soltar, alejarte o recibir daño lo interrumpe.
 - **Si caes abatido** (25 s): espera ayuda o **mantén □ (R) 0,8 s para reaparecer al instante en tu refugio** (cuenta como baja; reapareces con la vida completa y sin esperar). Un mensaje en pantalla te lo recuerda.

@@ -216,6 +216,7 @@ function segClear(ax, az, bx, bz, ign1, ign2, lowIgnore) {
   }
   return true;
 }
+MX.reachSupply = (e, s) => segClear(e.p.x, e.p.z, s.x, s.z, null, s, false);
 function smokeBlock(ax, az, bx, bz) {
   for (const c of clouds) {
     if (c.t < .8 || c.t > 12.2) continue;
@@ -610,7 +611,8 @@ function pickSpawn(team) {
 function respawn(e) {
   const s0 = pickSpawn(e.team), s = { x: s0.x, z: s0.z, yaw: s0.yaw };
   if (MX.campaign) for (let k = 0; k < 8; k++) { const x = s0.x + rr(-3, 3), z = s0.z + rr(-3, 3); if (navAt(x, z)) { s.x = x; s.z = z; break; } }   // campaña: 25 por facción, se reparten junto al punto de aparición
-  e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = SH; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.hitSrc = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); syncKit(e);
+  if (MX.campaign) INVENTARIO.spawn(e);
+  e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = SH; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.hitSrc = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; if (!MX.campaign) e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); if (MX.campaign) e.kitShown = null; syncKit(e);
   if (e.isPlayer) return respawnPlayer(e);
   unbake(e); setWeapon(e, pickWeaponIdx()); e.gCount = 3; e.sCount = 2; e.st = 'push'; e.goal = null; e.path = null; e.tgt = null; e.vis = false; e.reactT = 0; e.canShoot = false; e.wantThrow = null; e.holdT = 0;
   e.crouch = e.crouchT = 0; e.kick = 0; e.fireCd = rr(.2, .6); e.pause = 0; e.burst = 0; e.gCd = rr(4, 10); e.sCd = 6; e.walk = 0; e.stuckN = 0; e.nudge = 0; e.py = 1.1; e.thinkT = rnd() * .12; e.ring.visible = true; e.root.visible = true;
@@ -638,8 +640,9 @@ function regen(e, dt) {                                                         
 /* ---- campaña: abatido y reanimación (reglas del diseño: una reanimación por vida, kit de un solo uso, un solo rescatador por caído, el daño al rescatador lo interrumpe) ---- */
 function syncKit(e) {                                                                // la cruz roja de la mochila se ve mientras se lleva un kit (solo campaña)
   const want = !!(MX.campaign && e.kits > 0); if (e.kitShown === want) return; e.kitShown = want;
-  dress(e.isPlayer ? rig : e.R, e.team, { skin: e.isPlayer ? 0 : e.skin, kit: want });
+  dress(e.isPlayer ? rig : e.R, e.team, { ...(e.bag ? INVENTARIO.appearance(e) : {}), skin: e.isPlayer ? 0 : e.skin, kit: want });
 }
+MX.refreshGear = e => { e.kitShown = null; syncKit(e); };
 const canDown = e => MX.campaign && !e.revived && !M.over && M.ents.some(o => o !== e && o.team === e.team && !o.dead && !o.dwn);   // sin aliados en pie no hay a quien esperar
 function endRescueOn(t) { if (t.rescuer) { if (t.rescuer.rt === t) t.rescuer.rt = null; t.rescuer = null; } t.revP = 0; MX.reviveFx(t, null); }
 function cancelRescue(by) { const t = by.rt; if (t) { if (t.rescuer === by) { t.rescuer = null; t.revP = 0; MX.reviveFx(t, null); } by.rt = null; } }
@@ -711,6 +714,7 @@ function kill(v, killer, dx, dz) {
   if (!killer && v.lastAtt && M.t - v.lastAttT < 8 && v.lastAtt.team !== v.team) killer = v.lastAtt;     // fuego o explosión sin autor claro: cuenta quien le hirió hace poco
   const wasDown = !!v.dwn; if (wasDown) { v.dwn = false; dwnFxClear(v); }
   v.dead = true; v.deaths++; v.hp = 0; v.tgp.hp = 0; v.respT = RESPAWN + (v.isPlayer ? 0 : rnd() * .8); v.inv = 0;
+  if (MX.campaign) INVENTARIO.death(v);
   addFeed(killer && killer !== v ? killer : null, v, v.lastSrc);
   if (killer && killer !== v && killer.team !== v.team) { killer.kills++; M.score[killer.team]++; if (killer.isPlayer) playSnd('HIT_kill') || playSnd('HIT_marker'); }          // bajas a compañeros y suicidios no puntúan
   for (let i = 0; i < 8; i++) spawn('red', _kp.set(v.p.x, .9, v.p.z), _kv.set((Math.random() - .5) * 4 + dx * 2, 1 + Math.random() * 3, (Math.random() - .5) * 4 + dz * 2), .5, .04, .04, .04, true, 8);
@@ -875,6 +879,7 @@ MX.start = () => {
   M.built = true; MX.on = true; hud.style.display = 'block'; if (MX.zom && MX.campaign) MX.zom.init();
   for (const e of M.ents) respawn(e);
   forceWeapon(M.slots[0]);
+  if (MX.campaign) INVENTARIO.start();
 };
 MX.placeBars = () => {                                                              // se llama tras mover la cámara: así la barra no se retrasa un fotograma respecto al personaje
   camera.updateMatrixWorld();
@@ -886,6 +891,7 @@ MX.update = dt => {
   M.navT -= dt; if (M.navT <= 0) { M.navT = .5; navBuild(); }
   for (let i = M.propQ.length - 1; i >= 0; i--) { const q = M.propQ[i]; if (M.t >= q.t) { if (placeProp(q.spec, true)) M.propQ.splice(i, 1); else q.t = M.t + 4; } }
   armoryTick(dt);
+  if (MX.campaign) INVENTARIO.tick(dt);
   if (MX.zom && MX.campaign) MX.zom.update(dt);
   const pl = M.ents[0];
   if (pl.dead || pl.dwn) {                                                           // caído (muerto o abatido): cuerpo que cae; el muerto cuenta atrás para reaparecer
