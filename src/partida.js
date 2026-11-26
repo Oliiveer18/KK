@@ -914,7 +914,7 @@ function drawBar(b, e, dt) {
   const low = e.hp > 0 && e.hp < 30; if (low !== b.low) { b.low = low; b.hb.classList.toggle('mxlow', low); }
   if (e.sh <= 0 && b.pSh > 0) b.brk = 1; b.pSh = e.sh; b.brk = Math.max(0, (b.brk || 0) - dt * 3); b.sRow.style.filter = b.brk > .01 ? 'brightness(' + (1 + b.brk * 3) + ')' : '';   // escudo roto: destello breve
   const fl = Math.max(e.bH.flash || 0, e.bS.flash || 0), sh = fl * 3 * (b.num ? 1 : .5);
-  b.el.dataset.s = ((1 + fl * .25) + '|' + (fl > .1 ? (Math.random() - .5) * sh * 2 : 0));
+  { const ds = ((1 + fl * .25) + '|' + (fl > .1 ? (Math.random() - .5) * sh * 2 : 0)); if (b.el.dataset.s !== ds) b.el.dataset.s = ds; }   // sólo si cambia (escribir lo mismo cada fotograma obliga al navegador a revisar estilos)
   if (b.num) { b.kitT.style.display = MX.campaign ? 'flex' : 'none'; if (MX.campaign) { b.kitN.textContent = e.kits; b.kitT.style.opacity = e.kits > 0 ? 1 : .35; }
     b.shN.textContent = Math.ceil(Math.max(0, e.sh)); b.shT.style.opacity = e.sh > .5 ? 1 : .35; b.hpN.textContent = Math.ceil(Math.max(0, e.hp)); b.hpT.style.color = low ? '#ff6a5a' : '#fff'; }
   else {

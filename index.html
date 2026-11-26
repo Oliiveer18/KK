@@ -2475,7 +2475,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   if (LOADING) { last = now; return; }                                                 // cargando el distrito: ni lógica ni dibujo
   const dt = Math.min((now - last) / 1000, .05); last = now; if (dt <= 0) return;
-  try { const _a = performance.now(); time += dt; if (menuOpen) { menuTick(); loopTick(dt); } else update(dt); /* en pausa los bucles se apagan con fundido */ const _b = performance.now(); lightsSync(); if (typeof MAPA !== 'undefined') MAPA.cull(camera); const _p = performance.now(); diagGpuBegin(); renderer.render(scene, camera); diagGpuEnd(); const _c = performance.now(); DIAG.u += _b - _a; DIAG.r += _c - _b; DIAG.n++; if (typeof PERF !== 'undefined') PERF.frame(now, _b - _a, _p - _b, _c - _p); }
+  try { const _a = performance.now(); time += dt; if (menuOpen) { menuTick(); loopTick(dt); } else update(dt); /* en pausa los bucles se apagan con fundido */ const _b = performance.now(); lightsSync(); if (typeof MAPA !== 'undefined') MAPA.cull(camera); const _p = performance.now(); diagGpuBegin(); if (typeof SOMBRA !== 'undefined') SOMBRA.pre(); renderer.render(scene, camera); if (typeof SOMBRA !== 'undefined') SOMBRA.post(); diagGpuEnd(); const _c = performance.now(); DIAG.u += _b - _a; DIAG.r += _c - _b; DIAG.n++; if (typeof PERF !== 'undefined') PERF.frame(now, _b - _a, _p - _b, _c - _p); }
   catch (e) { const el = $('err'); el.style.display = 'block'; el.textContent = 'Error en el juego: ' + e.message + '\n' + String(e.stack || '').split('\n').slice(0, 3).join('\n'); }
   fAcc += dt; fN++; if (fAcc > .5) { const fps = Math.round(fN / fAcc); $('fps').textContent = fps + ' FPS' + (DIAG.on && DIAG.n ? ' · lógica ' + (DIAG.u / DIAG.n).toFixed(1) + ' ms · dibujo(CPU) ' + (DIAG.r / DIAG.n).toFixed(1) + ' ms · GPU ' + (DIAG.ext ? (DIAG.gn ? (DIAG.g / DIAG.gn).toFixed(1) + ' ms' : '…') : 'n/d') + ' · ' + renderer.info.render.calls + ' llamadas · ' + Math.round(renderer.info.render.triangles / 1000) + 'k tri · ' + renderer.domElement.width + '×' + renderer.domElement.height + (MX.loadMs ? ' · carga ' + (MX.loadMs / 1000).toFixed(1) + ' s' : '') + ' · GPU: ' + renderer.info.memory.geometries + ' geom, ' + renderer.info.memory.textures + ' tex' + (performance.memory ? ' · JS ' + Math.round(performance.memory.usedJSHeapSize / 1e6) + ' MB' : '') : ''); DIAG.u = DIAG.r = DIAG.n = DIAG.g = DIAG.gn = 0; $('fps').style.color = fps >= 55 ? '#6dff9a' : fps >= 30 ? '#ffd24a' : '#ff6a4a'; fAcc = 0; fN = 0; }
 }
@@ -4724,7 +4724,7 @@ const OBRAS = (() => {
   }
   function tick(dt) {
     if (!sites.length) return;
-    if (MX.M.t>messageUntil) status.hidden=true;
+    if (MX.M.t>messageUntil && !status.hidden) status.hidden=true;
     for (const site of sites) {
       const e=site.worker;
       if (!e) continue;
@@ -5953,7 +5953,7 @@ function drawBar(b, e, dt) {
   const low = e.hp > 0 && e.hp < 30; if (low !== b.low) { b.low = low; b.hb.classList.toggle('mxlow', low); }
   if (e.sh <= 0 && b.pSh > 0) b.brk = 1; b.pSh = e.sh; b.brk = Math.max(0, (b.brk || 0) - dt * 3); b.sRow.style.filter = b.brk > .01 ? 'brightness(' + (1 + b.brk * 3) + ')' : '';   // escudo roto: destello breve
   const fl = Math.max(e.bH.flash || 0, e.bS.flash || 0), sh = fl * 3 * (b.num ? 1 : .5);
-  b.el.dataset.s = ((1 + fl * .25) + '|' + (fl > .1 ? (Math.random() - .5) * sh * 2 : 0));
+  { const ds = ((1 + fl * .25) + '|' + (fl > .1 ? (Math.random() - .5) * sh * 2 : 0)); if (b.el.dataset.s !== ds) b.el.dataset.s = ds; }   // sólo si cambia (escribir lo mismo cada fotograma obliga al navegador a revisar estilos)
   if (b.num) { b.kitT.style.display = MX.campaign ? 'flex' : 'none'; if (MX.campaign) { b.kitN.textContent = e.kits; b.kitT.style.opacity = e.kits > 0 ? 1 : .35; }
     b.shN.textContent = Math.ceil(Math.max(0, e.sh)); b.shT.style.opacity = e.sh > .5 ? 1 : .35; b.hpN.textContent = Math.ceil(Math.max(0, e.hp)); b.hpT.style.color = low ? '#ff6a5a' : '#fff'; }
   else {
@@ -7235,6 +7235,39 @@ const PERF = (() => {
     if (typeof MAPA !== 'undefined') PERF.wrap(MAPA, 'cull', 'cull');
     if (typeof MX.findPath === 'function') PERF.wrap(MX, 'findPath', 'findPath');
   } catch (e) { }
+})();
+
+/* DOM: asignar a un elemento el mismo texto que ya tiene no cambia nada, pero el navegador rehace el nodo de texto y marca estilo y maquetación como sucios.
+   El HUD lo hacía ~9 veces por fotograma (arma, granadas, modo, toast, números de vida…). Ahora sólo se escribe si el texto cambia. Interruptor: ?nodomcache */
+(() => {
+  if (/[?&]nodomcache\b/.test(location.search)) return;
+  try {
+    const d = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
+    Object.defineProperty(Node.prototype, 'textContent', { configurable: true, enumerable: d.enumerable, get: d.get, set(v) {
+      if (this.nodeType === 1) { const c = this.firstChild, t = v == null ? '' : String(v); if (t === '' ? !c : (c && c.nodeType === 3 && !c.nextSibling && c.data === t)) return; }
+      d.set.call(this, v);
+    } });
+  } catch (e) { }
+})();
+
+/* Sombras en fotogramas alternos. La pasada de sombra vuelve a dibujar desde el sol todo lo que proyecta (la mitad de las llamadas de dibujo).
+   Se rehace cada 2 fotogramas (30 Hz): el desfase de un fotograma (16 ms) en la sombra de alguien que corre no se aprecia. Además la cámara de sombra se
+   ancla a la cuadrícula de texels del mapa de sombra, así que el borde de las sombras estáticas deja de «bailar» al moverse. Interruptor: ?nosombra2 */
+const SOMBRA = (() => {
+  const off = /[?&]nosombra2\b/.test(location.search);
+  let k = 0;
+  const _d = new THREE.Vector3(), _x = new THREE.Vector3(), _y = new THREE.Vector3(), _UP = new THREE.Vector3(0, 1, 0);
+  function anclar() {                                                                // desplaza sol y objetivo, en el plano del sol, a un múltiplo del tamaño de texel
+    const sh = sun.shadow, cam = sh.camera, texel = (cam.right - cam.left) / sh.mapSize.x;
+    _d.copy(sun.position).sub(sun.target.position).normalize(); _x.crossVectors(_UP, _d).normalize(); _y.crossVectors(_d, _x);
+    const t = sun.target.position, cx = t.dot(_x), cy = t.dot(_y), dx = Math.round(cx / texel) * texel - cx, dy = Math.round(cy / texel) * texel - cy;
+    t.addScaledVector(_x, dx).addScaledVector(_y, dy); sun.position.addScaledVector(_x, dx).addScaledVector(_y, dy);
+  }
+  return {
+    get activo() { return !off; },
+    pre() { if (off) return; const sm = renderer.shadowMap; k ^= 1; sm.autoUpdate = false; sm.needsUpdate = k === 0; if (k === 0) anclar(); },
+    post() { if (off) return; renderer.shadowMap.autoUpdate = true; }
+  };
 })();
 </script>
 </body>

@@ -77,3 +77,36 @@ const PERF = (() => {
     if (typeof MX.findPath === 'function') PERF.wrap(MX, 'findPath', 'findPath');
   } catch (e) { }
 })();
+
+/* DOM: asignar a un elemento el mismo texto que ya tiene no cambia nada, pero el navegador rehace el nodo de texto y marca estilo y maquetación como sucios.
+   El HUD lo hacía ~9 veces por fotograma (arma, granadas, modo, toast, números de vida…). Ahora sólo se escribe si el texto cambia. Interruptor: ?nodomcache */
+(() => {
+  if (/[?&]nodomcache\b/.test(location.search)) return;
+  try {
+    const d = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent');
+    Object.defineProperty(Node.prototype, 'textContent', { configurable: true, enumerable: d.enumerable, get: d.get, set(v) {
+      if (this.nodeType === 1) { const c = this.firstChild, t = v == null ? '' : String(v); if (t === '' ? !c : (c && c.nodeType === 3 && !c.nextSibling && c.data === t)) return; }
+      d.set.call(this, v);
+    } });
+  } catch (e) { }
+})();
+
+/* Sombras en fotogramas alternos. La pasada de sombra vuelve a dibujar desde el sol todo lo que proyecta (la mitad de las llamadas de dibujo).
+   Se rehace cada 2 fotogramas (30 Hz): el desfase de un fotograma (16 ms) en la sombra de alguien que corre no se aprecia. Además la cámara de sombra se
+   ancla a la cuadrícula de texels del mapa de sombra, así que el borde de las sombras estáticas deja de «bailar» al moverse. Interruptor: ?nosombra2 */
+const SOMBRA = (() => {
+  const off = /[?&]nosombra2\b/.test(location.search);
+  let k = 0;
+  const _d = new THREE.Vector3(), _x = new THREE.Vector3(), _y = new THREE.Vector3(), _UP = new THREE.Vector3(0, 1, 0);
+  function anclar() {                                                                // desplaza sol y objetivo, en el plano del sol, a un múltiplo del tamaño de texel
+    const sh = sun.shadow, cam = sh.camera, texel = (cam.right - cam.left) / sh.mapSize.x;
+    _d.copy(sun.position).sub(sun.target.position).normalize(); _x.crossVectors(_UP, _d).normalize(); _y.crossVectors(_d, _x);
+    const t = sun.target.position, cx = t.dot(_x), cy = t.dot(_y), dx = Math.round(cx / texel) * texel - cx, dy = Math.round(cy / texel) * texel - cy;
+    t.addScaledVector(_x, dx).addScaledVector(_y, dy); sun.position.addScaledVector(_x, dx).addScaledVector(_y, dy);
+  }
+  return {
+    get activo() { return !off; },
+    pre() { if (off) return; const sm = renderer.shadowMap; k ^= 1; sm.autoUpdate = false; sm.needsUpdate = k === 0; if (k === 0) anclar(); },
+    post() { if (off) return; renderer.shadowMap.autoUpdate = true; }
+  };
+})();

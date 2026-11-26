@@ -99,7 +99,7 @@ const OBRAS = (() => {
   }
   function tick(dt) {
     if (!sites.length) return;
-    if (MX.M.t>messageUntil) status.hidden=true;
+    if (MX.M.t>messageUntil && !status.hidden) status.hidden=true;
     for (const site of sites) {
       const e=site.worker;
       if (!e) continue;
