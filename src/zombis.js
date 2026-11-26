@@ -22,7 +22,7 @@ const mat = () => new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .
 const PARTS = { che: [GEO.box, 1], abd: [GEO.box, 1], pel: [GEO.box, 1], sho: [GEO.box, 1], nek: [GEO.limb, 1], hd: [GEO.ball, 1], jaw: [GEO.hang, 1], hair: [GEO.ballL, 1],
   ua: [GEO.limb, 2], fa: [GEO.limb, 2], hn: [GEO.hang, 2], ul: [GEO.limb, 2], ll: [GEO.limb, 2], ft: [GEO.box, 2], rg: [GEO.hang, 2], wn: [GEO.box, 3], sk: [GEO.box, 2], ey: [GEO.box, 2], bn: [GEO.spike, 1], tm: [GEO.ballL, 1],
   col: [GEO.box, 1], hood: [GEO.ballL, 1], tie: [GEO.box, 1], blt: [GEO.box, 1], pk: [GEO.box, 2], st: [GEO.box, 2] };
-const IM = {}, MUL = {};
+const IM = {}, MUL = {}, KL = Object.keys(PARTS), KI = {}; KL.forEach((k, i) => { KI[k] = i; });
 for (const k in PARTS) {
   const cap = RMAX * PARTS[k][1]; MUL[k] = PARTS[k][1];
   const m = new THREE.InstancedMesh(PARTS[k][0], k === 'ey' ? new THREE.MeshBasicMaterial({ color: 0xffb84a }) : mat(), cap);
@@ -45,7 +45,7 @@ function newZ(type, x, z, o) {
     id: 'Z' + (nextId++), type, slot, p: new V3(x, 0, z), v: new V3(), team: -1, crouch: 0, dead: false, hp: T.hp, maxhp: T.hp, sc, r: T.r * sc,
     st: o.st || 'dorm', yaw: o.yaw === undefined ? rr(-Math.PI, Math.PI) : o.yaw, ph: rr(0, 6.28), seed: rnd(), limp: rnd() < .5, atk: -1, atkCd: rr(.2, 1), tgt: null, tgtT: 0, thinkT: rr(0, .25),
     path: null, pi: 0, pathT: -9, stuckT: 0, sx: x, sz: z, home: { x, z }, horde: null, lie: o.lie === undefined ? 0 : o.lie, deadT: 0, stag: 0, scream: -1, screamCd: rr(3, 8), hx: x, hz: z, wait: 0, lastNoise: -9, noiseDelay: 0,
-    ri: -1, cols: [], near: true, lodT: rnd() * .5, farDt: 0, rag: rnd() < .55, bare: rnd() < .4, gaitSpd: 0, brk: -99, bf: 1, bc: 1, bw: 0, hdx: x, hdy: 1.5, hdz: z, hdr: .13 };
+    ri: -1, cols: null, near: true, lodT: rnd() * .5, farDt: 0, rag: rnd() < .55, bare: rnd() < .4, gaitSpd: 0, brk: -99, bf: 1, bc: 1, bw: 0, hdx: x, hdy: 1.5, hdz: z, hdr: .13 };
   // rasgos: cada zombi es distinto (complexión, postura, heridas, pelo, ropa rota)
   zb.build = rr(.88, 1.14); zb.slouch = rr(-.1, .12); zb.shR = rr(-.14, .14); zb.hs0 = rr(.92, 1.08); zb.hair = rnd() < .65; zb.bone = rnd() < .3; zb.bare = rnd() < .45; zb.twT = rr(2, 6); zb.tw0 = 0;
   zb.wnd = [0, 1, 2].map(i => rnd() < (i === 0 ? .95 : i === 1 ? .7 : .45) ? { x: rr(-.16, .16), y: rr(-.08, .13), z: rnd() < .75 ? 1 : -1, w: rr(.07, .14), h: rr(.06, .12) } : null);
@@ -66,12 +66,13 @@ function newZ(type, x, z, o) {
   else { torso = dirt(pick([0x86867e, 0x77776f, 0x6a6e66])); zb.bare = true; zb.out = 'tirantes'; }                                                                            // camiseta de tirantes: brazos y abdomen al aire
   zb.bareA = zb.out === 'tirantes' ? [true, true] : [rnd() < .3, rnd() < .3];
   const dark = skin.clone().multiplyScalar(.55), blood = new THREE.Color(rnd() < .5 ? 0x5b1414 : 0x3b0d0d), shoe = new THREE.Color(0x2b2824);
-  const set = (k, j, c) => zb.cols.push(k, j, new THREE.Color(c));               // colores propios: se copian a su hueco de dibujo cuando está cerca de la cámara
+  const CL = []; const set = (k, j, c) => { const q = c.isColor ? c : _c.set(c); CL.push(KI[k], j, q.r, q.g, q.b); };   // colores propios: se copian a su hueco de dibujo cuando está cerca de la cámara
   set('che', 0, torso); set('abd', 0, zb.bare ? skin : torso.clone().multiplyScalar(.85)); set('pel', 0, pants); set('sho', 0, torso); set('nek', 0, skin); set('hd', 0, skin); set('jaw', 0, rnd() < .55 ? new THREE.Color(0x4a1616) : dark); set('hair', 0, hairC);
   set('col', 0, zb.out === 'traje' || zb.out === 'bata' ? new THREE.Color(0xb5b2a4).multiplyScalar(rr(.75, .95)) : torso.clone().multiplyScalar(.82)); set('hood', 0, torso.clone().multiplyScalar(.9)); set('tie', 0, 0x242426); set('blt', 0, 0x24211e);
   for (let s = 0; s < 2; s++) { set('pk', s, pants.clone().multiplyScalar(.85)); set('st', s, torso.clone().lerp(new THREE.Color(0xc9c6b8), .45)); }
   for (let s = 0; s < 2; s++) { const bareArm = zb.bareA[s]; set('ua', s, bareArm ? skin : torso); set('fa', s, zb.bareA[s] || rnd() < .45 ? skin : torso); set('hn', s, skin.clone().multiplyScalar(.92)); set('ul', s, pants); set('ll', s, rnd() < .35 ? skin : pants); set('ft', s, zb.shoes ? shoe : skin); set('rg', s, zb.coat ? torso.clone().multiplyScalar(.95) : torso.clone().multiplyScalar(.72)); set('sk', s, 0x1a1a14); }
   for (let s = 0; s < 3; s++) set('wn', s, blood); set('bn', 0, 0xd9d3bd); set('tm', 0, new THREE.Color(rnd() < .5 ? 0x93a05a : 0x7a8a45));
+  zb.cols = new Float32Array(CL);                                                  // compacto: [pieza, hueco, r, g, b] por color, sin un objeto Color por pieza (≈27 por zombi)
   Z.push(zb); return zb;
 }
 function freeZ(z) {
@@ -417,7 +418,7 @@ MX.zom.update = dt => {
   for (const z of Z) { const dx = z.p.x - cx, dz = z.p.z - cz, d2 = dx * dx + dz * dz; if (d2 < VIEW_R * VIEW_R) { z.d2 = d2; vis.push(z); } else z.ri = -1; }
   if (vis.length > RMAX) { vis.sort((a, b) => a.d2 - b.d2); for (let i = RMAX; i < vis.length; i++) vis[i].ri = -1; vis.length = RMAX; }
   let recol = false;
-  vis.forEach((z, i) => { if (z.ri !== i) { z.ri = i; recol = true; for (let q = 0; q < z.cols.length; q += 3) { const k = z.cols[q]; if (IM[k].instanceColor) IM[k].setColorAt(i * MUL[k] + z.cols[q + 1], z.cols[q + 2]); } } pose(z, dt); });
+  vis.forEach((z, i) => { if (z.ri !== i) { z.ri = i; recol = true; const C = z.cols; for (let q = 0; q < C.length; q += 5) { const k = KL[C[q]]; if (IM[k].instanceColor) IM[k].setColorAt(i * MUL[k] + C[q + 1], _c.setRGB(C[q + 2], C[q + 3], C[q + 4])); } } pose(z, dt); });
   slotMax = vis.length;
   for (const k in IM) { const m = IM[k]; m.count = slotMax * MUL[k]; m.visible = slotMax > 0; m.instanceMatrix.needsUpdate = true; if (recol && m.instanceColor) m.instanceColor.needsUpdate = true; }
   nAlive = 0; for (const z of Z) if (!z.dead) nAlive++;
