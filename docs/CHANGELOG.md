@@ -1,5 +1,11 @@
 # Changelog
 
+## Optimización sin perder calidad y parpadeo en tiendas (28-11)
+- Memoria JS del distrito 373 → ~200 MB, mallas 168.000 → 48.000, texturas en la GPU 37,4 → 3,7 MPx, ~30–50 % menos llamadas de dibujo: materiales/texturas/geometrías compartidos, objetos intactos soldados (vuelven a sus piezas reales idénticas al tocarlos), dibujo en lote de lo repetido y colores de zombis compactos. Detalle y cifras en `docs/RENDIMIENTO.md`.
+- Carga con pantalla y barra de progreso por pasos.
+- Diagnóstico (tocar FPS): también tiempo de carga, geometrías, texturas y memoria JS.
+- Corregido el parpadeo de píxeles al entrar en tiendas (caras coincidentes: z-fighting). Tests `dedupe_identico`, `fusion_identico`, `carga_progresiva`, `sin_parpadeo`.
+
 ## Relleno táctico de las zonas (27-11)
 - Ninguna manzana es un campo abierto: líneas de vallas que parten los patios (con pasos de 4,5 m cada 18 m), barricadas improvisadas (coche cruzado, bloques y sacos), arboledas, contenedores y restos; vallas de huerto en la aldea, cercado de los campos de las granjas, campamentos abandonados en los bosques, nidos alrededor del puesto avanzado y carga apilada en la Fábrica y la Estación. Igual para las 4 facciones.
 - Cifras: ~4.000 objetos colocados por el generador (antes ~2.240), 1.228 vallas, 1.572 árboles; carga 3,3 s y ~435 MB en headless.

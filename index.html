@@ -605,7 +605,28 @@ function collide(p, r, pk) {
 const keys = {}; let mode = 'kb', started = false;
 const mouse = { x: innerWidth / 2, y: innerHeight / 2, down: false, rdown: false };
 const flags = { reload: false, dash: false, crouch: false, swap: false };
-function begin() { if (started) return; started = true; $('start').style.display = 'none'; try { if (matchMedia('(pointer:coarse)').matches && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); } catch (e) {} initAudio(); if (MX.want) MX.start(); else if (!RANGE.built && !/mapa=1/.test(location.search)) rangeToggle(); warmAll(); }   // arranca en el polígono (Share / F2 para salir); el botón «Mapa 3» arranca la partida 6 vs 6
+/* carga progresiva del distrito: pantalla con barra; se construye por pasos (calles y edificios → materiales compartidos → objetos soldados → lotes →
+   sombreados) y se pinta la barra entre paso y paso. El juego no corre ni se dibuja hasta terminar. Los tests automáticos usan la carga de una vez
+   (misma partida, sin esperas), salvo con ?progresivo=1. */
+const PROGRESIVO = () => !navigator.webdriver || /progresivo=1/.test(location.search);
+let LOADING = false;
+function beginProgressive() {
+  const ov = document.createElement('div'); ov.id = 'loadUI';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#0c1018;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#dfe6f0;font:600 15px system-ui,-apple-system,sans-serif;padding:0 16px;text-align:center';
+  ov.innerHTML = '<div id="loadTxt">Cargando el distrito…</div><div style="width:min(320px,72vw);height:8px;border-radius:4px;background:#26303f;overflow:hidden"><div id="loadBar" style="height:100%;width:0;background:#4aa0ff;transition:width .2s"></div></div><div id="loadPct" style="font-size:12px;opacity:.7">0 %</div>';
+  document.body.appendChild(ov); LOADING = true; const t0 = performance.now();
+  const set = (p, t) => { $('loadBar').style.width = p + '%'; $('loadPct').textContent = Math.round(p) + ' %'; if (t) $('loadTxt').textContent = t; };
+  const paint = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+  const steps = [[2, 'Trazando calles, manzanas y edificios…', () => { MAPA.defer = true; try { MX.start(); } finally { MAPA.defer = false; } }],
+    [62, 'Compartiendo materiales y texturas…', () => MAPA.post('dedupe')], [67, 'Uniendo las piezas de cada objeto…', () => MAPA.post('lazify')],
+    [84, 'Agrupando objetos iguales…', () => MAPA.post('instance')], [89, 'Preparando luces, sombras y sombreados…', () => warmAll()]];
+  return (async () => {
+    try { for (const [p, t, f] of steps) { set(p, t); await paint(); f(); } set(100, 'Listo'); await paint(); }
+    catch (e) { const el = $('err'); el.style.display = 'block'; el.textContent = 'Error al cargar: ' + e.message; }
+    finally { LOADING = false; ov.remove(); MX.loadMs = performance.now() - t0; }
+  })();
+}
+function begin() { if (started) return; started = true; $('start').style.display = 'none'; try { if (matchMedia('(pointer:coarse)').matches && !document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {}); } catch (e) {} initAudio(); if (MX.want && MX.district && PROGRESIVO()) return beginProgressive(); if (MX.want) MX.start(); else if (!RANGE.built && !/mapa=1/.test(location.search)) rangeToggle(); warmAll(); }   // arranca en el polígono (Share / F2 para salir); el botón «Mapa 3» arranca la partida 6 vs 6
 addEventListener('keydown', e => {
   if (e.repeat) return; keys[e.code] = true; mode = 'kb'; begin();
   if (e.code === 'KeyR') flags.reload = true;
@@ -953,7 +974,7 @@ function chooseMap(n) {
   if (n === curMap()) { closeMenu(); return; }
   if (MX.on) { location.href = location.pathname + '?mapa=' + n; return; }              // el mapa 3 transforma la escena: para salir se recarga la página
   closeMenu();
-  if (n >= 3 && n <= 6) { MX.campaign = n >= 4; MX.district = n >= 5; MX.dataId = n === 6 ? 'M2' : 'M1'; if (RANGE.on) rangeToggle(); MX.want = true; MX.start(); warmAll(); }
+  if (n >= 3 && n <= 6) { MX.campaign = n >= 4; MX.district = n >= 5; MX.dataId = n === 6 ? 'M2' : 'M1'; if (RANGE.on) rangeToggle(); MX.want = true; if (MX.district && PROGRESIVO()) beginProgressive(); else { MX.start(); warmAll(); } }
   else if ((n === 2) !== RANGE.on) rangeToggle();
 }
 function renderMenu() {
@@ -1041,8 +1062,9 @@ function warmAll() {
   if (secs) { const sm = new Set(), sg = new Set(), I4 = new THREE.Matrix4();
     for (const g of secs) g.traverse(o => { if (!o.isMesh) return; const ms = Array.isArray(o.material) ? o.material : [o.material], tag = o.isInstancedMesh ? 'i' : 'm';
       let need = !sg.has(o.geometry); for (const m of ms) if (!sm.has(m.uuid + tag)) need = true; if (!need) return; sg.add(o.geometry); for (const m of ms) sm.add(m.uuid + tag);
-      const q = o.isInstancedMesh ? new THREE.InstancedMesh(o.geometry, o.material, 1) : new THREE.Mesh(o.geometry, o.material); if (o.isInstancedMesh) q.setMatrixAt(0, I4);
-      q.position.set(P.pos.x, 0, P.pos.z); q.castShadow = o.castShadow; q.receiveShadow = o.receiveShadow; prox.push(q); });
+      const mk = inst => { const q = inst ? new THREE.InstancedMesh(o.geometry, o.material, 1) : new THREE.Mesh(o.geometry, o.material); if (inst) q.setMatrixAt(0, I4);
+        q.position.set(P.pos.x, 0, P.pos.z); q.castShadow = o.castShadow; q.receiveShadow = o.receiveShadow; prox.push(q); };
+      mk(o.isInstancedMesh); if (o.isInstancedMesh && o.userData.lzInst) mk(false); });   /* objetos dibujados en lote: también su variante normal (la que usan al despertar) */
     for (const g of secs) THREE.Object3D.prototype.remove.call(scene, g); for (const q of prox) scene.add(q); }
   scene.traverse(o => { st.push([o, o.visible, o.frustumCulled]); o.visible = true; o.frustumCulled = false; });
   const dm = [], seen = new Set(), addM = m => { if (!m) return; if (m.isMaterial) { if (!seen.has(m)) { seen.add(m);
@@ -1592,9 +1614,37 @@ const PSPEC = {
   blocks: { mat: 'block', hp: 220, push: false, mass: 30, fric: 9, build: buildBlocks }
 };
 let PUID = 0;
+/* sin parpadeo (z-fighting): si dos piezas de distinto material tienen una cara exactamente en el mismo plano y mirando al mismo lado (una franja de
+   color a ras de la pared, una balda a ras del lateral), la GPU no sabe cuál va delante y los píxeles bailan al mover la cámara (más en el móvil).
+   Se adelanta 2 mm la cara de la pieza más pequeña: no se nota a la vista y deja de competir. Sólo piezas sin giro propio colgadas del objeto. */
+const _ncB = new THREE.Box3();
+function noCoplanar(out, G) {
+  const L = [];
+  for (const pc of out) { const o = pc.obj; if (!o || !o.isMesh || o.parent !== G || o.rotation.x || o.rotation.y || o.rotation.z) continue;
+    const g = o.geometry; if (g.type !== 'BoxGeometry' && g.attributes.position.count !== 24) continue;   /* sólo cajas: su caja envolvente son sus caras */ if (!g.boundingBox) g.computeBoundingBox(); _ncB.copy(g.boundingBox); const s = o.scale, q = o.position;
+    L.push({ o, pc, mn: [_ncB.min.x * s.x + q.x, _ncB.min.y * s.y + q.y, _ncB.min.z * s.z + q.z], mx: [_ncB.max.x * s.x + q.x, _ncB.max.y * s.y + q.y, _ncB.max.z * s.z + q.z] }); }
+  const E = 2e-4, NUDGE = .002, AX = ['x', 'y', 'z'];
+  for (let pass = 0, moved = 1; pass < 4 && moved; pass++) { moved = 0;           /* varias pasadas: si dos pequeñas comparten cara con una grande, la segunda sale un poco más */
+  for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) {
+    const a = L[i], c = L[j]; if (a.o.material === c.o.material) continue;
+    for (let k = 0; k < 3; k++) {
+      const u = (k + 1) % 3, v = (k + 2) % 3;
+      const ou = Math.min(a.mx[u], c.mx[u]) - Math.max(a.mn[u], c.mn[u]), ov = Math.min(a.mx[v], c.mx[v]) - Math.max(a.mn[v], c.mn[v]); if (ou <= .001 || ov <= .001) continue;
+      for (const side of [1, -1]) {
+        if (k === 1 && side < 0) continue;                                          // caras de abajo: no se ven
+        const fa = side > 0 ? a.mx[k] : a.mn[k], fc = side > 0 ? c.mx[k] : c.mn[k]; if (Math.abs(fa - fc) > E) continue;
+        const sa = (a.mx[u] - a.mn[u]) * (a.mx[v] - a.mn[v]), sc = (c.mx[u] - c.mn[u]) * (c.mx[v] - c.mn[v]), w = sa <= sc ? a : c;   // se adelanta la más pequeña
+        const o = w.o, ext = (w.mx[k] - w.mn[k]) || 1e-3; o.scale[AX[k]] *= (ext + NUDGE) / ext; o.position[AX[k]] += side * NUDGE / 2;
+        if (side > 0) w.mx[k] += NUDGE; else w.mn[k] -= NUDGE; moved++;
+        const pc = w.pc; if (pc.bx !== undefined) { if (k === 0) { pc.bx += side * NUDGE / 2; if (pc.bsx !== undefined) pc.bsx = o.scale.x; } else if (k === 2) pc.bz += side * NUDGE / 2; else { pc.by += side * NUDGE / 2; pc.bsy = o.scale.y; } }   /* hojas que se abren: su postura base también */
+      }
+    }
+  }
+  }
+}
 function addProp(type, x, z, rot) {
   const sp = PSPEC[type], g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rot || 0; scene.add(g);
-  const b = sp.build(g), sw = Math.abs(Math.sin(rot || 0)) > .5;
+  const b = sp.build(g), sw = Math.abs(Math.sin(rot || 0)) > .5; noCoplanar(b.out, g);
   const p = { uid: ++PUID, type, mat: sp.mat, g, x, z, hx: sw ? b.hz : b.hx, hz: sw ? b.hx : b.hz, h: b.h, hp: sp.hp, maxHp: sp.hp, stage: 0, pieces: b.out, pushable: sp.push, mass: sp.mass, fric: sp.fric, v: new V3(), dead: false,
     pen: sp.pen === undefined ? MT[sp.mat].pen : sp.pen, explosive: !!sp.explosive, fluid: sp.fluid ? 1 : 0, fluidKind: sp.fluid || null, holes: [], fuse: -1, burnT: 0, wob: 0, wobS: 1, dashT: -9, burning: false };
   p.box = { x, z, hx: p.hx, hz: p.hz, prop: p }; boxes.push(p.box); props.push(p); g.updateMatrixWorld(true); return p;
@@ -1789,7 +1839,7 @@ function updateProps(dt) {
     const p = props[i]; if (p.dead) continue;
     if (p.fuse >= 0) { p.fuse -= dt; if (p.fuse < 0) { destroyProp(p, 0, 0, 1.5); continue; } if (Math.random() < dt * 25) flame(p.x, .9, p.z, .12); }
     if (p.burnT > 0) {                                                               // madera ardiendo: se carboniza y pierde vida
-      p.burnT -= dt; loopAt('pb' + p.uid, 'FIRE_loop', p.x, p.z, .6); if (!p.charred) { p.charred = true; for (const pc of p.pieces) if (!pc.gone && pc.obj.material === PM.plank) pc.obj.material = PM.char; }
+      p.burnT -= dt; loopAt('pb' + p.uid, 'FIRE_loop', p.x, p.z, .6); if (!p.charred) { p.charred = true; if (p.lz) MAPA.wake(p); for (const pc of p.pieces) if (!pc.gone && pc.obj.material === PM.plank) pc.obj.material = PM.char; }
       if (Math.random() < dt * 14) flame(p.x + (Math.random() - .5) * p.hx * 1.6, .3 + Math.random() * .6, p.z + (Math.random() - .5) * p.hz * 1.6, .12);
       damageProp(p, 7 * dt, p.x, p.z, 0, 0, 'fire'); if (p.dead) continue;
     }
@@ -2411,10 +2461,11 @@ function update(dt) {
 let last = performance.now(), fAcc = 0, fN = 0;
 function frame(now) {
   requestAnimationFrame(frame);
+  if (LOADING) { last = now; return; }                                                 // cargando el distrito: ni lógica ni dibujo
   const dt = Math.min((now - last) / 1000, .05); last = now; if (dt <= 0) return;
   try { const _a = performance.now(); time += dt; if (menuOpen) { menuTick(); loopTick(dt); } else update(dt); /* en pausa los bucles se apagan con fundido */ const _b = performance.now(); lightsSync(); if (typeof MAPA !== 'undefined') MAPA.cull(camera); diagGpuBegin(); renderer.render(scene, camera); diagGpuEnd(); const _c = performance.now(); DIAG.u += _b - _a; DIAG.r += _c - _b; DIAG.n++; }
   catch (e) { const el = $('err'); el.style.display = 'block'; el.textContent = 'Error en el juego: ' + e.message + '\n' + String(e.stack || '').split('\n').slice(0, 3).join('\n'); }
-  fAcc += dt; fN++; if (fAcc > .5) { const fps = Math.round(fN / fAcc); $('fps').textContent = fps + ' FPS' + (DIAG.on && DIAG.n ? ' · lógica ' + (DIAG.u / DIAG.n).toFixed(1) + ' ms · dibujo(CPU) ' + (DIAG.r / DIAG.n).toFixed(1) + ' ms · GPU ' + (DIAG.ext ? (DIAG.gn ? (DIAG.g / DIAG.gn).toFixed(1) + ' ms' : '…') : 'n/d') + ' · ' + renderer.info.render.calls + ' llamadas · ' + Math.round(renderer.info.render.triangles / 1000) + 'k tri · ' + renderer.domElement.width + '×' + renderer.domElement.height : ''); DIAG.u = DIAG.r = DIAG.n = DIAG.g = DIAG.gn = 0; $('fps').style.color = fps >= 55 ? '#6dff9a' : fps >= 30 ? '#ffd24a' : '#ff6a4a'; fAcc = 0; fN = 0; }
+  fAcc += dt; fN++; if (fAcc > .5) { const fps = Math.round(fN / fAcc); $('fps').textContent = fps + ' FPS' + (DIAG.on && DIAG.n ? ' · lógica ' + (DIAG.u / DIAG.n).toFixed(1) + ' ms · dibujo(CPU) ' + (DIAG.r / DIAG.n).toFixed(1) + ' ms · GPU ' + (DIAG.ext ? (DIAG.gn ? (DIAG.g / DIAG.gn).toFixed(1) + ' ms' : '…') : 'n/d') + ' · ' + renderer.info.render.calls + ' llamadas · ' + Math.round(renderer.info.render.triangles / 1000) + 'k tri · ' + renderer.domElement.width + '×' + renderer.domElement.height + (MX.loadMs ? ' · carga ' + (MX.loadMs / 1000).toFixed(1) + ' s' : '') + ' · GPU: ' + renderer.info.memory.geometries + ' geom, ' + renderer.info.memory.textures + ' tex' + (performance.memory ? ' · JS ' + Math.round(performance.memory.usedJSHeapSize / 1e6) + ' MB' : '') : ''); DIAG.u = DIAG.r = DIAG.n = DIAG.g = DIAG.gn = 0; $('fps').style.color = fps >= 55 ? '#6dff9a' : fps >= 30 ? '#ffd24a' : '#ff6a4a'; fAcc = 0; fN = 0; }
 }
 /* El bucle arranca cuando todos los scripts (objetos, inventario, partida, zombis…) ya se han ejecutado: Safari puede pintar un frame entre scripts y fallaba con "Can't find variable". */
 if (document.readyState === 'complete') requestAnimationFrame(frame); else window.addEventListener('load', () => requestAnimationFrame(frame));
@@ -2429,8 +2480,10 @@ if (document.readyState === 'complete') requestAnimationFrame(frame); else windo
    Todo vive dentro de `OBJ`; no cambia nada del juego existente salvo los ganchos indicados al final (`impactFx`, `damageProp`, `destroyProp`, `addProp`, `updateProps`).
    NO incluye: inventario ni interacción con el mando (entrega 3), mejoras y costes (entrega 4), ni navegación dinámica (entrega 2). `OBJ.on` avisa de cada cambio de estado. */
 (function () {
-  const TAU2 = Math.PI * 2, rnd = Math.random, pick = a => a[(rnd() * a.length) | 0];
+  let RNG = null;                                                                   // azar con semilla mientras se construye un objeto
+  const TAU2 = Math.PI * 2, rnd = () => (RNG ? (RNG.n++, RNG()) : Math.random()), pick = a => a[(rnd() * a.length) | 0];
   const cl = (v, a, b) => Math.max(a, Math.min(b, v));
+  function seededRng(a) { return function () { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }   // mulberry32
 
   /* ---------- texturas procedurales (canvas): madera, piedra, hierro, ladrillo, chapa… ---------- */
   function mkTex(size, draw) { const c = document.createElement('canvas'); c.width = c.height = size; draw(c.getContext('2d'), size); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t; }
@@ -2535,10 +2588,10 @@ if (document.readyState === 'complete') requestAnimationFrame(frame); else windo
   const flag = (g, out, x, y0, z, hgt) => { bx(g, out, OM.woodD, .05, hgt, .05, x, y0 + hgt / 2, z, false); const f = accent(g, out, .85, .5, .03, x + .45, y0 + hgt - .3, z, true); trim(g, out, .85, .1, .035, x + .45, y0 + hgt - .1, z, true); return f; };
 
   /* hoja con bisagra: sus piezas se mueven alrededor de (hx, hz) y siguen siendo piezas normales (saltan al romperse) */
-  function leaf(out, from, hx, hz, sign) { const pcs = out.slice(from); for (const pc of pcs) { pc.bx = pc.obj.position.x; pc.bz = pc.obj.position.z; pc.br = pc.obj.rotation.y; pc.by = pc.obj.position.y; pc.bsy = pc.obj.scale.y; } return { pcs, hx, hz, sign: sign || 1 }; }
+  function leaf(out, from, hx, hz, sign) { const pcs = out.slice(from); for (const pc of pcs) { pc.bx = pc.obj.position.x; pc.bz = pc.obj.position.z; pc.br = pc.obj.rotation.y; pc.by = pc.obj.position.y; pc.bsy = pc.obj.scale.y; pc.bsx = pc.obj.scale.x; } return { pcs, hx, hz, sign: sign || 1 }; }
   function swing(lf, a) { const c = Math.cos(a * lf.sign), s = Math.sin(a * lf.sign); for (const pc of lf.pcs) { if (pc.gone) continue; const dx = pc.bx - lf.hx, dz = pc.bz - lf.hz, o = pc.obj; o.position.x = lf.hx + dx * c + dz * s; o.position.z = lf.hz - dx * s + dz * c; o.rotation.y = pc.br + a * lf.sign; } }
   function slide(lf, d) { for (const pc of lf.pcs) if (!pc.gone) pc.obj.position.x = pc.bx + d; }
-  function roll(lf, t, H) { for (const pc of lf.pcs) { if (pc.gone) continue; const o = pc.obj, k = 1 - t * .9; o.position.y = H - (H - pc.by) * k; o.scale.y = Math.max(.02, pc.bsy * (1 - t * .85)); } }
+  function roll(lf, t, H) { const n = lf.pcs.length; lf.pcs.forEach((pc, i) => { if (pc.gone) return; const o = pc.obj, k = 1 - t * .9; o.position.y = H - (H - pc.by) * k; o.scale.y = Math.max(.02, pc.bsy * (1 - t * .85)); o.position.z = pc.bz + (i - n / 2) * .0004 * t; o.scale.x = pc.bsx * (1 - i * .00015 * t); }); }   // enrollada: láminas separadas décimas de mm (si no, compiten y parpadean)
 
   const SP = {}, META = {};
   function def(type, meta, spec) { META[type] = Object.assign({ type }, meta); SP[type] = spec; }
@@ -3288,7 +3341,9 @@ if (document.readyState === 'complete') requestAnimationFrame(frame); else windo
 
   const _addProp = addProp;
   addProp = function (type, x, z, rot) {
-    OBJ._b = null; const p = _addProp(type, x, z, rot), b = OBJ._b, s = SP[type];
+    /* azar con semilla propia por objeto: así se puede volver a construir idéntico (piezas reales) cuando se toca un objeto dibujado fusionado (MAPA.lazify) */
+    const seed = (PUID + 1) * 2654435761 >>> 0; OBJ._b = null; RNG = seededRng(seed); RNG.n = 0; let p, used = 0; try { p = _addProp(type, x, z, rot); } finally { used = RNG.n; RNG = null; }
+    const b = OBJ._b, s = SP[type]; p.seed = seed; p.lzFac = OBJ.fac; p.lzParam = OBJ.param; p.lzRnd = used;   // lzRnd = 0: su aspecto no depende del azar (todos los de su tipo y medidas son iguales)
     if (s && b) {
       p.o = { leaves: b.leaves || null, openBoxes: b.openBoxes || null, swing: b.swing || 0, slide: b.slide || 0, roll: !!b.roll, beacon: b.beacon || null, glassPcs: b.glassPcs || null, glow: b.glow || null, lamp: b.lamp || null, seats: b.seats || null };
       p.fullBox = p.box; p.open = false; p.oT = 0;
@@ -3312,6 +3367,15 @@ if (document.readyState === 'complete') requestAnimationFrame(frame); else windo
     emit(on ? 'open' : 'close', p); return true;
   };
   OBJ.toggle = p => OBJ.setOpen(p, !p.open);
+  OBJ.pose = pose;
+  /* vuelve a construir las piezas reales de un objeto con su misma semilla, facción y parámetros (mismo aspecto exacto) y conserva su estado (abierto) */
+  OBJ.rebuild = function (p) {
+    const f0 = OBJ.fac, p0 = OBJ.param; OBJ.fac = p.lzFac === undefined ? null : p.lzFac; OBJ.param = p.lzParam || null; OBJ._b = null; RNG = seededRng(p.seed); RNG.n = 0; let b;
+    try { b = PSPEC[p.type].build(p.g); } finally { OBJ.fac = f0; OBJ.param = p0; RNG = null; }
+    noCoplanar(b.out, p.g); p.pieces = b.out; const bb = OBJ._b;
+    if (p.o && bb) { const o = p.o; o.leaves = bb.leaves || null; o.beacon = bb.beacon || null; o.glassPcs = bb.glassPcs || null; o.glow = bb.glow || null; o.lamp = bb.lamp || null; if (o.leaves && p.oT) pose(p); }
+    return b;
+  };
   OBJ.place = function (type, x, z, rot, fac, param) { const f0 = OBJ.fac, p0 = OBJ.param; OBJ.fac = fac === undefined ? null : fac; OBJ.param = param || null; try { return addProp(type, x, z, rot || 0); } finally { OBJ.fac = f0; OBJ.param = p0; } };   // fac 0..3 = color de facción (franjas, telas, banderas)
   OBJ.contents = p => (p.meta && p.meta.loot) || [];
   OBJ.near = function (x, z, r) { let best = null, bd = r; for (const p of props) { if (p.dead || !p.o) continue; const d = Math.hypot(Math.max(Math.abs(x - p.x) - p.hx, 0), Math.max(Math.abs(z - p.z) - p.hz, 0)); if (d < bd) { bd = d; best = p; } } return best; };
@@ -3492,6 +3556,7 @@ if (document.readyState === 'complete') requestAnimationFrame(frame); else windo
     for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) { const lp = new THREE.Mesh(geoBox, OM.lamp); lp.scale.set(1.2, .04, .4); lp.position.set(cx + (i - 1.5) * w / 4, h - .17, cz + (j - .5) * dd / 2.6); g.add(lp); }
     if (d.sign && d.sign[0]) { const sg = bigSign(d.sign[0], d.sign[1], d.sign[2], d.sign[3], d.sign[4], 7.5), sw = Math.min(w - 1, 6.6), sm2 = new THREE.Mesh(geoBox, sg); sm2.scale.set(sw, sw / 7.5, .05); sm2.position.set(cx, h - .02, cz + dd / 2 + .2); g.add(sm2); }
     return { g, slab: rf, rect: { x0: cx - w / 2, x1: cx + w / 2, z0: cz - dd / 2, z1: cz + dd / 2 } }; }
+  OBJ.slab = function (kind, rot) { const d = BLD[kind]; if (!d) return null; const sw = Math.abs(Math.sin(rot || 0)) > .5, hx = d.W / 2 + .15, hz = d.D / 2 + .15; return sw ? { hx: hz, hz: hx } : { hx, hz }; };   // huella del zócalo
   OBJ.building = function (kind, x, z, rot, fac) {
     const d = BLD[kind]; if (!d) return null; rot = rot || 0; fac = fac === undefined ? null : fac;
     const W = d.W, D = d.D, H = d.H || 3.2, T = .3, c = Math.cos(rot), s = Math.sin(rot), open = d.mode === 'open', cutaway = d.cutaway !== false && !open;
@@ -3502,7 +3567,7 @@ if (document.readyState === 'complete') requestAnimationFrame(frame); else windo
     const add = (type, lx, lz, lrot, param) => { const [wx, wz] = wp(lx, lz), p = OBJ.place(type, wx, wz, rot + (lrot || 0), fac, param); b.props.push(p); return p; };
     const mesh = (geo, mat, sx, sy, sz, px, py, pz) => { const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.position.set(px, py, pz); m.castShadow = true; m.receiveShadow = true; b.group.add(m); return m; };
     const fl = new THREE.Mesh(new THREE.PlaneGeometry(open && d.fp ? W : W, D), floorMat(W, D, d.floor, d.floorTint)); fl.rotation.x = -Math.PI / 2; fl.position.y = .03; fl.receiveShadow = true; b.group.add(fl);
-    mesh(geoBox, OM.anth, W + .3, .06, D + .3, 0, -.02, 0).castShadow = false;
+    mesh(geoBox, OM.anth, W + .3, .07, D + .3, 0, -.02, 0).castShadow = false;   // zócalo: cara de arriba a 1,5 cm (no a 1 cm, donde está el asfalto)
     if (!open) for (let i = 0; i < 3; i++) { const gl = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ map: GLOWTEX, color: 0xfff1c8, transparent: true, opacity: .1, depthWrite: false, blending: THREE.AdditiveBlending })); gl.rotation.x = -Math.PI / 2; gl.position.set((i - 1) * W / 3, .05, 0); gl.scale.set(W / 3.4, D / 2.6, 1); b.group.add(gl); }
     const solidT = d.solid || 'bwallSolid', doorTypes = { door: 1, shopDoor: 1, rollDoor: 1, slideGate: 1 };
     const wall1 = (type, lx, lz, lrot, param, notNear) => { const p = add(type, lx, lz, lrot, Object.assign({}, pr, param)); b.walls.push(p); if (cutaway && !notNear) { const [, wz] = wp(lx, lz); if (wz > z + (Math.abs(c) * D + Math.abs(s) * W) / 2 - .01) b.near.push(p); } return p; };
@@ -3539,7 +3604,9 @@ if (document.readyState === 'complete') requestAnimationFrame(frame); else windo
     if (b.platformRoof) { const pr2 = b.platformRoof; addRoof(canopyRoof(b, Object.assign({}, d, { sign: null }), pr2.cx, pr2.cz, pr2.w, pr2.d, pr2.h)); }
     if (pal && !open && d.roof !== 'canopy') for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const dp = mesh(geoCyl16, OM.ironD, .045, H, .045, sx * (W / 2 + T + .02), H / 2, sz * (D / 2 + T + .02)); dp.castShadow = false; }
     b.roof = b.roofs.length ? b.roofs[0].g : null;                                                                          // alias de compatibilidad (tests/mapa.py): el techo principal
-    b.zHalf = (Math.abs(c) * D + Math.abs(s) * W) / 2; b.fp = d.fp || { hx: W / 2 + .3, hz: D / 2 + .3 }; OBJ.buildings.push(b); return b;
+    b.zHalf = (Math.abs(c) * D + Math.abs(s) * W) / 2; b.fp = d.fp || { hx: W / 2 + .3, hz: D / 2 + .3 };
+    { const nc = G => noCoplanar(G.children.filter(o => o.isMesh).map(o => ({ obj: o })), G); b.group.traverse(o => { if (!o.isMesh && o.children.length) nc(o); }); }   /* franjas y remates a ras de la fachada: sin parpadeo */
+    OBJ.buildings.push(b); return b;
   };
   const inRect = (b, x, zz, r) => { const dx = x - b.x, dz = zz - b.z, lx = dx * Math.cos(b.rot) - dz * Math.sin(b.rot), lz = dx * Math.sin(b.rot) + dz * Math.cos(b.rot); return lx > r.x0 && lx < r.x1 && lz > r.z0 && lz < r.z1; };
   OBJ.insideBuilding = function (x, zz) {                                                                                  // ¿está el punto bajo el techo de algún edificio?
@@ -3603,7 +3670,7 @@ if (document.readyState === 'complete') requestAnimationFrame(frame); else windo
 const MAPA = window.MAPA = { data: {}, built: null };
 const MA = {}; const mat = c => MA[c] || (MA[c] = new THREE.MeshStandardMaterial({ color: c, roughness: .95, flatShading: true }));
 /* superficies: color y altura de la cara superior (las más altas tapan a las más bajas: sin parpadeo) */
-const SURF = { asphalt: [0x35383e, .01], grass: [0x56713f, .02], forest: [0x3d5a31, .025], dirt: [0x6c5a44, .03], concrete: [0x85827c, .05], cobble: [0x7a6d60, .07], refuge: [0x6c685f, .06], sidewalk: [0x9d9b92, .13] };
+const SURF = { asphalt: [0x35383e, .01], grass: [0x56713f, .02], forest: [0x3d5a31, .025], dirt: [0x6c5a44, .03], concrete: [0x85827c, .05], cobble: [0x7a6d60, .07], refuge: [0x6c685f, .058], sidewalk: [0x9d9b92, .13] };
 const MARK = { white: 0xdbd8cb, yellow: 0xe3b942 };
 const _q = new THREE.Quaternion(), _p = new V3(), _s = new V3();
 const mkBox = (x, y, z, w, h, d) => ({ m: new THREE.Matrix4().compose(_p.set(x, y, z), _q.identity(), _s.set(w, h, d)) });
@@ -3663,7 +3730,19 @@ MAPA.build = function (D) {
   const rect = (t, x, z, w, d) => add(SURF[t][0], x, SURF[t][1] / 2, z, w, SURF[t][1], d), mark = (c, x, z, w, d) => add(MARK[c], x, .0145, z, w, .006, d);
   const out = { half: D.half, spawns: [[], [], [], []], hot: (D.hot || []).slice(), walls: [], props: [], buildings: [], rails: [], group };
   if (D.ground) OBJ.setGround(SURF[D.ground][0]);
-  for (const s of D.surfaces || []) rect(s.t, s.x, s.z, s.w, s.d);
+  /* sin parpadeo: bajo cada edificio se recortan las superficies que quedarían a la altura de su suelo o por encima (tierra, hormigón, adoquín…);
+     si no, el suelo de la tienda y el del terreno compiten píxel a píxel al entrar (el tejado deja de taparlo) */
+  const HIGH = { dirt: 1, concrete: 1, cobble: 1, refuge: 1 }, under = [];
+  for (const b of D.buildings || []) { const f = OBJ.slab && OBJ.slab(b.k, b.rot || 0); if (f) under.push({ x0: b.x - f.hx, x1: b.x + f.hx, z0: b.z - f.hz, z1: b.z + f.hz }); }
+  const rectCut = (t, x, z, w, d) => {
+    let L = [{ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2 }];
+    if (HIGH[t]) for (const c of under) { const N = []; for (const r of L) {
+      if (c.x1 <= r.x0 || c.x0 >= r.x1 || c.z1 <= r.z0 || c.z0 >= r.z1) { N.push(r); continue; }
+      if (c.z0 > r.z0) N.push({ x0: r.x0, x1: r.x1, z0: r.z0, z1: c.z0 }); if (c.z1 < r.z1) N.push({ x0: r.x0, x1: r.x1, z0: c.z1, z1: r.z1 });
+      const z0 = Math.max(r.z0, c.z0), z1 = Math.min(r.z1, c.z1); if (c.x0 > r.x0) N.push({ x0: r.x0, x1: c.x0, z0, z1 }); if (c.x1 < r.x1) N.push({ x0: c.x1, x1: r.x1, z0, z1 }); } L = N; }
+    for (const r of L) if (r.x1 - r.x0 > .01 && r.z1 - r.z0 > .01) rect(t, (r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, r.x1 - r.x0, r.z1 - r.z0);
+  };
+  for (const s of D.surfaces || []) rectCut(s.t, s.x, s.z, s.w, s.d);
   /* calles: asfalto, aceras a ambos lados, marcas centrales y de borde, pasos de cebra; se cortan donde se cruzan */
   const allRoads = D.roads || [], roads = allRoads.filter(r => !r.pts), curves = allRoads.filter(r => r.pts), SW = 3.2;
   for (const c of curves) c.dense = pathPts(c.pts, c.step || 2);
@@ -3704,12 +3783,12 @@ MAPA.build = function (D) {
         if (!cut(bx, bz)) (B[MARK.white] = B[MARK.white] || []).push(mkBoxR(bx, .0145, bz, L, .006, .16, yaw));
       }
       if (cut(mx, mz)) continue;
-      if (c.w >= 10) for (const sg of [-1, 1]) (B[MARK.yellow] = B[MARK.yellow] || []).push(mkBoxR(mx + nx * sg * .22, .0145, mz + nz * sg * .22, L, .006, .14, yaw));
+      if (c.w >= 10) for (const sg of [-1, 1]) (B[MARK.yellow] = B[MARK.yellow] || []).push(mkBoxR(mx + nx * sg * .22, .0151, mz + nz * sg * .22, L, .006, .14, yaw));
       else if (Math.floor(i * (c.step || 2) / 6) % 2 === 0) (B[MARK.white] = B[MARK.white] || []).push(mkBoxR(mx, .0145, mz, L, .006, .16, yaw));
     }
   }
   for (const k of D.lots || []) {                                                       // aparcamientos: hormigón con plazas marcadas
-    rect('concrete', k.x, k.z, k.w, k.d);
+    rectCut('concrete', k.x, k.z, k.w, k.d);
     for (let i = 0; i <= Math.floor(k.w / 3); i++) { const x = k.x - k.w / 2 + 1.5 + i * 3; if (x < k.x + k.w / 2 - .5) { mark('white', x, k.z - k.d / 2 + 3.2, .12, 5.2); mark('white', x, k.z + k.d / 2 - 3.2, .12, 5.2); } }
   }
   /* refugios provisionales (muros bajos de bloque y un hueco de portón; la geometría definitiva es la Entrega 2) */
@@ -3734,7 +3813,7 @@ MAPA.build = function (D) {
   for (const b of D.buildings || []) { const r = placeObject(b.k, b.x, b.z, b.rot || 0, { fac: b.fac }); if (r) out.buildings.push(r); }
   for (const o of D.objects || []) { const r = MAPA.put(o.t, o.x, o.z, o.g || 0, o.o); if (r) out.props.push(r); }
   out.info = D.info || null; MAPA.built = out;
-  if (D.half > 200) { sectorize(out, D); if (!/nodedupe/.test(location.search)) out.dedupe = MAPA.dedupe([group].concat(out.sectors)); }
+  if (D.half > 200) { sectorize(out, D); if (!MAPA.defer) MAPA.post('all'); }   // con carga progresiva (MAPA.defer) los pasos de MAPA.post los va dando la pantalla de carga
   return out;
 };
 /* ---------- sectores (mapas grandes): los objetos y edificios fijos cuelgan de grupos de 32 × 32 m; cada fotograma sólo se dejan visibles los sectores que
@@ -3791,12 +3870,15 @@ function geoSame(a, b) {                                                        
   if (a.groups.length !== b.groups.length) return false; for (let i = 0; i < a.groups.length; i++) { const p = a.groups[i], q = b.groups[i]; if (p.start !== q.start || p.count !== q.count || (p.materialIndex || 0) !== (q.materialIndex || 0)) return false; }
   return true;
 }
+const T = new Map(), Mt = new Map(), G = new Map(), _MC = new WeakMap();                                // persistentes: lo que se construya después (piezas que vuelven) reutiliza lo mismo
+MAPA.canon = root => MAPA.dedupe([root]);
 MAPA.dedupe = function (roots) {
-  roots = [].concat(roots || scene); const T = new Map(), Mt = new Map(), G = new Map(), seenM = new Set(), seenT = new Set(), seenG = new Set();
+  roots = [].concat(roots || scene); const seenM = new Set(), seenT = new Set(), seenG = new Set();
   const texOf = t => { if (!t) return t; seenT.add(t); const im = t.image; if (!im) return t;
     const k = [imgId(im), t.wrapS, t.wrapT, t.magFilter, t.minFilter, t.anisotropy, t.format, t.type, t.encoding, t.flipY, t.generateMipmaps, t.premultiplyAlpha, t.unpackAlignment, t.rotation, t.matrixAutoUpdate].join('|') + '|' + TEXK.map(n => t[n].x.toFixed(5) + ',' + t[n].y.toFixed(5)).join('|');
     const c = T.get(k); if (c) return c; T.set(k, t); return t; };
-  const matOf = m => { seenM.add(m); for (const n of MAPK) if (m[n]) m[n] = texOf(m[n]); if (m.userData && m.userData.noShare) return m;
+  const matOf = m => { const mm = _MC.get(m); if (mm) return mm; const r = matOf0(m); _MC.set(m, r); return r; };
+  const matOf0 = m => { seenM.add(m); for (const n of MAPK) if (m[n]) m[n] = texOf(m[n]); if (m.userData && m.userData.noShare) return m;
     const k = MATK.map(n => m[n] === undefined ? '' : m[n]).join('|') + '|' + (m.color ? m.color.getHex() : '') + '|' + (m.emissive ? m.emissive.getHex() : '') + '|' + MAPK.map(n => m[n] ? m[n].uuid : '').join(',') + '|' + (m.normalScale ? m.normalScale.x + ',' + m.normalScale.y : '') + '|' + (m.defines ? JSON.stringify(m.defines) : '') + '|' + (m.onBeforeCompile && m.onBeforeCompile.toString !== Function.prototype.toString ? String(m.onBeforeCompile) : '');
     const c = Mt.get(k); if (c) return c; Mt.set(k, m); return m; };
   const gk0 = new Map(); const geoOf = g => { seenG.add(g); let k = gk0.get(g); if (k === undefined) gk0.set(g, k = geoKey(g)); if (!k) return g; const L = G.get(k) || []; for (const c of L) if (c === g || geoSame(c, g)) return c; L.push(g); G.set(k, L); return g; };
@@ -3812,6 +3894,129 @@ MAPA.dedupe = function (roots) {
   for (const g of seenG) { const k = gk0.get(g); if (k && !(G.get(k) || []).includes(g)) g.dispose(); }
   return { materiales: [seenM.size, keptM.size + [...seenM].filter(m => m.userData && m.userData.noShare).length], texturas: [seenT.size, keptT.size], geometrias: [seenG.size, gk] };
 };
+/* ---------- objetos intactos fusionados (sin cambiar nada de lo que se ve) ----------
+   Cada objeto del distrito (valla, coche, muro, mueble…) está hecho de muchas piezas sueltas (≈155.000 en total, ~215 MB de memoria sólo en ellas).
+   Mientras un objeto está intacto se dibuja con UNA malla por material (sus piezas soldadas en su sitio exacto) y sus piezas se liberan. En cuanto se
+   toca (bala, explosión, fuego, abrir/cerrar, romper), se vuelven a construir sus piezas reales, idénticas (misma semilla de azar, facción y medidas),
+   y el objeto se comporta igual que siempre: marcas de bala, piezas que saltan, carbonizado, puertas. Lo transparente (cristales, brillos) no se
+   suelda: se queda como pieza propia. Las mallas soldadas idénticas (mismo tipo, misma forma) comparten geometría. */
+const _lzInv = new THREE.Matrix4(), _lzRel = new THREE.Matrix4(), _lzN = new THREE.Matrix3(), _lzV = new V3();
+const LZ_GEO = new Map(), _gids = new WeakMap(); let _gidN = 0; const lzGid = g => _gids.get(g) || (_gids.set(g, ++_gidN), _gidN);
+function lzOk(o) {                                                                  // pieza que se puede soldar sin cambiar la imagen
+  if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || Array.isArray(o.material) || !o.material) return false;
+  const m = o.material, g = o.geometry; if (m.transparent || !m.depthWrite || m.alphaTest > 0 || m.userData.noShare) return false;
+  if (!g || !g.attributes.position || g.morphAttributes && Object.keys(g.morphAttributes).length) return false;
+  if (g.drawRange.start !== 0 || g.drawRange.count !== Infinity) return false;
+  if (o.onBeforeRender !== THREE.Object3D.prototype.onBeforeRender || o.renderOrder) return false;
+  return true;
+}
+function lzMerge(list) {                                                            // list: [{o, rel}] con la misma lista de atributos
+  const names = Object.keys(list[0].o.geometry.attributes); let nv = 0, ni = 0;
+  for (const it of list) { const g = it.o.geometry; nv += g.attributes.position.count; ni += g.index ? g.index.count : g.attributes.position.count; }
+  const out = new THREE.BufferGeometry(), arr = {};
+  for (const n of names) { const a0 = list[0].o.geometry.attributes[n]; arr[n] = new Float32Array(nv * a0.itemSize); }
+  const idx = nv > 65535 ? new Uint32Array(ni) : new Uint16Array(ni); let vo = 0, io = 0;
+  for (const it of list) {
+    const g = it.o.geometry, cnt = g.attributes.position.count, rel = it.rel, flip = rel.determinant() < 0; _lzN.getNormalMatrix(rel);
+    for (const n of names) {
+      const a = g.attributes[n], sz = a.itemSize, dst = arr[n];
+      for (let i = 0; i < cnt; i++) {
+        if (n === 'position') { _lzV.fromBufferAttribute(a, i).applyMatrix4(rel); dst[(vo + i) * 3] = _lzV.x; dst[(vo + i) * 3 + 1] = _lzV.y; dst[(vo + i) * 3 + 2] = _lzV.z; }
+        else if (n === 'normal') { _lzV.fromBufferAttribute(a, i).applyMatrix3(_lzN).normalize(); dst[(vo + i) * 3] = _lzV.x; dst[(vo + i) * 3 + 1] = _lzV.y; dst[(vo + i) * 3 + 2] = _lzV.z; }
+        else for (let c = 0; c < sz; c++) dst[(vo + i) * sz + c] = a.array[i * sz + c];   // uv, color…: tal cual (atributos simples, sin entrelazar)
+      }
+    }
+    const src = g.index ? g.index.array : null, k = src ? src.length : cnt;
+    for (let t = 0; t < k; t += 3) { const a = src ? src[t] : t, b = src ? src[t + 1] : t + 1, c = src ? src[t + 2] : t + 2;
+      idx[io++] = vo + a; if (flip) { idx[io++] = vo + c; idx[io++] = vo + b; } else { idx[io++] = vo + b; idx[io++] = vo + c; } }
+    vo += cnt;
+  }
+  for (const n of names) out.setAttribute(n, new THREE.BufferAttribute(arr[n], list[0].o.geometry.attributes[n].itemSize));
+  out.setIndex(new THREE.BufferAttribute(idx, 1)); return out;
+}
+function lzIntact(p) {
+  return !p.dead && !p.lz && p.hp === p.maxHp && !p.stage && !(p.decals && p.decals.length) && !p.burning && !(p.burnT > 0) && !(p.holes && p.holes.length) && !p.charred
+    && p.wob < .001 && p.v.lengthSq() < 1e-8 && !p.alarmOn && p.g.scale.y === 1 && p.g.parent && (!p.o || !p.o.leaves || p.oT === 0 || p.oT === 1) && PSPEC[p.type] && p.seed !== undefined;
+}
+const lzPKey = v => v && typeof v === 'object' ? (v.uuid || Object.keys(v).sort().map(k => k + ':' + lzPKey(v[k])).join(';')) : String(v);
+MAPA.lazify = function (list) {
+  let n = 0, pcs = 0, meshes = 0, reused = 0; const VAR = new Map();
+  for (const p of list || props) {
+    if (!lzIntact(p)) continue; const g = p.g;
+    /* objetos iguales (mismo tipo, facción y medidas, sin azar): se reutiliza lo soldado del primero, sin volver a soldar */
+    const vk = p.lzRnd === 0 && !(p.o && p.o.leaves && p.oT) ? p.type + '|' + p.lzFac + '|' + lzPKey(p.lzParam) : null, V = vk && VAR.get(vk);
+    if (V) { const merged = V.map(v => { const m = new THREE.Mesh(v.geo, v.mat); m.castShadow = v.cs; m.receiveShadow = v.rs; m.frustumCulled = v.fc; m.userData.lz = true; return m; });
+      for (const c of g.children.slice()) g.remove(c); for (const m of merged) g.add(m); g.updateMatrixWorld(true);
+      p.lz = { merged, kept: [] }; g.__prop = p; p.pieces = []; n++; meshes += merged.length; reused++; continue; } g.updateMatrixWorld(true);
+    const all = []; g.traverse(o => { if (o !== g) all.push(o); });
+    /* una pieza sólo se suelda si todo lo que cuelga de ella también se suelda (si no, al ocultarla desaparecería su hijo) */
+    const ok = new Set(all.filter(lzOk)), bad = new Set();
+    for (const o of all) if (!ok.has(o) && (o.isMesh || o.isSprite || o.isPoints || o.isLine || o.isLight)) { let q = o.parent; while (q && q !== g) { ok.delete(q); q = q.parent; } bad.add(o); }
+    for (const o of all) if (!o.visible) { ok.delete(o); o.traverse(c => ok.delete(c)); }
+    if (!ok.size) continue;
+    const by = new Map();
+    for (const o of ok) { const k = o.material.uuid + '|' + o.castShadow + '|' + o.receiveShadow + '|' + o.frustumCulled + '|' + Object.keys(o.geometry.attributes).sort().map(a => a + o.geometry.attributes[a].itemSize + (o.geometry.attributes[a].isInterleavedBufferAttribute ? 'i' : '')).join(',');
+      if (/i(,|$)/.test(k)) continue; let L = by.get(k); if (!L) by.set(k, L = []); const rel = o.matrix.clone(); for (let q = o.parent; q && q !== g; q = q.parent) rel.premultiply(q.matrix); L.push({ o, rel }); }
+    const kept = [];                                                                // lo que no se suelda se queda tal cual (con lo que cuelga de ello)
+    for (const o of bad) { let q = o.parent, inside = false; while (q && q !== g) { if (bad.has(q)) { inside = true; break; } q = q.parent; } if (!inside) kept.push(o); }
+    const merged = [];
+    for (const [, L] of by) {
+      /* receta: qué geometría y en qué sitio exacto (local) va cada pieza; misma receta → misma malla soldada, sin volver a soldar */
+      const rc = new Float64Array(L.length * 17); L.forEach((it, i) => { rc[i * 17] = lzGid(it.o.geometry); rc.set(it.rel.elements, i * 17 + 1); });
+      let h1 = 2166136261, h2 = 5381; const u = new Uint32Array(rc.buffer); for (let i = 0; i < u.length; i++) { h1 = Math.imul(h1 ^ u[i], 16777619); h2 = Math.imul(h2, 33) ^ u[i]; }
+      const k = L.length + ':' + (h1 >>> 0) + ':' + (h2 >>> 0), C = LZ_GEO.get(k) || []; let geo = null;
+      for (const c of C) { const r = c.rc; if (r.length !== rc.length) continue; let same = true; for (let i = 0; i < r.length; i++) if (r[i] !== rc[i]) { same = false; break; } if (same) { geo = c.geo; break; } }
+      if (!geo) { geo = lzMerge(L); C.push({ rc, geo }); LZ_GEO.set(k, C); }
+      const o0 = L[0].o, m = new THREE.Mesh(geo, o0.material); m.castShadow = o0.castShadow; m.receiveShadow = o0.receiveShadow; m.frustumCulled = o0.frustumCulled; m.userData.lz = true; merged.push(m);
+      pcs += L.length;
+    }
+    if (vk && !kept.length) VAR.set(vk, merged.map(m => ({ geo: m.geometry, mat: m.material, cs: m.castShadow, rs: m.receiveShadow, fc: m.frustumCulled })));
+    for (const o of kept) g.attach(o);
+    for (const c of g.children.slice()) if (kept.indexOf(c) < 0) g.remove(c);
+    for (const m of merged) g.add(m);
+    g.updateMatrixWorld(true);
+    p.lz = { merged, kept }; g.__prop = p; p.pieces = []; n++; meshes += merged.length;
+  }
+  return { objetos: n, piezas: pcs, mallas: meshes, reutilizados: reused };
+};
+/* dibujo en lote: dentro de cada sector, las mallas soldadas iguales (misma forma y material: vallas, sacos, palés, muros, coches del mismo color…)
+   se dibujan con UNA malla instanciada. Al despertar un objeto, su copia en el lote se oculta (escala 0) y vuelven sus piezas reales. */
+const _Z4 = new THREE.Matrix4().makeScale(0, 0, 0);
+MAPA.instance = function (sectors) {
+  let lotes = 0, copias = 0;
+  for (const S of sectors) {
+    const by = new Map();
+    for (const g of S.children) { const p = g.__prop; if (!p || !p.lz || !p.lz.merged.length) continue;
+      for (const m of p.lz.merged) { const k = m.geometry.uuid + '|' + m.material.uuid + '|' + m.castShadow + '|' + m.receiveShadow; let L = by.get(k); if (!L) by.set(k, L = []); L.push({ p, m }); } }
+    for (const [, L] of by) {
+      if (L.length < 2) continue; const m0 = L[0].m, im = new THREE.InstancedMesh(m0.geometry, m0.material, L.length);
+      im.castShadow = m0.castShadow; im.receiveShadow = m0.receiveShadow; im.frustumCulled = false; im.userData.lzInst = true;   // el sector ya recorta por cámara
+      L.forEach((it, i) => { it.p.g.updateMatrixWorld(true); im.setMatrixAt(i, it.p.g.matrixWorld); it.p.g.remove(it.m); it.p.lz.merged.splice(it.p.lz.merged.indexOf(it.m), 1); (it.p.lz.inst || (it.p.lz.inst = [])).push({ im, i }); });
+      im.instanceMatrix.needsUpdate = true; S.add(im); lotes++; copias += L.length;
+    }
+  }
+  return { lotes, copias };
+};
+/* pasos tras construir el distrito (se pueden dar de uno en uno para pintar la barra de carga entre ellos). ?nodedupe ?nolazy ?noinst los desactivan */
+MAPA.post = function (step) {
+  const out = MAPA.built, q = location.search, all = step === 'all'; if (!out || !out.sectors) return;
+  if ((all || step === 'dedupe') && !/nodedupe/.test(q)) out.dedupe = MAPA.dedupe([out.group].concat(out.sectors));
+  if ((all || step === 'lazify') && !/nolazy/.test(q)) out.lazy = MAPA.lazify(props);
+  if ((all || step === 'instance') && !/nolazy|noinst/.test(q)) out.inst = MAPA.instance(out.sectors);
+};
+MAPA.wake = function (p) {                                                          // vuelve a poner las piezas reales (idénticas) de un objeto fusionado
+  const L = p && p.lz; if (!L) return; p.lz = null;
+  for (const it of L.inst || []) { it.im.setMatrixAt(it.i, _Z4); it.im.instanceMatrix.needsUpdate = true; }
+  for (const m of L.merged) p.g.remove(m); for (const o of L.kept) if (o.parent) o.parent.remove(o);
+  OBJ.rebuild(p); if (MAPA.canon) MAPA.canon(p.g); p.g.updateMatrixWorld(true);
+};
+/* ganchos: cualquier cosa que vaya a tocar las piezas de un objeto lo despierta antes (se instalan por fuera de los de objetos.js) */
+(function () {
+  const wrapP = name => { const f = window[name]; if (typeof f !== 'function') return; window[name] = function (p) { if (p && p.lz) MAPA.wake(p); return f.apply(this, arguments); }; };
+  for (const n of ['damageProp', 'destroyProp', 'bulletHitProp', 'holeDecal', 'addDecal', 'shedPieces', 'barrelBurst', 'launchPiece', 'pushProp']) wrapP(n);   /* empujar: la copia del lote no se movería */
+  if (typeof OBJ !== 'undefined') { const so = OBJ.setOpen; OBJ.setOpen = function (p) { if (p && p.lz) MAPA.wake(p); return so.apply(this, arguments); };
+    const ro = OBJ.removeObject; OBJ.removeObject = function (r) { if (r && r.lz) MAPA.wake(r); return ro.apply(this, arguments); }; }
+})();
 const _fr = new THREE.Frustum(), _pm = new THREE.Matrix4();
 MAPA.cull = function (cam) {
   const b = MAPA.built; if (!b || !b.sectors || MAPA.noCull) return;

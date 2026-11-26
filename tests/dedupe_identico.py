@@ -20,7 +20,7 @@ def shots(pg):
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=ARGS)
     pg = b.new_page(viewport={'width': 900, 'height': 500}); errs = []; pg.on('pageerror', lambda e: errs.append(str(e))); ev = pg.evaluate
-    pg.goto('file://' + os.path.abspath('index.html') + '?mapa=6&nodedupe'); pg.wait_for_timeout(1200); ev('begin()'); pg.wait_for_timeout(1500)
+    pg.goto('file://' + os.path.abspath('index.html') + '?mapa=6&nodedupe&nolazy'); pg.wait_for_timeout(1200); ev('begin()'); pg.wait_for_timeout(1500)
     ev('''()=>{menuOpen=true;for(const el of [...document.body.children]){if(el!==renderer.domElement)el.style.visibility='hidden'}
       window.__orig=renderer.render.bind(renderer);renderer.render=()=>{};window.__off=camera.position.clone().sub(P.pos)}''')
     A = shots(pg); ia = ev('({tex:renderer.info.memory.textures,geo:renderer.info.memory.geometries})')

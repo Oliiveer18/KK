@@ -7,7 +7,7 @@
 const MAPA = window.MAPA = { data: {}, built: null };
 const MA = {}; const mat = c => MA[c] || (MA[c] = new THREE.MeshStandardMaterial({ color: c, roughness: .95, flatShading: true }));
 /* superficies: color y altura de la cara superior (las más altas tapan a las más bajas: sin parpadeo) */
-const SURF = { asphalt: [0x35383e, .01], grass: [0x56713f, .02], forest: [0x3d5a31, .025], dirt: [0x6c5a44, .03], concrete: [0x85827c, .05], cobble: [0x7a6d60, .07], refuge: [0x6c685f, .06], sidewalk: [0x9d9b92, .13] };
+const SURF = { asphalt: [0x35383e, .01], grass: [0x56713f, .02], forest: [0x3d5a31, .025], dirt: [0x6c5a44, .03], concrete: [0x85827c, .05], cobble: [0x7a6d60, .07], refuge: [0x6c685f, .058], sidewalk: [0x9d9b92, .13] };
 const MARK = { white: 0xdbd8cb, yellow: 0xe3b942 };
 const _q = new THREE.Quaternion(), _p = new V3(), _s = new V3();
 const mkBox = (x, y, z, w, h, d) => ({ m: new THREE.Matrix4().compose(_p.set(x, y, z), _q.identity(), _s.set(w, h, d)) });
@@ -67,7 +67,19 @@ MAPA.build = function (D) {
   const rect = (t, x, z, w, d) => add(SURF[t][0], x, SURF[t][1] / 2, z, w, SURF[t][1], d), mark = (c, x, z, w, d) => add(MARK[c], x, .0145, z, w, .006, d);
   const out = { half: D.half, spawns: [[], [], [], []], hot: (D.hot || []).slice(), walls: [], props: [], buildings: [], rails: [], group };
   if (D.ground) OBJ.setGround(SURF[D.ground][0]);
-  for (const s of D.surfaces || []) rect(s.t, s.x, s.z, s.w, s.d);
+  /* sin parpadeo: bajo cada edificio se recortan las superficies que quedarían a la altura de su suelo o por encima (tierra, hormigón, adoquín…);
+     si no, el suelo de la tienda y el del terreno compiten píxel a píxel al entrar (el tejado deja de taparlo) */
+  const HIGH = { dirt: 1, concrete: 1, cobble: 1, refuge: 1 }, under = [];
+  for (const b of D.buildings || []) { const f = OBJ.slab && OBJ.slab(b.k, b.rot || 0); if (f) under.push({ x0: b.x - f.hx, x1: b.x + f.hx, z0: b.z - f.hz, z1: b.z + f.hz }); }
+  const rectCut = (t, x, z, w, d) => {
+    let L = [{ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2 }];
+    if (HIGH[t]) for (const c of under) { const N = []; for (const r of L) {
+      if (c.x1 <= r.x0 || c.x0 >= r.x1 || c.z1 <= r.z0 || c.z0 >= r.z1) { N.push(r); continue; }
+      if (c.z0 > r.z0) N.push({ x0: r.x0, x1: r.x1, z0: r.z0, z1: c.z0 }); if (c.z1 < r.z1) N.push({ x0: r.x0, x1: r.x1, z0: c.z1, z1: r.z1 });
+      const z0 = Math.max(r.z0, c.z0), z1 = Math.min(r.z1, c.z1); if (c.x0 > r.x0) N.push({ x0: r.x0, x1: c.x0, z0, z1 }); if (c.x1 < r.x1) N.push({ x0: c.x1, x1: r.x1, z0, z1 }); } L = N; }
+    for (const r of L) if (r.x1 - r.x0 > .01 && r.z1 - r.z0 > .01) rect(t, (r.x0 + r.x1) / 2, (r.z0 + r.z1) / 2, r.x1 - r.x0, r.z1 - r.z0);
+  };
+  for (const s of D.surfaces || []) rectCut(s.t, s.x, s.z, s.w, s.d);
   /* calles: asfalto, aceras a ambos lados, marcas centrales y de borde, pasos de cebra; se cortan donde se cruzan */
   const allRoads = D.roads || [], roads = allRoads.filter(r => !r.pts), curves = allRoads.filter(r => r.pts), SW = 3.2;
   for (const c of curves) c.dense = pathPts(c.pts, c.step || 2);
@@ -108,12 +120,12 @@ MAPA.build = function (D) {
         if (!cut(bx, bz)) (B[MARK.white] = B[MARK.white] || []).push(mkBoxR(bx, .0145, bz, L, .006, .16, yaw));
       }
       if (cut(mx, mz)) continue;
-      if (c.w >= 10) for (const sg of [-1, 1]) (B[MARK.yellow] = B[MARK.yellow] || []).push(mkBoxR(mx + nx * sg * .22, .0145, mz + nz * sg * .22, L, .006, .14, yaw));
+      if (c.w >= 10) for (const sg of [-1, 1]) (B[MARK.yellow] = B[MARK.yellow] || []).push(mkBoxR(mx + nx * sg * .22, .0151, mz + nz * sg * .22, L, .006, .14, yaw));
       else if (Math.floor(i * (c.step || 2) / 6) % 2 === 0) (B[MARK.white] = B[MARK.white] || []).push(mkBoxR(mx, .0145, mz, L, .006, .16, yaw));
     }
   }
   for (const k of D.lots || []) {                                                       // aparcamientos: hormigón con plazas marcadas
-    rect('concrete', k.x, k.z, k.w, k.d);
+    rectCut('concrete', k.x, k.z, k.w, k.d);
     for (let i = 0; i <= Math.floor(k.w / 3); i++) { const x = k.x - k.w / 2 + 1.5 + i * 3; if (x < k.x + k.w / 2 - .5) { mark('white', x, k.z - k.d / 2 + 3.2, .12, 5.2); mark('white', x, k.z + k.d / 2 - 3.2, .12, 5.2); } }
   }
   /* refugios provisionales (muros bajos de bloque y un hueco de portón; la geometría definitiva es la Entrega 2) */
@@ -138,7 +150,7 @@ MAPA.build = function (D) {
   for (const b of D.buildings || []) { const r = placeObject(b.k, b.x, b.z, b.rot || 0, { fac: b.fac }); if (r) out.buildings.push(r); }
   for (const o of D.objects || []) { const r = MAPA.put(o.t, o.x, o.z, o.g || 0, o.o); if (r) out.props.push(r); }
   out.info = D.info || null; MAPA.built = out;
-  if (D.half > 200) { sectorize(out, D); if (!/nodedupe/.test(location.search)) out.dedupe = MAPA.dedupe([group].concat(out.sectors)); }
+  if (D.half > 200) { sectorize(out, D); if (!MAPA.defer) MAPA.post('all'); }   // con carga progresiva (MAPA.defer) los pasos de MAPA.post los va dando la pantalla de carga
   return out;
 };
 /* ---------- sectores (mapas grandes): los objetos y edificios fijos cuelgan de grupos de 32 × 32 m; cada fotograma sólo se dejan visibles los sectores que
@@ -195,12 +207,15 @@ function geoSame(a, b) {                                                        
   if (a.groups.length !== b.groups.length) return false; for (let i = 0; i < a.groups.length; i++) { const p = a.groups[i], q = b.groups[i]; if (p.start !== q.start || p.count !== q.count || (p.materialIndex || 0) !== (q.materialIndex || 0)) return false; }
   return true;
 }
+const T = new Map(), Mt = new Map(), G = new Map(), _MC = new WeakMap();                                // persistentes: lo que se construya después (piezas que vuelven) reutiliza lo mismo
+MAPA.canon = root => MAPA.dedupe([root]);
 MAPA.dedupe = function (roots) {
-  roots = [].concat(roots || scene); const T = new Map(), Mt = new Map(), G = new Map(), seenM = new Set(), seenT = new Set(), seenG = new Set();
+  roots = [].concat(roots || scene); const seenM = new Set(), seenT = new Set(), seenG = new Set();
   const texOf = t => { if (!t) return t; seenT.add(t); const im = t.image; if (!im) return t;
     const k = [imgId(im), t.wrapS, t.wrapT, t.magFilter, t.minFilter, t.anisotropy, t.format, t.type, t.encoding, t.flipY, t.generateMipmaps, t.premultiplyAlpha, t.unpackAlignment, t.rotation, t.matrixAutoUpdate].join('|') + '|' + TEXK.map(n => t[n].x.toFixed(5) + ',' + t[n].y.toFixed(5)).join('|');
     const c = T.get(k); if (c) return c; T.set(k, t); return t; };
-  const matOf = m => { seenM.add(m); for (const n of MAPK) if (m[n]) m[n] = texOf(m[n]); if (m.userData && m.userData.noShare) return m;
+  const matOf = m => { const mm = _MC.get(m); if (mm) return mm; const r = matOf0(m); _MC.set(m, r); return r; };
+  const matOf0 = m => { seenM.add(m); for (const n of MAPK) if (m[n]) m[n] = texOf(m[n]); if (m.userData && m.userData.noShare) return m;
     const k = MATK.map(n => m[n] === undefined ? '' : m[n]).join('|') + '|' + (m.color ? m.color.getHex() : '') + '|' + (m.emissive ? m.emissive.getHex() : '') + '|' + MAPK.map(n => m[n] ? m[n].uuid : '').join(',') + '|' + (m.normalScale ? m.normalScale.x + ',' + m.normalScale.y : '') + '|' + (m.defines ? JSON.stringify(m.defines) : '') + '|' + (m.onBeforeCompile && m.onBeforeCompile.toString !== Function.prototype.toString ? String(m.onBeforeCompile) : '');
     const c = Mt.get(k); if (c) return c; Mt.set(k, m); return m; };
   const gk0 = new Map(); const geoOf = g => { seenG.add(g); let k = gk0.get(g); if (k === undefined) gk0.set(g, k = geoKey(g)); if (!k) return g; const L = G.get(k) || []; for (const c of L) if (c === g || geoSame(c, g)) return c; L.push(g); G.set(k, L); return g; };
@@ -216,6 +231,129 @@ MAPA.dedupe = function (roots) {
   for (const g of seenG) { const k = gk0.get(g); if (k && !(G.get(k) || []).includes(g)) g.dispose(); }
   return { materiales: [seenM.size, keptM.size + [...seenM].filter(m => m.userData && m.userData.noShare).length], texturas: [seenT.size, keptT.size], geometrias: [seenG.size, gk] };
 };
+/* ---------- objetos intactos fusionados (sin cambiar nada de lo que se ve) ----------
+   Cada objeto del distrito (valla, coche, muro, mueble…) está hecho de muchas piezas sueltas (≈155.000 en total, ~215 MB de memoria sólo en ellas).
+   Mientras un objeto está intacto se dibuja con UNA malla por material (sus piezas soldadas en su sitio exacto) y sus piezas se liberan. En cuanto se
+   toca (bala, explosión, fuego, abrir/cerrar, romper), se vuelven a construir sus piezas reales, idénticas (misma semilla de azar, facción y medidas),
+   y el objeto se comporta igual que siempre: marcas de bala, piezas que saltan, carbonizado, puertas. Lo transparente (cristales, brillos) no se
+   suelda: se queda como pieza propia. Las mallas soldadas idénticas (mismo tipo, misma forma) comparten geometría. */
+const _lzInv = new THREE.Matrix4(), _lzRel = new THREE.Matrix4(), _lzN = new THREE.Matrix3(), _lzV = new V3();
+const LZ_GEO = new Map(), _gids = new WeakMap(); let _gidN = 0; const lzGid = g => _gids.get(g) || (_gids.set(g, ++_gidN), _gidN);
+function lzOk(o) {                                                                  // pieza que se puede soldar sin cambiar la imagen
+  if (!o.isMesh || o.isInstancedMesh || o.isSkinnedMesh || Array.isArray(o.material) || !o.material) return false;
+  const m = o.material, g = o.geometry; if (m.transparent || !m.depthWrite || m.alphaTest > 0 || m.userData.noShare) return false;
+  if (!g || !g.attributes.position || g.morphAttributes && Object.keys(g.morphAttributes).length) return false;
+  if (g.drawRange.start !== 0 || g.drawRange.count !== Infinity) return false;
+  if (o.onBeforeRender !== THREE.Object3D.prototype.onBeforeRender || o.renderOrder) return false;
+  return true;
+}
+function lzMerge(list) {                                                            // list: [{o, rel}] con la misma lista de atributos
+  const names = Object.keys(list[0].o.geometry.attributes); let nv = 0, ni = 0;
+  for (const it of list) { const g = it.o.geometry; nv += g.attributes.position.count; ni += g.index ? g.index.count : g.attributes.position.count; }
+  const out = new THREE.BufferGeometry(), arr = {};
+  for (const n of names) { const a0 = list[0].o.geometry.attributes[n]; arr[n] = new Float32Array(nv * a0.itemSize); }
+  const idx = nv > 65535 ? new Uint32Array(ni) : new Uint16Array(ni); let vo = 0, io = 0;
+  for (const it of list) {
+    const g = it.o.geometry, cnt = g.attributes.position.count, rel = it.rel, flip = rel.determinant() < 0; _lzN.getNormalMatrix(rel);
+    for (const n of names) {
+      const a = g.attributes[n], sz = a.itemSize, dst = arr[n];
+      for (let i = 0; i < cnt; i++) {
+        if (n === 'position') { _lzV.fromBufferAttribute(a, i).applyMatrix4(rel); dst[(vo + i) * 3] = _lzV.x; dst[(vo + i) * 3 + 1] = _lzV.y; dst[(vo + i) * 3 + 2] = _lzV.z; }
+        else if (n === 'normal') { _lzV.fromBufferAttribute(a, i).applyMatrix3(_lzN).normalize(); dst[(vo + i) * 3] = _lzV.x; dst[(vo + i) * 3 + 1] = _lzV.y; dst[(vo + i) * 3 + 2] = _lzV.z; }
+        else for (let c = 0; c < sz; c++) dst[(vo + i) * sz + c] = a.array[i * sz + c];   // uv, color…: tal cual (atributos simples, sin entrelazar)
+      }
+    }
+    const src = g.index ? g.index.array : null, k = src ? src.length : cnt;
+    for (let t = 0; t < k; t += 3) { const a = src ? src[t] : t, b = src ? src[t + 1] : t + 1, c = src ? src[t + 2] : t + 2;
+      idx[io++] = vo + a; if (flip) { idx[io++] = vo + c; idx[io++] = vo + b; } else { idx[io++] = vo + b; idx[io++] = vo + c; } }
+    vo += cnt;
+  }
+  for (const n of names) out.setAttribute(n, new THREE.BufferAttribute(arr[n], list[0].o.geometry.attributes[n].itemSize));
+  out.setIndex(new THREE.BufferAttribute(idx, 1)); return out;
+}
+function lzIntact(p) {
+  return !p.dead && !p.lz && p.hp === p.maxHp && !p.stage && !(p.decals && p.decals.length) && !p.burning && !(p.burnT > 0) && !(p.holes && p.holes.length) && !p.charred
+    && p.wob < .001 && p.v.lengthSq() < 1e-8 && !p.alarmOn && p.g.scale.y === 1 && p.g.parent && (!p.o || !p.o.leaves || p.oT === 0 || p.oT === 1) && PSPEC[p.type] && p.seed !== undefined;
+}
+const lzPKey = v => v && typeof v === 'object' ? (v.uuid || Object.keys(v).sort().map(k => k + ':' + lzPKey(v[k])).join(';')) : String(v);
+MAPA.lazify = function (list) {
+  let n = 0, pcs = 0, meshes = 0, reused = 0; const VAR = new Map();
+  for (const p of list || props) {
+    if (!lzIntact(p)) continue; const g = p.g;
+    /* objetos iguales (mismo tipo, facción y medidas, sin azar): se reutiliza lo soldado del primero, sin volver a soldar */
+    const vk = p.lzRnd === 0 && !(p.o && p.o.leaves && p.oT) ? p.type + '|' + p.lzFac + '|' + lzPKey(p.lzParam) : null, V = vk && VAR.get(vk);
+    if (V) { const merged = V.map(v => { const m = new THREE.Mesh(v.geo, v.mat); m.castShadow = v.cs; m.receiveShadow = v.rs; m.frustumCulled = v.fc; m.userData.lz = true; return m; });
+      for (const c of g.children.slice()) g.remove(c); for (const m of merged) g.add(m); g.updateMatrixWorld(true);
+      p.lz = { merged, kept: [] }; g.__prop = p; p.pieces = []; n++; meshes += merged.length; reused++; continue; } g.updateMatrixWorld(true);
+    const all = []; g.traverse(o => { if (o !== g) all.push(o); });
+    /* una pieza sólo se suelda si todo lo que cuelga de ella también se suelda (si no, al ocultarla desaparecería su hijo) */
+    const ok = new Set(all.filter(lzOk)), bad = new Set();
+    for (const o of all) if (!ok.has(o) && (o.isMesh || o.isSprite || o.isPoints || o.isLine || o.isLight)) { let q = o.parent; while (q && q !== g) { ok.delete(q); q = q.parent; } bad.add(o); }
+    for (const o of all) if (!o.visible) { ok.delete(o); o.traverse(c => ok.delete(c)); }
+    if (!ok.size) continue;
+    const by = new Map();
+    for (const o of ok) { const k = o.material.uuid + '|' + o.castShadow + '|' + o.receiveShadow + '|' + o.frustumCulled + '|' + Object.keys(o.geometry.attributes).sort().map(a => a + o.geometry.attributes[a].itemSize + (o.geometry.attributes[a].isInterleavedBufferAttribute ? 'i' : '')).join(',');
+      if (/i(,|$)/.test(k)) continue; let L = by.get(k); if (!L) by.set(k, L = []); const rel = o.matrix.clone(); for (let q = o.parent; q && q !== g; q = q.parent) rel.premultiply(q.matrix); L.push({ o, rel }); }
+    const kept = [];                                                                // lo que no se suelda se queda tal cual (con lo que cuelga de ello)
+    for (const o of bad) { let q = o.parent, inside = false; while (q && q !== g) { if (bad.has(q)) { inside = true; break; } q = q.parent; } if (!inside) kept.push(o); }
+    const merged = [];
+    for (const [, L] of by) {
+      /* receta: qué geometría y en qué sitio exacto (local) va cada pieza; misma receta → misma malla soldada, sin volver a soldar */
+      const rc = new Float64Array(L.length * 17); L.forEach((it, i) => { rc[i * 17] = lzGid(it.o.geometry); rc.set(it.rel.elements, i * 17 + 1); });
+      let h1 = 2166136261, h2 = 5381; const u = new Uint32Array(rc.buffer); for (let i = 0; i < u.length; i++) { h1 = Math.imul(h1 ^ u[i], 16777619); h2 = Math.imul(h2, 33) ^ u[i]; }
+      const k = L.length + ':' + (h1 >>> 0) + ':' + (h2 >>> 0), C = LZ_GEO.get(k) || []; let geo = null;
+      for (const c of C) { const r = c.rc; if (r.length !== rc.length) continue; let same = true; for (let i = 0; i < r.length; i++) if (r[i] !== rc[i]) { same = false; break; } if (same) { geo = c.geo; break; } }
+      if (!geo) { geo = lzMerge(L); C.push({ rc, geo }); LZ_GEO.set(k, C); }
+      const o0 = L[0].o, m = new THREE.Mesh(geo, o0.material); m.castShadow = o0.castShadow; m.receiveShadow = o0.receiveShadow; m.frustumCulled = o0.frustumCulled; m.userData.lz = true; merged.push(m);
+      pcs += L.length;
+    }
+    if (vk && !kept.length) VAR.set(vk, merged.map(m => ({ geo: m.geometry, mat: m.material, cs: m.castShadow, rs: m.receiveShadow, fc: m.frustumCulled })));
+    for (const o of kept) g.attach(o);
+    for (const c of g.children.slice()) if (kept.indexOf(c) < 0) g.remove(c);
+    for (const m of merged) g.add(m);
+    g.updateMatrixWorld(true);
+    p.lz = { merged, kept }; g.__prop = p; p.pieces = []; n++; meshes += merged.length;
+  }
+  return { objetos: n, piezas: pcs, mallas: meshes, reutilizados: reused };
+};
+/* dibujo en lote: dentro de cada sector, las mallas soldadas iguales (misma forma y material: vallas, sacos, palés, muros, coches del mismo color…)
+   se dibujan con UNA malla instanciada. Al despertar un objeto, su copia en el lote se oculta (escala 0) y vuelven sus piezas reales. */
+const _Z4 = new THREE.Matrix4().makeScale(0, 0, 0);
+MAPA.instance = function (sectors) {
+  let lotes = 0, copias = 0;
+  for (const S of sectors) {
+    const by = new Map();
+    for (const g of S.children) { const p = g.__prop; if (!p || !p.lz || !p.lz.merged.length) continue;
+      for (const m of p.lz.merged) { const k = m.geometry.uuid + '|' + m.material.uuid + '|' + m.castShadow + '|' + m.receiveShadow; let L = by.get(k); if (!L) by.set(k, L = []); L.push({ p, m }); } }
+    for (const [, L] of by) {
+      if (L.length < 2) continue; const m0 = L[0].m, im = new THREE.InstancedMesh(m0.geometry, m0.material, L.length);
+      im.castShadow = m0.castShadow; im.receiveShadow = m0.receiveShadow; im.frustumCulled = false; im.userData.lzInst = true;   // el sector ya recorta por cámara
+      L.forEach((it, i) => { it.p.g.updateMatrixWorld(true); im.setMatrixAt(i, it.p.g.matrixWorld); it.p.g.remove(it.m); it.p.lz.merged.splice(it.p.lz.merged.indexOf(it.m), 1); (it.p.lz.inst || (it.p.lz.inst = [])).push({ im, i }); });
+      im.instanceMatrix.needsUpdate = true; S.add(im); lotes++; copias += L.length;
+    }
+  }
+  return { lotes, copias };
+};
+/* pasos tras construir el distrito (se pueden dar de uno en uno para pintar la barra de carga entre ellos). ?nodedupe ?nolazy ?noinst los desactivan */
+MAPA.post = function (step) {
+  const out = MAPA.built, q = location.search, all = step === 'all'; if (!out || !out.sectors) return;
+  if ((all || step === 'dedupe') && !/nodedupe/.test(q)) out.dedupe = MAPA.dedupe([out.group].concat(out.sectors));
+  if ((all || step === 'lazify') && !/nolazy/.test(q)) out.lazy = MAPA.lazify(props);
+  if ((all || step === 'instance') && !/nolazy|noinst/.test(q)) out.inst = MAPA.instance(out.sectors);
+};
+MAPA.wake = function (p) {                                                          // vuelve a poner las piezas reales (idénticas) de un objeto fusionado
+  const L = p && p.lz; if (!L) return; p.lz = null;
+  for (const it of L.inst || []) { it.im.setMatrixAt(it.i, _Z4); it.im.instanceMatrix.needsUpdate = true; }
+  for (const m of L.merged) p.g.remove(m); for (const o of L.kept) if (o.parent) o.parent.remove(o);
+  OBJ.rebuild(p); if (MAPA.canon) MAPA.canon(p.g); p.g.updateMatrixWorld(true);
+};
+/* ganchos: cualquier cosa que vaya a tocar las piezas de un objeto lo despierta antes (se instalan por fuera de los de objetos.js) */
+(function () {
+  const wrapP = name => { const f = window[name]; if (typeof f !== 'function') return; window[name] = function (p) { if (p && p.lz) MAPA.wake(p); return f.apply(this, arguments); }; };
+  for (const n of ['damageProp', 'destroyProp', 'bulletHitProp', 'holeDecal', 'addDecal', 'shedPieces', 'barrelBurst', 'launchPiece', 'pushProp']) wrapP(n);   /* empujar: la copia del lote no se movería */
+  if (typeof OBJ !== 'undefined') { const so = OBJ.setOpen; OBJ.setOpen = function (p) { if (p && p.lz) MAPA.wake(p); return so.apply(this, arguments); };
+    const ro = OBJ.removeObject; OBJ.removeObject = function (r) { if (r && r.lz) MAPA.wake(r); return ro.apply(this, arguments); }; }
+})();
 const _fr = new THREE.Frustum(), _pm = new THREE.Matrix4();
 MAPA.cull = function (cam) {
   const b = MAPA.built; if (!b || !b.sectors || MAPA.noCull) return;

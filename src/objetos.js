@@ -8,8 +8,10 @@
    Todo vive dentro de `OBJ`; no cambia nada del juego existente salvo los ganchos indicados al final (`impactFx`, `damageProp`, `destroyProp`, `addProp`, `updateProps`).
    NO incluye: inventario ni interacción con el mando (entrega 3), mejoras y costes (entrega 4), ni navegación dinámica (entrega 2). `OBJ.on` avisa de cada cambio de estado. */
 (function () {
-  const TAU2 = Math.PI * 2, rnd = Math.random, pick = a => a[(rnd() * a.length) | 0];
+  let RNG = null;                                                                   // azar con semilla mientras se construye un objeto
+  const TAU2 = Math.PI * 2, rnd = () => (RNG ? (RNG.n++, RNG()) : Math.random()), pick = a => a[(rnd() * a.length) | 0];
   const cl = (v, a, b) => Math.max(a, Math.min(b, v));
+  function seededRng(a) { return function () { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }   // mulberry32
 
   /* ---------- texturas procedurales (canvas): madera, piedra, hierro, ladrillo, chapa… ---------- */
   function mkTex(size, draw) { const c = document.createElement('canvas'); c.width = c.height = size; draw(c.getContext('2d'), size); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t; }
@@ -114,10 +116,10 @@
   const flag = (g, out, x, y0, z, hgt) => { bx(g, out, OM.woodD, .05, hgt, .05, x, y0 + hgt / 2, z, false); const f = accent(g, out, .85, .5, .03, x + .45, y0 + hgt - .3, z, true); trim(g, out, .85, .1, .035, x + .45, y0 + hgt - .1, z, true); return f; };
 
   /* hoja con bisagra: sus piezas se mueven alrededor de (hx, hz) y siguen siendo piezas normales (saltan al romperse) */
-  function leaf(out, from, hx, hz, sign) { const pcs = out.slice(from); for (const pc of pcs) { pc.bx = pc.obj.position.x; pc.bz = pc.obj.position.z; pc.br = pc.obj.rotation.y; pc.by = pc.obj.position.y; pc.bsy = pc.obj.scale.y; } return { pcs, hx, hz, sign: sign || 1 }; }
+  function leaf(out, from, hx, hz, sign) { const pcs = out.slice(from); for (const pc of pcs) { pc.bx = pc.obj.position.x; pc.bz = pc.obj.position.z; pc.br = pc.obj.rotation.y; pc.by = pc.obj.position.y; pc.bsy = pc.obj.scale.y; pc.bsx = pc.obj.scale.x; } return { pcs, hx, hz, sign: sign || 1 }; }
   function swing(lf, a) { const c = Math.cos(a * lf.sign), s = Math.sin(a * lf.sign); for (const pc of lf.pcs) { if (pc.gone) continue; const dx = pc.bx - lf.hx, dz = pc.bz - lf.hz, o = pc.obj; o.position.x = lf.hx + dx * c + dz * s; o.position.z = lf.hz - dx * s + dz * c; o.rotation.y = pc.br + a * lf.sign; } }
   function slide(lf, d) { for (const pc of lf.pcs) if (!pc.gone) pc.obj.position.x = pc.bx + d; }
-  function roll(lf, t, H) { for (const pc of lf.pcs) { if (pc.gone) continue; const o = pc.obj, k = 1 - t * .9; o.position.y = H - (H - pc.by) * k; o.scale.y = Math.max(.02, pc.bsy * (1 - t * .85)); } }
+  function roll(lf, t, H) { const n = lf.pcs.length; lf.pcs.forEach((pc, i) => { if (pc.gone) return; const o = pc.obj, k = 1 - t * .9; o.position.y = H - (H - pc.by) * k; o.scale.y = Math.max(.02, pc.bsy * (1 - t * .85)); o.position.z = pc.bz + (i - n / 2) * .0004 * t; o.scale.x = pc.bsx * (1 - i * .00015 * t); }); }   // enrollada: láminas separadas décimas de mm (si no, compiten y parpadean)
 
   const SP = {}, META = {};
   function def(type, meta, spec) { META[type] = Object.assign({ type }, meta); SP[type] = spec; }
@@ -867,7 +869,9 @@
 
   const _addProp = addProp;
   addProp = function (type, x, z, rot) {
-    OBJ._b = null; const p = _addProp(type, x, z, rot), b = OBJ._b, s = SP[type];
+    /* azar con semilla propia por objeto: así se puede volver a construir idéntico (piezas reales) cuando se toca un objeto dibujado fusionado (MAPA.lazify) */
+    const seed = (PUID + 1) * 2654435761 >>> 0; OBJ._b = null; RNG = seededRng(seed); RNG.n = 0; let p, used = 0; try { p = _addProp(type, x, z, rot); } finally { used = RNG.n; RNG = null; }
+    const b = OBJ._b, s = SP[type]; p.seed = seed; p.lzFac = OBJ.fac; p.lzParam = OBJ.param; p.lzRnd = used;   // lzRnd = 0: su aspecto no depende del azar (todos los de su tipo y medidas son iguales)
     if (s && b) {
       p.o = { leaves: b.leaves || null, openBoxes: b.openBoxes || null, swing: b.swing || 0, slide: b.slide || 0, roll: !!b.roll, beacon: b.beacon || null, glassPcs: b.glassPcs || null, glow: b.glow || null, lamp: b.lamp || null, seats: b.seats || null };
       p.fullBox = p.box; p.open = false; p.oT = 0;
@@ -891,6 +895,15 @@
     emit(on ? 'open' : 'close', p); return true;
   };
   OBJ.toggle = p => OBJ.setOpen(p, !p.open);
+  OBJ.pose = pose;
+  /* vuelve a construir las piezas reales de un objeto con su misma semilla, facción y parámetros (mismo aspecto exacto) y conserva su estado (abierto) */
+  OBJ.rebuild = function (p) {
+    const f0 = OBJ.fac, p0 = OBJ.param; OBJ.fac = p.lzFac === undefined ? null : p.lzFac; OBJ.param = p.lzParam || null; OBJ._b = null; RNG = seededRng(p.seed); RNG.n = 0; let b;
+    try { b = PSPEC[p.type].build(p.g); } finally { OBJ.fac = f0; OBJ.param = p0; RNG = null; }
+    noCoplanar(b.out, p.g); p.pieces = b.out; const bb = OBJ._b;
+    if (p.o && bb) { const o = p.o; o.leaves = bb.leaves || null; o.beacon = bb.beacon || null; o.glassPcs = bb.glassPcs || null; o.glow = bb.glow || null; o.lamp = bb.lamp || null; if (o.leaves && p.oT) pose(p); }
+    return b;
+  };
   OBJ.place = function (type, x, z, rot, fac, param) { const f0 = OBJ.fac, p0 = OBJ.param; OBJ.fac = fac === undefined ? null : fac; OBJ.param = param || null; try { return addProp(type, x, z, rot || 0); } finally { OBJ.fac = f0; OBJ.param = p0; } };   // fac 0..3 = color de facción (franjas, telas, banderas)
   OBJ.contents = p => (p.meta && p.meta.loot) || [];
   OBJ.near = function (x, z, r) { let best = null, bd = r; for (const p of props) { if (p.dead || !p.o) continue; const d = Math.hypot(Math.max(Math.abs(x - p.x) - p.hx, 0), Math.max(Math.abs(z - p.z) - p.hz, 0)); if (d < bd) { bd = d; best = p; } } return best; };
@@ -1071,6 +1084,7 @@
     for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) { const lp = new THREE.Mesh(geoBox, OM.lamp); lp.scale.set(1.2, .04, .4); lp.position.set(cx + (i - 1.5) * w / 4, h - .17, cz + (j - .5) * dd / 2.6); g.add(lp); }
     if (d.sign && d.sign[0]) { const sg = bigSign(d.sign[0], d.sign[1], d.sign[2], d.sign[3], d.sign[4], 7.5), sw = Math.min(w - 1, 6.6), sm2 = new THREE.Mesh(geoBox, sg); sm2.scale.set(sw, sw / 7.5, .05); sm2.position.set(cx, h - .02, cz + dd / 2 + .2); g.add(sm2); }
     return { g, slab: rf, rect: { x0: cx - w / 2, x1: cx + w / 2, z0: cz - dd / 2, z1: cz + dd / 2 } }; }
+  OBJ.slab = function (kind, rot) { const d = BLD[kind]; if (!d) return null; const sw = Math.abs(Math.sin(rot || 0)) > .5, hx = d.W / 2 + .15, hz = d.D / 2 + .15; return sw ? { hx: hz, hz: hx } : { hx, hz }; };   // huella del zócalo
   OBJ.building = function (kind, x, z, rot, fac) {
     const d = BLD[kind]; if (!d) return null; rot = rot || 0; fac = fac === undefined ? null : fac;
     const W = d.W, D = d.D, H = d.H || 3.2, T = .3, c = Math.cos(rot), s = Math.sin(rot), open = d.mode === 'open', cutaway = d.cutaway !== false && !open;
@@ -1081,7 +1095,7 @@
     const add = (type, lx, lz, lrot, param) => { const [wx, wz] = wp(lx, lz), p = OBJ.place(type, wx, wz, rot + (lrot || 0), fac, param); b.props.push(p); return p; };
     const mesh = (geo, mat, sx, sy, sz, px, py, pz) => { const m = new THREE.Mesh(geo, mat); m.scale.set(sx, sy, sz); m.position.set(px, py, pz); m.castShadow = true; m.receiveShadow = true; b.group.add(m); return m; };
     const fl = new THREE.Mesh(new THREE.PlaneGeometry(open && d.fp ? W : W, D), floorMat(W, D, d.floor, d.floorTint)); fl.rotation.x = -Math.PI / 2; fl.position.y = .03; fl.receiveShadow = true; b.group.add(fl);
-    mesh(geoBox, OM.anth, W + .3, .06, D + .3, 0, -.02, 0).castShadow = false;
+    mesh(geoBox, OM.anth, W + .3, .07, D + .3, 0, -.02, 0).castShadow = false;   // zócalo: cara de arriba a 1,5 cm (no a 1 cm, donde está el asfalto)
     if (!open) for (let i = 0; i < 3; i++) { const gl = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial({ map: GLOWTEX, color: 0xfff1c8, transparent: true, opacity: .1, depthWrite: false, blending: THREE.AdditiveBlending })); gl.rotation.x = -Math.PI / 2; gl.position.set((i - 1) * W / 3, .05, 0); gl.scale.set(W / 3.4, D / 2.6, 1); b.group.add(gl); }
     const solidT = d.solid || 'bwallSolid', doorTypes = { door: 1, shopDoor: 1, rollDoor: 1, slideGate: 1 };
     const wall1 = (type, lx, lz, lrot, param, notNear) => { const p = add(type, lx, lz, lrot, Object.assign({}, pr, param)); b.walls.push(p); if (cutaway && !notNear) { const [, wz] = wp(lx, lz); if (wz > z + (Math.abs(c) * D + Math.abs(s) * W) / 2 - .01) b.near.push(p); } return p; };
@@ -1118,7 +1132,9 @@
     if (b.platformRoof) { const pr2 = b.platformRoof; addRoof(canopyRoof(b, Object.assign({}, d, { sign: null }), pr2.cx, pr2.cz, pr2.w, pr2.d, pr2.h)); }
     if (pal && !open && d.roof !== 'canopy') for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const dp = mesh(geoCyl16, OM.ironD, .045, H, .045, sx * (W / 2 + T + .02), H / 2, sz * (D / 2 + T + .02)); dp.castShadow = false; }
     b.roof = b.roofs.length ? b.roofs[0].g : null;                                                                          // alias de compatibilidad (tests/mapa.py): el techo principal
-    b.zHalf = (Math.abs(c) * D + Math.abs(s) * W) / 2; b.fp = d.fp || { hx: W / 2 + .3, hz: D / 2 + .3 }; OBJ.buildings.push(b); return b;
+    b.zHalf = (Math.abs(c) * D + Math.abs(s) * W) / 2; b.fp = d.fp || { hx: W / 2 + .3, hz: D / 2 + .3 };
+    { const nc = G => noCoplanar(G.children.filter(o => o.isMesh).map(o => ({ obj: o })), G); b.group.traverse(o => { if (!o.isMesh && o.children.length) nc(o); }); }   /* franjas y remates a ras de la fachada: sin parpadeo */
+    OBJ.buildings.push(b); return b;
   };
   const inRect = (b, x, zz, r) => { const dx = x - b.x, dz = zz - b.z, lx = dx * Math.cos(b.rot) - dz * Math.sin(b.rot), lz = dx * Math.sin(b.rot) + dz * Math.cos(b.rot); return lx > r.x0 && lx < r.x1 && lz > r.z0 && lz < r.z1; };
   OBJ.insideBuilding = function (x, zz) {                                                                                  // ¿está el punto bajo el techo de algún edificio?

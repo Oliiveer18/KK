@@ -1,5 +1,33 @@
 # Rendimiento (regla de oro: no quitar calidad visual)
 
+## Hecho el 28-11 (distrito, `?mapa=6`): memoria, carga y llamadas de dibujo, sin quitar calidad
+Medido en Chrome headless (swiftshader); en el iPhone se ve en el diagnóstico (tocar el contador de FPS: ahora muestra también carga, geometrías,
+texturas y memoria JS cuando el navegador la da).
+
+| | Antes | Ahora |
+|---|---|---|
+| Memoria JS (heap) | 373 MB | ~200 MB |
+| Mallas en la escena | 168.000 | 48.000 (+ lotes instanciados) |
+| Materiales | 7.994 | ~1.000 |
+| Texturas en la GPU | 875 (37,4 MPx) | 50 (3,7 MPx) |
+| Geometrías en la GPU | 4.351 | ~3.400 (formas soldadas compartidas) |
+| Llamadas de dibujo (5 puntos de prueba) | 205 · 693 · 282 · 233 · 429 | 98 · 489 · 157 · 237 · 206 |
+
+1. **Compartir materiales, texturas y geometrías idénticos** (`MAPA.dedupe`, `src/mapa.js`): mismas propiedades → un solo objeto. Los tejados que se desvanecen al entrar conservan su material propio (`userData.noShare`). Test `tests/dedupe_identico.py`: **0 píxeles distintos**.
+2. **Colores de zombis compactos** (`src/zombis.js`): un `Float32Array` por zombi en vez de ~27 `THREE.Color`. Ahorro pequeño (1–3 MB).
+3. **Objetos intactos soldados** (`MAPA.lazify` / `MAPA.wake`): mientras un objeto está intacto se dibuja con una malla por material y sus piezas se liberan (eran ~215 MB). Al tocarlo (bala, explosión, fuego, empujón, abrir/cerrar, romper, obras) vuelve a construir sus piezas reales **idénticas**: cada objeto guarda la semilla de su azar (`p.seed`), su facción y sus medidas. Lo transparente (cristales, brillos) no se suelda. Las formas soldadas iguales se comparten (receta de piezas y posiciones locales).
+4. **Dibujo en lote** (`MAPA.instance`): dentro de cada sector, las formas soldadas iguales con el mismo material se dibujan con una malla instanciada; al despertar un objeto, su copia del lote se oculta. El precalentado compila también la variante normal de esos materiales (la que usan al despertar): ningún sombreado nuevo al disparar.
+5. **Carga progresiva con barra** (`beginProgressive`, `src/prototipo.html`): pantalla de carga con barra por pasos (calles y edificios → materiales → objetos soldados → lotes → sombreados); el juego no corre ni se dibuja mientras carga. Los tests automáticos cargan de una vez salvo con `?progresivo=1`. Test `tests/carga_progresiva.py`.
+6. **Construir por zonas según cercanía**: queda cubierto por el punto 3 (las piezas sólo existen donde se ha tocado algo). La carga sigue construyendo todo una vez antes de soldar: el pico de memoria al cargar es el de antes; si el iPhone se cierra al cargar, el siguiente paso es soldar sobre la marcha mientras se genera el mapa.
+
+Imagen: con piezas reales, soldado y en lote, y tras devolver las piezas a todos los objetos se compara píxel a píxel desde 12 puntos (`tests/fusion_identico.py`). Tras despertar: **0 píxeles distintos**. Soldado/en lote: como mucho ~70 de 450.000 píxeles sueltos en bordes de triángulo y de sombra (los vértices se calculan una vez en la CPU en vez de en la GPU: diferencias de millonésimas de metro); estable, no parpadea y no quita detalle. Desactivables con `?nodedupe`, `?nolazy`, `?noinst` para comparar.
+
+### Parpadeo de píxeles al entrar en tiendas (corregido)
+Causa: superficies opacas exactamente en el mismo plano (z-fighting). Al entrar, el tejado deja de tapar el interior y al moverse la cámara la GPU alterna cuál va delante (en el móvil, con menos precisión de profundidad, se nota más). Había 14.694 pares de caras coincidentes dentro de objetos (franjas a ras, baldas, palés, estanterías de góndola) y 256 en fachadas (franjas de marca, remates). Arreglo:
+- Al construir cada objeto y cada edificio (`noCoplanar`, `src/prototipo.html`): si dos piezas de distinto material comparten cara mirando al mismo lado, la más pequeña sale 2 mm (invisible a la vista). Persianas enrolladas: láminas separadas décimas de milímetro.
+- Bajo cada edificio se recortan las superficies de terreno a la altura de su suelo o por encima (tierra, hormigón, adoquín): el suelo de la tienda se ve como está diseñado. Zócalo a 1,5 cm (coincidía con el asfalto a 1 cm); marcas amarillas 0,6 mm por encima de las blancas; suelo del refugio a 5,8 cm (coincidía con el umbral de las puertas).
+- Test `tests/sin_parpadeo.py`: 0 pares en objetos y fachadas y suelos de tienda limpios.
+
 ## Hecho el 26-11 (distrito v3, `?mapa=6`): sin cambiar nada de lo que se ve
 - **Índice espacial de cajas (`BOXG`, `src/prototipo.html`)**: celdas de 8 m mantenidas solas por `boxes.push/splice` (y `boxMoved` para lo empujado). Colisiones, balas, rayos, granadas, restos, colocación y visión de bots (`segClear`, `wallBetween`, `coverPoint`, cobertura) sólo miran las cajas cercanas. `collide` era el 24 % del JS; ya no aparece en el perfil.
 - **Bots**: `dangerVec` (explosivos a punto de estallar) se calcula una vez por fotograma, no una por bot sobre los 11.000 objetos; `coverPoint` y la cobertura miran sólo 17 m / 1,5 m alrededor.
