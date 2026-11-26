@@ -58,3 +58,9 @@ Clic en el cuadro de FPS muestra GPU, lógica, dibujo (CPU), llamadas, triángul
 ## Notas
 - Los controles guardados en el navegador usan la clave `bind4`; los valores por defecto anteriores se descartaron.
 - Vibración: implementada con Gamepad API (`dual-rumble`) y `navigator.vibrate`, pero **no funciona en Safari de iPhone** con DualSense (comprobado por el usuario). Los gatillos adaptativos (resistencia física) no se pueden controlar desde el navegador.
+
+### Protección en campaña
+
+Casco ligero, medio y pesado aportan 10, 20 y 30 de protección. Los chalecos aportan 25, 50 y 70. La mochila muestra el estado actual y máximo de cada pieza. Usa **Equipar** para cambiarla. Al recoger una pieza con la ranura vacía se equipa automáticamente. El daño se reparte entre las piezas equipadas según la protección restante. El exceso alcanza la vida. Guardar, retirar o recuperar la pieza de un eliminado conserva su desgaste.
+
+Desde la mochila, una unidad de material cerca de un punto de salida del refugio propio o un kit de reparación en cualquier lugar restaura una pieza. Las estanterías de materiales ofrecen equipo y un kit inicial, y las cajas de materiales también contienen un kit. La protección no se regenera sola.

@@ -612,7 +612,7 @@ function respawn(e) {
   const s0 = pickSpawn(e.team), s = { x: s0.x, z: s0.z, yaw: s0.yaw };
   if (MX.campaign) for (let k = 0; k < 8; k++) { const x = s0.x + rr(-3, 3), z = s0.z + rr(-3, 3); if (navAt(x, z)) { s.x = x; s.z = z; break; } }   // campaña: 25 por facción, se reparten junto al punto de aparición
   if (MX.campaign) INVENTARIO.spawn(e);
-  e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = SH; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.hitSrc = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; if (!MX.campaign) e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); if (MX.campaign) e.kitShown = null; syncKit(e);
+  e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = MX.campaign ? INVENTARIO.protection(e) : SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = e.sh; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.hitSrc = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; if (!MX.campaign) e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); if (MX.campaign) e.kitShown = null; syncKit(e);
   if (e.isPlayer) return respawnPlayer(e);
   unbake(e); setWeapon(e, pickWeaponIdx()); e.gCount = 3; e.sCount = 2; e.st = 'push'; e.goal = null; e.path = null; e.tgt = null; e.vis = false; e.reactT = 0; e.canShoot = false; e.wantThrow = null; e.holdT = 0;
   e.crouch = e.crouchT = 0; e.kick = 0; e.fireCd = rr(.2, .6); e.pause = 0; e.burst = 0; e.gCd = rr(4, 10); e.sCd = 6; e.walk = 0; e.stuckN = 0; e.nudge = 0; e.py = 1.1; e.thinkT = rnd() * .12; e.ring.visible = true; e.root.visible = true;
@@ -635,7 +635,7 @@ function playerCorpse(dx, dz) {
 }
 function regen(e, dt) {                                                              // tras 5 s sin daño: primero se recarga el escudo y después la vida
   if (M.t - e.lastHurt <= SH_DELAY) return;
-  if (e.sh < SH) e.sh = Math.min(SH, e.sh + SH_RATE * dt); else if (e.hp < HP) { e.hp = Math.min(HP, e.hp + HP_RATE * dt); e.tgp.hp = e.hp; }
+  if (!MX.campaign && e.sh < SH) e.sh = Math.min(SH, e.sh + SH_RATE * dt); else if (e.hp < HP) { e.hp = Math.min(HP, e.hp + HP_RATE * dt); e.tgp.hp = e.hp; }
 }
 /* ---- campaña: abatido y reanimación (reglas del diseño: una reanimación por vida, kit de un solo uso, un solo rescatador por caído, el daño al rescatador lo interrumpe) ---- */
 function syncKit(e) {                                                                // la cruz roja de la mochila se ve mientras se lleva un kit (solo campaña)
@@ -654,7 +654,7 @@ function goDown(e, dx, dz) {
 }
 function revive(t, by) {                                                           // completada: gasta el kit, vuelve con vida parcial y no puede volver a ser reanimado en esta vida
   by.kits--; syncKit(by); if (by.rt === t) by.rt = null;
-  t.dwn = false; t.revived = true; t.rescuer = null; t.revP = 0; t.hp = REV_HP; t.sh = 0; t.bH.fill = t.bH.chunk = REV_HP; t.bS.fill = t.bS.chunk = 0; t.tgp.hp = REV_HP; t.inv = .8; t.lastHurt = M.t;
+  t.dwn = false; t.revived = true; t.rescuer = null; t.revP = 0; t.hp = REV_HP; t.sh = INVENTARIO.protection(t); t.bH.fill = t.bH.chunk = REV_HP; t.bS.fill = t.bS.chunk = t.sh; t.tgp.hp = REV_HP; t.inv = .8; t.lastHurt = M.t;
   dwnFxClear(t);
   if (t.isPlayer) { if (corpseP) { scene.remove(corpseP); corpseP = null; } for (const m of RL) m.visible = true; weapon.visible = true; P.vel.set(0, 0, 0); }
   else { unbake(t); t.crouch = 0; t.st = 'push'; t.goal = null; t.path = null; t.holdT = 0; }
@@ -703,7 +703,7 @@ MX.hit = (e, dmg, from, dx, dz, w, src) => {
     return;
   }
   const tot = dmg; let rest = dmg;
-  if (e.sh > 0) { const a = Math.min(e.sh, rest); e.sh -= a; rest -= a; e.bS.flash = 1; }                  // el escudo absorbe primero; el sobrante pasa a la vida en el mismo golpe
+  if (e.sh > 0) { const a = Math.min(e.sh, rest); if (MX.campaign) rest = INVENTARIO.absorb(e,rest); else { e.sh -= a; rest -= a; } e.bS.flash = 1; }                  // el escudo absorbe primero; el sobrante pasa a la vida en el mismo golpe
   if (rest > 0) { e.hp -= rest; e.bH.flash = 1; }
   e.tgp.hp = e.hp; e.lastHurt = M.t; e.bShow = M.t; e.lastSrc = src || (w ? w.sid : null);
   if (from && (from.isPlayer || e.isPlayer)) popNum(e, tot); if (from) { e.lastAtt = from; e.lastAttT = M.t; hitSrc(e, dx, dz); }
@@ -780,7 +780,8 @@ function stepBar(o, tgt, dt) {                                                  
 }
 function drawBar(b, e, dt) {
   stepBar(e.bH, e.hp, dt); stepBar(e.bS, e.sh, dt);
-  const sv = e.bS.fill / SH * SEGN, sc = e.bS.chunk / SH * SEGN, sb = 'brightness(' + (1 + (e.bS.flash || 0) * 1.6) + ')';
+  const maximum = MX.campaign ? 100 : SH;
+  const sv = e.bS.fill / maximum * SEGN, sc = e.bS.chunk / maximum * SEGN, sb = 'brightness(' + (1 + (e.bS.flash || 0) * 1.6) + ')';
   b.segs.forEach((g, k) => { g.c.style.transform = 'scaleX(' + clamp(sc - k, 0, 1) + ')'; g.f.style.transform = 'scaleX(' + clamp(sv - k, 0, 1) + ')'; g.f.style.filter = sb; });
   b.Hc.style.transform = 'scaleX(' + clamp(e.bH.chunk / HP, 0, 1) + ')'; b.Hf.style.transform = 'scaleX(' + clamp(e.bH.fill / HP, 0, 1) + ')';
   b.Hf.style.background = e.hp > 60 ? '#6dff9a' : e.hp > 30 ? '#ffd24a' : '#ff5a4a'; b.Hf.style.filter = 'brightness(' + (1 + (e.bH.flash || 0) * 1.6) + ')';
