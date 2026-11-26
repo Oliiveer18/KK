@@ -2359,7 +2359,8 @@ function frame(now) {
   catch (e) { const el = $('err'); el.style.display = 'block'; el.textContent = 'Error en el juego: ' + e.message + '\n' + String(e.stack || '').split('\n').slice(0, 3).join('\n'); }
   fAcc += dt; fN++; if (fAcc > .5) { const fps = Math.round(fN / fAcc); $('fps').textContent = fps + ' FPS' + (DIAG.on && DIAG.n ? ' · lógica ' + (DIAG.u / DIAG.n).toFixed(1) + ' ms · dibujo(CPU) ' + (DIAG.r / DIAG.n).toFixed(1) + ' ms · GPU ' + (DIAG.ext ? (DIAG.gn ? (DIAG.g / DIAG.gn).toFixed(1) + ' ms' : '…') : 'n/d') + ' · ' + renderer.info.render.calls + ' llamadas · ' + Math.round(renderer.info.render.triangles / 1000) + 'k tri · ' + renderer.domElement.width + '×' + renderer.domElement.height : ''); DIAG.u = DIAG.r = DIAG.n = DIAG.g = DIAG.gn = 0; $('fps').style.color = fps >= 55 ? '#6dff9a' : fps >= 30 ? '#ffd24a' : '#ff6a4a'; fAcc = 0; fN = 0; }
 }
-requestAnimationFrame(frame);
+/* El bucle arranca cuando todos los scripts (objetos, inventario, partida, zombis…) ya se han ejecutado: Safari puede pintar un frame entre scripts y fallaba con "Can't find variable". */
+if (document.readyState === 'complete') requestAnimationFrame(frame); else window.addEventListener('load', () => requestAnimationFrame(frame));
 </script>
 <script>/* ===================== OBJETOS DE CAMPAÑA (src/objetos.js) =====================
    Módulo cargado tras el juego (comparte su ámbito global: PSPEC, MT, PM, props, boxes, mkPiece…).
