@@ -1,11 +1,11 @@
 /* Inventario de la campaña. Los estantes y los cuerpos conservan una sola reserva
    compartida. La distancia y las existencias se comprueban en cada transferencia. */
 const INVENTARIO = (() => {
-  const names = {material:'Material', ammo:'Munición', medkit:'Botiquín', revive:'Kit de reanimación'};
+  const names = {repair:'Kit de reparación', material:'Material', ammo:'Munición', medkit:'Botiquín', revive:'Kit de reanimación'};
   const slots = {helmet:'Casco', vest:'Chaleco', pack:'Mochila'};
   for (const [key, name] of Object.entries(slots))
     for (let level = 1; level <= 3; level++) names[key + level] = name + ' ' + level;
-  const shelves = {storeMat:['material'], storeAmmo:['ammo'], storeMed:['medkit','revive']};
+  const shelves = {storeMat:['material','repair'], storeAmmo:['ammo'], storeMed:['medkit','revive']};
   shelves.storeMat.push(...Object.keys(names).filter(k=>/^(helmet|vest|pack)/.test(k)));
   const catalog = {material:'material', 'munición':'ammo', 'botiquín':'medkit', 'kit de reanimación':'revive'};
   const containers = new Set();
@@ -15,16 +15,63 @@ const INVENTARIO = (() => {
   }
   function capacity(bag) { return 6 + 4 * gear(bag, 'pack'); }
   function count(bag) { return Object.values(bag).reduce((sum, n) => sum + n, 0); }
+  const limits = {helmet1:10, helmet2:20, helmet3:30, vest1:25, vest2:50, vest3:70};
+  const piecesByStock = new WeakMap();
+  function pieces(stock) {
+    if (!piecesByStock.has(stock)) {
+      const items = [];
+      for (const key of Object.keys(limits))
+        for (let i=0; i<(stock[key] || 0); i++) items.push({key, points:limits[key]});
+      piecesByStock.set(stock, items);
+    }
+    return piecesByStock.get(stock);
+  }
+  function slotOf(item) { return item.key.slice(0,-1); }
+  function protection(e) {
+    return Object.values(e.worn).reduce((sum,item)=>sum+item.points,0);
+  }
+  function equip(e,item) {
+    if (e.dead || e.dwn || !pieces(e.bag).includes(item)) return false;
+    e.worn[slotOf(item)] = item;
+    e.sh = protection(e);
+    MX.refreshGear(e);
+    return true;
+  }
+  function absorb(e,damage) {
+    const total = protection(e);
+    if (!total) return damage;
+    const remaining = Math.max(0,total-damage);
+    for (const item of Object.values(e.worn)) item.points *= remaining/total;
+    e.sh = protection(e);
+    return Math.max(0,damage-total);
+  }
+  function nearRefuge(e) {
+    return MX.M.spawn[e.team].some(s=>Math.hypot(s.x-e.p.x,s.z-e.p.z)<=4);
+  }
+  function repair(e,item,resource) {
+    if (e.dead || e.dwn || !pieces(e.bag).includes(item) || item.points>=limits[item.key]) return false;
+    if (resource!=='repair' && !(resource==='material' && nearRefuge(e))) return false;
+    if (!e.bag[resource]) return false;
+    e.bag[resource]--;
+    item.points = limits[item.key];
+    e.sh = protection(e);
+    return true;
+  }
+  function describe(item) {
+    return names[item.key]+' · '+Math.round(item.points*10)/10+' / '+limits[item.key];
+  }
   function spawn(e) {
     if (e.bag) return;
     e.bag = {helmet2:1, vest2:1, pack1:1, revive:1};
+    e.worn = {};
+    for (const item of pieces(e.bag)) e.worn[slotOf(item)] = item;
     Object.defineProperty(e, 'kits', {
       get() { return this.bag.revive || 0; },
       set(n) { this.bag.revive = n; }
     });
   }
   function appearance(e) {
-    return {helmet:gear(e.bag,'helmet'), vest:gear(e.bag,'vest'), pack:gear(e.bag,'pack')};
+    return {helmet:Number(e.worn.helmet?.key.slice(-1)||0), vest:Number(e.worn.vest?.key.slice(-1)||0), pack:gear(e.bag,'pack')};
   }
   function register(p) {
     const loot = OBJ.contents(p);
@@ -33,6 +80,8 @@ const INVENTARIO = (() => {
     for (const {k,n} of loot) if (catalog[k])
       p.stock[catalog[k]] = n[0] + Math.floor(Math.random() * (1 + n[1] - n[0]));
     if (p.type === 'pharmaCab') p.stock.revive = 1;
+    if (p.type==='storeMat') Object.assign(p.stock,{helmet1:1,helmet3:1,vest1:1,vest3:1,repair:1});
+    if (p.type==='supplyMat') p.stock.repair=1;
     containers.add(p);
   }
   function start() {
@@ -54,6 +103,8 @@ const INVENTARIO = (() => {
     marker.stock = e.bag;
     marker.ownerId = e.id;
     e.bag = {};
+    e.worn = {};
+    e.sh = 0;
   }
   function distance(e,s) {
     return Math.hypot(Math.max(0,Math.abs(e.p.x-s.x)-(s.hx||0)),
@@ -67,7 +118,7 @@ const INVENTARIO = (() => {
     if (!s.stock) s.stock = {[s.kind]:1};
     return s.stock;
   }
-  function transfer(e,s,key,deposit=false) {
+  function transfer(e,s,key,deposit=false,selected=null) {
     if (!e.bag || e.dead || e.dwn || !names[key] || !reachable(e,s)) return false;
     if (!containers.has(s) && !OBJ.pickups.includes(s)) return false;
     if (deposit && !shelves[s.type]?.includes(key)) return false;
@@ -75,6 +126,18 @@ const INVENTARIO = (() => {
     if (!(from[key]>0)) return false;
     if (deposit && count(e.bag)-1 > capacity({...e.bag,[key]:from[key]-1})) return false;
     if (!deposit && count(e.bag)+1 > capacity({...e.bag,[key]:(e.bag[key]||0)+1})) return false;
+    if (limits[key]) {
+      const source = pieces(from), dest = pieces(to);
+      const item = selected || source.find(x=>x.key===key && (!deposit || e.worn[slotOf(x)]!==x))
+                            || source.find(x=>x.key===key);
+      if (!item || item.key!==key || !source.includes(item)) return false;
+      source.splice(source.indexOf(item),1);
+      dest.push(item);
+      const slot = slotOf(item);
+      if (deposit && e.worn[slot]===item) delete e.worn[slot];
+      if (!deposit && (!e.worn[slot] || (e.bot && item.points>e.worn[slot].points))) e.worn[slot]=item;
+      e.sh = protection(e);
+    }
     from[key]--; to[key]=(to[key]||0)+1;
     if (s.kind && !count(world)) OBJ.removePickup(s);
     if (key==='revive' || /^(pack|helmet|vest)/.test(key)) MX.refreshGear(e);
@@ -103,18 +166,30 @@ const INVENTARIO = (() => {
       panel.append(b);
     }
     label('strong','Mochila · '+count(e.bag)+' / '+capacity(e.bag));
-    label('p',Object.entries(e.bag).filter(([,n])=>n>0).map(([k,n])=>names[k]+' ×'+n).join(' · ')||'Vacía');
+    label('p',Object.entries(e.bag).filter(([k,n])=>n>0 && !limits[k]).map(([k,n])=>names[k]+' ×'+n).join(' · ')||'');
+    for (const item of pieces(e.bag)) {
+      const worn=e.worn[slotOf(item)]===item;
+      label('p',describe(item)+(worn?' · equipado':''));
+      if (!worn) button('Equipar '+describe(item),()=>equip(e,item));
+      if (item.points<limits[item.key]) {
+        if (e.bag.repair) button('Reparar con kit',()=>repair(e,item,'repair'));
+        if (e.bag.material && nearRefuge(e)) button('Reparar con material',()=>repair(e,item,'material'));
+      }
+    }
     if(e.hp<100 && e.bag.medkit) button('Usar botiquín',()=>use(e,'medkit'));
     if(W.ammo<cur.max && e.bag.ammo) button('Usar munición',()=>use(e,'ammo'));
     for(const s of sources(e)) {
       const inventory=stock(s), allowed=shelves[s.type];
       if (!allowed && !count(inventory)) continue;
       label('p',s.ownerId?'Equipo de '+s.ownerId:s.meta?.name||'En el suelo');
-      for(const [k,n] of Object.entries(inventory)) if(n>0) {
+      for(const [k,n] of Object.entries(inventory)) if(n>0 && !limits[k]) {
         const full=count(e.bag)+1>capacity({...e.bag,[k]:(e.bag[k]||0)+1});
         button((full?'Sin espacio · ':allowed?'Retirar ':'Recoger ')+names[k]+' ('+n+')',()=>transfer(e,s,k));
       }
-      for(const k of allowed||[]) if(e.bag[k]) button('Depositar '+names[k],()=>transfer(e,s,k,true));
+      for (const item of pieces(inventory)) button((allowed?'Retirar ':'Recoger ')+describe(item),()=>transfer(e,s,item.key,false,item));
+      for (const item of pieces(e.bag)) if (allowed?.includes(item.key))
+        button('Depositar '+describe(item)+(e.worn[slotOf(item)]===item?' · equipado':''),()=>transfer(e,s,item.key,true,item));
+      for(const k of allowed||[]) if(e.bag[k] && !limits[k]) button('Depositar '+names[k],()=>transfer(e,s,k,true));
     }
     button('Cerrar',close);
   }
@@ -152,6 +227,9 @@ const INVENTARIO = (() => {
     const e=MX.ents[1+(botIndex++%(MX.ents.length-1))];
     if(e.dead||e.dwn||e.vis)return;
     if(e.hp<65 && use(e,'medkit'))return;
+    for (const item of Object.values(e.worn)) {
+      if (item.points<limits[item.key]/2 && (repair(e,item,'material') || repair(e,item,'repair'))) return;
+    }
     for(const s of sources(e)){
       const keys=shelves[s.type];
       if(keys){
@@ -162,5 +240,5 @@ const INVENTARIO = (() => {
       } else for(const k of Object.keys(stock(s))) if(transfer(e,s,k))return;
     }
   }
-  return {spawn,appearance,start,death,transfer,use,capacity,count,input,tick,open};
+  return {absorb,protection,spawn,appearance,start,death,transfer,use,capacity,count,input,tick,open};
 })();
