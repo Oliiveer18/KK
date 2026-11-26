@@ -110,3 +110,12 @@ const SOMBRA = (() => {
     post() { if (off) return; renderer.shadowMap.autoUpdate = true; }
   };
 })();
+
+/* Math.hypot(x, z) crea un número en el montón en cada llamada (V8 no lo integra): con 100 combatientes y cientos de zombis comparando distancias eran ~270 KB de basura
+   por fotograma, y en iOS el recolector de basura se nota como tirones. La versión de 2 argumentos se calcula con sqrt (se integra y no reserva memoria);
+   el resultado es el mismo salvo en la última cifra decimal. Interruptor: ?nohypot */
+(() => {
+  if (/[?&]nohypot\b/.test(location.search)) return;
+  const orig = Math.hypot;
+  Math.hypot = function (a, b, c) { return b !== undefined && c === undefined ? Math.sqrt(a * a + b * b) : orig.apply(Math, arguments); };
+})();
