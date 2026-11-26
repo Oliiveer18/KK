@@ -138,7 +138,7 @@ MAPA.build = function (D) {
   for (const b of D.buildings || []) { const r = placeObject(b.k, b.x, b.z, b.rot || 0, { fac: b.fac }); if (r) out.buildings.push(r); }
   for (const o of D.objects || []) { const r = MAPA.put(o.t, o.x, o.z, o.g || 0, o.o); if (r) out.props.push(r); }
   out.info = D.info || null; MAPA.built = out;
-  if (D.half > 200) sectorize(out, D);
+  if (D.half > 200) { sectorize(out, D); if (!/nodedupe/.test(location.search)) out.dedupe = MAPA.dedupe([group].concat(out.sectors)); }
   return out;
 };
 /* ---------- sectores (mapas grandes): los objetos y edificios fijos cuelgan de grupos de 32 × 32 m; cada fotograma sólo se dejan visibles los sectores que
@@ -173,6 +173,49 @@ function sectorize(out, D) {
     for (const [g, a] of by) for (const m of treeMeshes(a, out)) g.add(m); }
   out.sectors = list;
 }
+/* ---------- deduplicación (sin cambiar nada de lo que se ve): materiales, texturas y geometrías idénticos pasan a ser uno solo ----------
+   Texturas: misma imagen y mismo ajuste (repetición, desplazamiento, envoltura, filtros, anisotropía) → una sola textura en la GPU (había 875 para 42 imágenes).
+   Materiales: mismas propiedades que afectan al dibujo → uno solo (había ~8.000 para ~1.100 distintos). Se respetan los marcados userData.noShare (tejados que
+   se desvanecen por su cuenta). Geometrías: mismos atributos byte a byte → una sola. Devuelve cuántos había y cuántos quedan. */
+const TEXK = ['repeat', 'offset', 'center'], MATK = ['type', 'roughness', 'metalness', 'opacity', 'transparent', 'alphaTest', 'side', 'depthWrite', 'depthTest', 'blending', 'vertexColors', 'flatShading', 'wireframe', 'fog', 'toneMapped', 'emissiveIntensity', 'polygonOffset', 'polygonOffsetFactor', 'polygonOffsetUnits', 'colorWrite', 'premultipliedAlpha', 'visible', 'dithering', 'shadowSide', 'skinning', 'morphTargets', 'envMapIntensity', 'reflectivity', 'refractionRatio', 'aoMapIntensity', 'lightMapIntensity', 'bumpScale', 'displacementScale', 'displacementBias', 'normalMapType', 'combine', 'sizeAttenuation', 'clipShadows', 'clipIntersection'];
+const MAPK = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'alphaMap', 'aoMap', 'lightMap', 'bumpMap', 'displacementMap', 'envMap', 'specularMap'];
+let _imgId = 0; const imgId = im => im ? (im.__did || (im.__did = ++_imgId)) : 0;
+function geoKey(g) {
+  if (g.isInstancedBufferGeometry || !g.attributes || !g.attributes.position) return null;
+  let h = 2166136261; const mix = v => { h ^= v; h = Math.imul(h, 16777619) >>> 0; };
+  const names = Object.keys(g.attributes).sort(); for (const n of names) { const a = g.attributes[n]; mix(a.itemSize); mix(a.count); const u = new Uint32Array(a.array.buffer, a.array.byteOffset, (a.array.byteLength / 4) | 0); for (let i = 0; i < u.length; i++) mix(u[i]); }
+  if (g.index) { mix(g.index.count); const ia = g.index.array; for (let i = 0; i < ia.length; i++) mix(ia[i]); }
+  for (const gr of g.groups) { mix(gr.start); mix(gr.count); mix(gr.materialIndex || 0); }
+  return names.join(',') + ':' + g.attributes.position.count + ':' + (g.index ? g.index.count : 0) + ':' + h;
+}
+function geoSame(a, b) {                                                              // comprobación completa (el hash podría coincidir por azar)
+  const na = Object.keys(a.attributes).sort(), nb = Object.keys(b.attributes).sort(); if (na.join() !== nb.join()) return false;
+  for (const n of na) { const x = a.attributes[n], y = b.attributes[n]; if (x.itemSize !== y.itemSize || x.count !== y.count || x.normalized !== y.normalized || x.array.length !== y.array.length) return false; for (let i = 0; i < x.array.length; i++) if (x.array[i] !== y.array[i]) return false; }
+  if (!!a.index !== !!b.index) return false; if (a.index) { if (a.index.count !== b.index.count) return false; for (let i = 0; i < a.index.array.length; i++) if (a.index.array[i] !== b.index.array[i]) return false; }
+  if (a.groups.length !== b.groups.length) return false; for (let i = 0; i < a.groups.length; i++) { const p = a.groups[i], q = b.groups[i]; if (p.start !== q.start || p.count !== q.count || (p.materialIndex || 0) !== (q.materialIndex || 0)) return false; }
+  return true;
+}
+MAPA.dedupe = function (roots) {
+  roots = [].concat(roots || scene); const T = new Map(), Mt = new Map(), G = new Map(), seenM = new Set(), seenT = new Set(), seenG = new Set();
+  const texOf = t => { if (!t) return t; seenT.add(t); const im = t.image; if (!im) return t;
+    const k = [imgId(im), t.wrapS, t.wrapT, t.magFilter, t.minFilter, t.anisotropy, t.format, t.type, t.encoding, t.flipY, t.generateMipmaps, t.premultiplyAlpha, t.unpackAlignment, t.rotation, t.matrixAutoUpdate].join('|') + '|' + TEXK.map(n => t[n].x.toFixed(5) + ',' + t[n].y.toFixed(5)).join('|');
+    const c = T.get(k); if (c) return c; T.set(k, t); return t; };
+  const matOf = m => { seenM.add(m); for (const n of MAPK) if (m[n]) m[n] = texOf(m[n]); if (m.userData && m.userData.noShare) return m;
+    const k = MATK.map(n => m[n] === undefined ? '' : m[n]).join('|') + '|' + (m.color ? m.color.getHex() : '') + '|' + (m.emissive ? m.emissive.getHex() : '') + '|' + MAPK.map(n => m[n] ? m[n].uuid : '').join(',') + '|' + (m.normalScale ? m.normalScale.x + ',' + m.normalScale.y : '') + '|' + (m.defines ? JSON.stringify(m.defines) : '') + '|' + (m.onBeforeCompile && m.onBeforeCompile.toString !== Function.prototype.toString ? String(m.onBeforeCompile) : '');
+    const c = Mt.get(k); if (c) return c; Mt.set(k, m); return m; };
+  const gk0 = new Map(); const geoOf = g => { seenG.add(g); let k = gk0.get(g); if (k === undefined) gk0.set(g, k = geoKey(g)); if (!k) return g; const L = G.get(k) || []; for (const c of L) if (c === g || geoSame(c, g)) return c; L.push(g); G.set(k, L); return g; };
+  /* los materiales que el juego reconoce por identidad (tablón → carbonizado, bidón rojo → quemado) quedan como los canónicos */
+  for (const tb of [typeof PM !== 'undefined' && PM, typeof BM !== 'undefined' && BM]) if (tb) for (const n in tb) if (tb[n] && tb[n].isMaterial) tb[n] = matOf(tb[n]);
+  for (const root of roots) root.traverse(o => { if (!o.isMesh || o.isSkinnedMesh) return;
+    if (Array.isArray(o.material)) o.material = o.material.map(matOf); else if (o.material) o.material = matOf(o.material);
+    if (o.geometry && !o.isInstancedMesh) o.geometry = geoOf(o.geometry); });
+  const keptT = new Set(T.values()), keptM = new Set(Mt.values());
+  let gk = 0; for (const L of G.values()) gk += L.length;
+  for (const m of seenM) if (!keptM.has(m) && !(m.userData && m.userData.noShare)) m.dispose();
+  for (const t of seenT) if (!keptT.has(t) && t.image) t.dispose();
+  for (const g of seenG) { const k = gk0.get(g); if (k && !(G.get(k) || []).includes(g)) g.dispose(); }
+  return { materiales: [seenM.size, keptM.size + [...seenM].filter(m => m.userData && m.userData.noShare).length], texturas: [seenT.size, keptT.size], geometrias: [seenG.size, gk] };
+};
 const _fr = new THREE.Frustum(), _pm = new THREE.Matrix4();
 MAPA.cull = function (cam) {
   const b = MAPA.built; if (!b || !b.sectors || MAPA.noCull) return;

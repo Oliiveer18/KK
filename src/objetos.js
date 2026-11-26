@@ -1051,14 +1051,14 @@
   };
   OBJ.buildingKinds = Object.keys(BLD);
   /* techos: plano con peto y equipos · a dos aguas con tejas · marquesina */
-  function mkRoofMat(c) { const m = sm(c, .95); m.transparent = true; return m; }
+  function mkRoofMat(c) { const m = sm(c, .95); m.transparent = true; m.userData.noShare = true; return m; }   // cada tejado se desvanece por su cuenta al entrar: material propio
   function flatRoof(b, W, D, H, col, par) { const g = new THREE.Group(), m = mkRoofMat(col || 0xc9c9c4), w = W + 2 * .3 + .3, dd = D + 2 * .3 + .3;
     const rf = new THREE.Mesh(geoBox, m); rf.scale.set(w, .25, dd); rf.position.set(0, H + .125, 0); rf.castShadow = rf.receiveShadow = true; g.add(rf);
     for (const [px, pz, sx, sz] of [[0, dd / 2, w, .16], [0, -dd / 2, w, .16], [w / 2, 0, .16, dd], [-w / 2, 0, .16, dd]]) { const q = new THREE.Mesh(geoBox, par || OM.concP); q.scale.set(sx, .3, sz); q.position.set(px, H + .3, pz); q.castShadow = true; g.add(q); }
     for (const [ax, az, sx] of [[-W / 4, -D / 4, 1.1], [W / 4 + .5, D / 5, .9], [W / 4 - 1.2, -D / 4, .9]]) { const u = new THREE.Mesh(geoBox, OM.steelL); u.scale.set(sx, .6, sx * .7); u.position.set(ax, H + .55, az); u.castShadow = true; g.add(u); const f = new THREE.Mesh(geoCyl16, OM.ironD); f.scale.set(sx * .36, .04, sx * .36); f.position.set(ax, H + .87, az); g.add(f); }
     return { g, slab: rf, rect: { x0: -W / 2 - .1, x1: W / 2 + .1, z0: -D / 2 - .1, z1: D / 2 + .1 } }; }
   function gableRoof(b, W, D, H, wm) { const g = new THREE.Group(), rise = Math.min(1.9, D * .24), ov = .45, hd = D / 2 + ov, sl = Math.hypot(hd, rise), ang = Math.atan2(rise, hd), tt = TEX.tile.clone(); tt.needsUpdate = true; tt.wrapS = tt.wrapT = THREE.RepeatWrapping; tt.repeat.set((W + .8) / .5, sl / .5);
-    const m = new THREE.MeshStandardMaterial({ map: tt, roughness: .85, flatShading: true, transparent: true }); let first = null;
+    const m = new THREE.MeshStandardMaterial({ map: tt, roughness: .85, flatShading: true, transparent: true }); m.userData.noShare = true; let first = null;
     for (const sg of [-1, 1]) { const q = new THREE.Mesh(geoBox, m); q.scale.set(W + .8, .14, sl); q.position.set(0, H + rise / 2 + .07, sg * hd / 2); q.rotation.x = sg * ang; q.castShadow = q.receiveShadow = true; g.add(q); first = first || q; }
     const rg = new THREE.Mesh(geoBox, OM.woodD); rg.scale.set(W + .8, .12, .22); rg.position.set(0, H + rise + .1, 0); g.add(rg);
     const ch = new THREE.Mesh(geoBox, OM.brickP); ch.scale.set(.6, 1.4, .6); ch.position.set(W / 3, H + rise + .2, -D / 6); ch.castShadow = true; g.add(ch);
