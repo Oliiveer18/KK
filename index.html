@@ -181,12 +181,12 @@ const boxes = [], OBST = [];
 const BOXG = { cs: 8, m: new Map(), n: 0, st: 1, pool: [[], [], [], [], [], []], pi: 0 };
 const _bk = (i, j) => (i + 4096) * 8192 + (j + 4096);
 function _bAdd(b) { const cs = BOXG.cs, i0 = Math.floor((b.x - b.hx) / cs), i1 = Math.floor((b.x + b.hx) / cs), j0 = Math.floor((b.z - b.hz) / cs), j1 = Math.floor((b.z + b.hz) / cs);
-  b._g = [i0, i1, j0, j1]; for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const k = _bk(i, j); let a = BOXG.m.get(k); if (!a) BOXG.m.set(k, a = []); a.push(b); } BOXG.n++; }
-function _bDel(b) { const g = b._g; if (!g) return; for (let i = g[0]; i <= g[1]; i++) for (let j = g[2]; j <= g[3]; j++) { const a = BOXG.m.get(_bk(i, j)); if (!a) continue; const q = a.indexOf(b); if (q >= 0) { a[q] = a[a.length - 1]; a.pop(); } } b._g = null; BOXG.n--; }
-function _bSync() { if (BOXG.n === boxes.length) return; BOXG.m.clear(); BOXG.n = 0; for (const b of boxes) _bAdd(b); }
+  b._g = [i0, i1, j0, j1]; BOXG.markNav?.(b._g); for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const k = _bk(i, j); let a = BOXG.m.get(k); if (!a) BOXG.m.set(k, a = []); a.push(b); } BOXG.n++; }
+function _bDel(b) { const g = b._g; if (!g) return; BOXG.markNav?.(g); for (let i = g[0]; i <= g[1]; i++) for (let j = g[2]; j <= g[3]; j++) { const a = BOXG.m.get(_bk(i, j)); if (!a) continue; const q = a.indexOf(b); if (q >= 0) { a[q] = a[a.length - 1]; a.pop(); } } b._g = null; BOXG.n--; }
+function _bSync() { if (BOXG.n === boxes.length) return; BOXG.resetNav?.(); BOXG.m.clear(); BOXG.n = 0; for (const b of boxes) _bAdd(b); }
 boxes.push = function () { const r = Array.prototype.push.apply(this, arguments); for (let i = 0; i < arguments.length; i++) _bAdd(arguments[i]); _bSync(); return r; };
 boxes.splice = function () { const rem = Array.prototype.splice.apply(this, arguments); for (const b of rem) _bDel(b); for (let i = 2; i < arguments.length; i++) _bAdd(arguments[i]); _bSync(); return rem; };
-function boxMoved(b) { if (!b._g) return; const cs = BOXG.cs, g = b._g; if (Math.floor((b.x - b.hx) / cs) !== g[0] || Math.floor((b.x + b.hx) / cs) !== g[1] || Math.floor((b.z - b.hz) / cs) !== g[2] || Math.floor((b.z + b.hz) / cs) !== g[3]) { _bDel(b); _bAdd(b); } }
+function boxMoved(b) { if (!b._g) return; const cs = BOXG.cs, g = b._g; if (Math.floor((b.x - b.hx) / cs) !== g[0] || Math.floor((b.x + b.hx) / cs) !== g[1] || Math.floor((b.z - b.hz) / cs) !== g[2] || Math.floor((b.z + b.hz) / cs) !== g[3]) { _bDel(b); _bAdd(b); } else BOXG.markNav?.(g); }
 function boxesIn(x0, z0, x1, z1) {
   _bSync(); const cs = BOXG.cs, out = BOXG.pool[BOXG.pi = (BOXG.pi + 1) % BOXG.pool.length]; out.length = 0; const st = ++BOXG.st;
   if (x1 < x0) { const t = x0; x0 = x1; x1 = t; } if (z1 < z0) { const t = z0; z0 = z1; z1 = t; }
@@ -5183,16 +5183,53 @@ function armoryTick(dt) {
 
 /* ============================ NAVEGACIÓN ============================ */
 const NV = { cs: 1, w: 104, h: 64, ox: -52, oz: -32 }; NV.n = NV.w * NV.h; NV.bl = new Uint8Array(NV.n); MX.NV = NV;
-function navBuild() {
-  NV.bl.fill(0); const inf = .62;
-  for (const b of boxes) {
-    const ix0 = Math.max(0, Math.floor((b.x - b.hx - inf - NV.ox) / NV.cs)), ix1 = Math.min(NV.w - 1, Math.floor((b.x + b.hx + inf - NV.ox) / NV.cs));
-    const iz0 = Math.max(0, Math.floor((b.z - b.hz - inf - NV.oz) / NV.cs)), iz1 = Math.min(NV.h - 1, Math.floor((b.z + b.hz + inf - NV.oz) / NV.cs));
-    for (let iz = iz0; iz <= iz1; iz++) for (let ix = ix0; ix <= ix1; ix++) {
-      const cx = NV.ox + (ix + .5) * NV.cs, cz = NV.oz + (iz + .5) * NV.cs, dx = Math.max(Math.abs(cx - b.x) - b.hx, 0), dz = Math.max(Math.abs(cz - b.z) - b.hz, 0);
-      if (dx * dx + dz * dz < inf * inf) NV.bl[iz * NV.w + ix] = 1;
-    }
+const navMargin = .62;
+const navDirty = new Set();
+let navReset = false;
+
+// Marcar las celdas de 8 m del índice físico y el margen que ocupa un agente.
+function markNav(g) {
+  if (navReset) return;
+  for (let x=g[0]-1; x<=g[1]+1; x++)
+    for (let z=g[2]-1; z<=g[3]+1; z++) navDirty.add(_bk(x,z));
+}
+function rasterBox(b, left, right, top, bottom) {
+  const ix0=Math.max(left, Math.floor((b.x-b.hx-navMargin-NV.ox)/NV.cs));
+  const ix1=Math.min(right, Math.floor((b.x+b.hx+navMargin-NV.ox)/NV.cs));
+  const iz0=Math.max(top, Math.floor((b.z-b.hz-navMargin-NV.oz)/NV.cs));
+  const iz1=Math.min(bottom, Math.floor((b.z+b.hz+navMargin-NV.oz)/NV.cs));
+  for (let iz=iz0; iz<=iz1; iz++) for (let ix=ix0; ix<=ix1; ix++) {
+    const dx=Math.max(Math.abs(NV.ox+(ix+.5)*NV.cs-b.x)-b.hx,0);
+    const dz=Math.max(Math.abs(NV.oz+(iz+.5)*NV.cs-b.z)-b.hz,0);
+    if (dx*dx+dz*dz < navMargin*navMargin) NV.bl[iz*NV.w+ix]=1;
   }
+}
+function navBuild() {
+  NV.bl.fill(0);
+  for (const b of boxes) rasterBox(b,0,NV.w-1,0,NV.h-1);
+  navReset=false;
+  navDirty.clear();
+  BOXG.markNav = MX.dataId==='M2' ? markNav : null;
+  BOXG.resetNav = BOXG.markNav ? () => { navReset=true; } : null;
+}
+function refreshNav() {
+  if (!BOXG.markNav) { navBuild(); return; }
+  _bSync();
+  if (navReset) { navBuild(); return; }
+  const span=BOXG.cs;
+  for (const key of navDirty) {
+    const x=(Math.floor(key/8192)-4096)*span, z=(key%8192-4096)*span;
+    // Intervalos semiabiertos: cada centro pertenece a un solo sector.
+    const left=Math.max(0,Math.ceil((x-NV.ox)/NV.cs-.5));
+    const right=Math.min(NV.w,Math.ceil((x+span-NV.ox)/NV.cs-.5));
+    const top=Math.max(0,Math.ceil((z-NV.oz)/NV.cs-.5));
+    const bottom=Math.min(NV.h,Math.ceil((z+span-NV.oz)/NV.cs-.5));
+    if (right<=left || bottom<=top) continue;
+    for (let row=top; row<bottom; row++) NV.bl.fill(0,row*NV.w+left,row*NV.w+right);
+    for (const b of boxesIn(x-navMargin,z-navMargin,x+span+navMargin,z+span+navMargin))
+      rasterBox(b,left,right-1,top,bottom-1);
+  }
+  navDirty.clear();
 }
 if (window.OBJ && OBJ.on) OBJ.on.push(() => { M.navT = 0; });                    // puertas, brechas y objetos nuevos: la malla se rehace en el siguiente fotograma
 const navAt = (x, z) => { const ix = Math.floor((x - NV.ox) / NV.cs), iz = Math.floor((z - NV.oz) / NV.cs); return ix < 0 || iz < 0 || ix >= NV.w || iz >= NV.h ? false : !NV.bl[iz * NV.w + ix]; };
@@ -5207,6 +5244,7 @@ function nearestFree(c) {
   return -1;
 }
 const AS = { g: new Float32Array(NV.n), par: new Int32Array(NV.n), st: new Uint8Array(NV.n), hf: [], hi: [] };
+let lastSearchMark = 0;
 const DX8 = [1, -1, 0, 0, 1, 1, -1, -1], DZ8 = [0, 0, 1, -1, 1, -1, 1, -1];
 function hpush(f, i) { const F = AS.hf, I = AS.hi; let k = F.length; F.push(f); I.push(i); while (k > 0) { const p = (k - 1) >> 1; if (F[p] <= f) break; F[k] = F[p]; I[k] = I[p]; k = p; } F[k] = f; I[k] = i; }
 function hpop() {
@@ -5222,17 +5260,21 @@ function lineFree(a, b) {
 function findPath(sx, sz, gx, gz) {
   const s = nearestFree(cellOf(sx, sz)), g = nearestFree(cellOf(gx, gz)); if (s < 0 || g < 0) return null;
   const W_ = NV.w, gcx = g % W_, gcz = (g / W_) | 0;
-  AS.st.fill(0); AS.hf.length = 0; AS.hi.length = 0; AS.g[s] = 0; AS.st[s] = 1; AS.par[s] = -1; hpush(0, s); let found = false, expanded = 0, best = s, bestH = 1e9, goalC = g;   // tope de nodos: en un mapa de 1 km² una ruta larga no puede congelar el juego
+  // Dos marcas por búsqueda (abierto y cerrado). Al agotar el byte se limpia una vez.
+  if (MX.dataId!=='M2' || lastSearchMark>=253) { AS.st.fill(0); lastSearchMark=0; }
+  const openMark=lastSearchMark+1, closedMark=openMark+1;
+  lastSearchMark=closedMark;
+  AS.hf.length = 0; AS.hi.length = 0; AS.g[s] = 0; AS.st[s] = openMark; AS.par[s] = -1; hpush(0, s); let found = false, expanded = 0, best = s, bestH = 1e9, goalC = g;   // tope de nodos: en un mapa de 1 km² una ruta larga no puede congelar el juego
   while (AS.hi.length) {
-    const c = hpop(); if (AS.st[c] === 2) continue; AS.st[c] = 2; if (c === g) { found = true; break; }
+    const c = hpop(); if (AS.st[c] === closedMark) continue; AS.st[c] = closedMark; if (c === g) { found = true; break; }
     { const hx = Math.abs(c % W_ - gcx), hz = Math.abs(((c / W_) | 0) - gcz), hh = Math.max(hx, hz) + .414 * Math.min(hx, hz); if (hh < bestH) { bestH = hh; best = c; } if (++expanded > 22000) { goalC = best; found = true; break; } }
     const cx = c % W_, cz = (c / W_) | 0;
     for (let k = 0; k < 8; k++) {
       const nx = cx + DX8[k], nz = cz + DZ8[k]; if (nx < 0 || nz < 0 || nx >= W_ || nz >= NV.h) continue;
-      const ni = nz * W_ + nx; if (NV.bl[ni] || AS.st[ni] === 2) continue;
+      const ni = nz * W_ + nx; if (NV.bl[ni] || AS.st[ni] === closedMark) continue;
       if (k >= 4 && (NV.bl[cz * W_ + nx] || NV.bl[nz * W_ + cx])) continue;            // no cortar esquinas
       const ng = AS.g[c] + (k >= 4 ? 1.414 : 1);
-      if (AS.st[ni] !== 1 || ng < AS.g[ni]) { AS.g[ni] = ng; AS.par[ni] = c; AS.st[ni] = 1; const ex = Math.abs(nx - gcx), ez = Math.abs(nz - gcz); hpush(ng + Math.max(ex, ez) + .414 * Math.min(ex, ez), ni); }
+      if (AS.st[ni] !== openMark || ng < AS.g[ni]) { AS.g[ni] = ng; AS.par[ni] = c; AS.st[ni] = openMark; const ex = Math.abs(nx - gcx), ez = Math.abs(nz - gcz); hpush(ng + Math.max(ex, ez) + .414 * Math.min(ex, ez), ni); }
     }
   }
   if (!found) return null;
@@ -6001,7 +6043,7 @@ MX.placeBars = () => {                                                          
 MX.update = dt => {
   SIGHT.t -= dt; if (SIGHT.t <= 0) { SIGHT.t = .5; sightUpdate(); }
   if (!M.built) return; dt = Math.min(dt, .05); M.t += dt; M.budget = 2;
-  M.navT -= dt; if (M.navT <= 0) { M.navT = .5; navBuild(); }
+  M.navT -= dt; if (M.navT <= 0) { M.navT = .5; refreshNav(); }
   for (let i = M.propQ.length - 1; i >= 0; i--) { const q = M.propQ[i]; if (M.t >= q.t) { if (placeProp(q.spec, true)) M.propQ.splice(i, 1); else q.t = M.t + 4; } }
   armoryTick(dt);
   if (MX.campaign) INVENTARIO.tick(dt);

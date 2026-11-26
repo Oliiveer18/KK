@@ -1,5 +1,12 @@
 # Rendimiento (regla de oro: no quitar calidad visual)
 
+## Navegación del distrito completo
+
+La cuadrícula inicial se calcula entera. Al actualizarla durante la partida, el índice de colisiones marca las zonas de 8 m afectadas por altas, bajas y movimientos de obstáculos, incluido el margen de paso y la huella anterior. Cada zona se recalcula con todos los obstáculos que aún se solapan. Se conserva el ritmo de actualización y de respuesta a las puertas. Las búsquedas A* reutilizan el registro de visitados con dos marcas por búsqueda y limpian el registro completo al agotar las marcas disponibles.
+
+Verificación contra `a4d8b4e9` en Chromium: ocho estados del terreno, 1.016.064 celdas por estado, 262 rutas idénticas y tres capturas idénticas (refugio azul, plaza y estación oeste). Para repetir la comparación se puede ejecutar `python3 tests/navegacion_distrito.py --referencia /ruta/al/index-anterior.html`. Con 120 desplazamientos de una caja en el distrito cargado, la actualización de navegación pasó de 2,88 a 0,02 ms de media en la máquina de prueba. El tiempo corresponde únicamente a esa operación.
+
+
 ## Hecho el 28-11 (distrito, `?mapa=6`): memoria, carga y llamadas de dibujo, sin quitar calidad
 Medido en Chrome headless (swiftshader); en el iPhone se ve en el diagnóstico (tocar el contador de FPS: ahora muestra también carga, geometrías,
 texturas y memoria JS cuando el navegador la da).

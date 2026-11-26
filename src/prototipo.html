@@ -173,12 +173,12 @@ const boxes = [], OBST = [];
 const BOXG = { cs: 8, m: new Map(), n: 0, st: 1, pool: [[], [], [], [], [], []], pi: 0 };
 const _bk = (i, j) => (i + 4096) * 8192 + (j + 4096);
 function _bAdd(b) { const cs = BOXG.cs, i0 = Math.floor((b.x - b.hx) / cs), i1 = Math.floor((b.x + b.hx) / cs), j0 = Math.floor((b.z - b.hz) / cs), j1 = Math.floor((b.z + b.hz) / cs);
-  b._g = [i0, i1, j0, j1]; for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const k = _bk(i, j); let a = BOXG.m.get(k); if (!a) BOXG.m.set(k, a = []); a.push(b); } BOXG.n++; }
-function _bDel(b) { const g = b._g; if (!g) return; for (let i = g[0]; i <= g[1]; i++) for (let j = g[2]; j <= g[3]; j++) { const a = BOXG.m.get(_bk(i, j)); if (!a) continue; const q = a.indexOf(b); if (q >= 0) { a[q] = a[a.length - 1]; a.pop(); } } b._g = null; BOXG.n--; }
-function _bSync() { if (BOXG.n === boxes.length) return; BOXG.m.clear(); BOXG.n = 0; for (const b of boxes) _bAdd(b); }
+  b._g = [i0, i1, j0, j1]; BOXG.markNav?.(b._g); for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const k = _bk(i, j); let a = BOXG.m.get(k); if (!a) BOXG.m.set(k, a = []); a.push(b); } BOXG.n++; }
+function _bDel(b) { const g = b._g; if (!g) return; BOXG.markNav?.(g); for (let i = g[0]; i <= g[1]; i++) for (let j = g[2]; j <= g[3]; j++) { const a = BOXG.m.get(_bk(i, j)); if (!a) continue; const q = a.indexOf(b); if (q >= 0) { a[q] = a[a.length - 1]; a.pop(); } } b._g = null; BOXG.n--; }
+function _bSync() { if (BOXG.n === boxes.length) return; BOXG.resetNav?.(); BOXG.m.clear(); BOXG.n = 0; for (const b of boxes) _bAdd(b); }
 boxes.push = function () { const r = Array.prototype.push.apply(this, arguments); for (let i = 0; i < arguments.length; i++) _bAdd(arguments[i]); _bSync(); return r; };
 boxes.splice = function () { const rem = Array.prototype.splice.apply(this, arguments); for (const b of rem) _bDel(b); for (let i = 2; i < arguments.length; i++) _bAdd(arguments[i]); _bSync(); return rem; };
-function boxMoved(b) { if (!b._g) return; const cs = BOXG.cs, g = b._g; if (Math.floor((b.x - b.hx) / cs) !== g[0] || Math.floor((b.x + b.hx) / cs) !== g[1] || Math.floor((b.z - b.hz) / cs) !== g[2] || Math.floor((b.z + b.hz) / cs) !== g[3]) { _bDel(b); _bAdd(b); } }
+function boxMoved(b) { if (!b._g) return; const cs = BOXG.cs, g = b._g; if (Math.floor((b.x - b.hx) / cs) !== g[0] || Math.floor((b.x + b.hx) / cs) !== g[1] || Math.floor((b.z - b.hz) / cs) !== g[2] || Math.floor((b.z + b.hz) / cs) !== g[3]) { _bDel(b); _bAdd(b); } else BOXG.markNav?.(g); }
 function boxesIn(x0, z0, x1, z1) {
   _bSync(); const cs = BOXG.cs, out = BOXG.pool[BOXG.pi = (BOXG.pi + 1) % BOXG.pool.length]; out.length = 0; const st = ++BOXG.st;
   if (x1 < x0) { const t = x0; x0 = x1; x1 = t; } if (z1 < z0) { const t = z0; z0 = z1; z1 = t; }
