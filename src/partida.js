@@ -72,7 +72,11 @@ function buildMap() {
   { const c = new THREE.Mesh(new THREE.CircleGeometry(9.5, 40), new THREE.MeshStandardMaterial({ color: 0x263248, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1 })); c.rotation.x = -Math.PI / 2; c.position.set(0, .005, 0); c.receiveShadow = true; scene.add(c); }
   /* perímetro */
   addWall(0, -30.5, 102, 1, 3.4, 1); addWall(0, 30.5, 102, 1, 3.4, 1); addWall(-50.5, 0, 1, 62, 3.4, 1); addWall(50.5, 0, 1, 62, 3.4, 1);
-  for (const w of QW) for (const sx of [-1, 1]) for (const sz of [-1, 1]) addWall(sx * w[0], sz * w[1], w[2], w[3], w[4], (w[2] + w[3]) | 0);
+  for (const w of QW) for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    // En el Mapa 4 esta sección se construye con un tramo destructible.
+    if (MX.campaign && sx===-1 && sz===-1 && w[0]===37.6 && w[1]===1.5) continue;
+    addWall(sx * w[0], sz * w[1], w[2], w[3], w[4], (w[2] + w[3]) | 0);
+  }
   for (const q of QP) for (const sx of [-1, 1]) for (const sz of [-1, 1]) M.specs.push({ type: q[0], x: sx * q[1], z: sz * q[2], rot: q[3] });
   for (const q of CP) M.specs.push({ type: q[0], x: q[1], z: q[2], rot: q[3] });
   for (const s of M.specs) placeProp(s, false);
@@ -596,6 +600,7 @@ function botTick(e, dt) {
   } else if (e.ammo <= 0) { if (e.vis) playAt(w.sid + '_dry', e.p.x, e.p.z, { vol: .6 }); startReload(e); }
   else if (e.ammo < w.max * .3 && !e.vis) startReload(e);
   if (MX.campaign && rescueBot(e, dt)) return;
+  if (e.buildSite && !e.vis) { e.v.set(0,0,0); return; }
   moveBot(e, dt); aimFire(e, dt);
 }
 
