@@ -72,7 +72,11 @@ function buildMap() {
   { const c = new THREE.Mesh(new THREE.CircleGeometry(9.5, 40), new THREE.MeshStandardMaterial({ color: 0x263248, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1 })); c.rotation.x = -Math.PI / 2; c.position.set(0, .005, 0); c.receiveShadow = true; scene.add(c); }
   /* perímetro */
   addWall(0, -30.5, 102, 1, 3.4, 1); addWall(0, 30.5, 102, 1, 3.4, 1); addWall(-50.5, 0, 1, 62, 3.4, 1); addWall(50.5, 0, 1, 62, 3.4, 1);
-  for (const w of QW) for (const sx of [-1, 1]) for (const sz of [-1, 1]) addWall(sx * w[0], sz * w[1], w[2], w[3], w[4], (w[2] + w[3]) | 0);
+  for (const w of QW) for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    // En el Mapa 4 esta sección se construye con un tramo destructible.
+    if (MX.campaign && sx===-1 && sz===-1 && w[0]===37.6 && w[1]===1.5) continue;
+    addWall(sx * w[0], sz * w[1], w[2], w[3], w[4], (w[2] + w[3]) | 0);
+  }
   for (const q of QP) for (const sx of [-1, 1]) for (const sz of [-1, 1]) M.specs.push({ type: q[0], x: sx * q[1], z: sz * q[2], rot: q[3] });
   for (const q of CP) M.specs.push({ type: q[0], x: q[1], z: q[2], rot: q[3] });
   for (const s of M.specs) placeProp(s, false);
@@ -216,6 +220,7 @@ function segClear(ax, az, bx, bz, ign1, ign2, lowIgnore) {
   }
   return true;
 }
+MX.reachSupply = (e, s) => segClear(e.p.x, e.p.z, s.x, s.z, null, s, false);
 function smokeBlock(ax, az, bx, bz) {
   for (const c of clouds) {
     if (c.t < .8 || c.t > 12.2) continue;
@@ -620,6 +625,7 @@ function botTick(e, dt) {
   } else if (e.ammo <= 0) { if (e.vis) playAt(w.sid + '_dry', e.p.x, e.p.z, { vol: .6 }); startReload(e); }
   else if (e.ammo < w.max * .3 && !e.vis) startReload(e);
   if (MX.campaign && rescueBot(e, dt)) return;
+  if (e.buildSite && !e.vis) { e.v.set(0,0,0); return; }
   moveBot(e, dt); aimFire(e, dt);
 }
 
@@ -635,7 +641,8 @@ function pickSpawn(team) {
 function respawn(e) {
   const fw = MX.campaign && MX.SQ && M.t > 1 ? MX.SQ.spawnFor(e) : null, s0 = fw || pickSpawn(e.team), s = { x: s0.x, z: s0.z, yaw: s0.yaw };   // con el puesto avanzado propio, se puede reaparecer allí
   if (MX.campaign && !fw) for (let k = 0; k < 8; k++) { const x = s0.x + rr(-3, 3), z = s0.z + rr(-3, 3); if (navAt(x, z)) { s.x = x; s.z = z; break; } }   // campaña: 25 por facción, se reparten junto al punto de aparición
-  e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = SH; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.hitSrc = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); syncKit(e);
+  if (MX.campaign) INVENTARIO.spawn(e);
+  e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = MX.campaign ? INVENTARIO.protection(e) : SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = e.sh; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.hitSrc = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; if (!MX.campaign) e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); if (MX.campaign) e.kitShown = null; syncKit(e);
   if (MX.SQ && MX.campaign) MX.SQ.onRespawn(e);
   if (e.isPlayer) return respawnPlayer(e);
   unbake(e); setWeapon(e, pickWeaponIdx()); e.gCount = 3; e.sCount = 2; e.st = 'push'; e.goal = null; e.path = null; e.tgt = null; e.vis = false; e.reactT = 0; e.canShoot = false; e.wantThrow = null; e.holdT = 0;
@@ -645,7 +652,7 @@ let corpseP = null;
 MX.corpse = () => !!corpseP;
 function respawnPlayer(e) {
   if (corpseP) { scene.remove(corpseP); corpseP = null; }
-  for (const m of RL) m.visible = true; weapon.visible = true; P.dead = false;
+  for (const m of playerBodyMeshes) m.visible = true; weapon.visible = true; P.dead = false;
   P.vel.set(0, 0, 0); P.aim = P.aimT = P.body = e.yaw; camLook.set(P.pos.x, 0, P.pos.z); feetInit = false;
   P.gState = 0; P.dash = 0; P.dashCD = 0; P.sld = false; P.crouchT = 0; P.crouch = 0; P.recover = 0; P.ads = 0; P.sprintLatch = false; P.hs = false;
   for (const w of WP) w.ammo = w.max; P.gCount = 3; P.sCount = 2; W.reload = -1; W.swapT = -1; W.swapTo = -1; W.rp = 0; W.ammo = cur.max;
@@ -654,32 +661,33 @@ function respawnPlayer(e) {
 }
 function playerCorpse(dx, dz) {
   const grp = new THREE.Group(); grp.position.set(P.pos.x, 0, P.pos.z); scene.add(grp);
-  for (const m of RL) { const c = m.clone(true); c.position.copy(m.position); c.position.x -= P.pos.x; c.position.z -= P.pos.z; c.quaternion.copy(m.quaternion); c.scale.copy(m.scale); c.castShadow = true; grp.add(c); }
+  for (const m of playerBodyMeshes) { const c = m.clone(true); c.position.sub(grp.position); c.castShadow = true; grp.add(c); }
   const l = Math.hypot(dx, dz) || 1; grp.userData.ax = new V3(dz / l, 0, -dx / l); grp.userData.t = 0; corpseP = grp;
 }
 function regen(e, dt) {                                                              // tras 5 s sin daño: primero se recarga el escudo y después la vida
   if (M.t - e.lastHurt <= SH_DELAY) return;
-  if (e.sh < SH) e.sh = Math.min(SH, e.sh + SH_RATE * dt); else if (e.hp < HP) { e.hp = Math.min(HP, e.hp + HP_RATE * dt); e.tgp.hp = e.hp; }
+  if (!MX.campaign && e.sh < SH) e.sh = Math.min(SH, e.sh + SH_RATE * dt); else if (e.hp < HP) { e.hp = Math.min(HP, e.hp + HP_RATE * dt); e.tgp.hp = e.hp; }
 }
 /* ---- campaña: abatido y reanimación (reglas del diseño: una reanimación por vida, kit de un solo uso, un solo rescatador por caído, el daño al rescatador lo interrumpe) ---- */
 function syncKit(e) {                                                                // la cruz roja de la mochila se ve mientras se lleva un kit (solo campaña)
   const want = !!(MX.campaign && e.kits > 0); if (e.kitShown === want) return; e.kitShown = want;
-  dress(e.isPlayer ? rig : e.R, e.team, { skin: e.isPlayer ? 0 : e.skin, kit: want });
+  dress(e.isPlayer ? rig : e.R, e.team, { ...(e.bag ? INVENTARIO.appearance(e) : {}), skin: e.isPlayer ? 0 : e.skin, kit: want });
 }
+MX.refreshGear = e => { e.kitShown = null; syncKit(e); };
 const canDown = e => MX.campaign && !e.revived && !M.over && M.ents.some(o => o !== e && o.team === e.team && !o.dead && !o.dwn);   // sin aliados en pie no hay a quien esperar
 function endRescueOn(t) { if (t.rescuer) { if (t.rescuer.rt === t) t.rescuer.rt = null; t.rescuer = null; } t.revP = 0; MX.reviveFx(t, null); }
 function cancelRescue(by) { const t = by.rt; if (t) { if (t.rescuer === by) { t.rescuer = null; t.revP = 0; MX.reviveFx(t, null); } by.rt = null; } }
 function goDown(e, dx, dz) {
   e.dwn = true; e.dwT = 0; e.dwHp = DWN_HP; e.revP = 0; e.rescuer = null; e.rt = null; e.hp = 0; e.tgp.hp = DWN_HP; e.v.set(0, 0, 0);
-  if (e.isPlayer) { if (!e.fallAx) e.fallAx = new V3(); playerCorpse(dx, dz); e.fallAx.copy(corpseP.userData.ax); for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(160, .7, .5); }
+  if (e.isPlayer) { if (!e.fallAx) e.fallAx = new V3(); playerCorpse(dx, dz); e.fallAx.copy(corpseP.userData.ax); for (const m of playerBodyMeshes) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(160, .7, .5); }
   else { bake(e, dx, dz); e.ring.visible = false; e.flash.visible = false; e.wantThrow = null; e.firing = false; e.goal = null; e.path = null; e.tgt = null; }
   dwnFxMake(e);
 }
 function revive(t, by) {                                                           // completada: gasta el kit, vuelve con vida parcial y no puede volver a ser reanimado en esta vida
   by.kits--; syncKit(by); if (by.rt === t) by.rt = null;
-  t.dwn = false; t.revived = true; t.rescuer = null; t.revP = 0; t.hp = REV_HP; t.sh = 0; t.bH.fill = t.bH.chunk = REV_HP; t.bS.fill = t.bS.chunk = 0; t.tgp.hp = REV_HP; t.inv = .8; t.lastHurt = M.t;
+  t.dwn = false; t.revived = true; t.rescuer = null; t.revP = 0; t.hp = REV_HP; t.sh = INVENTARIO.protection(t); t.bH.fill = t.bH.chunk = REV_HP; t.bS.fill = t.bS.chunk = t.sh; t.tgp.hp = REV_HP; t.inv = .8; t.lastHurt = M.t;
   dwnFxClear(t);
-  if (t.isPlayer) { if (corpseP) { scene.remove(corpseP); corpseP = null; } for (const m of RL) m.visible = true; weapon.visible = true; P.vel.set(0, 0, 0); }
+  if (t.isPlayer) { if (corpseP) { scene.remove(corpseP); corpseP = null; } for (const m of playerBodyMeshes) m.visible = true; weapon.visible = true; P.vel.set(0, 0, 0); }
   else { unbake(t); t.crouch = 0; t.st = 'push'; t.goal = null; t.path = null; t.holdT = 0; }
 }
 function rescueBot(e, dt) {                                                        // true = el bot está ocupado con un rescate (no combate ni vaga)
@@ -726,7 +734,7 @@ MX.hit = (e, dmg, from, dx, dz, w, src) => {
     return;
   }
   const tot = dmg; let rest = dmg;
-  if (e.sh > 0) { const a = Math.min(e.sh, rest); e.sh -= a; rest -= a; e.bS.flash = 1; }                  // el escudo absorbe primero; el sobrante pasa a la vida en el mismo golpe
+  if (e.sh > 0) { const a = Math.min(e.sh, rest); if (MX.campaign) rest = INVENTARIO.absorb(e,rest); else { e.sh -= a; rest -= a; } e.bS.flash = 1; }                  // el escudo absorbe primero; el sobrante pasa a la vida en el mismo golpe
   if (rest > 0) { e.hp -= rest; e.bH.flash = 1; }
   e.tgp.hp = e.hp; e.lastHurt = M.t; e.bShow = M.t; e.lastSrc = src || (w ? w.sid : null);
   if (from && (from.isPlayer || e.isPlayer)) popNum(e, tot); if (from) { e.lastAtt = from; e.lastAttT = M.t; hitSrc(e, dx, dz); }
@@ -737,10 +745,11 @@ function kill(v, killer, dx, dz) {
   if (!killer && v.lastAtt && M.t - v.lastAttT < 8 && v.lastAtt.team !== v.team) killer = v.lastAtt;     // fuego o explosión sin autor claro: cuenta quien le hirió hace poco
   const wasDown = !!v.dwn; if (wasDown) { v.dwn = false; dwnFxClear(v); }
   v.dead = true; v.deaths++; v.hp = 0; v.tgp.hp = 0; if (MX.SQ && MX.campaign) MX.SQ.onDeath(v); v.respT = (MX.campaign && MX.SQ && MX.SQ.respawnTime(v)) || RESPAWN + (v.isPlayer ? 0 : rnd() * .8); v.respMax = v.respT; v.inv = 0;   // campaña: la reaparición depende de los objetivos comunes que tiene la facción
+  if (MX.campaign) INVENTARIO.death(v);
   addFeed(killer && killer !== v ? killer : null, v, v.lastSrc);
   if (killer && killer !== v && killer.team !== v.team) { killer.kills++; M.score[killer.team]++; if (killer.isPlayer) playSnd('HIT_kill') || playSnd('HIT_marker'); }          // bajas a compañeros y suicidios no puntúan
   for (let i = 0; i < 8; i++) spawn('red', _kp.set(v.p.x, .9, v.p.z), _kv.set((Math.random() - .5) * 4 + dx * 2, 1 + Math.random() * 3, (Math.random() - .5) * 4 + dz * 2), .5, .04, .04, .04, true, 8);
-  if (v.isPlayer) { P.dead = true; if (!corpseP) playerCorpse(dx, dz); for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(200, .8, .6); }
+  if (v.isPlayer) { P.dead = true; if (!corpseP) playerCorpse(dx, dz); for (const m of playerBodyMeshes) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(200, .8, .6); }
   else { if (wasDown) v.deadT = .55; else bake(v, dx, dz); v.ring.visible = false; v.flash.visible = false; v.wantThrow = null; }
   if (!MX.campaign && (M.score[0] >= GOAL || M.score[1] >= GOAL)) endMatch(M.score[0] >= GOAL ? 0 : 1);
 }
@@ -802,7 +811,8 @@ function stepBar(o, tgt, dt) {                                                  
 }
 function drawBar(b, e, dt) {
   stepBar(e.bH, e.hp, dt); stepBar(e.bS, e.sh, dt);
-  const sv = e.bS.fill / SH * SEGN, sc = e.bS.chunk / SH * SEGN, sb = 'brightness(' + (1 + (e.bS.flash || 0) * 1.6) + ')';
+  const maximum = MX.campaign ? 100 : SH;
+  const sv = e.bS.fill / maximum * SEGN, sc = e.bS.chunk / maximum * SEGN, sb = 'brightness(' + (1 + (e.bS.flash || 0) * 1.6) + ')';
   b.segs.forEach((g, k) => { g.c.style.transform = 'scaleX(' + clamp(sc - k, 0, 1) + ')'; g.f.style.transform = 'scaleX(' + clamp(sv - k, 0, 1) + ')'; g.f.style.filter = sb; });
   b.Hc.style.transform = 'scaleX(' + clamp(e.bH.chunk / HP, 0, 1) + ')'; b.Hf.style.transform = 'scaleX(' + clamp(e.bH.fill / HP, 0, 1) + ')';
   b.Hf.style.background = e.hp > 60 ? '#6dff9a' : e.hp > 30 ? '#ffd24a' : '#ff5a4a'; b.Hf.style.filter = 'brightness(' + (1 + (e.bH.flash || 0) * 1.6) + ')';
@@ -886,7 +896,6 @@ MX.restart = () => {
 };
 
 /* ============================ ARRANQUE Y BUCLE ============================ */
-const RL = Object.values(rig).flat();
 MX.start = () => {
   buildMap();
   const pl = makeEnt(0, 0, true); MX.pl = pl; M.ents.push(pl);
@@ -902,6 +911,7 @@ MX.start = () => {
   for (const e of M.ents) respawn(e);
   if (MX.campaign && MX.SQ) MX.SQ.init();
   forceWeapon(M.slots[0]);
+  if (MX.campaign) INVENTARIO.start();
 };
 MX.placeBars = () => {                                                              // se llama tras mover la cámara: así la barra no se retrasa un fotograma respecto al personaje
   camera.updateMatrixWorld();
@@ -913,16 +923,17 @@ MX.update = dt => {
   M.navT -= dt; if (M.navT <= 0) { M.navT = .5; navBuild(); }
   for (let i = M.propQ.length - 1; i >= 0; i--) { const q = M.propQ[i]; if (M.t >= q.t) { if (placeProp(q.spec, true)) M.propQ.splice(i, 1); else q.t = M.t + 4; } }
   armoryTick(dt);
+  if (MX.campaign) INVENTARIO.tick(dt);
   if (MX.zom && MX.campaign) MX.zom.update(dt);
   if (MX.SQ && MX.campaign) MX.SQ.update(dt);
   const pl = M.ents[0];
   if (pl.dead || pl.dwn) {                                                           // caído (muerto o abatido): cuerpo que cae; el muerto cuenta atrás para reaparecer
     if (pl.dead) pl.respT -= dt; else { pl.dwT += dt; dwnFxTick(pl); if (MX.campaign && pl.dwT >= DWN_T && !M.over) { endRescueOn(pl); kill(pl, pl.lastAtt && M.t - pl.lastAttT < 40 ? pl.lastAtt : null, 0, 1); } }
-    for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false;
+    for (const m of playerBodyMeshes) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false;
     if (corpseP) { corpseP.userData.t += dt; corpseP.quaternion.setFromAxisAngle(corpseP.userData.ax, smooth(corpseP.userData.t / .55) * (pl.dwn ? 1.3 : 1.45)); corpseP.position.y = pl.dwn ? 0 : -smooth((corpseP.userData.t - 2.3) / .7) * .6; }
     if (pl.dead && pl.respT <= 0 && !M.over) respawn(pl);
   } else {
-    if (pl.inv > 0) { pl.inv -= dt; const on = Math.floor(M.t * 14) % 2 === 0 || pl.inv <= 0; for (const m of RL) m.visible = on; }
+    if (pl.inv > 0) { pl.inv -= dt; const on = Math.floor(M.t * 14) % 2 === 0 || pl.inv <= 0; for (const m of playerBodyMeshes) m.visible = on; }
     regen(pl, dt);
   }
   pl.yaw = P.aim;

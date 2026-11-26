@@ -22,6 +22,8 @@ TAG_OBJETOS = '<script src="objetos.js"></script>'
 TAG_MAPA = '<script src="mapa.js"></script>'
 TAG_COMP = '<script src="composiciones.js"></script>'
 TAG_MAPAD = '<script src="mapa_distrito.js"></script>'
+TAG_OBRAS = '<script src="obras.js"></script>'
+TAG_INV = '<script src="inventario.js"></script>'
 TAG_PARTIDA = '<script src="partida.js"></script>'
 TAG_ZOMBIS = '<script src="zombis.js"></script>'
 TAG_ESCUADRAS = '<script src="escuadras.js"></script>'
@@ -162,7 +164,7 @@ def main():
     js = '/* generado por tools/build.py a partir de assets/audio: no editar a mano */\nconst SOUND_DATA = ' + json.dumps(datos) + ';\n'
     (RAIZ / 'src' / 'sonidos.js').write_text(js, encoding='utf-8')
     fuente = (RAIZ / 'src' / 'prototipo.html').read_text(encoding='utf-8')
-    for tag in (TAG_THREE, TAG_SONIDOS, TAG_MAPA, TAG_COMP, TAG_MAPAD, TAG_PARTIDA, TAG_ZOMBIS, TAG_ESCUADRAS):
+    for tag in (TAG_THREE, TAG_SONIDOS, TAG_MAPA, TAG_COMP, TAG_MAPAD, TAG_OBRAS, TAG_INV, TAG_PARTIDA, TAG_ZOMBIS, TAG_ESCUADRAS):
         if tag not in fuente:
             raise SystemExit('Falta la etiqueta en src/prototipo.html: ' + tag)
     three = (RAIZ / 'src' / 'three.min.r128.js').read_text(encoding='utf-8')
@@ -185,7 +187,9 @@ def main():
         raise SystemExit('src/zombis.js no puede contener </script')
     if '</script' in partida:
         raise SystemExit('src/partida.js no puede contener </script')
-    salida = fuente.replace(TAG_THREE, '<script>' + three + '</script>').replace(TAG_SONIDOS, '<script>' + js + '</script>').replace(TAG_OBJETOS, '<script>' + objetos + '</script>').replace(TAG_MAPA, '<script>' + mapa + '</script>').replace(TAG_COMP, '<script>' + comp + '</script>').replace(TAG_MAPAD, '<script>' + mapad + '</script>').replace(TAG_PARTIDA, '<script>' + partida + '</script>').replace(TAG_ZOMBIS, '<script>' + zombis + '</script>').replace(TAG_ESCUADRAS, '<script>' + escuadras + '</script>')
+    inventario = (RAIZ / "src" / "inventario.js").read_text(encoding="utf-8")
+    obras = (RAIZ / "src" / "obras.js").read_text(encoding="utf-8")
+    salida = fuente.replace(TAG_OBRAS, "<script>" + obras + "</script>").replace(TAG_INV, "<script>" + inventario + "</script>").replace(TAG_THREE, '<script>' + three + '</script>').replace(TAG_SONIDOS, '<script>' + js + '</script>').replace(TAG_OBJETOS, '<script>' + objetos + '</script>').replace(TAG_MAPA, '<script>' + mapa + '</script>').replace(TAG_COMP, '<script>' + comp + '</script>').replace(TAG_MAPAD, '<script>' + mapad + '</script>').replace(TAG_PARTIDA, '<script>' + partida + '</script>').replace(TAG_ZOMBIS, '<script>' + zombis + '</script>').replace(TAG_ESCUADRAS, '<script>' + escuadras + '</script>')
     (RAIZ / 'index.html').write_text(salida, encoding='utf-8')
     print(f'sonidos.js {len(js)/1024:.0f} KB, index.html {len(salida)/1024:.0f} KB')
 

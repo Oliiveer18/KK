@@ -334,10 +334,12 @@ function dress(R, fi, L) {
     target.add(g); R._gear.push(g);
   }
 }
+// Las piezas del equipo son hijas de estas mallas y heredan su transformación.
+const playerBodyMeshes = Object.values(rig).flat();
 dress(rig, 0);
 
 /* estela del dash: 3 siluetas translúcidas que se desvanecen rápido */
-const GH = { list: Object.values(rig).flat(), g: [], i: 0, t: 0 };
+const GH = { list: playerBodyMeshes, g: [], i: 0, t: 0 };
 for (let n = 0; n < 3; n++) {
   const mat = new THREE.MeshBasicMaterial({ color: 0x7ec0ff, transparent: true, opacity: 0, depthWrite: false });
   const meshes = GH.list.map(m => { const c = new THREE.Mesh(m.geometry, mat); c.visible = false; scene.add(c); return c; });
@@ -1990,6 +1992,7 @@ function rumble(ms, strong, weak) {
 
 /* ---------- actualización ---------- */
 function update(dt) {
+  if (INVENTARIO.input()) return;
   const g = getPad();
   // --- entrada ---
   let swHeld = !!keys.KeyQ || !!T.swh, dHeld = !!keys.Space || T.dh, crHeld = !!keys.KeyC || T.crh, mx = 0, mz = 0, trig = mouse.down || !!keys.KeyJ, sprint = !!(keys.ShiftLeft || keys.ShiftRight);
@@ -2391,12 +2394,15 @@ function frame(now) {
   catch (e) { const el = $('err'); el.style.display = 'block'; el.textContent = 'Error en el juego: ' + e.message + '\n' + String(e.stack || '').split('\n').slice(0, 3).join('\n'); }
   fAcc += dt; fN++; if (fAcc > .5) { const fps = Math.round(fN / fAcc); $('fps').textContent = fps + ' FPS' + (DIAG.on && DIAG.n ? ' · lógica ' + (DIAG.u / DIAG.n).toFixed(1) + ' ms · dibujo(CPU) ' + (DIAG.r / DIAG.n).toFixed(1) + ' ms · GPU ' + (DIAG.ext ? (DIAG.gn ? (DIAG.g / DIAG.gn).toFixed(1) + ' ms' : '…') : 'n/d') + ' · ' + renderer.info.render.calls + ' llamadas · ' + Math.round(renderer.info.render.triangles / 1000) + 'k tri · ' + renderer.domElement.width + '×' + renderer.domElement.height : ''); DIAG.u = DIAG.r = DIAG.n = DIAG.g = DIAG.gn = 0; $('fps').style.color = fps >= 55 ? '#6dff9a' : fps >= 30 ? '#ffd24a' : '#ff6a4a'; fAcc = 0; fN = 0; }
 }
-requestAnimationFrame(frame);
+/* El bucle arranca cuando todos los scripts (objetos, inventario, partida, zombis…) ya se han ejecutado: Safari puede pintar un frame entre scripts y fallaba con "Can't find variable". */
+if (document.readyState === 'complete') requestAnimationFrame(frame); else window.addEventListener('load', () => requestAnimationFrame(frame));
 </script>
 <script src="objetos.js"></script>
 <script src="mapa.js"></script>
 <script src="composiciones.js"></script>
 <script src="mapa_distrito.js"></script>
+<script src="obras.js"></script>
+<script src="inventario.js"></script>
 <script src="partida.js"></script>
 <script src="zombis.js"></script>
 <script src="escuadras.js"></script>

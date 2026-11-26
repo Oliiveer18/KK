@@ -342,10 +342,12 @@ function dress(R, fi, L) {
     target.add(g); R._gear.push(g);
   }
 }
+// Las piezas del equipo son hijas de estas mallas y heredan su transformación.
+const playerBodyMeshes = Object.values(rig).flat();
 dress(rig, 0);
 
 /* estela del dash: 3 siluetas translúcidas que se desvanecen rápido */
-const GH = { list: Object.values(rig).flat(), g: [], i: 0, t: 0 };
+const GH = { list: playerBodyMeshes, g: [], i: 0, t: 0 };
 for (let n = 0; n < 3; n++) {
   const mat = new THREE.MeshBasicMaterial({ color: 0x7ec0ff, transparent: true, opacity: 0, depthWrite: false });
   const meshes = GH.list.map(m => { const c = new THREE.Mesh(m.geometry, mat); c.visible = false; scene.add(c); return c; });
@@ -1998,6 +2000,7 @@ function rumble(ms, strong, weak) {
 
 /* ---------- actualización ---------- */
 function update(dt) {
+  if (INVENTARIO.input()) return;
   const g = getPad();
   // --- entrada ---
   let swHeld = !!keys.KeyQ || !!T.swh, dHeld = !!keys.Space || T.dh, crHeld = !!keys.KeyC || T.crh, mx = 0, mz = 0, trig = mouse.down || !!keys.KeyJ, sprint = !!(keys.ShiftLeft || keys.ShiftRight);
@@ -2399,7 +2402,8 @@ function frame(now) {
   catch (e) { const el = $('err'); el.style.display = 'block'; el.textContent = 'Error en el juego: ' + e.message + '\n' + String(e.stack || '').split('\n').slice(0, 3).join('\n'); }
   fAcc += dt; fN++; if (fAcc > .5) { const fps = Math.round(fN / fAcc); $('fps').textContent = fps + ' FPS' + (DIAG.on && DIAG.n ? ' · lógica ' + (DIAG.u / DIAG.n).toFixed(1) + ' ms · dibujo(CPU) ' + (DIAG.r / DIAG.n).toFixed(1) + ' ms · GPU ' + (DIAG.ext ? (DIAG.gn ? (DIAG.g / DIAG.gn).toFixed(1) + ' ms' : '…') : 'n/d') + ' · ' + renderer.info.render.calls + ' llamadas · ' + Math.round(renderer.info.render.triangles / 1000) + 'k tri · ' + renderer.domElement.width + '×' + renderer.domElement.height : ''); DIAG.u = DIAG.r = DIAG.n = DIAG.g = DIAG.gn = 0; $('fps').style.color = fps >= 55 ? '#6dff9a' : fps >= 30 ? '#ffd24a' : '#ff6a4a'; fAcc = 0; fN = 0; }
 }
-requestAnimationFrame(frame);
+/* El bucle arranca cuando todos los scripts (objetos, inventario, partida, zombis…) ya se han ejecutado: Safari puede pintar un frame entre scripts y fallaba con "Can't find variable". */
+if (document.readyState === 'complete') requestAnimationFrame(frame); else window.addEventListener('load', () => requestAnimationFrame(frame));
 </script>
 <script>/* ===================== OBJETOS DE CAMPAÑA (src/objetos.js) =====================
    Módulo cargado tras el juego (comparte su ámbito global: PSPEC, MT, PM, props, boxes, mkPiece…).
@@ -4169,6 +4173,398 @@ MAPA.data.M2 = function () {
 };
 })();
 </script>
+<script>/* Una obra pertenece al tramo físico. La pieza puede desaparecer durante una
+   brecha; su ubicación, nivel y progreso siguen perteneciendo al refugio. */
+const OBRAS = (() => {
+  const rules = {
+    wall: {name:'Muro', repair:1, upgrades:[3,6], seconds:[4,10]},
+    gate: {name:'Portón', repair:2, upgrades:[4,8], seconds:[5,12]},
+    gateInner: {name:'Puerta interior', repair:2, upgrades:[], seconds:[5,12]}
+  };
+  const sites = [];
+  const status = document.createElement('div');
+  status.style.cssText='position:fixed;bottom:20%;left:50%;transform:translateX(-50%);color:white;background:#17222ded;border-radius:5px;padding:5px 9px;pointer-events:none;z-index:11;text-align:center';
+  status.hidden = true;
+  document.body.append(status);
+  let messageUntil = 0;
+  function message(e,text) {
+    if (!e.isPlayer) return;
+    status.textContent = text;
+    status.hidden = false;
+    messageUntil = MX.M.t+2;
+  }
+  function add(kind,x,z,level=1) {
+    const type = kind==='gateInner' ? kind : kind+level;
+    const prop = OBJ.place(type,x,z,Math.PI/2,0);
+    const site = {kind,level,prop,progress:0,operation:null,worker:null};
+    sites.push(site);
+    return site;
+  }
+  function start() {
+    const gate=add('gate',-37.6,-5.5);
+    OBJ.setOpen(gate.prop,true,true);
+    add('wall',-37.6,-1.5);
+    rangeLabel('PORTÓN',-37.6,-5.5,2.6);
+    rangeLabel('MURO',-37.6,-1.5,2.6);
+  }
+  function nearby(e,site) {
+    const p=site.prop;
+    return e.team===p.faction && !e.dead && !e.dwn &&
+      Math.hypot(Math.max(0,Math.abs(e.p.x-p.x)-p.hx),Math.max(0,Math.abs(e.p.z-p.z)-p.hz))<=2.1 &&
+      MX.reachSupply(e,p);
+  }
+  function quote(site) {
+    const p=site.prop, r=rules[site.kind];
+    if (p.dead || p.hp<p.maxHp) {
+      const missing=p.dead?1:1-p.hp/p.maxHp;
+      return {name:'Reparar',cost:Math.max(1,Math.ceil(r.repair*missing)),seconds:r.seconds[0]};
+    }
+    const cost=r.upgrades[site.level-1];
+    return cost ? {name:'Mejorar',cost,seconds:r.seconds[1]} : null;
+  }
+  function alarm(site) {
+    return OBJ.alarms.some(p=>Math.hypot(p.x-site.prop.x,p.z-site.prop.z)<25);
+  }
+  function begin(e,site,shown) {
+    const q=quote(site);
+    if (!q || !nearby(e,site) || site.worker || e.buildSite) return false;
+    if (alarm(site) || q.name!==shown.name || q.cost!==shown.cost || !(e.bag.material>=q.cost)) return false;
+    if (site.operation!==q.name) site.progress=0;
+    site.operation=q.name;
+    site.worker=e;
+    e.buildSite=site;
+    site.cost=q.cost;
+    site.lastHurt=e.lastHurt;
+    return true;
+  }
+  function pause(site) {
+    message(site.worker,rules[site.kind].name+' · obra interrumpida');
+    site.worker.buildSite=null;
+    site.worker=null;
+  }
+  function occupied(x,z,hx,hz) {
+    const inside=e=>!e.dead && Math.abs(e.p.x-x)<hx+.52 && Math.abs(e.p.z-z)<hz+.52;
+    return MX.ents.some(inside) || MX.zom?.list.some(inside) || boxes.some(b=>b.prop?.pushable &&
+      Math.abs(b.x-x)<hx+b.hx && Math.abs(b.z-z)<hz+b.hz);
+  }
+  function finish(site,q) {
+    const old=site.prop, upgrade=q.name==='Mejorar';
+    const nextLevel=site.level+(upgrade?1:0);
+    const inner=upgrade && site.kind==='gate' && nextLevel===3;
+    if (occupied(old.x,old.z,Math.max(.35,old.hx),old.hz) ||
+        (inner && occupied(old.x-1.6,old.z,.35,1.6))) {
+      if (site.worker.bot) { pause(site); return; }
+      message(site.worker,'Despeja el paso para terminar la obra');
+      return;
+    }
+    const type=site.kind==='gateInner'?site.kind:site.kind+nextLevel;
+    const opened=old.open && !old.dead;
+    if (!old.dead) OBJ.removeObject(old);
+    site.prop=OBJ.place(type,old.x,old.z,old.g.rotation.y,old.faction);
+    if (opened) OBJ.setOpen(site.prop,true,true);
+    if (inner) add('gateInner',old.x-1.6,old.z,3);
+    site.worker.bag.material-=q.cost;
+    site.level=nextLevel;
+    message(site.worker,rules[site.kind].name+' · nivel '+nextLevel+' · intacto');
+    site.worker.buildSite=null;
+    site.worker=null;
+    site.operation=null;
+    site.progress=0;
+  }
+  function tick(dt) {
+    if (!sites.length) return;
+    if (MX.M.t>messageUntil) status.hidden=true;
+    for (const site of sites) {
+      const e=site.worker;
+      if (!e) continue;
+      const q=quote(site);
+      if (!q || q.name!==site.operation || q.cost!==site.cost || !nearby(e,site) ||
+          !(e.bag.material>=q.cost) || e.lastHurt!==site.lastHurt || (e.bot && (e.vis || e.rt)) || alarm(site)) {
+        pause(site); continue;
+      }
+      site.progress=Math.min(q.seconds,site.progress+dt);
+      if (site.progress>=q.seconds) finish(site,q);
+      else message(e,site.operation+' · '+rules[site.kind].name+' · '+Math.floor(100*site.progress/q.seconds)+' %');
+    }
+  }
+  function controls(e,label,button,close) {
+    for (const site of sites) {
+      if (!nearby(e,site)) continue;
+      const p=site.prop, q=quote(site);
+      label('p',rules[site.kind].name+' · nivel '+site.level+' · '+(p.dead?'brecha':Math.ceil(p.hp)+' / '+p.maxHp));
+      if (p.o?.leaves && !p.dead) button(p.open?'Cerrar puerta':'Abrir puerta',()=>OBJ.toggle(p));
+      if (site.worker===e) { button('Pausar obra',()=>pause(site)); continue; }
+      if (!q) continue;
+      const progress=site.operation===q.name?site.progress:0;
+      const text=(progress?'Retomar · ':'')+q.name+' · '+q.cost+' material'+(q.cost===1?'':'es')+' · '+Math.ceil(q.seconds-progress)+' s';
+      if (site.worker) label('p','Obra en curso');
+      else if (alarm(site)) label('p','Obra pausada por alarma');
+      else if (!(e.bag.material>=q.cost)) label('p',text+' · faltan materiales');
+      else button(text,()=>{if (begin(e,site,q)) close();});
+    }
+  }
+  function botRepair(e) {
+    if (!e.bag.material || e.vis) return false;
+    for (const site of sites) {
+      const q=quote(site);
+      if (q?.name==='Reparar' && begin(e,site,q)) return true;
+    }
+    return false;
+  }
+  return {start,tick,controls,botRepair};
+})();
+</script>
+<script>/* Inventario de la campaña. Los estantes y los cuerpos conservan una sola reserva
+   compartida. La distancia y las existencias se comprueban en cada transferencia. */
+const INVENTARIO = (() => {
+  const names = {repair:'Kit de reparación', material:'Material', ammo:'Munición', medkit:'Botiquín', revive:'Kit de reanimación'};
+  const slots = {helmet:'Casco', vest:'Chaleco', pack:'Mochila'};
+  for (const [key, name] of Object.entries(slots))
+    for (let level = 1; level <= 3; level++) names[key + level] = name + ' ' + level;
+  const shelves = {storeMat:['material','repair'], storeAmmo:['ammo'], storeMed:['medkit','revive']};
+  shelves.storeMat.push(...Object.keys(names).filter(k=>/^(helmet|vest|pack)/.test(k)));
+  const catalog = {material:'material', 'munición':'ammo', 'botiquín':'medkit', 'kit de reanimación':'revive'};
+  const containers = new Set();
+  function gear(bag, slot) {
+    for (let level = 3; level > 0; level--) if (bag[slot + level]) return level;
+    return 0;
+  }
+  function capacity(bag) { return 6 + 4 * gear(bag, 'pack'); }
+  function count(bag) { return Object.values(bag).reduce((sum, n) => sum + n, 0); }
+  const limits = {helmet1:10, helmet2:20, helmet3:30, vest1:25, vest2:50, vest3:70};
+  const piecesByStock = new WeakMap();
+  function pieces(stock) {
+    if (!piecesByStock.has(stock)) {
+      const items = [];
+      for (const key of Object.keys(limits))
+        for (let i=0; i<(stock[key] || 0); i++) items.push({key, points:limits[key]});
+      piecesByStock.set(stock, items);
+    }
+    return piecesByStock.get(stock);
+  }
+  function slotOf(item) { return item.key.slice(0,-1); }
+  function protection(e) {
+    return Object.values(e.worn).reduce((sum,item)=>sum+item.points,0);
+  }
+  function equip(e,item) {
+    if (e.dead || e.dwn || !pieces(e.bag).includes(item)) return false;
+    e.worn[slotOf(item)] = item;
+    e.sh = protection(e);
+    MX.refreshGear(e);
+    return true;
+  }
+  function absorb(e,damage) {
+    const total = protection(e);
+    if (!total) return damage;
+    const remaining = Math.max(0,total-damage);
+    for (const item of Object.values(e.worn)) item.points *= remaining/total;
+    e.sh = protection(e);
+    return Math.max(0,damage-total);
+  }
+  function nearRefuge(e) {
+    return MX.M.spawn[e.team].some(s=>Math.hypot(s.x-e.p.x,s.z-e.p.z)<=4);
+  }
+  function repair(e,item,resource) {
+    if (e.dead || e.dwn || !pieces(e.bag).includes(item) || item.points>=limits[item.key]) return false;
+    if (resource!=='repair' && !(resource==='material' && nearRefuge(e))) return false;
+    if (!e.bag[resource]) return false;
+    e.bag[resource]--;
+    item.points = limits[item.key];
+    e.sh = protection(e);
+    return true;
+  }
+  function describe(item) {
+    return names[item.key]+' · '+Math.round(item.points*10)/10+' / '+limits[item.key];
+  }
+  function spawn(e) {
+    if (e.bag) return;
+    e.bag = {helmet2:1, vest2:1, pack1:1, revive:1};
+    e.worn = {};
+    for (const item of pieces(e.bag)) e.worn[slotOf(item)] = item;
+    Object.defineProperty(e, 'kits', {
+      get() { return this.bag.revive || 0; },
+      set(n) { this.bag.revive = n; }
+    });
+  }
+  function appearance(e) {
+    return {helmet:Number(e.worn.helmet?.key.slice(-1)||0), vest:Number(e.worn.vest?.key.slice(-1)||0), pack:gear(e.bag,'pack')};
+  }
+  function register(p) {
+    const loot = OBJ.contents(p);
+    if (!shelves[p.type] && !loot.length) return;
+    p.stock = {};
+    for (const {k,n} of loot) if (catalog[k])
+      p.stock[catalog[k]] = n[0] + Math.floor(Math.random() * (1 + n[1] - n[0]));
+    if (p.type === 'pharmaCab') p.stock.revive = 1;
+    if (p.type==='storeMat') Object.assign(p.stock,{helmet1:1,helmet3:1,vest1:1,vest3:1,repair:1});
+    if (p.type==='supplyMat') p.stock.repair=1;
+    containers.add(p);
+  }
+  function start() {
+    props.forEach(register);
+    OBJ.on.push((event,p) => {
+      if (event === 'add') register(p);
+      if (event === 'break') containers.delete(p);
+    });
+    // El escenario de ensayo también ofrece las tres estanterías y suministros.
+    if (!MX.district) {
+      ['storeMat','storeAmmo','storeMed'].forEach((key,i) => OBJ.place(key,-42+2*i,-8,0,0));
+      const reserves=props.find(p=>p.type==='storeMat');
+      reserves.stock.material=48;
+      OBRAS.start();
+      ['material','ammo','medkit','revive'].forEach((key,i) => OBJ.pickup(key,-42+i*1.1,-5));
+    }
+    openButton.hidden = false;
+  }
+  function death(e) {
+    if (!e.bag || !count(e.bag)) return;
+    const marker = OBJ.pickup('pack1',e.p.x,e.p.z);
+    marker.stock = e.bag;
+    marker.ownerId = e.id;
+    e.bag = {};
+    e.worn = {};
+    e.sh = 0;
+  }
+  function distance(e,s) {
+    return Math.hypot(Math.max(0,Math.abs(e.p.x-s.x)-(s.hx||0)),
+                      Math.max(0,Math.abs(e.p.z-s.z)-(s.hz||0)));
+  }
+  function reachable(e,s) { return !s.dead && distance(e,s)<=2.1 && MX.reachSupply(e,s); }
+  function sources(e) {
+    return [...containers,...OBJ.pickups].filter(s => reachable(e,s));
+  }
+  function stock(s) {
+    if (!s.stock) s.stock = {[s.kind]:1};
+    return s.stock;
+  }
+  function transfer(e,s,key,deposit=false,selected=null) {
+    if (!e.bag || e.dead || e.dwn || !names[key] || !reachable(e,s)) return false;
+    if (!containers.has(s) && !OBJ.pickups.includes(s)) return false;
+    if (deposit && !shelves[s.type]?.includes(key)) return false;
+    const world = stock(s), from = deposit ? e.bag : world, to = deposit ? world : e.bag;
+    if (!(from[key]>0)) return false;
+    if (deposit && count(e.bag)-1 > capacity({...e.bag,[key]:from[key]-1})) return false;
+    if (!deposit && count(e.bag)+1 > capacity({...e.bag,[key]:(e.bag[key]||0)+1})) return false;
+    if (limits[key]) {
+      const source = pieces(from), dest = pieces(to);
+      const item = selected || source.find(x=>x.key===key && (!deposit || e.worn[slotOf(x)]!==x))
+                            || source.find(x=>x.key===key);
+      if (!item || item.key!==key || !source.includes(item)) return false;
+      source.splice(source.indexOf(item),1);
+      dest.push(item);
+      const slot = slotOf(item);
+      if (deposit && e.worn[slot]===item) delete e.worn[slot];
+      if (!deposit && (!e.worn[slot] || (e.bot && item.points>e.worn[slot].points))) e.worn[slot]=item;
+      e.sh = protection(e);
+    }
+    from[key]--; to[key]=(to[key]||0)+1;
+    if (s.kind && !count(world)) OBJ.removePickup(s);
+    if (key==='revive' || /^(pack|helmet|vest)/.test(key)) MX.refreshGear(e);
+    return true;
+  }
+  function use(e,key) {
+    if (!e.bag?.[key] || e.dead || e.dwn) return false;
+    if (key==='medkit' && e.hp<100) { e.hp=Math.min(100,e.hp+35); e.tgp.hp=e.hp; }
+    else if (key==='ammo' && e.isPlayer && W.ammo<cur.max) { W.ammo=cur.ammo=cur.max; }
+    else if (key==='ammo' && e.bot && e.ammo<e.w.max) e.ammo=e.w.max;
+    else return false;
+    e.bag[key]--; return true;
+  }
+  const openButton=document.createElement('button'), panel=document.createElement('dialog');
+  openButton.textContent='Mochila'; openButton.hidden=true;
+  openButton.style.cssText='position:fixed;right:12px;top:46%;z-index:12;padding:6px 10px';
+  panel.style.cssText='max-width:min(90vw,390px);max-height:78vh;overflow:auto;background:#18212a;color:white;border:1px solid #73808e;border-radius:8px;padding:16px';
+  document.body.append(openButton,panel);
+  function close() { if(panel.open) panel.close(); }
+  function render() {
+    const e=MX.pl; panel.replaceChildren();
+    function label(tag,value) { const node=document.createElement(tag);node.textContent=value;panel.append(node); }
+    function button(value,action) {
+      const b=document.createElement('button'); b.textContent=value;b.style.margin='3px';
+      b.onclick=()=>{const index=buttons().indexOf(b);action();if(panel.open){render();const all=buttons();all[Math.min(index,all.length-1)].focus();}};
+      panel.append(b);
+    }
+    label('strong','Mochila · '+count(e.bag)+' / '+capacity(e.bag));
+    label('p',Object.entries(e.bag).filter(([k,n])=>n>0 && !limits[k]).map(([k,n])=>names[k]+' ×'+n).join(' · ')||'');
+    OBRAS.controls(e,label,button,close);
+    for (const item of pieces(e.bag)) {
+      const worn=e.worn[slotOf(item)]===item;
+      label('p',describe(item)+(worn?' · equipado':''));
+      if (!worn) button('Equipar '+describe(item),()=>equip(e,item));
+      if (item.points<limits[item.key]) {
+        if (e.bag.repair) button('Reparar con kit',()=>repair(e,item,'repair'));
+        if (e.bag.material && nearRefuge(e)) button('Reparar con material',()=>repair(e,item,'material'));
+      }
+    }
+    if(e.hp<100 && e.bag.medkit) button('Usar botiquín',()=>use(e,'medkit'));
+    if(W.ammo<cur.max && e.bag.ammo) button('Usar munición',()=>use(e,'ammo'));
+    for(const s of sources(e)) {
+      const inventory=stock(s), allowed=shelves[s.type];
+      if (!allowed && !count(inventory)) continue;
+      label('p',s.ownerId?'Equipo de '+s.ownerId:s.meta?.name||'En el suelo');
+      for(const [k,n] of Object.entries(inventory)) if(n>0 && !limits[k]) {
+        const full=count(e.bag)+1>capacity({...e.bag,[k]:(e.bag[k]||0)+1});
+        button((full?'Sin espacio · ':allowed?'Retirar ':'Recoger ')+names[k]+' ('+n+')',()=>transfer(e,s,k));
+      }
+      for (const item of pieces(inventory)) button((allowed?'Retirar ':'Recoger ')+describe(item),()=>transfer(e,s,item.key,false,item));
+      for (const item of pieces(e.bag)) if (allowed?.includes(item.key))
+        button('Depositar '+describe(item)+(e.worn[slotOf(item)]===item?' · equipado':''),()=>transfer(e,s,item.key,true,item));
+      for(const k of allowed||[]) if(e.bag[k] && !limits[k]) button('Depositar '+names[k],()=>transfer(e,s,k,true));
+    }
+    button('Cerrar',close);
+  }
+  function buttons(){return Array.from(panel.querySelectorAll('button'));}
+  function open(){
+    if(!MX.campaign || !MX.on || menuOpen || MX.pl.dead || MX.pl.dwn || panel.open)return;
+    mouse.down=mouse.rdown=false;render();panel.showModal();buttons()[0].focus();
+  }
+  openButton.onclick=open;
+  for(const el of [panel,openButton]) for(const ev of ['pointerdown','mousedown','touchstart']) el.addEventListener(ev,event=>event.stopPropagation());
+  window.addEventListener('keydown',ev=>{
+    if(!panel.open && (ev.code!=='KeyI' || !MX.campaign || menuOpen))return;
+    if(panel.open && ev.code==='Tab'){ev.stopImmediatePropagation();return;}
+    ev.stopImmediatePropagation();
+    if(ev.code==='KeyI' || ev.code==='Escape'){ev.preventDefault();if(!ev.repeat)panel.open?close():open();}
+  },true);
+  let previous=[];
+  function input(){
+    if(!MX.campaign || !MX.on)return false;
+    const pad=getPad(), down=pad?Array.from(pad.buttons,b=>b.pressed):[];
+    const edge=i=>down[i]&&!previous[i], wasOpen=panel.open;
+    if(edge(17)) panel.open?close():open();
+    else if(panel.open){
+      const list=buttons(), current=list.indexOf(document.activeElement);
+      if(edge(12)||edge(13))list[(current+(edge(12)?-1:1)+list.length)%list.length].focus();
+      if(edge(0))document.activeElement.click();
+      if(edge(1))close();
+    }
+    previous=down;
+    return wasOpen||panel.open;
+  }
+  let botClock=0, botIndex=0;
+  function tick(dt){
+    OBRAS.tick(dt);
+    botClock+=dt;if(botClock<.12)return;botClock=0;
+    const e=MX.ents[1+(botIndex++%(MX.ents.length-1))];
+    if(e.dead||e.dwn||e.vis)return;
+    if(OBRAS.botRepair(e))return;
+    if(e.hp<65 && use(e,'medkit'))return;
+    for (const item of Object.values(e.worn)) {
+      if (item.points<limits[item.key]/2 && (repair(e,item,'material') || repair(e,item,'repair'))) return;
+    }
+    for(const s of sources(e)){
+      const keys=shelves[s.type];
+      if(keys){
+        for(const k of keys){
+          if(e.bag[k]>1 && transfer(e,s,k,true))return;
+          if(!e.bag[k] && transfer(e,s,k))return;
+        }
+      } else for(const k of Object.keys(stock(s))) if(transfer(e,s,k))return;
+    }
+  }
+  return {absorb,protection,spawn,appearance,start,death,transfer,use,capacity,count,input,tick,open};
+})();
+</script>
 <script>"use strict";
 /* ===================== PARTIDA 6 vs 6 · MAPA 3 =====================
    Módulo cargado después del juego: comparte su ámbito global (P, W, WP, boxes, props, scene, spawnBullet, explode...).
@@ -4243,7 +4639,11 @@ function buildMap() {
   { const c = new THREE.Mesh(new THREE.CircleGeometry(9.5, 40), new THREE.MeshStandardMaterial({ color: 0x263248, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1 })); c.rotation.x = -Math.PI / 2; c.position.set(0, .005, 0); c.receiveShadow = true; scene.add(c); }
   /* perímetro */
   addWall(0, -30.5, 102, 1, 3.4, 1); addWall(0, 30.5, 102, 1, 3.4, 1); addWall(-50.5, 0, 1, 62, 3.4, 1); addWall(50.5, 0, 1, 62, 3.4, 1);
-  for (const w of QW) for (const sx of [-1, 1]) for (const sz of [-1, 1]) addWall(sx * w[0], sz * w[1], w[2], w[3], w[4], (w[2] + w[3]) | 0);
+  for (const w of QW) for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    // En el Mapa 4 esta sección se construye con un tramo destructible.
+    if (MX.campaign && sx===-1 && sz===-1 && w[0]===37.6 && w[1]===1.5) continue;
+    addWall(sx * w[0], sz * w[1], w[2], w[3], w[4], (w[2] + w[3]) | 0);
+  }
   for (const q of QP) for (const sx of [-1, 1]) for (const sz of [-1, 1]) M.specs.push({ type: q[0], x: sx * q[1], z: sz * q[2], rot: q[3] });
   for (const q of CP) M.specs.push({ type: q[0], x: q[1], z: q[2], rot: q[3] });
   for (const s of M.specs) placeProp(s, false);
@@ -4387,6 +4787,7 @@ function segClear(ax, az, bx, bz, ign1, ign2, lowIgnore) {
   }
   return true;
 }
+MX.reachSupply = (e, s) => segClear(e.p.x, e.p.z, s.x, s.z, null, s, false);
 function smokeBlock(ax, az, bx, bz) {
   for (const c of clouds) {
     if (c.t < .8 || c.t > 12.2) continue;
@@ -4791,6 +5192,7 @@ function botTick(e, dt) {
   } else if (e.ammo <= 0) { if (e.vis) playAt(w.sid + '_dry', e.p.x, e.p.z, { vol: .6 }); startReload(e); }
   else if (e.ammo < w.max * .3 && !e.vis) startReload(e);
   if (MX.campaign && rescueBot(e, dt)) return;
+  if (e.buildSite && !e.vis) { e.v.set(0,0,0); return; }
   moveBot(e, dt); aimFire(e, dt);
 }
 
@@ -4806,7 +5208,8 @@ function pickSpawn(team) {
 function respawn(e) {
   const fw = MX.campaign && MX.SQ && M.t > 1 ? MX.SQ.spawnFor(e) : null, s0 = fw || pickSpawn(e.team), s = { x: s0.x, z: s0.z, yaw: s0.yaw };   // con el puesto avanzado propio, se puede reaparecer allí
   if (MX.campaign && !fw) for (let k = 0; k < 8; k++) { const x = s0.x + rr(-3, 3), z = s0.z + rr(-3, 3); if (navAt(x, z)) { s.x = x; s.z = z; break; } }   // campaña: 25 por facción, se reparten junto al punto de aparición
-  e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = SH; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.hitSrc = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); syncKit(e);
+  if (MX.campaign) INVENTARIO.spawn(e);
+  e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = MX.campaign ? INVENTARIO.protection(e) : SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = e.sh; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.hitSrc = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; if (!MX.campaign) e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); if (MX.campaign) e.kitShown = null; syncKit(e);
   if (MX.SQ && MX.campaign) MX.SQ.onRespawn(e);
   if (e.isPlayer) return respawnPlayer(e);
   unbake(e); setWeapon(e, pickWeaponIdx()); e.gCount = 3; e.sCount = 2; e.st = 'push'; e.goal = null; e.path = null; e.tgt = null; e.vis = false; e.reactT = 0; e.canShoot = false; e.wantThrow = null; e.holdT = 0;
@@ -4816,7 +5219,7 @@ let corpseP = null;
 MX.corpse = () => !!corpseP;
 function respawnPlayer(e) {
   if (corpseP) { scene.remove(corpseP); corpseP = null; }
-  for (const m of RL) m.visible = true; weapon.visible = true; P.dead = false;
+  for (const m of playerBodyMeshes) m.visible = true; weapon.visible = true; P.dead = false;
   P.vel.set(0, 0, 0); P.aim = P.aimT = P.body = e.yaw; camLook.set(P.pos.x, 0, P.pos.z); feetInit = false;
   P.gState = 0; P.dash = 0; P.dashCD = 0; P.sld = false; P.crouchT = 0; P.crouch = 0; P.recover = 0; P.ads = 0; P.sprintLatch = false; P.hs = false;
   for (const w of WP) w.ammo = w.max; P.gCount = 3; P.sCount = 2; W.reload = -1; W.swapT = -1; W.swapTo = -1; W.rp = 0; W.ammo = cur.max;
@@ -4825,32 +5228,33 @@ function respawnPlayer(e) {
 }
 function playerCorpse(dx, dz) {
   const grp = new THREE.Group(); grp.position.set(P.pos.x, 0, P.pos.z); scene.add(grp);
-  for (const m of RL) { const c = m.clone(true); c.position.copy(m.position); c.position.x -= P.pos.x; c.position.z -= P.pos.z; c.quaternion.copy(m.quaternion); c.scale.copy(m.scale); c.castShadow = true; grp.add(c); }
+  for (const m of playerBodyMeshes) { const c = m.clone(true); c.position.sub(grp.position); c.castShadow = true; grp.add(c); }
   const l = Math.hypot(dx, dz) || 1; grp.userData.ax = new V3(dz / l, 0, -dx / l); grp.userData.t = 0; corpseP = grp;
 }
 function regen(e, dt) {                                                              // tras 5 s sin daño: primero se recarga el escudo y después la vida
   if (M.t - e.lastHurt <= SH_DELAY) return;
-  if (e.sh < SH) e.sh = Math.min(SH, e.sh + SH_RATE * dt); else if (e.hp < HP) { e.hp = Math.min(HP, e.hp + HP_RATE * dt); e.tgp.hp = e.hp; }
+  if (!MX.campaign && e.sh < SH) e.sh = Math.min(SH, e.sh + SH_RATE * dt); else if (e.hp < HP) { e.hp = Math.min(HP, e.hp + HP_RATE * dt); e.tgp.hp = e.hp; }
 }
 /* ---- campaña: abatido y reanimación (reglas del diseño: una reanimación por vida, kit de un solo uso, un solo rescatador por caído, el daño al rescatador lo interrumpe) ---- */
 function syncKit(e) {                                                                // la cruz roja de la mochila se ve mientras se lleva un kit (solo campaña)
   const want = !!(MX.campaign && e.kits > 0); if (e.kitShown === want) return; e.kitShown = want;
-  dress(e.isPlayer ? rig : e.R, e.team, { skin: e.isPlayer ? 0 : e.skin, kit: want });
+  dress(e.isPlayer ? rig : e.R, e.team, { ...(e.bag ? INVENTARIO.appearance(e) : {}), skin: e.isPlayer ? 0 : e.skin, kit: want });
 }
+MX.refreshGear = e => { e.kitShown = null; syncKit(e); };
 const canDown = e => MX.campaign && !e.revived && !M.over && M.ents.some(o => o !== e && o.team === e.team && !o.dead && !o.dwn);   // sin aliados en pie no hay a quien esperar
 function endRescueOn(t) { if (t.rescuer) { if (t.rescuer.rt === t) t.rescuer.rt = null; t.rescuer = null; } t.revP = 0; MX.reviveFx(t, null); }
 function cancelRescue(by) { const t = by.rt; if (t) { if (t.rescuer === by) { t.rescuer = null; t.revP = 0; MX.reviveFx(t, null); } by.rt = null; } }
 function goDown(e, dx, dz) {
   e.dwn = true; e.dwT = 0; e.dwHp = DWN_HP; e.revP = 0; e.rescuer = null; e.rt = null; e.hp = 0; e.tgp.hp = DWN_HP; e.v.set(0, 0, 0);
-  if (e.isPlayer) { if (!e.fallAx) e.fallAx = new V3(); playerCorpse(dx, dz); e.fallAx.copy(corpseP.userData.ax); for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(160, .7, .5); }
+  if (e.isPlayer) { if (!e.fallAx) e.fallAx = new V3(); playerCorpse(dx, dz); e.fallAx.copy(corpseP.userData.ax); for (const m of playerBodyMeshes) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(160, .7, .5); }
   else { bake(e, dx, dz); e.ring.visible = false; e.flash.visible = false; e.wantThrow = null; e.firing = false; e.goal = null; e.path = null; e.tgt = null; }
   dwnFxMake(e);
 }
 function revive(t, by) {                                                           // completada: gasta el kit, vuelve con vida parcial y no puede volver a ser reanimado en esta vida
   by.kits--; syncKit(by); if (by.rt === t) by.rt = null;
-  t.dwn = false; t.revived = true; t.rescuer = null; t.revP = 0; t.hp = REV_HP; t.sh = 0; t.bH.fill = t.bH.chunk = REV_HP; t.bS.fill = t.bS.chunk = 0; t.tgp.hp = REV_HP; t.inv = .8; t.lastHurt = M.t;
+  t.dwn = false; t.revived = true; t.rescuer = null; t.revP = 0; t.hp = REV_HP; t.sh = INVENTARIO.protection(t); t.bH.fill = t.bH.chunk = REV_HP; t.bS.fill = t.bS.chunk = t.sh; t.tgp.hp = REV_HP; t.inv = .8; t.lastHurt = M.t;
   dwnFxClear(t);
-  if (t.isPlayer) { if (corpseP) { scene.remove(corpseP); corpseP = null; } for (const m of RL) m.visible = true; weapon.visible = true; P.vel.set(0, 0, 0); }
+  if (t.isPlayer) { if (corpseP) { scene.remove(corpseP); corpseP = null; } for (const m of playerBodyMeshes) m.visible = true; weapon.visible = true; P.vel.set(0, 0, 0); }
   else { unbake(t); t.crouch = 0; t.st = 'push'; t.goal = null; t.path = null; t.holdT = 0; }
 }
 function rescueBot(e, dt) {                                                        // true = el bot está ocupado con un rescate (no combate ni vaga)
@@ -4897,7 +5301,7 @@ MX.hit = (e, dmg, from, dx, dz, w, src) => {
     return;
   }
   const tot = dmg; let rest = dmg;
-  if (e.sh > 0) { const a = Math.min(e.sh, rest); e.sh -= a; rest -= a; e.bS.flash = 1; }                  // el escudo absorbe primero; el sobrante pasa a la vida en el mismo golpe
+  if (e.sh > 0) { const a = Math.min(e.sh, rest); if (MX.campaign) rest = INVENTARIO.absorb(e,rest); else { e.sh -= a; rest -= a; } e.bS.flash = 1; }                  // el escudo absorbe primero; el sobrante pasa a la vida en el mismo golpe
   if (rest > 0) { e.hp -= rest; e.bH.flash = 1; }
   e.tgp.hp = e.hp; e.lastHurt = M.t; e.bShow = M.t; e.lastSrc = src || (w ? w.sid : null);
   if (from && (from.isPlayer || e.isPlayer)) popNum(e, tot); if (from) { e.lastAtt = from; e.lastAttT = M.t; hitSrc(e, dx, dz); }
@@ -4908,10 +5312,11 @@ function kill(v, killer, dx, dz) {
   if (!killer && v.lastAtt && M.t - v.lastAttT < 8 && v.lastAtt.team !== v.team) killer = v.lastAtt;     // fuego o explosión sin autor claro: cuenta quien le hirió hace poco
   const wasDown = !!v.dwn; if (wasDown) { v.dwn = false; dwnFxClear(v); }
   v.dead = true; v.deaths++; v.hp = 0; v.tgp.hp = 0; if (MX.SQ && MX.campaign) MX.SQ.onDeath(v); v.respT = (MX.campaign && MX.SQ && MX.SQ.respawnTime(v)) || RESPAWN + (v.isPlayer ? 0 : rnd() * .8); v.respMax = v.respT; v.inv = 0;   // campaña: la reaparición depende de los objetivos comunes que tiene la facción
+  if (MX.campaign) INVENTARIO.death(v);
   addFeed(killer && killer !== v ? killer : null, v, v.lastSrc);
   if (killer && killer !== v && killer.team !== v.team) { killer.kills++; M.score[killer.team]++; if (killer.isPlayer) playSnd('HIT_kill') || playSnd('HIT_marker'); }          // bajas a compañeros y suicidios no puntúan
   for (let i = 0; i < 8; i++) spawn('red', _kp.set(v.p.x, .9, v.p.z), _kv.set((Math.random() - .5) * 4 + dx * 2, 1 + Math.random() * 3, (Math.random() - .5) * 4 + dz * 2), .5, .04, .04, .04, true, 8);
-  if (v.isPlayer) { P.dead = true; if (!corpseP) playerCorpse(dx, dz); for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(200, .8, .6); }
+  if (v.isPlayer) { P.dead = true; if (!corpseP) playerCorpse(dx, dz); for (const m of playerBodyMeshes) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(200, .8, .6); }
   else { if (wasDown) v.deadT = .55; else bake(v, dx, dz); v.ring.visible = false; v.flash.visible = false; v.wantThrow = null; }
   if (!MX.campaign && (M.score[0] >= GOAL || M.score[1] >= GOAL)) endMatch(M.score[0] >= GOAL ? 0 : 1);
 }
@@ -4973,7 +5378,8 @@ function stepBar(o, tgt, dt) {                                                  
 }
 function drawBar(b, e, dt) {
   stepBar(e.bH, e.hp, dt); stepBar(e.bS, e.sh, dt);
-  const sv = e.bS.fill / SH * SEGN, sc = e.bS.chunk / SH * SEGN, sb = 'brightness(' + (1 + (e.bS.flash || 0) * 1.6) + ')';
+  const maximum = MX.campaign ? 100 : SH;
+  const sv = e.bS.fill / maximum * SEGN, sc = e.bS.chunk / maximum * SEGN, sb = 'brightness(' + (1 + (e.bS.flash || 0) * 1.6) + ')';
   b.segs.forEach((g, k) => { g.c.style.transform = 'scaleX(' + clamp(sc - k, 0, 1) + ')'; g.f.style.transform = 'scaleX(' + clamp(sv - k, 0, 1) + ')'; g.f.style.filter = sb; });
   b.Hc.style.transform = 'scaleX(' + clamp(e.bH.chunk / HP, 0, 1) + ')'; b.Hf.style.transform = 'scaleX(' + clamp(e.bH.fill / HP, 0, 1) + ')';
   b.Hf.style.background = e.hp > 60 ? '#6dff9a' : e.hp > 30 ? '#ffd24a' : '#ff5a4a'; b.Hf.style.filter = 'brightness(' + (1 + (e.bH.flash || 0) * 1.6) + ')';
@@ -5057,7 +5463,6 @@ MX.restart = () => {
 };
 
 /* ============================ ARRANQUE Y BUCLE ============================ */
-const RL = Object.values(rig).flat();
 MX.start = () => {
   buildMap();
   const pl = makeEnt(0, 0, true); MX.pl = pl; M.ents.push(pl);
@@ -5073,6 +5478,7 @@ MX.start = () => {
   for (const e of M.ents) respawn(e);
   if (MX.campaign && MX.SQ) MX.SQ.init();
   forceWeapon(M.slots[0]);
+  if (MX.campaign) INVENTARIO.start();
 };
 MX.placeBars = () => {                                                              // se llama tras mover la cámara: así la barra no se retrasa un fotograma respecto al personaje
   camera.updateMatrixWorld();
@@ -5084,16 +5490,17 @@ MX.update = dt => {
   M.navT -= dt; if (M.navT <= 0) { M.navT = .5; navBuild(); }
   for (let i = M.propQ.length - 1; i >= 0; i--) { const q = M.propQ[i]; if (M.t >= q.t) { if (placeProp(q.spec, true)) M.propQ.splice(i, 1); else q.t = M.t + 4; } }
   armoryTick(dt);
+  if (MX.campaign) INVENTARIO.tick(dt);
   if (MX.zom && MX.campaign) MX.zom.update(dt);
   if (MX.SQ && MX.campaign) MX.SQ.update(dt);
   const pl = M.ents[0];
   if (pl.dead || pl.dwn) {                                                           // caído (muerto o abatido): cuerpo que cae; el muerto cuenta atrás para reaparecer
     if (pl.dead) pl.respT -= dt; else { pl.dwT += dt; dwnFxTick(pl); if (MX.campaign && pl.dwT >= DWN_T && !M.over) { endRescueOn(pl); kill(pl, pl.lastAtt && M.t - pl.lastAttT < 40 ? pl.lastAtt : null, 0, 1); } }
-    for (const m of RL) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false;
+    for (const m of playerBodyMeshes) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false;
     if (corpseP) { corpseP.userData.t += dt; corpseP.quaternion.setFromAxisAngle(corpseP.userData.ax, smooth(corpseP.userData.t / .55) * (pl.dwn ? 1.3 : 1.45)); corpseP.position.y = pl.dwn ? 0 : -smooth((corpseP.userData.t - 2.3) / .7) * .6; }
     if (pl.dead && pl.respT <= 0 && !M.over) respawn(pl);
   } else {
-    if (pl.inv > 0) { pl.inv -= dt; const on = Math.floor(M.t * 14) % 2 === 0 || pl.inv <= 0; for (const m of RL) m.visible = on; }
+    if (pl.inv > 0) { pl.inv -= dt; const on = Math.floor(M.t * 14) % 2 === 0 || pl.inv <= 0; for (const m of playerBodyMeshes) m.visible = on; }
     regen(pl, dt);
   }
   pl.yaw = P.aim;
