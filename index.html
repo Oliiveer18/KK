@@ -1032,7 +1032,7 @@ function menuTick() {
     if (edge(12)) { selIdx = (selIdx + NT - 1) % NT; renderMenu(); }
     if (edge(13)) { selIdx = (selIdx + 1) % NT; renderMenu(); }
     if (edge(0)) startRebind(selIdx);
-    if (edge(9)) closeMenu();
+    if (edge(9) || edge(1)) closeMenu();                                             // Options o ○: salir del menú al momento
   }
   for (let k = 0; k < g.buttons.length; k++) prevBtn[k] = down(k);
   liveT += 1;
@@ -2026,7 +2026,7 @@ function rangeWeapon(i) { i = (i + WP.length) % WP.length; if (i !== wi && W.rel
 function rangeRefill() { W.ammo = W.max; P.gCount = 3; P.sCount = 2; }
 function rangeTp() { rangeGo((RANGE.zi + 1) % RANGE_ZONES.length); }
 function rangePadIn(edge) {                                                           // mando: Share activa/desactiva; con el polígono activo, cruceta y touchpad
-  if (edge(8)) { rangeToggle(); return; }
+  if (edge(8)) { if (MX.campaign && MX.on) return; rangeToggle(); return; }          // en campaña, Share abre el mapa y el inventario (inventario.js)
   if (!RANGE.on) return;
   if (edge(15)) rangeWeapon(wi + 1);
   if (edge(14)) rangeWeapon(wi - 1);
@@ -4935,7 +4935,9 @@ const INVENTARIO = (() => {
   openButton.id='invBtn'; openButton.style.cssText='position:fixed;right:max(14px,env(safe-area-inset-right));top:calc(56px + env(safe-area-inset-top));z-index:12;padding:4px 9px;font:600 11px system-ui,-apple-system,sans-serif;color:#e8eef8;background:#151b28cc;border:1px solid #2b3650;border-radius:8px;opacity:.75';   /* con mando no se muestra (se abre manteniendo el touchpad) */
   panel.style.cssText='max-width:min(90vw,390px);max-height:78vh;overflow:auto;background:#18212a;color:white;border:1px solid #73808e;border-radius:8px;padding:16px';
   document.body.append(openButton,panel);
-  function close() { if(panel.open) panel.close(); }
+  { const st=document.createElement('style'); st.textContent='dialog.dock::backdrop{background:transparent}'; document.head.appendChild(st); }   /* con el mapa detrás: sin oscurecerlo */
+  let dock=false;                                                                 // abierto con Share: panel a la derecha y mapa a la izquierda
+  function close() { if(panel.open) panel.close(); if(dock){ dock=false; panel.style.margin=''; panel.style.width=''; panel.classList.remove('dock'); if(MX.mapClose)MX.mapClose(); } }
   function render() {
     const e=MX.pl; panel.replaceChildren();
     function label(tag,value) { const node=document.createElement(tag);node.textContent=value;panel.append(node); }
@@ -4976,7 +4978,7 @@ const INVENTARIO = (() => {
   function buttons(){return Array.from(panel.querySelectorAll('button'));}
   function open(){
     if(!MX.campaign || !MX.on || menuOpen || MX.pl.dead || MX.pl.dwn || panel.open)return;
-    mouse.down=mouse.rdown=false;render();panel.showModal();buttons()[0].focus();
+    mouse.down=mouse.rdown=false;render();if(dock){panel.style.margin='auto max(12px,env(safe-area-inset-right)) auto auto';panel.style.width='min(360px,42vw)';panel.classList.add('dock');}panel.showModal();buttons()[0].focus();
   }
   openButton.onclick=open;
   for(const el of [panel,openButton]) for(const ev of ['pointerdown','mousedown','touchstart']) el.addEventListener(ev,event=>event.stopPropagation());
@@ -4991,7 +4993,9 @@ const INVENTARIO = (() => {
     if(!MX.campaign || !MX.on)return false;
     const pad=getPad(), down=pad?Array.from(pad.buttons,b=>b.pressed):[];
     const edge=i=>down[i]&&!previous[i], wasOpen=panel.open;
-    /* touchpad: toque = mapa táctico (escuadras.js); mantener 0,5 s = mochila. Con la mochila abierta, un toque la cierra */
+    /* Share: mapa táctico con el inventario al lado (cruceta para elegir, ✕ para usar, ○ o Share para cerrar). Es lo fiable en el iPhone: Safari no da el touchpad */
+    if(edge(8)){ if(panel.open||MX.mapOpen){ close(); if(MX.mapClose)MX.mapClose(); } else { if(MX.mapToggle){ MX.mapDock(true); MX.mapToggle(); } dock=true; open(); if(!panel.open){ dock=false; } } }
+    /* touchpad (donde el navegador lo da): toque = mapa táctico; mantener 0,5 s = mochila. Con la mochila abierta, un toque la cierra */
     if(down[17]){ tpT=(tpT||0)+1/60; if(!tpDone && tpT>=.5 && !panel.open){ tpDone=true; if(MX.mapClose)MX.mapClose(); open(); } }
     else if(previous[17]){ if(!tpDone){ if(panel.open) close(); else if(MX.mapToggle) MX.mapToggle(); } tpT=0; tpDone=false; }
     if(panel.open){
@@ -6779,7 +6783,7 @@ SQ.onRespawn = e => { e.lifeStart = M.t; e.supp = 0; };
    munición, granadas y kit al pasar por él (cada 25 s); cada objetivo común acorta la reaparición de toda la facción (9 s base, −1 s por objetivo común, mín. 4 s);
    con el puesto avanzado propio, la escuadra que opera cerca reaparece allí (si no hay enemigos a 35 m). El mando de cada facción ataca los comunes
    que no son suyos y recupera los propios perdidos. */
-const OBJ_R = { PLAZA: 12, FAB: 12, EST: 12 }, CAP_N = 10, CAP_C = 10, TEAM_COL = [0x4aa0ff, 0xff5a48, 0xffb020, 0xb07cff];
+const OBJ_R = { PLAZA: 12, FAB: 12, EST: 12, REF: 12 }, CAP_N = 10, CAP_C = 10, TEAM_COL = [0x4aa0ff, 0xff5a48, 0xffb020, 0xb07cff];
 /* DOMINIO: cada punto se toma quedándose dentro, como en los juegos de dominio. Si es enemigo, primero se NEUTRALIZA (10 s, pasa a gris) y después se
    CAPTURA (10 s, pasa a tu color). Más compañeros dentro aceleran (hasta ×1,6). Con enemigos vivos dentro: DISPUTADO (se congela). Si sales, lo avanzado
    baja poco a poco (y deprisa si los dueños vuelven a pisarlo). Cada 5 s cada facción suma 1 punto por punto propio y 2 por punto común: la primera en
@@ -6792,8 +6796,10 @@ function objInit() {
   for (const p of info.places) {
     const own = ['PUE', 'FAR', 'TIE', 'CLI', 'GRA'].includes(p.id) && p.fac >= 0, shared = ['FAB', 'EST', 'PLAZA'].includes(p.id); if (!own && !shared) continue;
     const code = shared ? CODES[p.id][used[p.id] = (used[p.id] || 0) + 1, used[p.id] - 1] || p.id[0] : '';
-    SQ.objs.push({ id: p.id, code, name: (code ? code + ' · ' : '') + p.name.split(' · ')[0].replace(/\s*\(.*?\)/g, '') + (own ? ' ' + TN[KTEAM[p.fac]] : ''), x: p.x, z: p.z, r: OBJ_R[p.id] || 8, owner: own ? KTEAM[p.fac] : -1, home: own ? KTEAM[p.fac] : -1, shared, cap: 0, capBy: -1, contested: false, ring: null, n: [0, 0, 0, 0] });
+    SQ.objs.push({ id: p.id, code, name: (code ? code + ' · ' : '') + p.name.split(' · ')[0].replace(/\s*\(.*?\)/g, '') + (own ? ' ' + TN[KTEAM[p.fac]] : ''), x: p.x, z: p.z, r: OBJ_R[p.id] || 8, owner: -1, home: own ? KTEAM[p.fac] : -1, shared, cap: 0, capBy: -1, contested: false, ring: null, n: [0, 0, 0, 0] });
   }
+  /* el refugio de cada facción también se domina: es lo ÚNICO que cada una tiene al empezar (todo lo demás empieza neutral) y vale 2 puntos */
+  for (const q of info.refugeRects || []) SQ.objs.push({ id: 'REF', code: '', name: 'Refugio ' + TN[q.fac], x: q.x, z: q.z, r: OBJ_R.REF, owner: q.fac, home: q.fac, shared: false, refuge: true, cap: 0, capBy: -1, contested: false, ring: null, n: [0, 0, 0, 0] });
 }
 SQ.objState = o => o.contested ? 'DISPUTADO' : o.capBy >= 0 && o.cap > 0 ? (o.owner >= 0 ? 'Neutralizando' : 'Capturando') : o.owner >= 0 ? 'de ' + TN[o.owner] : 'Neutral';
 function objTick(dt) {
@@ -6820,7 +6826,7 @@ function objTick(dt) {
       e.supT = M.t; if (e.isPlayer) { if (MX.refill) MX.refill(); e.kits = 1; if (MX.syncKit) MX.syncKit(e); toast('Reabastecido en ' + o.name); } else { e.ammo = e.w.max; e.gCount = Math.min(3, e.gCount + 1); e.kits = 1; } }
   }
   /* puntuación de dominio */
-  SQ.scoreT += dt; while (SQ.scoreT >= TICK) { SQ.scoreT -= TICK; for (const o of SQ.objs) if (o.owner >= 0) SQ.score[o.owner] += o.shared ? 2 : 1; }
+  SQ.scoreT += dt; while (SQ.scoreT >= TICK) { SQ.scoreT -= TICK; for (const o of SQ.objs) if (o.owner >= 0) SQ.score[o.owner] += o.shared || o.refuge ? 2 : 1; }
   const w = SQ.score.findIndex(v => v >= META); if (w >= 0) endCampaign(w);
 }
 /* tonos cortos sintetizados para el dominio (sin muestras): capturado, neutralizado, aviso, perdido */
@@ -6849,6 +6855,11 @@ function endCampaign(w) {
 SQ.endCampaign = endCampaign;
 SQ.respawnTime = e => { if (!SQ.objs.length) return null; const k = SQ.objs.filter(o => o.shared && o.owner === e.team).length; return Math.max(4, 9 - k) + (e.isPlayer ? 0 : rnd() * .8); };
 SQ.spawnFor = e => {                                                                 // reaparición adelantada en el puesto avanzado propio
+  const rf = SQ.objs.find(o => o.refuge && o.home === e.team);
+  if (rf && rf.owner !== e.team) {                                                   // nos han quitado el refugio: se reaparece en el punto propio más cercano a él que esté a salvo
+    const ok = SQ.objs.filter(o => o.owner === e.team && !M.ents.some(q => alive(q) && q.team !== e.team && dist(q.p, o) < 35)).sort((a, b) => dist(a, rf) - dist(b, rf))[0];
+    if (ok) { const q = navNear(ok.x + rr(-4, 4), ok.z + rr(-4, 4)); return { x: q.x, z: q.z, yaw: Math.atan2(-q.x, -q.z) }; }
+    return null; }
   const pue = SQ.objs.find(o => o.id === 'PUE' && o.owner === e.team && o.home === e.team); if (!pue) return null;
   if (M.ents.some(o => alive(o) && o.team !== e.team && dist(o.p, pue) < 35)) return null;
   const L = e.sqd && e.sqd.leader, ref = places().ref[e.team]; if (!L || L === e || dist(L.p, pue) > dist(L.p, ref)) return null;
@@ -6916,18 +6927,20 @@ const TM = { open: false, cv: null, ctx: null, base: null, baseKey: '', t0: 0 };
 const mapEl = document.createElement('div');
 mapEl.style.cssText = 'position:fixed;inset:0;z-index:12;display:none;flex-direction:column;gap:6px;align-items:center;justify-content:center;background:#05070bcc;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)';
 const mapCv = document.createElement('canvas'); mapCv.style.cssText = 'border-radius:10px;box-shadow:0 10px 40px #000c,0 0 0 1px #ffffff22';
-const mapLeg = document.createElement('div'); mapLeg.style.cssText = 'position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);font:600 12px system-ui,-apple-system,sans-serif;color:#dfe6f2;background:#0b0f18d0;border:1px solid #ffffff1c;border-radius:8px;padding:6px 12px;white-space:nowrap;text-shadow:0 1px 2px #000';
-mapLeg.innerHTML = '<span style="color:#ff7a2a">●</span> disparos que oyes (150 m) &nbsp; <span style="color:#ff4a4a">●</span> aliados bajo fuego &nbsp; <span style="color:#ffd24a">✸</span> explosión &nbsp; <span style="color:#ff4a2a">▲</span> incendio &nbsp; <span style="color:#fff">➤</span> tú &nbsp; ★ líder &nbsp; ◯ objetivo (color del dueño) &nbsp; · touchpad / M para cerrar';
-const mapHead = document.createElement('div'); mapHead.style.cssText = 'font:700 13px system-ui,-apple-system,sans-serif;color:#dfe6f2;text-shadow:0 1px 2px #000;white-space:nowrap';
+const mapLeg = document.createElement('div'); mapLeg.style.cssText = 'position:absolute;left:50%;bottom:calc(10px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:94vw;text-align:center;line-height:1.5;font:600 clamp(9px,1.6vw,12px) system-ui,-apple-system,sans-serif;color:#dfe6f2;background:#0b0f18d0;border:1px solid #ffffff1c;border-radius:8px;padding:4px 10px;white-space:normal;text-shadow:0 1px 2px #000';
+mapLeg.innerHTML = '<span style="color:#ff7a2a">●</span> disparos que oyes (150 m) &nbsp; <span style="color:#ff4a4a">●</span> aliados bajo fuego &nbsp; <span style="color:#ffd24a">✸</span> explosión &nbsp; <span style="color:#ff4a2a">▲</span> incendio &nbsp; <span style="color:#fff">➤</span> tú &nbsp; ★ líder &nbsp; ◯ objetivo (color del dueño) &nbsp; · Share / M para cerrar';
+const mapHead = document.createElement('div'); mapHead.style.cssText = 'font:700 clamp(10px,1.8vw,13px) system-ui,-apple-system,sans-serif;color:#dfe6f2;text-shadow:0 1px 2px #000;max-width:94vw;white-space:normal;text-align:center';
 mapEl.append(mapHead, mapCv, mapLeg); document.body.appendChild(mapEl);
 for (const ev of ['pointerdown', 'mousedown', 'touchstart']) mapEl.addEventListener(ev, e => { e.stopPropagation(); MX.mapClose(); });
 MX.mapToggle = () => TM.open ? MX.mapClose() : mapOpen();
-MX.mapClose = () => { TM.open = false; mapEl.style.display = 'none'; };
+MX.mapClose = () => { TM.open = false; mapEl.style.display = 'none'; MX.mapDock(false); };
+/* con el inventario al lado (Share): el mapa se arrima a la izquierda y deja sitio al panel de la derecha */
+MX.mapDock = on => { TM.dock = !!on; mapEl.style.alignItems = on ? 'flex-start' : 'center'; mapEl.style.paddingLeft = on ? 'calc(14px + env(safe-area-inset-left))' : '0'; if (TM.open) mapDraw(); };
 Object.defineProperty(MX, 'mapOpen', { get: () => TM.open });
 addEventListener('keydown', ev => { if (ev.code === 'KeyM' && !ev.repeat && MX.on && MX.campaign && !menuOpen) { ev.preventDefault(); MX.mapToggle(); } });
 function mapOpen() { if (!MX.on || !MX.campaign || menuOpen) return; TM.open = true; mapEl.style.display = 'flex'; TM.t0 = M.t; mapDraw(); }
 function mapGeom() {                                                                   // tamaño del lienzo (cabe en pantalla) y escala mundo → píxeles
-  const half = (MAPA.built && MAPA.built.half) || (typeof WORLD !== 'undefined' ? Math.max(WORLD.x, WORLD.z) : 50), sz = Math.floor(Math.min(innerWidth * .94, (innerHeight - 110) * .97));
+  const half = (MAPA.built && MAPA.built.half) || (typeof WORLD !== 'undefined' ? Math.max(WORLD.x, WORLD.z) : 50), sz = Math.floor(Math.min(TM.dock ? innerWidth - Math.min(380, innerWidth * .44) - 44 : innerWidth * .94, (innerHeight - 110) * .97));
   return { half, sz, k: sz / (2 * half) };
 }
 function mapBase(g) {                                                                  // capa fija: suelo, zonas, calles, edificios, refugios
@@ -6974,7 +6987,7 @@ function mapDraw() {
   /* encabezado: facción, objetivos por facción y combate activo */
   const live = cells.filter(h => !h.ally && h.young < 5).length, allyF = cells.filter(h => h.ally && h.young < 8).length, own = [0, 0, 0, 0]; for (const o of SQ.objs) if (o.owner >= 0) own[o.owner]++;
   let h = '<span style="color:' + col(team) + '">MAPA TÁCTICO · ' + TN[team].toUpperCase() + '</span>' + (live ? ' · <span style="color:#ff9a4a">' + live + (live === 1 ? ' zona con disparos cerca' : ' zonas con disparos cerca') + '</span>' : ' · sin disparos cerca') + (allyF ? ' · <span style="color:#ff6a6a">' + allyF + (allyF === 1 ? ' grupo aliado bajo fuego' : ' grupos aliados bajo fuego') + '</span>' : '');
-  if (SQ.objs.length) h += ' &nbsp;·&nbsp; dominio: ' + [0, 1, 2, 3].map(t => '<span style="color:' + col(t) + '">' + TN[t] + ' ' + SQ.score[t] + ' (' + own[t] + '⚑)</span>').join(' · ') + ' &nbsp;/ ' + META;
+  if (SQ.objs.length) h += ' &nbsp;·&nbsp; ' + [0, 1, 2, 3].map(t => '<span style="color:' + col(t) + '">' + SQ.score[t] + ' (' + own[t] + '⚑)</span>').join(' ') + ' /' + META;
   if (mapHead.innerHTML !== h) mapHead.innerHTML = h;
 }
 /* ---- minimapa (arriba a la izquierda, siempre visible en campaña): centrado en ti, norte arriba, 220 × 220 m; mismas reglas de fuego que el mapa grande ---- */

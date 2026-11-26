@@ -162,7 +162,9 @@ const INVENTARIO = (() => {
   openButton.id='invBtn'; openButton.style.cssText='position:fixed;right:max(14px,env(safe-area-inset-right));top:calc(56px + env(safe-area-inset-top));z-index:12;padding:4px 9px;font:600 11px system-ui,-apple-system,sans-serif;color:#e8eef8;background:#151b28cc;border:1px solid #2b3650;border-radius:8px;opacity:.75';   /* con mando no se muestra (se abre manteniendo el touchpad) */
   panel.style.cssText='max-width:min(90vw,390px);max-height:78vh;overflow:auto;background:#18212a;color:white;border:1px solid #73808e;border-radius:8px;padding:16px';
   document.body.append(openButton,panel);
-  function close() { if(panel.open) panel.close(); }
+  { const st=document.createElement('style'); st.textContent='dialog.dock::backdrop{background:transparent}'; document.head.appendChild(st); }   /* con el mapa detrás: sin oscurecerlo */
+  let dock=false;                                                                 // abierto con Share: panel a la derecha y mapa a la izquierda
+  function close() { if(panel.open) panel.close(); if(dock){ dock=false; panel.style.margin=''; panel.style.width=''; panel.classList.remove('dock'); if(MX.mapClose)MX.mapClose(); } }
   function render() {
     const e=MX.pl; panel.replaceChildren();
     function label(tag,value) { const node=document.createElement(tag);node.textContent=value;panel.append(node); }
@@ -203,7 +205,7 @@ const INVENTARIO = (() => {
   function buttons(){return Array.from(panel.querySelectorAll('button'));}
   function open(){
     if(!MX.campaign || !MX.on || menuOpen || MX.pl.dead || MX.pl.dwn || panel.open)return;
-    mouse.down=mouse.rdown=false;render();panel.showModal();buttons()[0].focus();
+    mouse.down=mouse.rdown=false;render();if(dock){panel.style.margin='auto max(12px,env(safe-area-inset-right)) auto auto';panel.style.width='min(360px,42vw)';panel.classList.add('dock');}panel.showModal();buttons()[0].focus();
   }
   openButton.onclick=open;
   for(const el of [panel,openButton]) for(const ev of ['pointerdown','mousedown','touchstart']) el.addEventListener(ev,event=>event.stopPropagation());
@@ -218,7 +220,9 @@ const INVENTARIO = (() => {
     if(!MX.campaign || !MX.on)return false;
     const pad=getPad(), down=pad?Array.from(pad.buttons,b=>b.pressed):[];
     const edge=i=>down[i]&&!previous[i], wasOpen=panel.open;
-    /* touchpad: toque = mapa táctico (escuadras.js); mantener 0,5 s = mochila. Con la mochila abierta, un toque la cierra */
+    /* Share: mapa táctico con el inventario al lado (cruceta para elegir, ✕ para usar, ○ o Share para cerrar). Es lo fiable en el iPhone: Safari no da el touchpad */
+    if(edge(8)){ if(panel.open||MX.mapOpen){ close(); if(MX.mapClose)MX.mapClose(); } else { if(MX.mapToggle){ MX.mapDock(true); MX.mapToggle(); } dock=true; open(); if(!panel.open){ dock=false; } } }
+    /* touchpad (donde el navegador lo da): toque = mapa táctico; mantener 0,5 s = mochila. Con la mochila abierta, un toque la cierra */
     if(down[17]){ tpT=(tpT||0)+1/60; if(!tpDone && tpT>=.5 && !panel.open){ tpDone=true; if(MX.mapClose)MX.mapClose(); open(); } }
     else if(previous[17]){ if(!tpDone){ if(panel.open) close(); else if(MX.mapToggle) MX.mapToggle(); } tpT=0; tpDone=false; }
     if(panel.open){

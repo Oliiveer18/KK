@@ -1024,7 +1024,7 @@ function menuTick() {
     if (edge(12)) { selIdx = (selIdx + NT - 1) % NT; renderMenu(); }
     if (edge(13)) { selIdx = (selIdx + 1) % NT; renderMenu(); }
     if (edge(0)) startRebind(selIdx);
-    if (edge(9)) closeMenu();
+    if (edge(9) || edge(1)) closeMenu();                                             // Options o ○: salir del menú al momento
   }
   for (let k = 0; k < g.buttons.length; k++) prevBtn[k] = down(k);
   liveT += 1;
@@ -2018,7 +2018,7 @@ function rangeWeapon(i) { i = (i + WP.length) % WP.length; if (i !== wi && W.rel
 function rangeRefill() { W.ammo = W.max; P.gCount = 3; P.sCount = 2; }
 function rangeTp() { rangeGo((RANGE.zi + 1) % RANGE_ZONES.length); }
 function rangePadIn(edge) {                                                           // mando: Share activa/desactiva; con el polígono activo, cruceta y touchpad
-  if (edge(8)) { rangeToggle(); return; }
+  if (edge(8)) { if (MX.campaign && MX.on) return; rangeToggle(); return; }          // en campaña, Share abre el mapa y el inventario (inventario.js)
   if (!RANGE.on) return;
   if (edge(15)) rangeWeapon(wi + 1);
   if (edge(14)) rangeWeapon(wi - 1);
