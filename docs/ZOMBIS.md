@@ -35,3 +35,12 @@ Equilibrio (vida, daño, velocidades, cuántos zombis, la horda), infestación d
 - La malla de navegación se rehace al instante con cualquier evento de `OBJ.on` (abrir, cerrar, romper, colocar), no sólo cada 0,5 s.
 - Corredor flanquea al acercarse; gritón se frena a 9 m; al perder al objetivo van a donde iba, no a donde estaba.
 - Test: `tests/zombis_obstaculos.py` (muro de 18 m, 40 zombis, paso que se abre). Sin probar: flanqueo, gritón y golpeo sin ruta (no tienen test propio), nada en iPhone.
+
+## Población del distrito y simulación por cercanía (26-11)
+- **Cuántos:** ~540–620 en el mapa 6 (antes ~80), con reposición hasta 560 vivos en grupos de 2–4, siempre a más de 70 m de cualquier combatiente (nunca aparecen a la vista). Límite de 720 simulados.
+- **Dónde (como vivía la gente):** densidad por zona (residencial 14, casco 13, comercios y Fábrica/Estación 12, aldea 11, puesto avanzado 6, granjas 4, bosques 3 por zona del cuarto); 1 de cada 4 edificios tiene uno o dos dormidos dentro; refugios limpios al empezar. Se reparte en el cuarto Azul y se copia girado: **igual para las 4 facciones** (y los objetivos comunes, a 180°).
+- **Hordas:** 4 (una por cuarto) que migran entre barrios a 120–320 m; acuden al ruido como antes. Si caen, aparece otra lejos de todos.
+- **Simulación por cercanía:** completa sólo a menos de 75 m de algún combatiente (o si persiguen, investigan un ruido o están muertos); lejos, cada 0,5 s y barata (los dormidos no hacen nada; las hordas avanzan por la malla de navegación y, fuera de la vista de todos, rodean o saltan lo que las tapa).
+- **Dibujo:** sólo los más cercanos a la cámara (≤ 46 m, máx. 180) en huecos compactos de las mallas instanciadas; al cambiar de hueco se copian sus colores. Coste medido (headless, 100 combatientes + ~600 zombis): ~3,5 ms por actualización.
+- Tests: `tests/zombis_distrito.py` (nuevo), `tests/zombis.py` (límite 720 y máx. 180 dibujados).
+

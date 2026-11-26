@@ -1,5 +1,8 @@
 # Changelog
 
+## Muchos más zombis, realistas (26-11)
+- Distrito: ~600 zombis por zonas (casco y comercios llenos, bosques casi vacíos), dormidos dentro de edificios, 4 hordas que migran; igual para las 4 facciones. Simulación barata lejos de los combatientes y dibujo sólo de los cercanos a la cámara. Detalle en `docs/ZOMBIS.md`.
+
 ## Escuadras realistas, órdenes y cobertura de coches (26-11)
 - Coches: capó y maletero son cobertura baja (agachado, se dispara por encima si la bala cruza el capó o el maletero); la cabina es cobertura alta. Los bots buscan el capó y el maletero. Test `tests/cobertura_coche.py`.
 - Nuevo `src/escuadras.js`: escuadras de 2–6 (iguales en las 4 facciones) con misión del mando de su facción (defender, mantener, atacar, reconocer); líder = el mejor vivo, relevo al caer; formación abierta, avance por saltos al atacar, posiciones de apoyo y fuego de supresión en contacto, sin persecuciones; supresión por balas cercanas; rezagados que se unen a otra escuadra y escuadras mermadas que se funden o se repliegan a reorganizarse.
