@@ -1,5 +1,13 @@
 # Changelog
 
+## Mapa con ritmo: carreteras tácticas, lugares con historia, botín y puertas libres (28-11)
+- Algo interesante cada 50–70 m andando: 228 lugares con historia (57 por facción, idénticos girados): control militar, convoy emboscado, hospital de campaña, posición atrincherada, campamento, carga abandonada, restos de una defensa y accidentes en la mitad de los cruces. Cada uno con su caja de botín.
+- Carreteras tácticas: atascos en todas las calles (también las de barrio y de la aldea): se avanza de coche en coche; ningún tramo de calle de más de 30 m sin cobertura.
+- Cobertura garantizada: el 95,9 % del mapa transitable tiene algo tras lo que cubrirse a menos de 10 m (antes 69 %).
+- Botín para registrar en coches (maletero), taquillas, armarios, cocinas y neveras, además de las cajas de suministros; la misma cantidad en el mismo contenedor de los 4 cuartos.
+- Puertas siempre libres: nada del mapa ni del mobiliario interior delante o detrás de ninguna puerta (antes 24 de 452 tapadas). Vallas con huecos irregulares, no cada 18 m exactos.
+- Coste: ~17.600 objetos (antes 13.300); memoria JS ~240 MB y carga ~3,9 s en headless. Test `tests/mapa_ritmo.py`.
+
 ## Dominio con meta e interfaz por esquinas (28-11)
 - Dominio de ubicaciones: zonas de 8 m (12 m Plaza, Fábricas y Estaciones) con mástil y banderola del color del dueño y aro de progreso en el suelo. Punto enemigo: neutralizar 10 s (gris) y capturar 10 s; neutral: 10 s. Más compañeros aceleran (hasta ×1,6); con enemigos dentro, DISPUTADO (congelado); al salir lo avanzado baja poco a poco. Comunes con letra A–E (también en el mapa y el minimapa).
 - Puntuación: cada 5 s, +1 por punto propio y +2 por común; la primera facción en llegar a 1.500 gana (pantalla de fin con marcador y mejores de tu facción; «Jugar otra vez»). Tonos cortos al capturar, neutralizar, perder y cuando te están tomando un punto.

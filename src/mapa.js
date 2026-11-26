@@ -148,7 +148,12 @@ MAPA.build = function (D) {
   if (D.trees && D.trees.length && D.half <= 200) for (const m of treeMeshes(D.trees, out)) group.add(m);   // mapas grandes: árboles por sector (sectorize)
   for (const r of D.rails || []) out.rails.push(OBJ.rails(r.x, r.z, r.len, r.ry || 0));
   for (const b of D.buildings || []) { const r = placeObject(b.k, b.x, b.z, b.rot || 0, { fac: b.fac }); if (r) out.buildings.push(r); }
-  for (const o of D.objects || []) { const r = MAPA.put(o.t, o.x, o.z, o.g || 0, o.o); if (r) out.props.push(r); }
+  /* puertas siempre libres: nada a 2,6 m delante ni detrás de ninguna puerta (casas, tiendas, persianas, verjas), con 0,6 m de margen a los lados */
+  const KEEP = []; for (const b of out.buildings) for (const d of b.doors || []) { const ax = d.hx >= d.hz; KEEP.push(ax ? { x0: d.x - d.hx - .6, x1: d.x + d.hx + .6, z0: d.z - 2.6, z1: d.z + 2.6 } : { x0: d.x - 2.6, x1: d.x + 2.6, z0: d.z - d.hz - .6, z1: d.z + d.hz + .6 }); }
+  out.doorSkipped = 0;
+  for (const o of D.objects || []) {
+    if (KEEP.length && !/^(door|gate|wall|wallLow|emblem)/.test(o.t)) { const f = MAPA.fp(o.t, o.g || 0); if (f && KEEP.some(k => o.x + f.hx > k.x0 && o.x - f.hx < k.x1 && o.z + f.hz > k.z0 && o.z - f.hz < k.z1)) { out.doorSkipped++; continue; } }
+    const r = MAPA.put(o.t, o.x, o.z, o.g || 0, o.o); if (r) out.props.push(r); }
   out.info = D.info || null; MAPA.built = out;
   if (D.half > 200) { sectorize(out, D); if (!MAPA.defer) MAPA.post('all'); }   // con carga progresiva (MAPA.defer) los pasos de MAPA.post los va dando la pantalla de carga
   return out;

@@ -77,8 +77,11 @@ const INVENTARIO = (() => {
     const loot = OBJ.contents(p);
     if (!shelves[p.type] && !loot.length) return;
     p.stock = {};
+    /* distrito: la misma cantidad en el mismo contenedor de los 4 cuartos (semilla según |x| y |z|, que no cambian al girar el mapa): botín igual para todas las facciones */
+    let seed = MX.district ? (Math.round(Math.min(Math.abs(p.x), Math.abs(p.z)) * 7) * 73856093 ^ Math.round(Math.max(Math.abs(p.x), Math.abs(p.z)) * 7) * 19349663) >>> 0 : 0;
+    const R = () => { if (!MX.district) return Math.random(); seed = (seed + 0x6D2B79F5) >>> 0; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
     for (const {k,n} of loot) if (catalog[k])
-      p.stock[catalog[k]] = n[0] + Math.floor(Math.random() * (1 + n[1] - n[0]));
+      p.stock[catalog[k]] = n[0] + Math.floor(R() * (1 + n[1] - n[0]));
     if (p.type === 'pharmaCab') p.stock.revive = 1;
     if (p.type==='storeMat') Object.assign(p.stock,{helmet1:1,helmet3:1,vest1:1,vest3:1,repair:1});
     if (p.type==='supplyMat') p.stock.repair=1;

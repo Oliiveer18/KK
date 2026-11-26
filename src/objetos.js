@@ -460,7 +460,7 @@
       return { out, hx: W / 2, hz: D / 2, h: H };
     }
   });
-  def('locker', { name: 'Taquilla', cat: 'Comercio y transporte' }, {
+  def('locker', { name: 'Taquilla', cat: 'Comercio y transporte', loot: [{ k: 'munición', n: [0, 2] }] }, {
     mat: 'metal', hp: 80, push: false, mass: 25, fric: 9, build: g => {
       const out = [], N = 3, w = .5, H = 1.85, D = .5, cs = [paint(pick(PAINTS)), paint(pick(PAINTS)), paint(pick(PAINTS))];
       bx(g, out, OM.ironD, N * w + .06, .08, D, 0, .04, 0, false);
@@ -497,7 +497,7 @@
   def('supplyMed', { name: 'Caja médica', cat: 'Comercio y transporte', loot: [{ k: 'botiquín', n: [1, 2] }, { k: 'kit de reanimación', n: [0, 1] }] }, { mat: 'plastic', hp: 40, push: true, mass: 2.5, fric: 7, build: supplyBuild('med') });
 
   const CAR_COL = [0xb8412e, 0xd9a21f, 0x2a8f8a, 0x4f6b3a, 0xd8d0bc, 0x3a63a0];
-  def('car', { name: 'Coche abandonado', cat: 'Comercio y transporte', proposal: true }, {
+  def('car', { name: 'Coche abandonado', cat: 'Comercio y transporte', proposal: true, loot: [{ k: 'material', n: [0, 2] }, { k: 'munición', n: [0, 1] }] }, {
     mat: 'metal', hp: 320, push: true, mass: 40, fric: 14, build: g => {
       const out = [], L = 4.3, W = 1.8, body = sm(pick(CAR_COL), .5, .45), bd = body.clone(); bd.color.multiplyScalar(.7);
       bx(g, out, body, L, .55, W, 0, .6, 0, false); bx(g, out, bd, L - .1, .22, W - .06, 0, .3, 0, false); bx(g, out, OM.soil, L - .05, .12, W + .01, 0, .2, 0, false);
@@ -680,7 +680,7 @@
   };
   def('gondola3', { name: 'Góndola de tienda (3 m)', cat: 'Comercio y transporte' }, { mat: 'metal', hp: 130, push: false, mass: 40, fric: 9, build: gondolaBuild(3) });
   def('gondola4', { name: 'Góndola de tienda (4 m)', cat: 'Comercio y transporte' }, { mat: 'metal', hp: 150, push: false, mass: 50, fric: 9, build: gondolaBuild(4) });
-  def('fridge', { name: 'Vitrina frigorífica', cat: 'Comercio y transporte', note: 'Frente hacia +z' }, {
+  def('fridge', { name: 'Vitrina frigorífica', cat: 'Comercio y transporte', note: 'Frente hacia +z', loot: [{ k: 'botiquín', n: [0, 1] }] }, {
     mat: 'metal', hp: 140, push: false, mass: 50, fric: 9, pen: .1, build: g => {
       const out = [], W = 2.4, D = .8, H = 2.05, cs = [OM.red, OM.blueP, OM.yellow, OM.green, OM.orange, OM.white];
       bx(g, out, OM.anth, W, .22, D, 0, .11, 0, false); bx(g, out, OM.white, W, H - .25, D - .5, 0, .22 + (H - .25) / 2, -.25, false); bx(g, out, OM.white, W, .12, D, 0, H - .06, 0, false);
@@ -760,14 +760,14 @@
       return { out, hx: W / 2, hz: D / 2 + .55, h: 1.2 };
     }
   });
-  def('wardrobe', { name: 'Armario', cat: 'Hogar' }, {
+  def('wardrobe', { name: 'Armario', cat: 'Hogar', loot: [{ k: 'material', n: [0, 1] }, { k: 'botiquín', n: [0, 1] }] }, {
     mat: 'wood', hp: 90, push: false, mass: 20, fric: 9, build: g => {
       const out = [], W = 1.3, D = .6, H = 2.0;
       bx(g, out, OM.woodD, W, H, D, 0, H / 2, 0, false); for (const s of [-1, 1]) { tx(g, out, OM.boardsD, 2, W / 2 - .04, H - .2, .03, s * W / 4, H / 2, D / 2 + .01, true); bx(g, out, OM.steelL, .03, .3, .04, s * .06, 1.0, D / 2 + .035, true); }
       bx(g, out, OM.woodF, W + .06, .06, D + .04, 0, H + .03, 0, true); return { out, hx: W / 2 + .03, hz: D / 2 + .02, h: H + .06 };
     }
   });
-  def('kitchenUnit', { name: 'Cocina', cat: 'Hogar', note: 'Frente hacia +z' }, {
+  def('kitchenUnit', { name: 'Cocina', cat: 'Hogar', note: 'Frente hacia +z', loot: [{ k: 'botiquín', n: [0, 1] }, { k: 'material', n: [0, 1] }] }, {
     mat: 'wood', hp: 110, push: false, mass: 40, fric: 9, build: g => {
       const out = [], L = 2.8, D = .65, H = .92, cab = paint(pick([0xe9e3d3, 0x2a8f8a, 0xb8412e, 0x3a4660]));
       bx(g, out, OM.anth, L - .6, .1, D - .05, -.3, .05, 0, false); bx(g, out, cab, L - .6, H - .15, D - .05, -.3, .1 + (H - .15) / 2, 0, true);
@@ -1134,6 +1134,9 @@
     b.roof = b.roofs.length ? b.roofs[0].g : null;                                                                          // alias de compatibilidad (tests/mapa.py): el techo principal
     b.zHalf = (Math.abs(c) * D + Math.abs(s) * W) / 2; b.fp = d.fp || { hx: W / 2 + .3, hz: D / 2 + .3 };
     { const nc = G => noCoplanar(G.children.filter(o => o.isMesh).map(o => ({ obj: o })), G); b.group.traverse(o => { if (!o.isMesh && o.children.length) nc(o); }); }   /* franjas y remates a ras de la fachada: sin parpadeo */
+    /* puertas libres: el mobiliario interior (mostradores, catres, bancos…) no se queda delante ni detrás de una puerta del propio edificio */
+    for (const p of b.props.slice()) { if (!p || p.dead || b.doors.includes(p) || b.walls.includes(p) || /^(bwall|wall|door|shopDoor|rollDoor|slideGate|gate)/.test(p.type)) continue;
+      if (b.doors.some(d => { const ax = d.hx >= d.hz, al = ax ? Math.abs(p.x - d.x) - p.hx : Math.abs(p.z - d.z) - p.hz, dp = ax ? Math.abs(p.z - d.z) - p.hz : Math.abs(p.x - d.x) - p.hx; return al < (ax ? d.hx : d.hz) - .1 && dp < 2.2; })) { OBJ.removeObject(p); b.props.splice(b.props.indexOf(p), 1); } }
     OBJ.buildings.push(b); return b;
   };
   const inRect = (b, x, zz, r) => { const dx = x - b.x, dz = zz - b.z, lx = dx * Math.cos(b.rot) - dz * Math.sin(b.rot), lz = dx * Math.sin(b.rot) + dz * Math.cos(b.rot); return lx > r.x0 && lx < r.x1 && lz > r.z0 && lz < r.z1; };

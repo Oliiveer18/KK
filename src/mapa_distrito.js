@@ -210,7 +210,7 @@ MAPA.data.M2 = function () {
   { const okPt = (x, z, c) => D.RI.gap(x, z) > (c || 5) && free(x, z, 1.5);
     const rp = (z, m) => { for (let t = 0; t < 50; t++) { const x = z.x0 + m + rng() * (z.x1 - z.x0 - 2 * m), zz = z.z0 + m + rng() * (z.z1 - z.z0 - 2 * m); if (okPt(x, zz)) return [x, zz]; } return null; };
     const fenceLine = (x0, z0, x1, z1) => { const X = Math.abs(x1 - x0) >= Math.abs(z1 - z0), L = X ? x1 - x0 : z1 - z0, n = Math.floor(Math.abs(L) / 2.25);
-      for (let i = 0; i < n; i++) { if (i % 8 === 4 || i % 8 === 5) continue; const a = (X ? x0 : z0) + Math.sign(L) * (1.1 + i * 2.25), x = X ? a : x0, z = X ? z0 : a; if (D.RI.gap(x, z) > 4 && free(x, z, .3)) COMP.put(D, 'fence', x, z, X ? 0 : H, null, .05); } };   // pasos de 4,5 m cada 18 m
+      let gapLeft = 0, next = 3 + Math.floor(rng() * 6); for (let i = 0; i < n; i++) { if (gapLeft > 0) { gapLeft--; continue; } if (--next <= 0) { gapLeft = 1 + (rng() < .4 ? 1 : 0); next = 5 + Math.floor(rng() * 6); continue; } const a = (X ? x0 : z0) + Math.sign(L) * (1.1 + i * 2.25), x = X ? a : x0, z = X ? z0 : a; if (D.RI.gap(x, z) > 4 && free(x, z, .3)) COMP.put(D, 'fence', x, z, X ? 0 : H, null, .05); } };   // pasos de 2,3–4,5 m a distancias irregulares (no un ritmo medido)
     const barricade = (x, z) => { const rot = rng() < .5 ? 0 : H, ax = rot ? 0 : 1, az = rot ? 1 : 0; if (!COMP.put(D, 'car', x, z, rot, null, .3)) return;
       for (const sg of [-1, 1]) COMP.put(D, rng() < .5 ? 'blocks' : 'barrier', x + ax * sg * 3.3, z + az * sg * 3.3, rot, null, .1);
       for (const sg of [-1, 1]) COMP.put(D, 'sandbags', x + az * sg * 1.6 + ax * sg * 1.2, z + ax * sg * 1.6 + az * sg * 1.2, rot, null, .1); };
@@ -255,6 +255,52 @@ MAPA.data.M2 = function () {
       for (const [x, z] of [[-420, -80], [-420, 80], [-480, -60], [-480, 60]]) SC(x, z, ['crate', 'crateS', 'pallet', 'palletBoxes', 'barrel', 'dumpster', 'cart'], 5, 6);
     });
   }
+  /* ---------- 8c. RITMO (cuarto Azul; COMP lo copia girado): algo interesante cada 50–70 m andando ----------
+     Carreteras tácticas: atascos en todas las calles (se avanza de coche en coche) y accidentes en la mitad de los cruces. Lugares con historia (control
+     militar, convoy emboscado, hospital de campaña, casa atrincherada, campamento, carga abandonada, restos con nido), cada uno con una caja de botín.
+     Al final (tras los bosques) se garantiza cobertura: ningún punto transitable a más de ~9 m de algo tras lo que cubrirse. */
+  const zoneAt = (x, z) => { const q = D.info.zones.find(q => / · Azul$/.test(q.name) && x >= q.x0 && x <= q.x1 && z >= q.z0 && z <= q.z1); return q ? q.name.split(' · ')[0] : ''; };
+  const okP = (x, z, m, rg) => Math.abs(x) < half - 10 && Math.abs(z) < half - 10 && free(x, z, m === undefined ? 2 : m) && D.RI.gap(x, z) > (rg === undefined ? 4 : rg);
+  const nearOk = (x, z, R0, m, rg) => { for (let r = 0; r <= R0; r += 2) for (let a = rng() * 6.28, k = 0; k < 12; k++, a += .52) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (okP(px, pz, m, rg)) return [px, pz]; } return null; };
+  const PUT = (t, x, z, g, o) => COMP.put(D, t, x, z, g || 0, o, .1);
+  const LOOT = ['supplyAmmo', 'supplyMed', 'supplyMat']; let nLoot = 0;
+  const loot = (x, z, t) => { const q = nearOk(x, z, 8, 1, 3); if (q && PUT(t || LOOT[nLoot++ % 3], q[0], q[1], rng() < .5 ? 0 : H)) return true; return false; };
+  D.info.pois = []; const poi = (name, x, z) => { for (const k of KS(4)) { const [a, b] = R(k, x, z); D.info.pois.push({ name, x: Math.round(a), z: Math.round(b) }); } };
+  { // carreteras tácticas
+    for (const r of [LW, LE]) COMP.jam(D, { road: r, s0: 12, s1: 360, gap: [10, 18], extras: .35, seed: ++sd });
+    for (const r of [AZ, AX]) COMP.jam(D, { road: r, s0: 12, s1: 230, gap: [12, 20], extras: .3, seed: ++sd });
+    COMP.jam(D, { road: ORN, s0: 20, s1: 150, gap: [14, 22], seed: ++sd });
+    for (const nd of D.info.nodes) { if (!(nd.x < -1 && nd.z <= 0) || rng() < .45) continue;                   // accidente en el cruce (uno de cada dos), dejando paso
+      if (Math.hypot(nd.x - RX, nd.z - RZ) < 60 || Math.hypot(nd.x, nd.z) < 20) continue;
+      const sx = rng() < .5 ? -1 : 1, sz = rng() < .5 ? -1 : 1;
+      if (PUT('car', nd.x + sx * 5.5, nd.z + sz * 1.6, 0) | PUT('car', nd.x + sx * 1.6, nd.z + sz * 5.8, H)) {
+        COMP.scatter(D, { x: nd.x + sx * 4, z: nd.z + sz * 4, r: 2.5, n: 2, seed: ++sd, types: ['barrier', 'crateS', 'barrel', 'blocks'] }); poi('Accidente', nd.x, nd.z); } }
+  }
+  { // lugares con historia en una rejilla de ~62 m por todo el cuarto
+    const taken = D.info.places.filter(p => p.fac === 0 || p.fac === -1).map(p => [p.x, p.z]).concat([[RX, RZ]]);
+    const BUILD = {
+      control(x, z) { const n = COMP.roadNear(D, x, z, 26); if (!n) return false; COMP.roadblock(D, { road: n.road, s: n.s, seed: ++sd }); loot(n.q.x, n.q.z, 'supplyAmmo'); return 'Control militar'; },
+      convoy(x, z) { const n = COMP.roadNear(D, x, z, 26); if (!n) return false; const k = COMP.jam(D, { road: n.road, s0: Math.max(4, n.s - 16), s1: n.s + 16, gap: [5.5, 8], extras: .7, types: ['crate', 'crateS', 'barrel', 'barrelFuel', 'palletBoxes'], seed: ++sd }); if (!k) return false; loot(n.q.x, n.q.z, 'supplyAmmo'); return 'Convoy emboscado'; },
+      hospital(x, z) { const q = nearOk(x, z, 20, 6, 6); if (!q) return false; const [cx, cz] = q, g = rng() < .5 ? 0 : H; let n = 0;
+        for (let i = 0; i < 3; i++) n += PUT('cot', cx + (g ? 0 : (i - 1) * 2.4), cz + (g ? (i - 1) * 2.4 : 0), g) ? 1 : 0; if (!n) return false;
+        PUT('supplyMed', cx + (g ? 2.4 : 0), cz + (g ? 0 : 2.4), 0); PUT('floodlight', cx - 4, cz - 4, 0); for (const [dx, dz] of [[-5, 0], [5, 0], [0, -5], [0, 5]]) if (rng() < .7) PUT(rng() < .5 ? 'barrier' : 'sandbags', cx + dx, cz + dz, dx ? H : 0);
+        return 'Hospital de campaña'; },
+      trinchera(x, z) { const q = nearOk(x, z, 20, 5, 6); if (!q) return false; const f = ['n', 's', 'e', 'w']; COMP.nest(D, { x: q[0], z: q[1], face: f[Math.floor(rng() * 4)] }); COMP.nest(D, { x: q[0] + 6, z: q[1] + 3, face: f[Math.floor(rng() * 4)] });
+        COMP.scatter(D, { x: q[0] + 3, z: q[1] - 3, r: 4, n: 3, seed: ++sd, types: ['blocks', 'crate', 'barrier'] }); loot(q[0] + 2, q[1] + 1); return 'Posición atrincherada'; },
+      campamento(x, z) { const q = nearOk(x, z, 20, 8, 7); if (!q) return false; const n = COMP.camp(D, { x: q[0], z: q[1], seed: ++sd }); if (!n) return false; loot(q[0], q[1] + 7, 'supplyMat'); return 'Campamento abandonado'; },
+      carga(x, z) { const q = nearOk(x, z, 20, 6, 6); if (!q) return false; COMP.scatter(D, { x: q[0], z: q[1], r: 7, n: 8, seed: ++sd, types: ['palletBoxes', 'pallet', 'cage', 'crate', 'crateS', 'barrel', 'cart'] }); PUT('forklift', q[0] + 5, q[1] - 4, rng() < .5 ? 0 : H); loot(q[0], q[1], 'supplyMat'); return 'Carga abandonada'; },
+      restos(x, z) { const q = nearOk(x, z, 20, 4, 5); if (!q) return false; COMP.scatter(D, { x: q[0], z: q[1], r: 6, n: 7, seed: ++sd, types: ['crate', 'crateS', 'pallet', 'palletBoxes', 'barrel', 'blocks', 'barrier', 'dumpster'] }); COMP.nest(D, { x: q[0] + 4, z: q[1] + 4, face: 's' }); loot(q[0], q[1]); return 'Restos de una defensa'; },
+    };
+    const pick = (zn, road) => road ? (rng() < .5 ? 'convoy' : 'control')
+      : /^Residencial/.test(zn) ? (rng() < .5 ? 'trinchera' : 'restos') : /^Casco|^Comercios/.test(zn) ? (rng() < .55 ? 'hospital' : 'trinchera')
+      : /^Bosque/.test(zn) ? 'campamento' : /^Granja|^Aldea/.test(zn) ? (rng() < .5 ? 'carga' : 'campamento') : /^Fábrica|^Estación/.test(zn) ? 'carga' : 'restos';
+    for (let gx = -470; gx <= -20; gx += 62) for (let gz = -470; gz <= -20; gz += 62) {
+      const x = gx + (rng() - .5) * 24, z = gz + (rng() - .5) * 24;
+      if (taken.some(t => Math.hypot(t[0] - x, t[1] - z) < 34) || Math.hypot(x - RX, z - RZ) < 55 || Math.hypot(x, z) < 55) continue;
+      const zn = zoneAt(x, z), road = D.RI.gap(x, z) < 10 && !/^Bosque/.test(zn), kind = pick(zn, road), name = BUILD[kind](x, z);
+      if (name) { poi(name, x, z); taken.push([x, z]); }
+    }
+  }
   /* ---------- 9. bosques propios (en L junto al refugio): árboles instanciados que esquivan calles, edificios y refugios ---------- */
   const FOR = [[-410, -495, -258, -386, 'Bosque 1'], [-495, -366, -386, -258, 'Bosque 2']];
   const treeOk = (x, z) => D.RI.gap(x, z) > 10 && D.occ.every(o => Math.abs(o.x - x) > o.hx + 5 || Math.abs(o.z - z) > o.hz + 5);
@@ -263,6 +309,17 @@ MAPA.data.M2 = function () {
     const mine = [];
     for (let tr = 0; tr < 5000 && n < 110; tr++) { const x = x0 + 6 + rng() * (x1 - x0 - 12), z = z0 + 6 + rng() * (z1 - z0 - 12); if (!treeOk(x, z)) continue; if (mine.some(t => Math.hypot(t[0] - x, t[1] - z) < 7.5)) continue;
       const sc = +(.9 + rng() * .5).toFixed(2); mine.push([x, z]); for (const k of KS(4)) { const [a, b] = R(k, x, z); D.trees.push([+a.toFixed(1), +b.toFixed(1), sc]); } n++; } }
+  /* ---------- 10. cobertura garantizada (cuarto Azul, tras los bosques): ninguna celda transitable de 10 m a más de ~9 m de algo tras lo que cubrirse ---------- */
+  { const COV = ['crate', 'barrier', 'sandbags', 'blocks', 'palletBoxes', 'crate', 'barrier', 'dumpster', 'car', 'crateS'];
+    const isCov = o => !/^(reserva|plaza|aparcamiento|refugio|recinto)$/.test(o.t) && (o.hx > .45 || o.hz > .45);
+    const covNear = (x, z, r) => D.occ.some(o => isCov(o) && Math.max(Math.abs(o.x - x) - o.hx, 0) ** 2 + Math.max(Math.abs(o.z - z) - o.hz, 0) ** 2 < r * r) || D.trees.some(t => (t[0] - x) ** 2 + (t[1] - z) ** 2 < r * r);
+    const cells = []; for (let x = -495; x < 0; x += 10) for (let z = -495; z <= 0; z += 10) cells.push([x + 5, z + 5]);
+    for (let i = cells.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [cells[i], cells[j]] = [cells[j], cells[i]]; }
+    let added = 0;
+    for (const [x, z] of cells) { if (x > -1 || z > -1 || !free(x, z, .5) || Math.hypot(x - RX, z - RZ) < 30 || covNear(x, z, 9)) continue;
+      const q = (() => { for (let r = 0; r <= 6; r += 1.5) for (let a = rng() * 6.28, k = 0; k < 8; k++, a += .785) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (Math.abs(px) < half - 6 && Math.abs(pz) < half - 6 && free(px, pz, 1.2) && D.RI.gap(px, pz) > 1.5) return [px, pz]; } return null; })();
+      if (q && COMP.put(D, COV[Math.floor(rng() * COV.length)], q[0], q[1], rng() < .5 ? 0 : H, null, .1)) added++; }
+    D.info.coverAdded = added * 4; }
   delete D.sym;
   return D;
 };
