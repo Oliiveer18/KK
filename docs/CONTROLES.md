@@ -64,3 +64,14 @@ Clic en el cuadro de FPS muestra GPU, lógica, dibujo (CPU), llamadas, triángul
 Casco ligero, medio y pesado aportan 10, 20 y 30 de protección. Los chalecos aportan 25, 50 y 70. La mochila muestra el estado actual y máximo de cada pieza. Usa **Equipar** para cambiarla. Al recoger una pieza con la ranura vacía se equipa automáticamente. El daño se reparte entre las piezas equipadas según la protección restante. El exceso alcanza la vida. Guardar, retirar o recuperar la pieza de un eliminado conserva su desgaste.
 
 Desde la mochila, una unidad de material cerca de un punto de salida del refugio propio o un kit de reparación en cualquier lugar restaura una pieza. Las estanterías de materiales ofrecen equipo y un kit inicial, y las cajas de materiales también contienen un kit. La protección no se regenera sola.
+
+### Mapa 4 · Obras en el refugio azul
+
+Retira materiales de la estantería del refugio (48 unidades iniciales en esta prueba). Acércate al portón o a la empalizada contigua, en el lado de la base que da al centro. Abre la mochila con el panel táctil del DualSense o con **I**. Usa ↑/↓ y ✕ para elegir la obra. El coste y el tiempo restante aparecen antes de confirmar. Quédate cerca y deja libre el hueco al terminar. La puerta también se puede abrir o cerrar desde la mochila.
+
+| Pieza | Reparación de una brecha | Mejora a nivel 2 | Mejora a nivel 3 |
+|---|---|---|---|
+| Tramo de muro | 1 material, 4 s | 3 materiales, 10 s | 6 materiales, 10 s |
+| Portón | 2 materiales, 5 s | 4 materiales, 12 s | 8 materiales, 12 s |
+
+La reparación parcial cuesta en proporción al daño, con un mínimo de una unidad. Reconstruir conserva el nivel. Solo una pieza intacta admite mejora. El tercer nivel del portón añade una segunda puerta que se puede abrir y reparar por separado. Alejarse, recibir daño o una alarma a menos de 25 m interrumpe la obra. Al retomar la misma acción se conserva el avance y los materiales se descuentan una sola vez, al terminar. El distrito oficial conserva su propia distribución.

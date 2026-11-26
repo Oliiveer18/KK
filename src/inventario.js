@@ -93,6 +93,9 @@ const INVENTARIO = (() => {
     // El escenario de ensayo también ofrece las tres estanterías y suministros.
     if (!MX.district) {
       ['storeMat','storeAmmo','storeMed'].forEach((key,i) => OBJ.place(key,-42+2*i,-8,0,0));
+      const reserves=props.find(p=>p.type==='storeMat');
+      reserves.stock.material=48;
+      OBRAS.start();
       ['material','ammo','medkit','revive'].forEach((key,i) => OBJ.pickup(key,-42+i*1.1,-5));
     }
     openButton.hidden = false;
@@ -167,6 +170,7 @@ const INVENTARIO = (() => {
     }
     label('strong','Mochila · '+count(e.bag)+' / '+capacity(e.bag));
     label('p',Object.entries(e.bag).filter(([k,n])=>n>0 && !limits[k]).map(([k,n])=>names[k]+' ×'+n).join(' · ')||'');
+    OBRAS.controls(e,label,button,close);
     for (const item of pieces(e.bag)) {
       const worn=e.worn[slotOf(item)]===item;
       label('p',describe(item)+(worn?' · equipado':''));
@@ -223,9 +227,11 @@ const INVENTARIO = (() => {
   }
   let botClock=0, botIndex=0;
   function tick(dt){
+    OBRAS.tick(dt);
     botClock+=dt;if(botClock<.12)return;botClock=0;
     const e=MX.ents[1+(botIndex++%(MX.ents.length-1))];
     if(e.dead||e.dwn||e.vis)return;
+    if(OBRAS.botRepair(e))return;
     if(e.hp<65 && use(e,'medkit'))return;
     for (const item of Object.values(e.worn)) {
       if (item.points<limits[item.key]/2 && (repair(e,item,'material') || repair(e,item,'repair'))) return;
