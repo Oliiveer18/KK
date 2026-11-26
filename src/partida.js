@@ -495,13 +495,14 @@ function think(e) {
   if (e.vis) { const sx = e.p.x + Math.sin(e.yaw) * .6, sz = e.p.z + Math.cos(e.yaw) * .6; e.dT = Math.hypot(e.tgt.p.x - e.p.x, e.tgt.p.z - e.p.z); e.canShoot = segClear(sx, sz, e.tgt.p.x, e.tgt.p.z, e.cover, null, false) && !smokeBlock(sx, sz, e.tgt.p.x, e.tgt.p.z); } else e.canShoot = false;
   const tac = MX.campaign && MX.SQ && e.sqd;                                         // campaña: táctica de escuadra (no se persigue ni se va a buscar al que dispara)
   if (tac && !e.vis && e.hitSrc && M.t - e.lastAttT < .6) MX.SQ.contact(e, { p: e.hitSrc, team: -1 });
+  if (tac && e.vis && e.st !== 'cover' && !e.cover && e.ammo <= Math.max(1, e.w.max * .25) && e.reloadT < 0) { const cp = coverPoint(e, e.tgt.p.x, e.tgt.p.z); if (cp && Math.hypot(cp.x - e.p.x, cp.z - e.p.z) < 10) { e.st = 'cover'; e.coverStart = M.t - 6; e.coverPt = cp; setGoal(e, cp.x, cp.z); } }   // poca munición a la vista del enemigo: recarga a cubierto
   if (tac && e.supp > .55 && e.st !== 'cover' && !e.cover && (e.vis || e.suppFrom)) { const th = e.vis ? e.tgt.p : e.suppFrom, cp = coverPoint(e, th.x, th.z); if (cp && Math.hypot(cp.x - e.p.x, cp.z - e.p.z) < 9) { e.st = 'cover'; e.coverStart = M.t - 4; e.coverPt = cp; setGoal(e, cp.x, cp.z); } }   // suprimido: a cubierto
   if (!tac && !e.vis && e.hitSrc && e.lastAtt && !e.lastAtt.dead && e.lastAtt.team !== e.team && M.t - e.lastAttT < .6 && e.st !== 'cover' && M.t - e.alertT > 4) {   // me han disparado y no veo a nadie: voy hacia el lugar de donde vino el disparo (dirección del impacto, no la posición real del atacante)
     e.alertT = M.t; e.ls.x = e.hitSrc.x; e.ls.z = e.hitSrc.z; e.st = 'search'; e.searchStart = M.t; setGoal(e, e.ls.x, e.ls.z);
   }
   const lowHp = e.hp < 36;
   if (e.st === 'cover') {
-    if ((e.hp > 72 && M.t - e.coverStart > 2) || M.t - e.coverStart > 9) { e.st = e.vis ? 'fight' : 'push'; e.path = null; e.goal = null; }
+    if (((e.hp > 72 && M.t - e.coverStart > 2) || M.t - e.coverStart > 9) && e.reloadT < 0 && e.ammo > e.w.max * .25) { e.st = e.vis ? 'fight' : 'push'; e.path = null; e.goal = null; }   // no sale de la cobertura hasta tener el cargador listo
   } else if (lowHp && (e.vis || M.t - e.lastHurt < 3)) {
     const th = e.vis ? e.tgt.p : (e.hitSrc || null);
     if (th) { const cp = coverPoint(e, th.x, th.z) || retreatPoint(e, th.x, th.z); if (cp) { e.st = 'cover'; e.coverStart = M.t; e.coverPt = cp; setGoal(e, cp.x, cp.z); } }

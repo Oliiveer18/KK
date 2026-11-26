@@ -1,5 +1,9 @@
 # Changelog
 
+## Más zombis y recarga a cubierto (27-11)
+- ~950 zombis en el distrito (antes ~600), 8 hordas migratorias, más dormidos dentro de edificios; igual para las 4 facciones.
+- Bots: con poca munición y el enemigo a la vista, van a cubierto a recargar y no salen hasta tener el cargador listo.
+
 ## Bots: dash y espacio personal (27-11)
 - Todos los bots tienen dash (17 m/s, 0,18 s, como el jugador), usado con criterio: apartarse de granadas y explosivos, cruzar a la carrera hasta la cobertura bajo fuego o con poca vida, salir de una zona batida; espera de 2,5–4,5 s y sólo con el tramo libre.
 - Espacio personal de 1,7 m entre compañeros en campaña (antes 0,85 m): mediana al compañero más cercano 3,6 m. Test `tests/bots_pro.py`.

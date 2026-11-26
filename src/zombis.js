@@ -5,7 +5,7 @@
    Ruido: disparos, explosiones y gritos despiertan a los cercanos y desvían la horda. Atacan igual a las 4 facciones. Dibujo instanciado (una malla por pieza).
    Sin sonidos inventados: los eventos llaman a playAt('ZOM_*'), que callan hasta que exista la muestra. */
 (function () {
-const M = MX.M, MAXZ = 720, RMAX = 180, VIEW_R = 46, NEAR_R = 75;        // MAXZ: simulados; RMAX: dibujados a la vez (los más cercanos a la cámara, dentro de VIEW_R); NEAR_R: simulación completa cerca de un combatiente
+const M = MX.M, MAXZ = 1100, RMAX = 180, VIEW_R = 46, NEAR_R = 75;        // MAXZ: simulados; RMAX: dibujados a la vez (los más cercanos a la cámara, dentro de VIEW_R); NEAR_R: simulación completa cerca de un combatiente
 const TY = {
   walker:   { hp: 70,  sc: 1,    dmg: 12, atkCd: 1.1, roam: .9,  chase: 2.4, sight: 14, lean: .5,  arm: -1.15, hs: 1,    tw: 1,   r: .42 },
   runner:   { hp: 45,  sc: .96,  dmg: 8,  atkCd: .7,  roam: 1.2, chase: 5.0, sight: 18, lean: .62, arm: -.5,   hs: .95,  tw: .9,  r: .38 },
@@ -280,7 +280,7 @@ const MS = new THREE.Matrix4(), MC = new THREE.Matrix4(), MH = new THREE.Matrix4
 /* ---- ciclo ---- */
 /* ---- población del distrito (?mapa=6): por zonas, como vivía la gente (casco y comercios llenos, bosques casi vacíos), dormidos dentro de casas y tiendas,
    y 4 hordas que migran entre barrios. Igual para las 4 facciones: se reparte en el cuarto Azul y se copia girado (y los objetivos comunes, a 180°). ---- */
-const ZDENS = { 'Residencial': 14, 'Casco': 13, 'Comercios': 12, 'Aldea': 11, 'Puesto avanzado': 6, 'Granja': 4, 'Bosque': 3, 'Plaza Mayor': 4, 'Fábrica': 12, 'Estación y supermercado': 12 };
+const ZDENS = { 'Residencial': 22, 'Casco': 21, 'Comercios': 19, 'Aldea': 17, 'Puesto avanzado': 9, 'Granja': 6, 'Bosque': 4, 'Plaza Mayor': 6, 'Fábrica': 19, 'Estación y supermercado': 19 };
 const ROT = (k, x, z) => k === 0 ? [x, z] : k === 1 ? [-z, x] : k === 2 ? [-x, -z] : [z, -x];
 const mixPick = (dense) => { const r = rnd(); return r < (dense ? .1 : .14) ? 'runner' : r < (dense ? .17 : .2) ? 'brute' : r < (dense ? .25 : .24) ? 'screamer' : 'walker'; };
 let ZPTS = null;                                                                   // puntos de reposición (con su peso)
@@ -303,11 +303,10 @@ function initDistrict() {
     }
   }
   /* dentro de los edificios del cuarto Azul (casas, tiendas, clínica…): 1 de cada 4, dormidos tras la puerta */
-  for (const b of OBJ.buildings) { if (!(b.x < -5 && b.z < -5) || rnd() > .27) continue; const f = b.fp || { hx: 4, hz: 4 };
+  for (const b of OBJ.buildings) { if (!(b.x < -5 && b.z < -5) || rnd() > .4) continue; const f = b.fp || { hx: 4, hz: 4 };
     for (let t = 0; t < 12; t++) { const x = b.x + rr(-f.hx * .6, f.hx * .6), z = b.z + rr(-f.hz * .6, f.hz * .6); if (put4(x, z, rnd() < .12 ? 'screamer' : 'walker', 'dorm', [0, 1, 2, 3])) { n += 0; break; } } }
-  /* 4 hordas que migran entre barrios (una por cuarto, giradas) */
-  const hp = [-190, -312];
-  for (const k of [0, 1, 2, 3]) { const [x, z] = ROT(k, hp[0], hp[1]); const h = newHorde(x, z, ['walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'runner', 'runner', 'runner', 'brute', 'screamer']); h.migrate = true; }
+  /* 8 hordas que migran entre barrios (dos por cuarto, giradas) */
+  for (const hp of [[-190, -312], [-312, -60]]) for (const k of [0, 1, 2, 3]) { const [x, z] = ROT(k, hp[0], hp[1]); const h = newHorde(x, z, ['walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'runner', 'runner', 'runner', 'brute', 'screamer']); h.migrate = true; }
   ZPTS = pts;
   const roam = []; for (const q of pts) for (const k of q[3]) roam.push(ROT(k, q[0], q[1]));
   for (const h of HORDES) h.roamPts = roam;
@@ -335,7 +334,7 @@ function stepHorde(h, dt) {
 /* población: la región se repuebla poco a poco con grupos dormidos y, si la horda cae, aparece otra desde lejos (nunca a la vista de un combatiente) */
 let popT = 20, hordeGone = 0;
 const farFromAll = (x, z, R) => M.ents.every(e => e.dead || Math.hypot(e.p.x - x, e.p.z - z) > R) && M.spawn.every(a => a.every(s => Math.hypot(s.x - x, s.z - z) > 16));
-const ZTARGET = 560;
+const ZTARGET = 880;
 function restockDistrict() {
   const alive = MX.zom.count(); if (!ZPTS || !ZPTS.length) return;
   if (alive < ZTARGET) for (let tries = 0; tries < 6; tries++) {                    // repone en grupos, siempre lejos de todos (nunca a la vista) y con el peso de cada zona
@@ -345,7 +344,7 @@ function restockDistrict() {
     break;
   }
   const liveH = HORDES.filter(h => h.members.some(m => !m.dead)).length;
-  if (liveH < 4 && alive < ZTARGET + 60 && rnd() < .08) { const q = ZPTS[(rnd() * ZPTS.length) | 0], [x, z] = ROT(q[3][0], q[0], q[1]); if (farFromAll(x, z, 90)) { const h = newHorde(x, z, ['walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'runner', 'runner', 'brute', 'screamer']); h.migrate = true; h.roamPts = HORDES[0] && HORDES[0].roamPts; } }
+  if (liveH < 8 && alive < ZTARGET + 60 && rnd() < .08) { const q = ZPTS[(rnd() * ZPTS.length) | 0], [x, z] = ROT(q[3][0], q[0], q[1]); if (farFromAll(x, z, 90)) { const h = newHorde(x, z, ['walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'runner', 'runner', 'brute', 'screamer']); h.migrate = true; h.roamPts = HORDES[0] && HORDES[0].roamPts; } }
   for (let i = HORDES.length - 1; i >= 0; i--) if (!HORDES[i].members.length) HORDES.splice(i, 1);
 }
 function restock() {

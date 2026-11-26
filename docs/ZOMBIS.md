@@ -44,3 +44,6 @@ Equilibrio (vida, daño, velocidades, cuántos zombis, la horda), infestación d
 - **Dibujo:** sólo los más cercanos a la cámara (≤ 46 m, máx. 180) en huecos compactos de las mallas instanciadas; al cambiar de hueco se copian sus colores. Coste medido (headless, 100 combatientes + ~600 zombis): ~3,5 ms por actualización.
 - Tests: `tests/zombis_distrito.py` (nuevo), `tests/zombis.py` (límite 720 y máx. 180 dibujados).
 
+
+## Más población (27-11)
+~950 en el distrito al empezar (densidades ×1,6), 4 de cada 10 edificios con zombis dentro, 8 hordas (dos por cuarto) y reposición hasta 880 vivos; límite de 1.100 simulados. Coste medido: ~4 ms por actualización con 100 combatientes (headless).

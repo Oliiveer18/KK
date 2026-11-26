@@ -1,5 +1,5 @@
 """Población de zombis del distrito (?mapa=6): cientos repartidos por zonas como vivía la gente, igual para las 4 facciones (por cuartos), algunos dormidos
-dentro de los edificios, 4 hordas que migran entre barrios, refugios limpios al empezar, simulación barata lejos de los combatientes y dibujo sólo de
+dentro de los edificios, 8 hordas que migran entre barrios, refugios limpios al empezar, simulación barata lejos de los combatientes y dibujo sólo de
 los cercanos a la cámara."""
 import os, sys, time
 from playwright.sync_api import sync_playwright
@@ -16,10 +16,10 @@ with sync_playwright() as p:
       const nearRef=Z.filter(z=>MX.M.spawn.some(a=>a.some(s=>Math.hypot(s.x-z.p.x,s.z-z.p.z)<40))).length;
       const c={};for(const z of Z)c[z.type]=(c[z.type]||0)+1;return {n:Z.length,q,inB,hordes,nearRef,c,h0:Z.filter(z=>z.horde).map(z=>[z.p.x,z.p.z]).slice(0,1)[0]}}''')
     print(r)
-    chk(450 <= r['n'] <= 720, 'cientos de zombis en el distrito (%d; antes ~80)' % r['n'])
+    chk(750 <= r['n'] <= 1100, 'muchos zombis en el distrito (%d; antes ~80)' % r['n'])
     chk(max(r['q']) - min(r['q']) <= max(r['q']) * .08, 'igual para las 4 facciones: por cuartos %s' % r['q'])
-    chk(r['inB'] >= 40, 'dormidos dentro de casas y tiendas (%d)' % r['inB'])
-    chk(r['hordes'] == 4, '4 hordas que migran entre barrios')
+    chk(r['inB'] >= 80, 'dormidos dentro de casas y tiendas (%d)' % r['inB'])
+    chk(r['hordes'] == 8, '8 hordas que migran entre barrios (dos por cuarto)')
     chk(r['nearRef'] == 0, 'ninguno a menos de 40 m de un refugio al empezar')
     chk(r['c'].get('runner', 0) > 20 and r['c'].get('brute', 0) > 15 and r['c'].get('screamer', 0) > 15, 'mezcla de tipos %s' % r['c'])
     t0 = time.time(); ev('()=>{MX.pl.inv=1e9;MX.pl.hp=1e9;for(let i=0;i<60*30;i++)update(1/60)}'); ms = (time.time() - t0) / 1800 * 1000
