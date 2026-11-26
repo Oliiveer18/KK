@@ -12,7 +12,7 @@ with sync_playwright() as p:
     pg.add_init_script("""window.__H=[];window.__tag='x';
       const wrap=()=>{ if(typeof renderer==="undefined"||!renderer||window.__w) return; window.__w=1;
         const r=renderer.render.bind(renderer); renderer.render=function(a,c){const t=performance.now();r(a,c);const d=performance.now()-t;if(d>80)__H.push([__tag,Math.round(d)])}; }; setInterval(wrap,20);""")
-    for mapa in ('3', '5'):
+    for mapa in ('3', '5', '6'):
         pg.goto('file://' + os.path.abspath('index.html') + '?mapa=' + mapa); pg.wait_for_timeout(1200)
         ev('begin()'); pg.wait_for_timeout(1500)
         n0 = ev('''()=>{window.K0=new Set(renderer.info.programs.map(p=>p.cacheKey));window.NEW=[];setInterval(()=>{const nk=renderer.info.programs.filter(p=>!K0.has(p.cacheKey)).map(p=>p.cacheKey);if(!nk.length||NEW.length)return;

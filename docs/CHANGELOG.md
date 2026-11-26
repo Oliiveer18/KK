@@ -1,5 +1,9 @@
 # Changelog
 
+## Optimización sin pérdida visual y mapa lleno (26-11)
+- Índice espacial de cajas, sectores de 32 m con recorte por cámara (0 píxeles distintos), árboles por sector, precalentado reducido, bots sin recorrer todos los objetos. Detalle y cifras en `docs/RENDIMIENTO.md`.
+- Distrito v3 relleno: 400 casas con jardín y coches aparcados. Test nuevo `tests/sectores_identico.py`; `tests/rendimiento.py` incluye el mapa 6.
+
 ## Distrito v3 simétrico (26-11, rama claude/practical-euler-9gm8eq)
 - `?mapa=6` pasa a ser una cuadrícula recta con los 4 cuartos idénticos (copia girada del cuarto Azul): igualdad total entre facciones. Fábrica N/S, Estación con supermercado E/O, Plaza Mayor en el centro.
 - `COMP` con simetría (`D.sym` 4 o 2, `COMP.rot`, `COMP.facRot`); `MAPA.roadIndex` también para calles rectas; aceras de las T sin cortar del lado contrario; pasos de cebra sólo dentro de la calle.

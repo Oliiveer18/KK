@@ -35,7 +35,7 @@ El motor del mapa y las herramientas están hechos y probados, pero **el usuario
 ## 5. Lecciones técnicas (ahorran horas)
 - **Giros de objetos múltiplos de π/2** (colisión por cajas alineadas con los ejes): las calles diagonales dejan coches y edificios desalineados; por eso funciona mejor una cuadrícula con curvas suaves. Si se quiere diagonal real, hay que cambiar la colisión (Entrega 2).
 - `collide()` recorre **todas** las cajas por entidad y fotograma; con miles de cajas (árboles, objetos) pesa. Un índice espacial de `boxes` es prioritario antes de añadir más densidad.
-- El mapa 6 tiene ~38.000 mallas y 2.400 objetos: lógica 13–23 ms y dibujo CPU 14–22 ms por fotograma en headless (M1: 4+4). **Antes de rellenar más hace falta B7–B9** (carga por sectores/LOD, fusión de geometría estática con `mergeParts`, matrices congeladas) y medir en iPhone.
+- (26-11, hecho) Índice espacial de cajas, sectores con recorte por cámara, árboles por sector y precalentado reducido: el v3 lleno (400 casas, ~138.000 mallas) dibuja en ~9 ms CPU en headless. Lo que falta medir es la **memoria en el iPhone** (~410 MB JS en Chrome). Ver `RENDIMIENTO.md`.
 - `findPath` tiene tope de 22.000 nodos (en 1 km² una ruta larga devuelve el mejor tramo y se replanifica).
 - Capturas: el bucle del juego repinta con su cámara; para fotos propias poner `menuOpen=true`, anular `renderer.render` y pintar una vez (ver `tools/foto_distrito.py`); `scene.fog=null` o todo se pierde a >58 m.
 - Precalentado de shaders (`warmAll`): incluye materiales fuera de escena y color de vértice RGB/RGBA; `tests/rendimiento.py` lo vigila (era la causa del tirón al primer disparo/impacto).
@@ -52,7 +52,7 @@ Después: nueva foto exacta (`tools/foto_distrito.py`) y aprobación antes de co
 
 ## 7. Pendiente, por orden
 1. Preguntas de §6 y nueva propuesta de trazado **con foto exacta** (el usuario quiere ver las ubicaciones exactas y que todo coincida con el juego).
-2. B7–B9: carga por sectores + LOD, índice espacial de cajas, fusión de geometría estática, matrices congeladas; medir en iPhone (FPS por zona, llamadas de dibujo).
+2. Medir en iPhone el v3 lleno (FPS por zona, memoria, tiempo de carga). Si la memoria aprieta: materializar interiores sólo en sectores cercanos y fusionar la geometría de objetos intactos.
 3. A4 recogibles (13 tipos por nivel) y A5 ambientación apocalíptica (niebla, luz fría, suelo apagado, humo e incendios, coches quemados, cráter, helicóptero, puesto militar, valla de cuarentena; ver la maqueta de tono de las capturas del 26-11).
 4. Más casas y relleno de manzanas (depende de 2); parque/lago, campos.
 5. B10 minimapa/mapa estratégico; B11 población y hordas por sector.

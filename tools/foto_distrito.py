@@ -13,7 +13,7 @@ def main():
           return {info:I,buildings:OBJ.buildings.map(b=>({kind:b.kind,x:Math.round(b.group.position.x),z:Math.round(b.group.position.z)})),count:c,trees:MAPA.built.walls.filter(w=>w.tree).length,
             spawns:MAPA.built.spawns.map(a=>a[0]),hot:MAPA.built.hot.map(h=>[Math.round(h[0]),Math.round(h[1])])}}''')
         def prep(cx, cz, ext, ov):
-            ev('''([cx,cz,ext,W])=>{menuOpen=true;MX.on=false;scene.fog=null;for(const e of MX.ents){if(e.root)e.root.visible=false;if(e.ring)e.ring.visible=false;if(e.bar&&e.bar.el)e.bar.el.style.display='none'}
+            ev('''([cx,cz,ext,W])=>{menuOpen=true;MX.on=false;MAPA.noCull=true;for(const g of (MAPA.built.sectors||[]))g.visible=true;scene.fog=null;for(const e of MX.ents){if(e.root)e.root.visible=false;if(e.ring)e.ring.visible=false;if(e.bar&&e.bar.el)e.bar.el.style.display='none'}
               for(const z of MX.zom.list){z.dead=true;z.st='dead'}
               for(const el of [...document.body.children]){if(el!==renderer.domElement)el.style.display='none'}
               renderer.domElement.style.cssText='position:fixed;left:0;top:0;width:'+W+'px;height:'+W+'px';renderer.setPixelRatio(1);renderer.setSize(W,W);

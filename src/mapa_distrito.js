@@ -82,7 +82,7 @@ MAPA.data.M2 = function () {
   const front = (kind, axis, c, w, along, sd, extra) => { const f = OBJ.footprint(kind, 0, {}), off = w / 2 + SET + f.hz;
     return axis === 'x' ? COMP.building(D, Object.assign({ kind, x: along, z: c + sd * off, rot: sd > 0 ? PI : 0, pad: 1 }, extra || {}))
                         : COMP.building(D, Object.assign({ kind, x: c + sd * off, z: along, rot: sd > 0 ? -H : H, pad: 1 }, extra || {})); };
-  const row = (axis, c, w, sd, from, to, step) => { let n = 0; for (let a = from; a <= to + .01; a += step) if (front('house', axis, c, w, a, sd)) n++; return n; };
+  const LOTS = [], row = (axis, c, w, sd, from, to, step) => { let n = 0; for (let a = from; a <= to + .01; a += step) if (front('house', axis, c, w, a, sd)) { n++; LOTS.push({ axis, c, w, sd, a, step }); } return n; };
   const free = (x, z, m) => D.occ.every(o => Math.abs(o.x - x) > o.hx + (m || 2) || Math.abs(o.z - z) > o.hz + (m || 2)) && D.RI.gap(x, z) > 4;
   const spot = (x, z) => { for (let r = 0; r <= 40; r += 3) for (let a = 0; a < 6.28; a += .6) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (free(px, pz, 2.5) && Math.abs(px) < half - 8 && Math.abs(pz) < half - 8) return [px, pz]; } return null; };
   let sd = 200;
@@ -145,11 +145,24 @@ MAPA.data.M2 = function () {
     COMP.towerPost(D, { x: -299, z: -299, level: 1, seed: 960 }); place('ALD', 'Aldea (cruce)', -312, -312);
     zone('Aldea', -375, -375, -250, -250); }
   /* ---------- 6. casas: filas a lo largo de las calles, con la puerta a la calle ---------- */
-  let nh = 0;                                                                                            // densidad contenida hasta tener carga por sectores (B7–B9): cada casa trae su interior
-  nh += row('x', -312.5, 7, -1, -290, -146, 48) + row('x', -312.5, 7, 1, -290, -146, 48) + row('z', -312.5, 7, -1, -290, -146, 48) + row('z', -312.5, 7, 1, -290, -146, 48);   // aldea
-  nh += row('x', -375, 8, 1, -100, -28, 36) + row('z', -375, 8, 1, -100, -28, 36);                                                                                       // residencial norte y oeste (a la ronda exterior)
-  nh += row('x', -250, 11, 1, -100, -28, 36) + row('z', -250, 11, 1, -100, -28, 36);                                                                                     // casco norte y oeste (a la ronda interior)
+  let nh = 0; const ST = 26;                                                                             // parcelas de 26 m: casa, jardín trasero y coche delante
+  nh += row('x', -312.5, 7, -1, -292, -140, ST) + row('x', -312.5, 7, 1, -292, -140, ST) + row('z', -312.5, 7, -1, -292, -140, ST) + row('z', -312.5, 7, 1, -292, -140, ST);   // aldea, a sus dos calles
+  nh += row('x', -250, 11, -1, -236, -140, ST) + row('z', -250, 11, -1, -236, -140, ST);                                                                                   // aldea, a la ronda interior
+  nh += row('x', -375, 8, 1, -104, -24, ST) + row('x', -250, 11, -1, -104, -24, ST) + row('z', -125, 7, 1, -352, -268, ST) + row('z', 0, 14, -1, -352, -268, ST);         // residencial 1
+  nh += row('z', -375, 8, 1, -104, -24, ST) + row('z', -250, 11, -1, -104, -24, ST) + row('x', -125, 7, 1, -352, -268, ST) + row('x', 0, 14, -1, -352, -268, ST);         // residencial 2
+  nh += row('x', -250, 11, 1, -104, -24, ST) + row('x', -125, 7, -1, -104, -24, ST) + row('z', -125, 7, 1, -230, -146, ST);                                                // casco 1
+  nh += row('z', -250, 11, 1, -104, -24, ST) + row('z', -125, 7, -1, -104, -24, ST) + row('x', -125, 7, 1, -230, -146, ST) + row('x', 0, 14, -1, -236, -140, ST);          // casco 2
+  nh += row('z', -125, 7, 1, -104, -52, ST) + row('x', -125, 7, 1, -104, -52, ST) + row('z', -125, 7, -1, -236, -150, ST);                                                 // comercios y puesto avanzado
   D.nHouses = nh * 4;
+  /* jardines traseros (árboles instanciados: casi gratis de dibujar) y un coche aparcado delante de cada dos casas, en el carril de la acera */
+  const GT = [];
+  { const f = OBJ.footprint('house', 0, {});
+    LOTS.forEach((L, i) => {
+      const back = L.w / 2 + SET + 2 * f.hz + 7, at = (along, off) => L.axis === 'x' ? [along, L.c + L.sd * off] : [L.c + L.sd * off, along];
+      for (const [da, dd] of [[-5, 0], [5, 5]]) { const [x, z] = at(L.a + da + (rng() - .5) * 2, back + dd + rng() * 2); if (D.RI.gap(x, z) > 9 && D.occ.every(o => Math.abs(o.x - x) > o.hx + 3 || Math.abs(o.z - z) > o.hz + 3) && GT.every(t => Math.hypot(t[0] - x, t[1] - z) > 6)) GT.push([x, z, +(.75 + rng() * .35).toFixed(2)]); }
+      if (i % 2 === 0) { const lane = L.w / 2 - 1.3, [x, z] = at(L.a + 6, lane); COMP.put(D, 'car', x, z, L.axis === 'x' ? (L.sd > 0 ? 0 : PI) : (L.sd > 0 ? -H : H), null, .3); }
+    });
+    for (const t of GT) for (const k of KS(4)) { const [a, b] = R(k, t[0], t[1]); D.trees.push([+a.toFixed(1), +b.toFixed(1), t[2]]); } }
   zone('Residencial 1', -125, -375, 0, -250); zone('Residencial 2', -375, -125, -250, 0); zone('Puesto avanzado', -250, -250, -125, -125);
   zone('Casco 1 (farmacia)', -125, -250, 0, -125); zone('Casco 2 (tienda)', -250, -125, -125, 0); zone('Comercios', -125, -125, 0, 0);
   /* ---------- 7. atascos y mobiliario urbano (sólo en las calles del cuarto Azul: al girar cubren todas) ---------- */

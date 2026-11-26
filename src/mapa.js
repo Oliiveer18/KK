@@ -133,22 +133,54 @@ MAPA.build = function (D) {
     const e = placeObject('emblem' + R.fac, R.x + dir[0] * (hw + .1), R.z + dir[1] * (hd + .1), Math.atan2(dir[0], dir[1]), { fac: R.fac }); if (e) out.props.push(e);
   }
   flush(group, B);
-  if (D.trees && D.trees.length) {                                                        // bosques: árboles instanciados (3 mallas en total) con caja de colisión sólo en el tronco
-    const n = D.trees.length, trunk = new THREE.InstancedMesh(new THREE.CylinderGeometry(.22, .3, 2.4, 6), new THREE.MeshStandardMaterial({ color: 0x4e3b2a, roughness: 1, flatShading: true }), n),
-      c1 = new THREE.InstancedMesh(new THREE.ConeGeometry(1.7, 3.2, 7), new THREE.MeshStandardMaterial({ color: 0x2f4a2a, roughness: 1, flatShading: true }), n),
-      c2 = new THREE.InstancedMesh(new THREE.ConeGeometry(1.25, 2.6, 7), new THREE.MeshStandardMaterial({ color: 0x3a5a30, roughness: 1, flatShading: true }), n), M4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new V3(), ps = new V3();
-    D.trees.forEach((t, i) => { const k = t[2] || 1, ry = (t[0] * 7.3 + t[1] * 3.1) % 6.28; q.setFromAxisAngle(_Y, ry);
-      M4.compose(ps.set(t[0], 1.2 * k, t[1]), q, sc.set(k, k, k)); trunk.setMatrixAt(i, M4); M4.compose(ps.set(t[0], (2.4 + 1.3) * k, t[1]), q, sc.set(k, k, k)); c1.setMatrixAt(i, M4); M4.compose(ps.set(t[0], (2.4 + 2.9) * k, t[1]), q, sc.set(k, k, k)); c2.setMatrixAt(i, M4);
-      const bx = { x: t[0], z: t[1], hx: .32 * k, hz: .32 * k, h: 3, wall: true, tree: true }; boxes.push(bx); out.walls.push(bx); });
-    for (const m of [trunk, c1, c2]) { m.castShadow = true; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; m.frustumCulled = false; group.add(m); }
-  }
+  if (D.trees && D.trees.length && D.half <= 200) for (const m of treeMeshes(D.trees, out)) group.add(m);   // mapas grandes: árboles por sector (sectorize)
   for (const r of D.rails || []) out.rails.push(OBJ.rails(r.x, r.z, r.len, r.ry || 0));
   for (const b of D.buildings || []) { const r = placeObject(b.k, b.x, b.z, b.rot || 0, { fac: b.fac }); if (r) out.buildings.push(r); }
   for (const o of D.objects || []) { const r = MAPA.put(o.t, o.x, o.z, o.g || 0, o.o); if (r) out.props.push(r); }
-  out.info = D.info || null; MAPA.built = out; return out;
+  out.info = D.info || null; MAPA.built = out;
+  if (D.half > 200) sectorize(out, D);
+  return out;
+};
+/* ---------- sectores (mapas grandes): los objetos y edificios fijos cuelgan de grupos de 32 × 32 m; cada fotograma sólo se dejan visibles los sectores que
+   tocan lo que ve la cámara (con margen para sombras y objetos grandes), así Three.js no recorre ni calcula matrices ni recorta las ~80.000 piezas del resto
+   del mapa. No cambia nada de lo que se ve: lo que está en pantalla se dibuja igual. scene.remove sigue funcionando para lo que cuelga de un sector. ---------- */
+/* bosques: árboles instanciados (3 mallas por lote) con caja de colisión sólo en el tronco */
+const TREE_GEO = {};
+function treeMeshes(list, out) {
+  if (!TREE_GEO.t) { TREE_GEO.t = new THREE.CylinderGeometry(.22, .3, 2.4, 6); TREE_GEO.c1 = new THREE.ConeGeometry(1.7, 3.2, 7); TREE_GEO.c2 = new THREE.ConeGeometry(1.25, 2.6, 7);
+    TREE_GEO.mt = new THREE.MeshStandardMaterial({ color: 0x4e3b2a, roughness: 1, flatShading: true }); TREE_GEO.m1 = new THREE.MeshStandardMaterial({ color: 0x2f4a2a, roughness: 1, flatShading: true }); TREE_GEO.m2 = new THREE.MeshStandardMaterial({ color: 0x3a5a30, roughness: 1, flatShading: true }); }
+  const n = list.length, trunk = new THREE.InstancedMesh(TREE_GEO.t, TREE_GEO.mt, n), c1 = new THREE.InstancedMesh(TREE_GEO.c1, TREE_GEO.m1, n), c2 = new THREE.InstancedMesh(TREE_GEO.c2, TREE_GEO.m2, n), M4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new V3(), ps = new V3();
+  list.forEach((t, i) => { const k = t[2] || 1, ry = (t[0] * 7.3 + t[1] * 3.1) % 6.28; q.setFromAxisAngle(_Y, ry);
+    M4.compose(ps.set(t[0], 1.2 * k, t[1]), q, sc.set(k, k, k)); trunk.setMatrixAt(i, M4); M4.compose(ps.set(t[0], (2.4 + 1.3) * k, t[1]), q, sc.set(k, k, k)); c1.setMatrixAt(i, M4); M4.compose(ps.set(t[0], (2.4 + 2.9) * k, t[1]), q, sc.set(k, k, k)); c2.setMatrixAt(i, M4);
+    const bx = { x: t[0], z: t[1], hx: .32 * k, hz: .32 * k, h: 3, wall: true, tree: true }; boxes.push(bx); out.walls.push(bx); });
+  for (const m of [trunk, c1, c2]) { m.castShadow = true; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; m.frustumCulled = false; }
+  return [trunk, c1, c2];
+}
+const SEC = 32, SEC_M = 12;
+function sectorize(out, D) {
+  if (!scene.__secPatch) { scene.__secPatch = true; const rm = THREE.Object3D.prototype.remove;
+    scene.remove = function () { for (const o of arguments) { if (o && o.parent && o.parent !== scene && o.parent.__sector) o.parent.remove(o); else rm.call(scene, o); } return scene; }; }
+  const S = new Map(), list = [];
+  const sec = (x, z) => { const i = Math.floor(x / SEC), j = Math.floor(z / SEC), k = i * 1000 + j; let g = S.get(k);
+    if (!g) { g = new THREE.Group(); g.__sector = true; g.matrixAutoUpdate = false; g.box = new THREE.Box3(new V3(i * SEC - SEC_M, -1, j * SEC - SEC_M), new V3((i + 1) * SEC + SEC_M, 16, (j + 1) * SEC + SEC_M));
+      g.updateMatrixWorld = function (f) { if (this.visible) THREE.Object3D.prototype.updateMatrixWorld.call(this, f); }; S.set(k, g); list.push(g); scene.add(g); }
+    return g; };
+  const move = o => { if (o && o.parent === scene) sec(o.position.x, o.position.z).add(o); };
+  for (const p of props) move(p.g);
+  if (typeof OBJ !== 'undefined' && OBJ.buildings) for (const b of OBJ.buildings) move(b.group);
+  for (const r of out.rails) move(r);
+  if (D.trees && D.trees.length) { const by = new Map(); for (const t of D.trees) { const g = sec(t[0], t[1]); let a = by.get(g); if (!a) by.set(g, a = []); a.push(t); }
+    for (const [g, a] of by) for (const m of treeMeshes(a, out)) g.add(m); }
+  out.sectors = list;
+}
+const _fr = new THREE.Frustum(), _pm = new THREE.Matrix4();
+MAPA.cull = function (cam) {
+  const b = MAPA.built; if (!b || !b.sectors || MAPA.noCull) return;
+  cam.updateMatrixWorld(); _pm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); _fr.setFromProjectionMatrix(_pm);
+  for (const g of b.sectors) g.visible = _fr.intersectsBox(g.box);
 };
 MAPA.clear = function () {
-  const b = MAPA.built; if (!b) return; scene.remove(b.group); b.group.traverse(o => { if (o.geometry && o.isMesh) o.geometry.dispose(); });
+  const b = MAPA.built; if (!b) return; scene.remove(b.group); for (const g of b.sectors || []) { for (const o of g.children.slice()) if (!o.isInstancedMesh) scene.add(o); THREE.Object3D.prototype.remove.call(scene, g); } b.group.traverse(o => { if (o.geometry && o.isMesh) o.geometry.dispose(); });
   for (const r of b.rails) scene.remove(r); for (const x of b.buildings) OBJ.removeObject(x); for (const p of b.props) OBJ.removeObject(p);
   for (const w of b.walls) { const i = boxes.indexOf(w); if (i >= 0) boxes.splice(i, 1); } MAPA.built = null;
 };

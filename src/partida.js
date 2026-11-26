@@ -39,7 +39,7 @@ const HOT = [[0, 0], [0, -20], [0, 20], [22, -20], [-22, -20], [22, 20], [-22, 2
 
 function placeProp(spec, checkEnts) {
   const sp = PSPEC[spec.type], tg = new THREE.Group(), b = sp.build(tg), sw = Math.abs(Math.sin(spec.rot || 0)) > .5, hx = (sw ? b.hz : b.hx) + .1, hz = (sw ? b.hx : b.hz) + .1;
-  for (const o of boxes) if (Math.abs(o.x - spec.x) < o.hx + hx && Math.abs(o.z - spec.z) < o.hz + hz) return null;
+  for (const o of boxesIn(spec.x - hx, spec.z - hz, spec.x + hx, spec.z + hz)) if (Math.abs(o.x - spec.x) < o.hx + hx && Math.abs(o.z - spec.z) < o.hz + hz) return null;
   if (checkEnts) for (const e of M.ents) if (!e.dead && Math.hypot(e.p.x - spec.x, e.p.z - spec.z) < 1.6) return null;
   const p = addProp(spec.type, spec.x, spec.z, spec.rot || 0); p.spec = spec; M.props.push(p); return p;
 }
@@ -209,7 +209,7 @@ MX.findPath = findPath; MX.navAt = navAt; MX.lineFree = lineFree; MX.HOT = HOT;
 /* ---- visibilidad: línea libre entre dos puntos (ignorando, si se pide, los objetos bajos: se ve por encima de ellos) y humo ---- */
 function segClear(ax, az, bx, bz, ign1, ign2, lowIgnore) {
   const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz); if (L < 1e-4) return true; const ux = dx / L, uz = dz / L;
-  for (const b of boxes) {
+  for (const b of boxesIn(ax, az, bx, bz)) {
     if (b.prop && (b.prop === ign1 || b.prop === ign2)) continue;
     if (lowIgnore && b.prop && b.prop.h <= .95) continue;
     const r = rayBox2(ax, az, ux, uz, b); if (r && r[0] < L) return false;
@@ -226,7 +226,7 @@ function smokeBlock(ax, az, bx, bz) {
 }
 function wallBetween(ax, az, bx, bz) {
   const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz); if (L < 1e-4) return false; const ux = dx / L, uz = dz / L;
-  for (const b of M.walls) { const r = rayBox2(ax, az, ux, uz, b); if (r && r[0] < L) return true; }
+  for (const b of boxesIn(ax, az, bx, bz)) { if (!b.wall || b.prop) continue; const r = rayBox2(ax, az, ux, uz, b); if (r && r[0] < L) return true; }   // muros y árboles del mapa (M.walls), por el índice espacial
   return false;
 }
 
@@ -393,17 +393,20 @@ function perceive(e) {
   }
   return best;
 }
+/* explosivos a punto de estallar (con mecha o ardiendo): una sola pasada por fotograma para todos los bots, no una por bot */
+let _hxT = -1, _hxL = [];
+function hotExplosives() { if (_hxT === M.t) return _hxL; _hxT = M.t; _hxL = []; for (const p of props) if (!p.dead && p.explosive && (p.fuse >= 0 || p.burning)) _hxL.push(p); return _hxL; }
 function dangerVec(e) {
   let fx = 0, fz = 0, n = 0;
   const add = (x, z, r) => { const dx = e.p.x - x, dz = e.p.z - z, d = Math.hypot(dx, dz); if (d < r) { const k = (1 - d / r) + .2; fx += dx / (d || 1) * k; fz += dz / (d || 1) * k; n++; } };
   for (const g of grens) if (g.on && g.type === 'frag' && g.fuse < 2.4) add(g.p.x, g.p.z, R_FRAG + 1.6);
-  for (const p of props) if (!p.dead && p.explosive && (p.fuse >= 0 || p.burning)) add(p.x, p.z, 5.6);
+  for (const p of hotExplosives()) add(p.x, p.z, 5.6);
   for (const f of FIRES) add(f.x, f.z, f.r + 1.3);
   if (!n) return null; const l = Math.hypot(fx, fz) || 1; return { x: fx / l, z: fz / l };
 }
 function coverPoint(e, tx, tz) {                                                    // punto junto a un objeto desde el que la amenaza no tiene línea de tiro
   let best = null, bs = 1e9; const list = [];
-  for (const p of props) if (!p.dead && !p.explosive) list.push(p); for (const b of M.walls) list.push(b);
+  for (const b of boxesIn(e.p.x - 17, e.p.z - 17, e.p.x + 17, e.p.z + 17)) { const p = b.prop; if (p) { if (!p.dead && !p.explosive && p.box === b) list.push(p); } else if (b.wall) list.push(b); }   // sólo lo cercano (índice espacial)
   for (const c of list) {
     if (Math.hypot(c.x - e.p.x, c.z - e.p.z) > 17) continue;
     for (const [sx, sz] of DIRS4) {
@@ -464,7 +467,7 @@ function steerPath(e) {
 function think(e) {
   const df = DIFFS[M.diff];
   let cv = null, bd = 9;                                                             // cobertura baja pegada (se dispara por encima, como el jugador)
-  for (const p of props) { if (p.dead || p.h > .95) continue; const dx = Math.max(Math.abs(e.p.x - p.x) - p.hx, 0), dz = Math.max(Math.abs(e.p.z - p.z) - p.hz, 0), d = Math.hypot(dx, dz); if (d < (p === e.cover ? 1 : .8) && d < bd) { bd = d; cv = p; } }
+  for (const b of boxesIn(e.p.x - 1.5, e.p.z - 1.5, e.p.x + 1.5, e.p.z + 1.5)) { const p = b.prop; if (!p || p.box !== b || p.dead || p.h > .95) continue; const dx = Math.max(Math.abs(e.p.x - p.x) - p.hx, 0), dz = Math.max(Math.abs(e.p.z - p.z) - p.hz, 0), d = Math.hypot(dx, dz); if (d < (p === e.cover ? 1 : .8) && d < bd) { bd = d; cv = p; } }
   e.cover = cv; e.flee = dangerVec(e);
   const seen = perceive(e);
   if (MX.campaign) { e.syncT = (e.syncT || 0) - .13; if (e.syncT <= 0) { e.syncT = 1 + rnd() * .5; squadSync(e); } if (seen && seen.p && (!e.vis || e.tgt !== seen)) squadAlert(e, seen); }      // se avisa sólo cuando el bot VE al enemigo por primera vez (o a uno nuevo), no con seguimiento continuo

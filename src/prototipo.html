@@ -162,6 +162,28 @@ const MX = { on: false, want: false, campaign: false, district: false, rev: fals
 const WORLD = { x: 39, z: 39 };                                                    // límites jugables (mapa 3 los cambia)
 /* ---------- obstáculos (AABB) ---------- */
 const boxes = [], OBST = [];
+/* índice espacial de `boxes` (celdas de 8 m): las colisiones, balas, rayos y visibilidad sólo miran las cajas de las celdas que tocan, no las miles del mapa.
+   Se mantiene solo: boxes.push / boxes.splice lo actualizan; si alguien vacía el array con length = 0 se rehace entero; las cajas que se mueven avisan con boxMoved(b).
+   boxesIn(x0,z0,x1,z1) devuelve las cajas (sin repetir) cuyas celdas tocan el rectángulo; boxesAt(x,z) las de la celda de un punto. Mismo resultado que recorrer todas. */
+const BOXG = { cs: 8, m: new Map(), n: 0, st: 1, pool: [[], [], [], [], [], []], pi: 0 };
+const _bk = (i, j) => (i + 4096) * 8192 + (j + 4096);
+function _bAdd(b) { const cs = BOXG.cs, i0 = Math.floor((b.x - b.hx) / cs), i1 = Math.floor((b.x + b.hx) / cs), j0 = Math.floor((b.z - b.hz) / cs), j1 = Math.floor((b.z + b.hz) / cs);
+  b._g = [i0, i1, j0, j1]; for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const k = _bk(i, j); let a = BOXG.m.get(k); if (!a) BOXG.m.set(k, a = []); a.push(b); } BOXG.n++; }
+function _bDel(b) { const g = b._g; if (!g) return; for (let i = g[0]; i <= g[1]; i++) for (let j = g[2]; j <= g[3]; j++) { const a = BOXG.m.get(_bk(i, j)); if (!a) continue; const q = a.indexOf(b); if (q >= 0) { a[q] = a[a.length - 1]; a.pop(); } } b._g = null; BOXG.n--; }
+function _bSync() { if (BOXG.n === boxes.length) return; BOXG.m.clear(); BOXG.n = 0; for (const b of boxes) _bAdd(b); }
+boxes.push = function () { const r = Array.prototype.push.apply(this, arguments); for (let i = 0; i < arguments.length; i++) _bAdd(arguments[i]); _bSync(); return r; };
+boxes.splice = function () { const rem = Array.prototype.splice.apply(this, arguments); for (const b of rem) _bDel(b); for (let i = 2; i < arguments.length; i++) _bAdd(arguments[i]); _bSync(); return rem; };
+function boxMoved(b) { if (!b._g) return; const cs = BOXG.cs, g = b._g; if (Math.floor((b.x - b.hx) / cs) !== g[0] || Math.floor((b.x + b.hx) / cs) !== g[1] || Math.floor((b.z - b.hz) / cs) !== g[2] || Math.floor((b.z + b.hz) / cs) !== g[3]) { _bDel(b); _bAdd(b); } }
+function boxesIn(x0, z0, x1, z1) {
+  _bSync(); const cs = BOXG.cs, out = BOXG.pool[BOXG.pi = (BOXG.pi + 1) % BOXG.pool.length]; out.length = 0; const st = ++BOXG.st;
+  if (x1 < x0) { const t = x0; x0 = x1; x1 = t; } if (z1 < z0) { const t = z0; z0 = z1; z1 = t; }
+  const i0 = Math.floor(x0 / cs), i1 = Math.floor(x1 / cs), j0 = Math.floor(z0 / cs), j1 = Math.floor(z1 / cs);
+  if ((i1 - i0 + 1) * (j1 - j0 + 1) > BOXG.m.size) { for (const b of boxes) out.push(b); return out; }          // rectángulo enorme: más barato recorrerlas todas
+  for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const a = BOXG.m.get(_bk(i, j)); if (a) for (const b of a) if (b._s !== st) { b._s = st; out.push(b); } }
+  return out;
+}
+const _bEmpty = [];
+function boxesAt(x, z) { _bSync(); return BOXG.m.get(_bk(Math.floor(x / BOXG.cs), Math.floor(z / BOXG.cs))) || _bEmpty; }
 (function () {
   let seed = 7; const R = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const mats = [0x37435c, 0x2f3a50, 0x44536e].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: .85, flatShading: true }));
@@ -555,7 +577,7 @@ function rayCircle(ox, oz, dx, dz, cx, cz, r) {
   if (disc < 0) return Infinity; const t = -b - Math.sqrt(disc); return t >= 0 ? t : Infinity;
 }
 function collide(p, r, pk) {
-  for (const b of boxes) {
+  for (const b of boxesIn(p.x - r, p.z - r, p.x + r, p.z + r)) {
     const nx = clamp(p.x, b.x - b.hx, b.x + b.hx), nz = clamp(p.z, b.z - b.hz, b.z + b.hz);
     const dx = p.x - nx, dz = p.z - nz, d2 = dx * dx + dz * dz;
     if (d2 < r * r) {
@@ -831,7 +853,7 @@ function updateBullets(dt) {
     if (!b.on) continue;
     const bl = b.w.bal, sp = b.v * (1 - bl.drag * Math.min(1, b.d / bl.max)), d0 = b.d, d1 = Math.min(b.d + sp * dt, bl.max); b.age += dt;
     const L = [];                                                                    // colisión continua: todo lo que cruza el tramo recorrido en este fotograma
-    for (const bx of boxes) { if (bx.prop && (bx.prop === b.cover || b.passed.has(bx.prop))) continue; const r = rayBox2(b.ox, b.oz, b.dx, b.dz, bx); if (r && r[0] <= d1 && r[1] >= d0) L.push({ t: Math.max(r[0], d0), t2: r[1], bx }); }
+    for (const bx of boxesIn(b.ox + b.dx * d0, b.oz + b.dz * d0, b.ox + b.dx * d1, b.oz + b.dz * d1)) { if (bx.prop && (bx.prop === b.cover || b.passed.has(bx.prop))) continue; const r = rayBox2(b.ox, b.oz, b.dx, b.dz, bx); if (r && r[0] <= d1 && r[1] >= d0) L.push({ t: Math.max(r[0], d0), t2: r[1], bx }); }
     for (const tg of targets) { if (tg.hp <= 0) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, tg.g.position.x, tg.g.position.z, .42); if (tc >= d0 && tc <= d1) L.push({ t: tc, tg }); }
     if (MX.on && MX.zom) for (const z of MX.zom.list) { if (z.dead) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, z.p.x, z.p.z, z.r); if (tc >= d0 && tc <= d1) L.push({ t: tc, zom: z }); }   // zombis (campaña)
     if (MX.on) for (const e of MX.ents) { if (e.dead || e.inv > 0 || e.team === (b.own ? b.own.team : 0)) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, e.p.x, e.p.z, .36); if (tc >= d0 && tc <= d1) L.push({ t: tc, ent: e }); }   // jugadores y bots de la partida
@@ -1001,6 +1023,14 @@ const boomLight = new THREE.PointLight(0xffa050, 0, 16, 2); scene.add(boomLight)
 function warmAll() {
   const st = [], mv = muzzleLight.visible, bv = boomLight.visible;
   const extra = []; for (const k of ['pistol', 'rifle', 'shot', 'launcher', 'lmg', 'revolver', 'shot2', 'smg', 'sniper']) { try { const g = makeGun(k).g; scene.add(g); extra.push(g); } catch (e) { } }   // todos los modelos de arma (los bots los crean al cambiar)
+  /* mapas por sectores: en vez de dibujar las ~140.000 piezas, una pieza de cada material y de cada geometría (mismos shaders, texturas y buffers en la GPU) */
+  const secs = typeof MAPA !== 'undefined' && MAPA.built && MAPA.built.sectors, prox = [];
+  if (secs) { const sm = new Set(), sg = new Set(), I4 = new THREE.Matrix4();
+    for (const g of secs) g.traverse(o => { if (!o.isMesh) return; const ms = Array.isArray(o.material) ? o.material : [o.material], tag = o.isInstancedMesh ? 'i' : 'm';
+      let need = !sg.has(o.geometry); for (const m of ms) if (!sm.has(m.uuid + tag)) need = true; if (!need) return; sg.add(o.geometry); for (const m of ms) sm.add(m.uuid + tag);
+      const q = o.isInstancedMesh ? new THREE.InstancedMesh(o.geometry, o.material, 1) : new THREE.Mesh(o.geometry, o.material); if (o.isInstancedMesh) q.setMatrixAt(0, I4);
+      q.position.set(P.pos.x, 0, P.pos.z); q.castShadow = o.castShadow; q.receiveShadow = o.receiveShadow; prox.push(q); });
+    for (const g of secs) THREE.Object3D.prototype.remove.call(scene, g); for (const q of prox) scene.add(q); }
   scene.traverse(o => { st.push([o, o.visible, o.frustumCulled]); o.visible = true; o.frustumCulled = false; });
   const dm = [], seen = new Set(), addM = m => { if (!m) return; if (m.isMaterial) { if (!seen.has(m)) { seen.add(m);
       const geos = m.vertexColors ? [3, 4].map(n => { const g = geoBox.clone(); g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * n).fill(1), n)); return g; }) : [geoBox];   // con color de vértice, RGB y RGBA son shaders distintos
@@ -1012,6 +1042,7 @@ function warmAll() {
   muzzleLight.visible = true; boomLight.visible = true; renderer.render(scene, camera);                 // sube buffers y compila los shaders de sombra
   st.forEach(v => { v[0].visible = v[1]; v[0].frustumCulled = v[2]; }); muzzleLight.visible = mv; boomLight.visible = bv;
   for (const g of extra) scene.remove(g);
+  if (secs) { for (const q of prox) scene.remove(q); for (const g of secs) scene.add(g); }
 }
 const LIGHTS = { warm: false };
 function lightsSync() { muzzleLight.visible = muzzleLight.intensity > 0; boomLight.visible = boomLight.intensity > 0; }
@@ -1045,7 +1076,7 @@ function stepG(g, dt, nobox) {
     if (g.v.y < 0) { if (g.v.y < -1.5) gBounce(g); g.v.y *= -.42; g.v.x *= .72; g.v.z *= .72; if (Math.abs(g.v.y) < 1) g.v.y = 0; }
   }
   if (g.p.y <= .1 && g.v.y === 0) { const f = Math.pow(.2, dt); g.v.x *= f; g.v.z *= f; }
-  if (g.p.y < 1.5 && !nobox) for (const b of boxes) {
+  if (g.p.y < 1.5 && !nobox) for (const b of boxesIn(g.p.x - .2, g.p.z - .2, g.p.x + .2, g.p.z + .2)) {
     const nx = clamp(g.p.x, b.x - b.hx, b.x + b.hx), nz = clamp(g.p.z, b.z - b.hz, b.z + b.hz);
     const dx = g.p.x - nx, dz = g.p.z - nz, d2 = dx * dx + dz * dz, r = .09;
     if (d2 < r * r && d2 > 1e-8) {
@@ -1240,7 +1271,7 @@ function updateSmoke(dt) {
 }
 function castRay(ox, oz, dx, dz, max) {
   let t = max || 60, hit = null;
-  for (const b of boxes) { if (b.prop && b.prop === P.cover) continue; const tb = rayBox(ox, oz, dx, dz, b); if (tb < t) { t = tb; hit = 'wall'; } }
+  for (const b of boxesIn(ox, oz, ox + dx * t, oz + dz * t)) { if (b.prop && b.prop === P.cover) continue; const tb = rayBox(ox, oz, dx, dz, b); if (tb < t) { t = tb; hit = 'wall'; } }
   for (const tg of targets) {
     if (tg.hp <= 0 || !tg.g.visible) continue;
     const tc = rayCircle(ox, oz, dx, dz, tg.g.position.x, tg.g.position.z, .42); if (tc < t) { t = tc; hit = tg; }
@@ -1417,7 +1448,7 @@ function updateDebris(dt) {
         if (a >= 8) { const q = a - 8; if (d.L === 0) { lx = 0; ly = (q & 1 ? 1 : -1) * hh[1]; lz = (q & 2 ? 1 : -1) * hh[2]; } else if (d.L === 1) { ly = 0; lx = (q & 1 ? 1 : -1) * hh[0]; lz = (q & 2 ? 1 : -1) * hh[2]; } else { lz = 0; lx = (q & 1 ? 1 : -1) * hh[0]; ly = (q & 2 ? 1 : -1) * hh[1]; } }
         const rx = R[0] * lx + R[1] * ly + R[2] * lz, ry = R[3] * lx + R[4] * ly + R[5] * lz, rz = R[6] * lx + R[7] * ly + R[8] * lz, px = X.x + rx, py = X.y + ry, pz = X.z + rz;
         if (py < 0) { const o = nc * 8; _CT[o] = rx; _CT[o + 1] = ry; _CT[o + 2] = rz; _CT[o + 3] = 0; _CT[o + 4] = 1; _CT[o + 5] = 0; _CT[o + 6] = -py; _CT[o + 7] = 0; nc++; if (-py > _pen6[0]) _pen6[0] = -py; }
-        if (py < 3.2 && nc < 40) for (const b of boxes) {                              // objetos en pie y paredes
+        if (py < 3.2 && nc < 40) for (const b of boxesAt(px, pz)) {                              // objetos en pie y paredes
           if (d.srcOn && b.prop === d.src) continue;                                  // el trozo acaba de salir de ese objeto: no choca con él hasta quedar fuera
           if (Math.abs(px - b.x) >= b.hx || Math.abs(pz - b.z) >= b.hz) continue;
           const top = b.prop ? b.prop.h : 3; if (py >= top) continue;
@@ -1437,7 +1468,7 @@ function updateDebris(dt) {
     if (d.srcOn) { const b = d.src.box; if (Math.abs(X.x - b.x) > b.hx + .2 || Math.abs(X.z - b.z) > b.hz + .2 || d.src.dead) d.srcOn = false; }
     { const wl = W.length(); if (wl > 20) W.multiplyScalar(20 / wl); }
     if (maxImp > 1.4 && d.imp < 2) { d.imp++; debrisSnd({ mat: d.mat, v: { y: -maxImp } }, d.o); }
-    for (const b of boxes) {                                                           // red de seguridad: si por velocidad el centro acabó dentro de un objeto, se saca por el lado más cercano
+    for (const b of boxesAt(X.x, X.z)) {                                               // red de seguridad: si por velocidad el centro acabó dentro de un objeto, se saca por el lado más cercano
       if (d.srcOn && b.prop === d.src) continue; const top = b.prop ? b.prop.h : 3, ox = X.x - b.x, oz = X.z - b.z;
       if (Math.abs(ox) < b.hx && Math.abs(oz) < b.hz && X.y < top) {
         const px = b.hx - Math.abs(ox), pz = b.hz - Math.abs(oz), py = top - X.y;
@@ -1558,7 +1589,7 @@ function addProp(type, x, z, rot) {
 function tryPlace(type, x, z, rot) {
   const sp = PSPEC[type]; if (Math.hypot(x, z) < 5 || Math.abs(x) > WORLD.x - 2 || Math.abs(z) > WORLD.z - 2) return null;
   const tmpG = new THREE.Group(), b = sp.build(tmpG), sw = Math.abs(Math.sin(rot || 0)) > .5, hx = (sw ? b.hz : b.hx) + .12, hz = (sw ? b.hx : b.hz) + .12;
-  for (const o of boxes) if (Math.abs(o.x - x) < o.hx + hx && Math.abs(o.z - z) < o.hz + hz) return null;
+  for (const o of boxesIn(x - hx, z - hz, x + hx, z + hz)) if (Math.abs(o.x - x) < o.hx + hx && Math.abs(o.z - z) < o.hz + hz) return null;
   for (const t of targets) if (Math.hypot(t.g.position.x - x, t.g.position.z - z) < 1.6) return null;
   return addProp(type, x, z, rot);
 }
@@ -1713,8 +1744,8 @@ function bulletHitProp(p, b, px, pz, dx, dz, dmg, inner, by) {
 }
 function updateProps(dt) {
   let cv = null, bd = 9;                                                             // cobertura: agachado junto a un objeto bajo, se dispara por encima de él
-  for (const p of props) {
-    if (p.dead || p.h > .95) continue;
+  for (const b of boxesIn(P.pos.x - 1.5, P.pos.z - 1.5, P.pos.x + 1.5, P.pos.z + 1.5)) {   // sólo lo cercano (índice espacial)
+    const p = b.prop; if (!p || p.box !== b || p.dead || p.h > .95) continue;
     const dx = Math.max(Math.abs(P.pos.x - p.x) - p.hx, 0), dz = Math.max(Math.abs(P.pos.z - p.z) - p.hz, 0), d = Math.hypot(dx, dz);
     if (d < (p === P.cover ? 1 : .8) && d < bd) { bd = d; cv = p; }
   }
@@ -1746,12 +1777,12 @@ function updateProps(dt) {
     if (p.v.lengthSq() > .0004 && p.pushable) {                                      // objeto empujado: se desliza, choca y frena
       const b = p.box, nx = p.x + p.v.x * dt, nz = p.z + p.v.z * dt; p.x = nx; p.z = nz;
       p.sndT = (p.sndT || 0) - dt; { const sv = p.v.length(); if (sv > .9 && p.sndT <= 0) { p.sndT = .75; playAt(p.mat === 'metal' ? 'PUSH_barrel' : 'PUSH_crate', p.x, p.z, { vol: clamp(.35 + sv * .12, 0, 1), rate: p.type === 'barrier' ? 1.25 : 1, gap: 0 }); } }
-      for (const o of boxes) {
+      for (const o of boxesIn(p.x - p.hx, p.z - p.hz, p.x + p.hx, p.z + p.hz)) {
         if (o === b) continue;
         const ox = p.x - o.x, oz = p.z - o.z, px = o.hx + p.hx - Math.abs(ox), pz = o.hz + p.hz - Math.abs(oz);
         if (px > 0 && pz > 0) { if (px < pz) { p.x += Math.sign(ox || 1) * px; p.v.x *= -.25; } else { p.z += Math.sign(oz || 1) * pz; p.v.z *= -.25; } if (o.prop && o.prop.pushable) pushProp(o.prop, p.v.x * p.mass * .4, p.v.z * p.mass * .4); }
       }
-      p.x = clamp(p.x, -WORLD.x + p.hx, WORLD.x - p.hx); p.z = clamp(p.z, -WORLD.z + p.hz, WORLD.z - p.hz); b.x = p.x; b.z = p.z; p.g.position.set(p.x, 0, p.z);
+      p.x = clamp(p.x, -WORLD.x + p.hx, WORLD.x - p.hx); p.z = clamp(p.z, -WORLD.z + p.hz, WORLD.z - p.hz); b.x = p.x; b.z = p.z; boxMoved(b); p.g.position.set(p.x, 0, p.z);
       const f = Math.exp(-p.fric * dt); p.v.x *= f; p.v.z *= f; p.wob = Math.max(p.wob, Math.min(.5, p.v.length() * .08));
     }
     if (p.wob > .001) { p.wob *= Math.exp(-7 * dt); p.g.rotation.z = Math.sin(time * 55) * p.wob * .06; p.g.rotation.x = Math.cos(time * 47) * p.wob * .06; } else if (p.g.rotation.z || p.g.rotation.x) p.g.rotation.z = p.g.rotation.x = 0;
@@ -2344,7 +2375,7 @@ let last = performance.now(), fAcc = 0, fN = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min((now - last) / 1000, .05); last = now; if (dt <= 0) return;
-  try { const _a = performance.now(); time += dt; if (menuOpen) { menuTick(); loopTick(dt); } else update(dt); /* en pausa los bucles se apagan con fundido */ const _b = performance.now(); lightsSync(); diagGpuBegin(); renderer.render(scene, camera); diagGpuEnd(); const _c = performance.now(); DIAG.u += _b - _a; DIAG.r += _c - _b; DIAG.n++; }
+  try { const _a = performance.now(); time += dt; if (menuOpen) { menuTick(); loopTick(dt); } else update(dt); /* en pausa los bucles se apagan con fundido */ const _b = performance.now(); lightsSync(); if (typeof MAPA !== 'undefined') MAPA.cull(camera); diagGpuBegin(); renderer.render(scene, camera); diagGpuEnd(); const _c = performance.now(); DIAG.u += _b - _a; DIAG.r += _c - _b; DIAG.n++; }
   catch (e) { const el = $('err'); el.style.display = 'block'; el.textContent = 'Error en el juego: ' + e.message + '\n' + String(e.stack || '').split('\n').slice(0, 3).join('\n'); }
   fAcc += dt; fN++; if (fAcc > .5) { const fps = Math.round(fN / fAcc); $('fps').textContent = fps + ' FPS' + (DIAG.on && DIAG.n ? ' · lógica ' + (DIAG.u / DIAG.n).toFixed(1) + ' ms · dibujo(CPU) ' + (DIAG.r / DIAG.n).toFixed(1) + ' ms · GPU ' + (DIAG.ext ? (DIAG.gn ? (DIAG.g / DIAG.gn).toFixed(1) + ' ms' : '…') : 'n/d') + ' · ' + renderer.info.render.calls + ' llamadas · ' + Math.round(renderer.info.render.triangles / 1000) + 'k tri · ' + renderer.domElement.width + '×' + renderer.domElement.height : ''); DIAG.u = DIAG.r = DIAG.n = DIAG.g = DIAG.gn = 0; $('fps').style.color = fps >= 55 ? '#6dff9a' : fps >= 30 ? '#ffd24a' : '#ff6a4a'; fAcc = 0; fN = 0; }
 }
