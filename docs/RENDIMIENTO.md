@@ -1,5 +1,8 @@
 # Rendimiento (regla de oro: no quitar calidad visual)
 
+## Medición en el móvil (`src/rendimiento.js`, `PERF`)
+Toca el cuadro de FPS (diagnóstico) y sale un panel abajo a la izquierda: **p50 / p95 / p99 / máx del tiempo entre fotogramas**, % de fotogramas >20 ms y >33 ms, reparto lógica / preparación / dibujo CPU, las partes de la lógica (MX.update, zombis, escuadras, findPath, cull…) y los **últimos tirones con su causa** (lógica, dibujo CPU o «GPU / basura / navegador»). Avisa si la mediana pasa de 28 ms (pantalla a 30 Hz por el modo ahorro de iOS, o equipo lento). `PERF.informe()` da el texto para copiar. Interruptor `?noperf`. Es sólo medición: no cambia nada de lo que se ve.
+
 ## Navegación del distrito completo
 
 La cuadrícula inicial se calcula entera. Al actualizarla durante la partida, el índice de colisiones marca las zonas de 8 m afectadas por altas, bajas y movimientos de obstáculos, incluido el margen de paso y la huella anterior. Cada zona se recalcula con todos los obstáculos que aún se solapan. Se conserva el ritmo de actualización y de respuesta a las puertas. Las búsquedas A* reutilizan el registro de visitados con dos marcas por búsqueda y limpian el registro completo al agotar las marcas disponibles.
