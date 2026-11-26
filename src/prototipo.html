@@ -852,6 +852,7 @@ function updateBullets(dt) {
   for (const b of BUL) {
     if (!b.on) continue;
     const bl = b.w.bal, sp = b.v * (1 - bl.drag * Math.min(1, b.d / bl.max)), d0 = b.d, d1 = Math.min(b.d + sp * dt, bl.max); b.age += dt;
+    if (MX.on && MX.bulletPass) MX.bulletPass(b, b.ox + b.dx * d0, b.oz + b.dz * d0, b.ox + b.dx * d1, b.oz + b.dz * d1);   // supresión (escuadras.js)
     const L = [];                                                                    // colisión continua: todo lo que cruza el tramo recorrido en este fotograma
     for (const bx of boxesIn(b.ox + b.dx * d0, b.oz + b.dz * d0, b.ox + b.dx * d1, b.oz + b.dz * d1)) { if (bx.prop && ((bx.prop === b.cover && coverPass(bx.prop, b.ox, b.oz, b.dx, b.dz)) || b.passed.has(bx.prop))) continue; const r = rayBox2(b.ox, b.oz, b.dx, b.dz, bx); if (r && r[0] <= d1 && r[1] >= d0) L.push({ t: Math.max(r[0], d0), t2: r[1], bx }); }
     for (const tg of targets) { if (tg.hp <= 0) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, tg.g.position.x, tg.g.position.z, .42); if (tc >= d0 && tc <= d1) L.push({ t: tc, tg }); }
@@ -2021,6 +2022,7 @@ function update(dt) {
     if (edge(BIND.dash)) flags.dash = true;
     dpX = (down(15) ? 1 : 0) - (down(14) ? 1 : 0);                        // cruceta ←→: girar la dirección en el modo lanzamiento
     lmLock = P.gState > 0 || gren || smk || (!!cur.launch && ads);          // en ese modo la cruceta no cambia de arma
+    MX.dpadLock = lmLock || RANGE.on;                                       // la cruceta da órdenes a la escuadra (escuadras.js) salvo en el modo lanzamiento y en el polígono
     if (!menuOpen) rangePadIn(k => lmLock && k >= 12 && k <= 15 ? false : edge(k));
     if (edge(9)) openMenu();                                     // Options = configurar mando
     for (let k = 0; k < g.buttons.length; k++) { if (down(k) && !prevBtn[k]) { mode = 'pad'; begin(); } prevBtn[k] = down(k); }
@@ -2397,5 +2399,6 @@ requestAnimationFrame(frame);
 <script src="mapa_distrito.js"></script>
 <script src="partida.js"></script>
 <script src="zombis.js"></script>
+<script src="escuadras.js"></script>
 </body>
 </html>

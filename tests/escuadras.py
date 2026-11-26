@@ -1,4 +1,6 @@
-"""Campaña con 25 combatientes por facción (100 en total) en 5 escuadras de 5: reparto, líder, formación, seguimiento del jugador, avisos compartidos y estabilidad."""
+"""Escuadras de la campaña (src/escuadras.js): tamaños realistas e iguales para las 4 facciones, líder por mérito y relevo al caer, órdenes del jugador
+(seguir, mantener, avanzar, cobertura, reagrupar), tomar y ceder el mando, unirse a otra escuadra, ir por libre, fusiones de escuadras mermadas, supresión
+y estabilidad con 100 combatientes. Mapa 4 (campaña pequeña, 99 × 59 m)."""
 import os, sys, time
 from playwright.sync_api import sync_playwright
 errs = []; bad = 0
@@ -10,30 +12,62 @@ with sync_playwright() as p:
     pg = b.new_page(viewport={'width': 1100, 'height': 700}); pg.on('pageerror', lambda e: errs.append(str(e)))
     pg.goto('file://' + os.path.abspath('index.html') + '?mapa=4'); pg.wait_for_timeout(1000); ev = pg.evaluate
     ev('begin()'); pg.wait_for_timeout(400); ev('MX.zom.noRestock=true')
-    r = ev('()=>({n:MX.ents.length,teams:[0,1,2,3].map(t=>MX.ents.filter(e=>e.team===t).length),sq:[0,1,2,3].map(t=>[0,1,2,3,4].map(s=>MX.ents.filter(e=>e.team===t&&e.sq===s).length).join("")),player:MX.ents[0].isPlayer&&MX.ents[0].team===0&&MX.ents[0].sq===0})')
+    ev('''()=>{window.__noZ=()=>{for(const z of MX.zom.list){z.dead=true;z.st="dead";z.deadT=99}};
+      window.__run=(n,f)=>{for(let i=0;i<n;i++){__noZ();if(f)f();update(1/60)}};
+      window.__only=t=>()=>{for(const e of MX.ents) if(e.team!==t&&e.bot){e.dead=true;e.respT=1e9}};
+      window.__sq=e=>e.sqd; window.__S=()=>MX.SQ.list}''')
+    r = ev('''()=>({teams:[0,1,2,3].map(t=>MX.SQ.list.filter(s=>s.team===t).map(s=>s.members.length).sort((a,b)=>a-b).join(',')),
+      tot:[0,1,2,3].map(t=>MX.ents.filter(e=>e.team===t).length),pl:MX.pl.sqd.name,lead:MX.pl.sqd.leader===MX.pl,plLead:MX.pl.sqd.playerLead,size:MX.pl.sqd.members.length})''')
     print(r)
-    chk(r['n'] == 100 and r['teams'] == [25, 25, 25, 25], '100 combatientes: 25 por cada una de las 4 facciones (el jugador dentro de Azul)')
-    chk(all(s == '55555' for s in r['sq']), 'cada facción tiene 5 escuadras de 5 combatientes')
-    chk(r['player'], 'el jugador es el primero de la escuadra 0 de Azul')
-    # sin enemigos ni zombis: se mide la formación
-    ev('()=>{for(const z of MX.zom.list){z.dead=true;z.st="dead";z.deadT=99}}')
-    run = lambda n: ev('()=>{for(let i=0;i<%d;i++){for(const z of MX.zom.list){z.dead=true;z.st="dead";z.deadT=99} update(1/60)}}' % n)
-    ev('()=>{MX.pl.hp=1e9;MX.pl.inv=99}'); run(60 * 20)
-    d = ev('''()=>{const out=[];for(let t=0;t<4;t++)for(let s=0;s<5;s++){const m=MX.ents.filter(e=>e.team===t&&e.sq===s&&!e.dead&&!e.dwn);if(m.length<3)continue;const L=m[0];const ds=m.slice(1).map(e=>Math.hypot(e.p.x-L.p.x,e.p.z-L.p.z)).sort((a,b)=>a-b);out.push(ds[Math.floor(ds.length/2)])}out.sort((a,b)=>a-b);return {n:out.length,med:out[Math.floor(out.length/2)],p90:out[Math.floor(out.length*.9)]}}''')
-    print('distancia mediana de los miembros a su líder (escuadras):', d)
-    chk(d['med'] < 20, 'las escuadras se mantienen agrupadas (mediana a %.1f m del líder, mapa de 99 × 59 m)' % d['med'])
-    # el jugador lidera su escuadra: los 4 bots de Azul-0 le siguen
-    ev('()=>{for(const e of MX.ents) if(e.team!==0) {e.dead=true;e.respT=1e9}; P.pos.set(0,0,0)}')
-    ev('()=>{window.__run2=n=>{for(let i=0;i<n;i++){for(const e of MX.ents) if(e.team!==0&&e.bot) e.respT=1e9; update(1/60)}}}'); ev('()=>__run2(60*25)')
-    ev('()=>{P.pos.set(18,0,6)}'); ev('()=>__run2(60*14)')
-    d2 = ev('()=>{const m=MX.ents.filter(e=>e.team===0&&e.sq===0&&e.bot&&!e.dead&&!e.dwn);return {n:m.length,d:m.map(e=>Math.round(Math.hypot(e.p.x-P.pos.x,e.p.z-P.pos.z)))}}')
-    print('distancia de la escuadra del jugador a él:', d2)
-    chk(d2['n'] >= 3 and sorted(d2['d'])[len(d2['d']) // 2] < 18, 'los bots de la escuadra del jugador le siguen (mediana a %d m)' % sorted(d2['d'])[len(d2['d']) // 2])
-    # estabilidad
-    t0 = time.time(); run(60 * 40); ms = (time.time() - t0) / (60 * 40) * 1000
-    d3 = ev('()=>({vivos:MX.ents.filter(e=>!e.dead).length,atasc:MX.ents.filter(e=>e.bot&&!e.dead&&e.stuckN>1).length,muertes:MX.ents.reduce((a,e)=>a+e.deaths,0),puntos:MX.M.score.join("/")})')
-    print('tras 60 s con 100 combatientes: %.1f ms por actualización (headless)' % ms, d3)
-    chk(d3['atasc'] < 8, 'sin atascos masivos (%d atascados de 100)' % d3['atasc'])
-    print('llamadas de dibujo (cámara en el jugador):', ev('renderer.info.render.calls'))
+    chk(r['tot'] == [25, 25, 25, 25], '25 combatientes por facción')
+    chk(len(set(r['teams'])) == 1 and r['teams'][0] == '2,3,4,5,5,6', 'escuadras de tamaño realista (2, 3, 4, 5, 5 y 6) e iguales para las 4 facciones: %s' % r['teams'][0])
+    chk(r['lead'] and r['plLead'] and r['size'] == 5, 'el jugador lidera su escuadra (%s, 5 miembros)' % r['pl'])
+    # líder por mérito y relevo al caer
+    r = ev('''()=>{const s=MX.SQ.list.find(q=>q.team===1&&q.members.length===6);const m=s.members;m.forEach(e=>{e.kills=0;e.vet=0;e.lifeStart=MX.M.t});m[3].kills=5;m[4].kills=3;
+      for(let i=0;i<40;i++)update(1/60);const a=s.leader===m[3];m[3].inv=0;m[3].revived=true;m[3].hp=1;MX.hit(m[3],999,null,0,1,null);for(let i=0;i<40;i++)update(1/60);const b2=s.leader===m[4];return {a,b:b2}}''')
+    chk(r['a'], 'el líder de una escuadra de bots es el mejor (más bajas)')
+    chk(r['b'], 'si el líder cae, el siguiente mejor vivo toma el mando')
+    # órdenes del jugador (sin enemigos)
+    ev('__only(0)()'); ev('()=>{MX.pl.hp=1e9;MX.pl.inv=1e9;P.pos.set(-20,0,0)}'); ev('()=>__run(60*8,__only(0))')
+    med = lambda: ev('()=>{const s=MX.pl.sqd,d=s.members.filter(e=>e.bot&&!e.dead&&!e.dwn).map(e=>Math.hypot(e.p.x-P.pos.x,e.p.z-P.pos.z)).sort((a,b)=>a-b);return d.length?d[d.length>>1]:99}')
+    d_follow = med(); print('seguir: mediana a %.1f m' % d_follow)
+    chk(d_follow < 14, 'SEGUIRME: la escuadra va con el jugador en formación abierta (mediana %.1f m)' % d_follow)
+    ev("MX.SQ.cmd('hold',false)"); ev('()=>{P.pos.set(25,0,10)}'); ev('()=>__run(60*8,__only(0))')
+    r = ev('()=>{const s=MX.pl.sqd,o=s.order;return {t:o.type,d:s.members.filter(e=>e.bot&&!e.dead).map(e=>Math.round(Math.hypot(e.p.x-o.x,e.p.z-o.z)))}}')
+    print('mantener:', r)
+    chk(r['t'] == 'hold' and max(r['d']) < 14, 'MANTENER: se quedan en el punto aunque el jugador se vaya (máx. %d m)' % max(r['d']))
+    ev('()=>{P.pos.set(-20,0,0);P.aim=Math.PI/2}'); ev("MX.SQ.cmd('move',false)"); ev('()=>__run(60*12,__only(0))')
+    r = ev('()=>{const s=MX.pl.sqd,o=s.order;return {t:o.type,x:Math.round(o.x),z:Math.round(o.z),d:s.members.filter(e=>e.bot&&!e.dead).map(e=>Math.round(Math.hypot(e.p.x-o.x,e.p.z-o.z)))}}')
+    print('avanzar:', r)
+    chk(r['t'] == 'move' and sorted(r['d'])[len(r['d']) // 2] < 12, 'AVANZAR: la escuadra llega al punto al que apunta el jugador (22 m delante)')
+    ev("()=>{MX.pl.sqd.members.forEach(e=>{if(e.bot){e.ammo=e.w.max;e.shots=0}});window.__sh=0;const f=MX.pl.sqd.members.filter(e=>e.bot);f.forEach(e=>{e.__a=e.ammo})}")
+    ev("MX.SQ.cmd('cover',false)"); ev('()=>__run(60*6,__only(0))')
+    r = ev('()=>{const s=MX.pl.sqd;return {t:s.order.type,shots:s.members.filter(e=>e.bot).reduce((a,e)=>a+Math.max(0,(e.__a-e.ammo+(e.reloadT>=0?e.w.max:0))),0)}}')
+    print('cobertura:', r)
+    chk(r['t'] == 'cover' and r['shots'] > 0, 'FUEGO DE COBERTURA: la escuadra dispara hacia donde apunta el jugador (%d disparos)' % r['shots'])
+    # mando: ceder y tomar; unirse; por libre
+    r = ev('''()=>{MX.SQ.cmd('lead',true);const s=MX.pl.sqd,a=!s.playerLead&&s.leader&&s.leader.bot;MX.SQ.cmd('lead',true);const b2=s.playerLead&&s.leader===MX.pl;return {a,b:b2}}''')
+    chk(r['a'], 'CEDER EL MANDO: lo toma el mejor de la escuadra')
+    chk(r['b'], 'TOMAR EL MANDO: el jugador vuelve a liderar')
+    r = ev('''()=>{const o=MX.SQ.list.find(q=>q.team===0&&q!==MX.pl.sqd&&q.leader);P.pos.set(o.leader.p.x+2,0,o.leader.p.z);const old=MX.pl.sqd;MX.SQ.cmd('join',true);
+      const s=MX.pl.sqd;return {joined:s===o,lead:s.leader&&s.leader.bot,oldLead:old.leader&&old.leader.bot,n:s.members.length}}''')
+    chk(r['joined'] and r['lead'], 'UNIRSE: el jugador entra en la escuadra amiga más cercana y sigue a su líder')
+    chk(r['oldLead'], 'su antigua escuadra sigue con un líder bot')
+    r = ev('''()=>{MX.SQ.cmd('leave',true);const s=MX.pl.sqd;return {n:s.members.length,lead:s.playerLead}}''')
+    chk(r['n'] == 1 and r['lead'], 'POR LIBRE: el jugador forma su propia escuadra de 1')
+    # fusión: una escuadra que se queda en 1 miembro se une a otra
+    r = ev('''()=>{const s=MX.SQ.list.find(q=>q.team===0&&q.members.length===2&&!q.members.includes(MX.pl));if(!s)return {skip:true};const m=s.members[1],left=s.members[0];const o=MX.SQ.list.find(q=>q.team===0&&q!==s&&!q.members.includes(MX.pl)&&q.leader);
+      o.members.push(m);s.members=s.members.filter(x=>x!==m);m.sqd=o;m.sq=o.id;for(let i=0;i<60*12;i++){__noZ();__only(0)();update(1/60)}return {merged:left&&left.sqd!==s,size:left&&left.sqd.members.length}}''')
+    print('fusión:', r)
+    chk(r.get('merged'), 'una escuadra que se queda con 1 miembro se une a otra de su facción')
+    # supresión
+    r = ev('''()=>{const e=MX.ents.find(q=>q.team===1);e.dead=false;e.respT=0;e.p.set(10,0,10);e.supp=0;spawnBullet(0,1,10.8,1,0,WP[1],null);for(let i=0;i<20;i++)updateBullets(1/60);return e.supp}''')
+    chk(r > .1, 'SUPRESIÓN: una bala que pasa a menos de 1 m sube la supresión del enemigo (%.2f)' % r)
+    # estabilidad y ritmo con las 4 facciones
+    ev('()=>{for(const e of MX.ents)if(e.bot){e.respT=0}MX.pl.inv=1e9;MX.pl.hp=1e9}')
+    t0 = time.time(); ev('()=>__run(60*40)'); ms = (time.time() - t0) / (60 * 40) * 1000
+    r = ev('()=>({vivos:MX.ents.filter(e=>!e.dead).length,atasc:MX.ents.filter(e=>e.bot&&!e.dead&&e.stuckN>1).length,bajas:MX.M.score.reduce((a,b)=>a+b,0),sq:MX.SQ.list.length})')
+    print('40 s con 100 combatientes: %.1f ms por actualización (headless)' % ms, r)
+    chk(r['atasc'] < 8, 'sin atascos masivos (%d)' % r['atasc'])
     print('ERRORES JS:', errs or 'ninguno'); bad += len(errs)
 sys.exit(1 if bad else 0)

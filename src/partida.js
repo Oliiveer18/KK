@@ -204,7 +204,7 @@ function findPath(sx, sz, gx, gz) {
   while (i < pts.length - 1) { let j = pts.length - 1; while (j > i + 1 && !lineFree(pts[i], pts[j])) j--; out.push(pts[j]); i = j; }
   return out.length ? out : [{ x: gx, z: gz }];
 }
-MX.findPath = findPath; MX.navAt = navAt; MX.lineFree = lineFree; MX.HOT = HOT;
+MX.findPath = findPath; MX.navAt = navAt; MX.lineFree = lineFree; MX.HOT = HOT; MX.coverPoint = (e, tx, tz) => coverPoint(e, tx, tz); MX.segClear = (...a) => segClear(...a);   // para escuadras.js
 
 /* ---- visibilidad: línea libre entre dos puntos (ignorando, si se pide, los objetos bajos: se ve por encima de ellos) y humo ---- */
 function segClear(ax, az, bx, bz, ign1, ign2, lowIgnore) {
@@ -427,17 +427,23 @@ function setGoal(e, x, z) { e.goal = { x, z }; e.needPath = true; }
 /* ---- grupos de 5 (escuadras): 5 por facción (25 combatientes). El líder es el primer miembro vivo en pie; en la escuadra 0 de Azul lidera el jugador y los demás le siguen.
    Los seguidores van a su puesto de la formación junto al destino del líder, se reagrupan si se alejan y comparten avisos de enemigos. ---- */
 const SQ_OFF = [[0, 0], [-2.2, 2.2], [2.2, 2.2], [-3.6, -1.6], [3.6, -1.6]], SQ_MAX = 30;
-function leaderOf(e) { for (const o of M.ents) if (o.team === e.team && o.sq === e.sq && !o.dead && !o.dwn) return o; return null; }
+function leaderOf(e) { if (MX.SQ && e.sqd) return e.sqd.leader; for (const o of M.ents) if (o.team === e.team && o.sq === e.sq && !o.dead && !o.dwn) return o; return null; }   // campaña: líder elegido por escuadras.js
 function squadGoal(e, L) {                                                           // punto de formación de un seguidor junto a su líder
   const o = SQ_OFF[e.slot % 5], a = L.isPlayer ? P.aim : L.yaw, ca = Math.cos(a), sa = Math.sin(a), base = L.isPlayer || !L.goal ? L.p : L.goal;
   return { x: base.x + o[0] * ca + o[1] * sa, z: base.z - o[0] * sa + o[1] * ca };
 }
+function sqApply(e, g) {                                                             // aplica el objetivo que da la escuadra (escuadras.js): punto, ritmo, si se queda y hacia dónde mira
+  e.sqSpeed = g.speed; e.sqHold = !!g.hold; e.sqFace = g.face; e.sqCrouch = !!g.crouch;
+  if (!e.goal || Math.hypot(e.goal.x - g.x, e.goal.z - g.z) > 2.5) { setGoal(e, g.x + rr(-.4, .4), g.z + rr(-.4, .4)); e.holdT = 0; }
+}
 function squadSync(e) {                                                              // llamado desde think: mantiene al seguidor con su escuadra
+  if (MX.SQ && e.sqd) { if (e.st === 'push') { const g = MX.SQ.goalFor(e); if (g) sqApply(e, g); } return; }
   const L = leaderOf(e); e.leader = L; if (!L || L === e || e.st !== 'push') return;
   const g = squadGoal(e, L), far = Math.hypot(L.p.x - e.p.x, L.p.z - e.p.z) > SQ_MAX;
   if (!e.goal || far || Math.hypot(e.goal.x - g.x, e.goal.z - g.z) > 5) setGoal(e, g.x + rr(-.6, .6), g.z + rr(-.6, .6));
 }
 function squadAlert(e, seen) {                                                       // un miembro ve un enemigo: avisa a los de su escuadra que no lo ven
+  if (MX.SQ && e.sqd) { MX.SQ.contact(e, seen); return; }                             // campaña: la escuadra toma posiciones de apoyo (escuadras.js), no corre hacia el enemigo
   if (M.t - (e.sqAlert || -9) < 1.5) return; e.sqAlert = M.t;
   for (const o of M.ents) {
     if (o === e || o.dead || o.dwn || o.isPlayer || o.team !== e.team || o.sq !== e.sq || o.vis || o.st === 'cover' || M.t - o.alertT < 3) continue;
@@ -446,6 +452,7 @@ function squadAlert(e, seen) {                                                  
   }
 }
 function pickGoal(e) {
+  if (MX.campaign && MX.SQ && e.sqd) { const g = MX.SQ.goalFor(e); if (g) { e.goal = null; sqApply(e, g); return; } }   // campaña: objetivo de su escuadra (misión, formación, órdenes)
   if (MX.campaign) { const L = leaderOf(e); if (L && L !== e) { const g = squadGoal(e, L); e.goal = null; setGoal(e, g.x + rr(-.6, .6), g.z + rr(-.6, .6)); return; } }   // seguidor: va a su puesto junto al líder
   const dir = e.team % 2 === 0 ? 1 : -1, cand = []; let tot = 0;
   for (const h of HOT) { const d = Math.hypot(h[0] - e.p.x, h[1] - e.p.z); if (d < 7) continue; const w = 1 + 1.6 * clamp(dir * h[e.team < 2 ? 0 : 1] / 30, 0, 1) - (e.lastGoal && Math.hypot(h[0] - e.lastGoal[0], h[1] - e.lastGoal[1]) < 5 ? .8 : 0); cand.push([h, Math.max(.15, w)]); tot += Math.max(.15, w); }
@@ -475,7 +482,10 @@ function think(e) {
 
   if (seen) { if (e.tgt !== seen) { e.tgt = seen; e.reactT = 0; e.leadK = rr(.6, 1.05); } e.vis = true; e.seenT = M.t; e.ls.x = seen.p.x; e.ls.z = seen.p.z; } else e.vis = false;
   if (e.vis) { const sx = e.p.x + Math.sin(e.yaw) * .6, sz = e.p.z + Math.cos(e.yaw) * .6; e.dT = Math.hypot(e.tgt.p.x - e.p.x, e.tgt.p.z - e.p.z); e.canShoot = segClear(sx, sz, e.tgt.p.x, e.tgt.p.z, e.cover, null, false) && !smokeBlock(sx, sz, e.tgt.p.x, e.tgt.p.z); } else e.canShoot = false;
-  if (!e.vis && e.hitSrc && e.lastAtt && !e.lastAtt.dead && e.lastAtt.team !== e.team && M.t - e.lastAttT < .6 && e.st !== 'cover' && M.t - e.alertT > 4) {   // me han disparado y no veo a nadie: voy hacia el lugar de donde vino el disparo (dirección del impacto, no la posición real del atacante)
+  const tac = MX.campaign && MX.SQ && e.sqd;                                         // campaña: táctica de escuadra (no se persigue ni se va a buscar al que dispara)
+  if (tac && !e.vis && e.hitSrc && M.t - e.lastAttT < .6) MX.SQ.contact(e, { p: e.hitSrc, team: -1 });
+  if (tac && e.supp > .55 && e.st !== 'cover' && !e.cover && (e.vis || e.suppFrom)) { const th = e.vis ? e.tgt.p : e.suppFrom, cp = coverPoint(e, th.x, th.z); if (cp && Math.hypot(cp.x - e.p.x, cp.z - e.p.z) < 9) { e.st = 'cover'; e.coverStart = M.t - 4; e.coverPt = cp; setGoal(e, cp.x, cp.z); } }   // suprimido: a cubierto
+  if (!tac && !e.vis && e.hitSrc && e.lastAtt && !e.lastAtt.dead && e.lastAtt.team !== e.team && M.t - e.lastAttT < .6 && e.st !== 'cover' && M.t - e.alertT > 4) {   // me han disparado y no veo a nadie: voy hacia el lugar de donde vino el disparo (dirección del impacto, no la posición real del atacante)
     e.alertT = M.t; e.ls.x = e.hitSrc.x; e.ls.z = e.hitSrc.z; e.st = 'search'; e.searchStart = M.t; setGoal(e, e.ls.x, e.ls.z);
   }
   const lowHp = e.hp < 36;
@@ -485,7 +495,7 @@ function think(e) {
     const th = e.vis ? e.tgt.p : (e.hitSrc || null);
     if (th) { const cp = coverPoint(e, th.x, th.z) || retreatPoint(e, th.x, th.z); if (cp) { e.st = 'cover'; e.coverStart = M.t; e.coverPt = cp; setGoal(e, cp.x, cp.z); } }
   } else if (e.vis) { if (e.st !== 'fight') { e.st = 'fight'; e.path = null; e.goal = null; } }
-  else if (e.st === 'fight' && M.t - e.seenT > 1.0) { e.st = 'search'; e.searchStart = M.t; setGoal(e, e.ls.x, e.ls.z); }
+  else if (e.st === 'fight' && M.t - e.seenT > 1.0) { if (tac) { e.st = 'push'; e.goal = null; } else { e.st = 'search'; e.searchStart = M.t; setGoal(e, e.ls.x, e.ls.z); } }
   else if (e.st === 'search' && M.t - e.searchStart > 6) { e.st = 'push'; e.goal = null; }
   if (e.st === 'push' && !e.goal) pickGoal(e);
   /* granadas: frag al rival a 5,6–8,6 m (cae a 7 m fijos); humo hacia la amenaza al retirarse */
@@ -528,9 +538,16 @@ function aimFire(e, dt) {
   if (e.vis && e.tgt && !e.tgt.dead) {
     const t = e.tgt, d = e.dT, tof = d / ((w.bal.v || 24) * .9), lx = t.p.x + t.v.x * tof * e.leadK, lz = t.p.z + t.v.z * tof * e.leadK;
     clean = Math.atan2(lx - e.p.x, lz - e.p.z);
-    e.errT -= dt; if (e.errT <= 0) { e.errT = rr(.2, .4); e.err = clamp(gauss() * df.err * Math.pow(Math.max(d, 3) / 10, .7) * (Math.hypot(e.v.x, e.v.z) > 1 ? 1.3 : 1) * (1 - e.crouch * .15), -.3, .3); }
+    e.errT -= dt; if (e.errT <= 0) { e.errT = rr(.2, .4); e.err = clamp(gauss() * df.err * Math.pow(Math.max(d, 3) / 10, .7) * (Math.hypot(e.v.x, e.v.z) > 1 ? 1.3 : 1) * (1 - e.crouch * .15) * (1 + 2.2 * (e.supp || 0)), -.3, .3); }   // suprimido: peor puntería
     want = clean + e.err;
-  } else if (Math.hypot(e.v.x, e.v.z) > .8) {
+  } else if (MX.campaign && MX.SQ && e.sqd && e.reloadT < 0 && e.ammo > 0 && !w.launch) {                 // fuego de supresión: a la zona del contacto o a donde ordenó el jugador
+    const sp = MX.SQ.supPoint(e);
+    if (sp) { const d = Math.hypot(sp.x - e.p.x, sp.z - e.p.z), ux = (sp.x - e.p.x) / (d || 1), uz = (sp.z - e.p.z) / (d || 1), aim = Math.atan2(sp.x - e.p.x, sp.z - e.p.z) + Math.sin(M.t * 1.7 + e.phase * 9) * .12;
+      e.yaw += clamp(angDiff(e.yaw, aim), -df.turn * dt, df.turn * dt);
+      if (d > 4 && Math.abs(angDiff(e.yaw, aim)) < .25 && e.fireCd <= 0 && e.pause <= 0 && segClear(e.p.x, e.p.z, e.p.x + ux * Math.min(d - 2, 18), e.p.z + uz * Math.min(d - 2, 18), e.cover, null, true)) { shoot(e); e.pause = Math.max(e.pause, rr(.6, 1.6)); }
+      return; }
+  }
+  if (!(e.vis && e.tgt && !e.tgt.dead) && Math.hypot(e.v.x, e.v.z) > .8) {
     e.glanceT -= dt; if (e.glanceT <= 0) { e.glanceT = rr(1.2, 3); e.glance = rr(-.9, .9); } want = Math.atan2(e.v.x, e.v.z) + e.glance * .6;
   }
   if (want !== null) e.yaw += clamp(angDiff(e.yaw, want), -df.turn * dt, df.turn * dt);
@@ -545,20 +562,24 @@ function moveBot(e, dt) {
   let dx = 0, dz = 0, spd = 0, crT = 0; const t = e.tgt;
   if (e.flee) { dx = e.flee.x; dz = e.flee.z; spd = 7; }
   else if (e.st === 'push') {
+    const sqd = MX.campaign && MX.SQ && e.sqd;
     if (!e.goal && !e.holdT) pickGoal(e);
     const r = steerPath(e);
-    if (r === 'arrived') { e.holdT = rr(.6, 2.2); e.goal = null; e.path = null; }
-    if (e.holdT > 0) { e.holdT -= dt; spd = 0; if (e.holdT <= 0) e.holdT = 0; } else if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = 6.4; }
+    if (r === 'arrived') { if (sqd && e.sqHold) { e.holdT = 1e9; e.path = null; } else { e.holdT = rr(.6, 2.2); e.goal = null; e.path = null; } }   // en su puesto: se queda (la escuadra le cambia el objetivo cuando toca)
+    if (e.holdT > 0) { e.holdT -= dt; spd = 0; if (e.holdT <= 0) e.holdT = 0; if (sqd && e.sqHold) { if (e.sqCrouch || e.supp > .3) crT = 1; if (!e.vis && e.sqFace !== undefined) e.yaw += clamp(angDiff(e.yaw, e.sqFace), -3 * dt, 3 * dt); } }
+    else if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = sqd ? (e.sqSpeed || 5) : 6.4; }
   } else if (e.st === 'fight' && t && !t.dead) {
     const d = e.dT || 10, ux = (t.p.x - e.p.x) / (d || 1), uz = (t.p.z - e.p.z) / (d || 1);
-    if (!e.canShoot || d > e.ideal * 1.35 || d > e.maxEng * .9) {
+    const tac = MX.campaign && MX.SQ && e.sqd, L = tac ? e.sqd.leader : null, leash = tac && L && L !== e && Math.hypot(L.p.x - e.p.x, L.p.z - e.p.z) > 18 && Math.hypot(L.p.x - t.p.x, L.p.z - t.p.z) > Math.hypot(e.p.x - t.p.x, e.p.z - t.p.z);
+    if (tac && (leash || e.supp > .45) && (!e.canShoot || d > e.ideal * 1.35)) { spd = 0; crT = 1; }                 // no se separa de su escuadra persiguiendo; suprimido, se queda agachado
+    else if (!e.canShoot || d > e.ideal * 1.35 || d > e.maxEng * .9) {
       if (!e.goal || M.t - e.pathT > .7 || Math.hypot(e.goal.x - t.p.x, e.goal.z - t.p.z) > 3) setGoal(e, t.p.x, t.p.z);
-      const r = steerPath(e); if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = e.canShoot ? 3.6 : 5.4; }
+      const r = steerPath(e); if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = tac ? (e.canShoot ? 2.6 : 3.4) : e.canShoot ? 3.6 : 5.4; }
     } else if (e.keepAway && d < e.ideal * .5) { dx = -ux; dz = -uz; spd = 3.6; }
     else {
       e.strafeT -= dt; if (e.strafeT <= 0) { e.strafeT = rr(.8, 2.2); e.strafeDir = rnd() < .5 ? -1 : 1; }
       let lx = uz * e.strafeDir, lz = -ux * e.strafeDir; if (!navAt(e.p.x + lx, e.p.z + lz)) { e.strafeDir *= -1; lx = -lx; lz = -lz; }
-      dx = lx; dz = lz; spd = e.cover && e.hp < 80 ? 0 : 3; if (e.cover && (e.hp < 80 || e.w.sid === 'F2')) crT = 1;
+      dx = lx; dz = lz; spd = e.cover && (e.hp < 80 || tac) ? 0 : tac ? 1.8 : 3; if (e.cover && (e.hp < 80 || e.w.sid === 'F2' || tac)) crT = 1; if (tac && e.supp > .3) crT = 1;
     }
   } else if (e.st === 'search') {
     const r = steerPath(e); if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = 5.2; } else if (r === 'arrived' || r === 'none') { e.st = 'push'; e.goal = null; }
@@ -615,6 +636,7 @@ function respawn(e) {
   const s0 = pickSpawn(e.team), s = { x: s0.x, z: s0.z, yaw: s0.yaw };
   if (MX.campaign) for (let k = 0; k < 8; k++) { const x = s0.x + rr(-3, 3), z = s0.z + rr(-3, 3); if (navAt(x, z)) { s.x = x; s.z = z; break; } }   // campaña: 25 por facción, se reparten junto al punto de aparición
   e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = SH; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.hitSrc = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); syncKit(e);
+  if (MX.SQ && MX.campaign) MX.SQ.onRespawn(e);
   if (e.isPlayer) return respawnPlayer(e);
   unbake(e); setWeapon(e, pickWeaponIdx()); e.gCount = 3; e.sCount = 2; e.st = 'push'; e.goal = null; e.path = null; e.tgt = null; e.vis = false; e.reactT = 0; e.canShoot = false; e.wantThrow = null; e.holdT = 0;
   e.crouch = e.crouchT = 0; e.kick = 0; e.fireCd = rr(.2, .6); e.pause = 0; e.burst = 0; e.gCd = rr(4, 10); e.sCd = 6; e.walk = 0; e.stuckN = 0; e.nudge = 0; e.py = 1.1; e.thinkT = rnd() * .12; e.ring.visible = true; e.root.visible = true;
@@ -714,7 +736,7 @@ MX.hit = (e, dmg, from, dx, dz, w, src) => {
 function kill(v, killer, dx, dz) {
   if (!killer && v.lastAtt && M.t - v.lastAttT < 8 && v.lastAtt.team !== v.team) killer = v.lastAtt;     // fuego o explosión sin autor claro: cuenta quien le hirió hace poco
   const wasDown = !!v.dwn; if (wasDown) { v.dwn = false; dwnFxClear(v); }
-  v.dead = true; v.deaths++; v.hp = 0; v.tgp.hp = 0; v.respT = RESPAWN + (v.isPlayer ? 0 : rnd() * .8); v.inv = 0;
+  v.dead = true; v.deaths++; v.hp = 0; v.tgp.hp = 0; if (MX.SQ && MX.campaign) MX.SQ.onDeath(v); v.respT = RESPAWN + (v.isPlayer ? 0 : rnd() * .8); v.inv = 0;
   addFeed(killer && killer !== v ? killer : null, v, v.lastSrc);
   if (killer && killer !== v && killer.team !== v.team) { killer.kills++; M.score[killer.team]++; if (killer.isPlayer) playSnd('HIT_kill') || playSnd('HIT_marker'); }          // bajas a compañeros y suicidios no puntúan
   for (let i = 0; i < 8; i++) spawn('red', _kp.set(v.p.x, .9, v.p.z), _kv.set((Math.random() - .5) * 4 + dx * 2, 1 + Math.random() * 3, (Math.random() - .5) * 4 + dz * 2), .5, .04, .04, .04, true, 8);
@@ -878,6 +900,7 @@ MX.start = () => {
   for (const g of grens) g.own = null; while (grens.length < 14) { const m = new THREE.Mesh(geoBall, grens[0].m.material.clone()); m.scale.set(.09, .09, .09); m.castShadow = true; m.visible = false; scene.add(m); grens.push({ m, p: new V3(), v: new V3(), fuse: 0, on: false, own: null }); }
   M.built = true; MX.on = true; hud.style.display = 'block'; if (MX.zom && MX.campaign) MX.zom.init();
   for (const e of M.ents) respawn(e);
+  if (MX.campaign && MX.SQ) MX.SQ.init();
   forceWeapon(M.slots[0]);
 };
 MX.placeBars = () => {                                                              // se llama tras mover la cámara: así la barra no se retrasa un fotograma respecto al personaje
@@ -891,6 +914,7 @@ MX.update = dt => {
   for (let i = M.propQ.length - 1; i >= 0; i--) { const q = M.propQ[i]; if (M.t >= q.t) { if (placeProp(q.spec, true)) M.propQ.splice(i, 1); else q.t = M.t + 4; } }
   armoryTick(dt);
   if (MX.zom && MX.campaign) MX.zom.update(dt);
+  if (MX.SQ && MX.campaign) MX.SQ.update(dt);
   const pl = M.ents[0];
   if (pl.dead || pl.dwn) {                                                           // caído (muerto o abatido): cuerpo que cae; el muerto cuenta atrás para reaparecer
     if (pl.dead) pl.respT -= dt; else { pl.dwT += dt; dwnFxTick(pl); if (MX.campaign && pl.dwT >= DWN_T && !M.over) { endRescueOn(pl); kill(pl, pl.lastAtt && M.t - pl.lastAttT < 40 ? pl.lastAtt : null, 0, 1); } }

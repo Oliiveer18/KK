@@ -1,5 +1,11 @@
 # Changelog
 
+## Escuadras realistas, órdenes y cobertura de coches (26-11)
+- Coches: capó y maletero son cobertura baja (agachado, se dispara por encima si la bala cruza el capó o el maletero); la cabina es cobertura alta. Los bots buscan el capó y el maletero. Test `tests/cobertura_coche.py`.
+- Nuevo `src/escuadras.js`: escuadras de 2–6 (iguales en las 4 facciones) con misión del mando de su facción (defender, mantener, atacar, reconocer); líder = el mejor vivo, relevo al caer; formación abierta, avance por saltos al atacar, posiciones de apoyo y fuego de supresión en contacto, sin persecuciones; supresión por balas cercanas; rezagados que se unen a otra escuadra y escuadras mermadas que se funden o se repliegan a reorganizarse.
+- El jugador: órdenes con la cruceta del mando PS5 (y teclas 1–8), tomar/ceder el mando, unirse a otra escuadra, ir por libre. Panel de escuadra y avisos. Ver `docs/CONTROLES.md`.
+- Tests: `tests/escuadras.py` reescrito (18 comprobaciones), `tests/avisos_bots.py` adaptado.
+
 ## Optimización sin pérdida visual y mapa lleno (26-11)
 - Índice espacial de cajas, sectores de 32 m con recorte por cámara (0 píxeles distintos), árboles por sector, precalentado reducido, bots sin recorrer todos los objetos. Detalle y cifras en `docs/RENDIMIENTO.md`.
 - Distrito v3 relleno: 400 casas con jardín y coches aparcados. Test nuevo `tests/sectores_identico.py`; `tests/rendimiento.py` incluye el mapa 6.

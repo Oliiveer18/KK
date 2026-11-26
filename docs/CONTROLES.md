@@ -50,3 +50,17 @@ Clic en el cuadro de FPS muestra GPU, lógica, dibujo (CPU), llamadas, triángul
 ## Notas
 - Los controles guardados en el navegador usan la clave `bind4`; los valores por defecto anteriores se descartaron.
 - Vibración: implementada con Gamepad API (`dual-rumble`) y `navigator.vibrate`, pero **no funciona en Safari de iPhone** con DualSense (comprobado por el usuario). Los gatillos adaptativos (resistencia física) no se pueden controlar desde el navegador.
+
+## Escuadra (campaña, mapas 4–6)
+Las órdenes sólo funcionan si tienes el mando de tu escuadra (★ en el panel de la izquierda). La cruceta no da órdenes mientras apuntas una granada o el lanzagranadas, ni en el polígono.
+
+| Mando PS5 (cruceta) | Toque | Mantener (½ s) | Teclado |
+|---|---|---|---|
+| ← | **Seguirme**: formación abierta detrás de ti | **Unirse** a la escuadra amiga más cercana (< 60 m) | 1 · 5 |
+| ↓ | **Mantener posición**: se reparten en arco donde estás, a cubierto, mirando hacia donde apuntas | **Ir por libre** (escuadra de 1) | 2 · 7 |
+| ↑ | **Avanzar**: van al punto 22 m delante de donde apuntas y lo mantienen | **Reagrupar**: todos contigo, ya | 3 · 8 |
+| → | **Fuego de cobertura**: 10 s de supresión hacia donde apuntas | **Tomar / ceder el mando** (lo recibe el mejor de la escuadra) | 4 · 6 |
+
+- Si el líder cae (también tú), el mejor vivo de la escuadra toma el mando. Para recuperarlo, mantén →.
+- Un anillo en el suelo marca el punto de la orden: verde (mantener), azul (avanzar) o naranja (zona de cobertura).
+
