@@ -210,7 +210,7 @@ MX.findPath = findPath; MX.navAt = navAt; MX.lineFree = lineFree; MX.HOT = HOT;
 function segClear(ax, az, bx, bz, ign1, ign2, lowIgnore) {
   const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz); if (L < 1e-4) return true; const ux = dx / L, uz = dz / L;
   for (const b of boxesIn(ax, az, bx, bz)) {
-    if (b.prop && (b.prop === ign1 || b.prop === ign2)) continue;
+    if (b.prop && ((b.prop === ign1 && coverPass(b.prop, ax, az, ux, uz)) || b.prop === ign2)) continue;
     if (lowIgnore && b.prop && b.prop.h <= .95) continue;
     const r = rayBox2(ax, az, ux, uz, b); if (r && r[0] < L) return false;
   }
@@ -409,8 +409,9 @@ function coverPoint(e, tx, tz) {                                                
   for (const b of boxesIn(e.p.x - 17, e.p.z - 17, e.p.x + 17, e.p.z + 17)) { const p = b.prop; if (p) { if (!p.dead && !p.explosive && p.box === b) list.push(p); } else if (b.wall) list.push(b); }   // sólo lo cercano (índice espacial)
   for (const c of list) {
     if (Math.hypot(c.x - e.p.x, c.z - e.p.z) > 17) continue;
-    for (const [sx, sz] of DIRS4) {
-      const px = c.x + sx * (c.hx + .85), pz = c.z + sz * (c.hz + .85); if (!navAt(px, pz)) continue;
+    const pts = DIRS4.map(([sx, sz]) => [c.x + sx * (c.hx + .85), c.z + sz * (c.hz + .85)]);
+    if (c.type && LOWEND[c.type]) { const g = c.g.rotation.y, ca = Math.cos(g), sa = -Math.sin(g), L = LOWEND[c.type]; for (const a of [L.c1 + .7, L.c0 - .5]) for (const s of [-1, 1]) { const w = Math.min(c.hx, c.hz) + .85; pts.push([c.x + ca * a - sa * s * w, c.z + sa * a + ca * s * w]); } }   // coche: junto al capó y al maletero (cobertura baja desde la que se dispara)
+    for (const [px, pz] of pts) { if (!navAt(px, pz)) continue;
       if (segClear(tx, tz, px, pz, null, null, false)) continue;
       const sc = Math.hypot(px - e.p.x, pz - e.p.z) + (Math.hypot(px - tx, pz - tz) < 4 ? 20 : 0) + rnd() * 2; if (sc < bs) { bs = sc; best = { x: px, z: pz }; }
     }
@@ -467,7 +468,7 @@ function steerPath(e) {
 function think(e) {
   const df = DIFFS[M.diff];
   let cv = null, bd = 9;                                                             // cobertura baja pegada (se dispara por encima, como el jugador)
-  for (const b of boxesIn(e.p.x - 1.5, e.p.z - 1.5, e.p.x + 1.5, e.p.z + 1.5)) { const p = b.prop; if (!p || p.box !== b || p.dead || p.h > .95) continue; const dx = Math.max(Math.abs(e.p.x - p.x) - p.hx, 0), dz = Math.max(Math.abs(e.p.z - p.z) - p.hz, 0), d = Math.hypot(dx, dz); if (d < (p === e.cover ? 1 : .8) && d < bd) { bd = d; cv = p; } }
+  for (const b of boxesIn(e.p.x - 1.5, e.p.z - 1.5, e.p.x + 1.5, e.p.z + 1.5)) { const p = b.prop; if (!p || p.box !== b || p.dead || !lowCoverAt(p, e.p.x, e.p.z)) continue; const dx = Math.max(Math.abs(e.p.x - p.x) - p.hx, 0), dz = Math.max(Math.abs(e.p.z - p.z) - p.hz, 0), d = Math.hypot(dx, dz); if (d < (p === e.cover ? 1 : .8) && d < bd) { bd = d; cv = p; } }
   e.cover = cv; e.flee = dangerVec(e);
   const seen = perceive(e);
   if (MX.campaign) { e.syncT = (e.syncT || 0) - .13; if (e.syncT <= 0) { e.syncT = 1 + rnd() * .5; squadSync(e); } if (seen && seen.p && (!e.vis || e.tgt !== seen)) squadAlert(e, seen); }      // se avisa sólo cuando el bot VE al enemigo por primera vez (o a uno nuevo), no con seguimiento continuo

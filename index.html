@@ -861,7 +861,7 @@ function updateBullets(dt) {
     if (!b.on) continue;
     const bl = b.w.bal, sp = b.v * (1 - bl.drag * Math.min(1, b.d / bl.max)), d0 = b.d, d1 = Math.min(b.d + sp * dt, bl.max); b.age += dt;
     const L = [];                                                                    // colisión continua: todo lo que cruza el tramo recorrido en este fotograma
-    for (const bx of boxesIn(b.ox + b.dx * d0, b.oz + b.dz * d0, b.ox + b.dx * d1, b.oz + b.dz * d1)) { if (bx.prop && (bx.prop === b.cover || b.passed.has(bx.prop))) continue; const r = rayBox2(b.ox, b.oz, b.dx, b.dz, bx); if (r && r[0] <= d1 && r[1] >= d0) L.push({ t: Math.max(r[0], d0), t2: r[1], bx }); }
+    for (const bx of boxesIn(b.ox + b.dx * d0, b.oz + b.dz * d0, b.ox + b.dx * d1, b.oz + b.dz * d1)) { if (bx.prop && ((bx.prop === b.cover && coverPass(bx.prop, b.ox, b.oz, b.dx, b.dz)) || b.passed.has(bx.prop))) continue; const r = rayBox2(b.ox, b.oz, b.dx, b.dz, bx); if (r && r[0] <= d1 && r[1] >= d0) L.push({ t: Math.max(r[0], d0), t2: r[1], bx }); }
     for (const tg of targets) { if (tg.hp <= 0) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, tg.g.position.x, tg.g.position.z, .42); if (tc >= d0 && tc <= d1) L.push({ t: tc, tg }); }
     if (MX.on && MX.zom) for (const z of MX.zom.list) { if (z.dead) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, z.p.x, z.p.z, z.r); if (tc >= d0 && tc <= d1) L.push({ t: tc, zom: z }); }   // zombis (campaña)
     if (MX.on) for (const e of MX.ents) { if (e.dead || e.inv > 0 || e.team === (b.own ? b.own.team : 0)) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, e.p.x, e.p.z, .36); if (tc >= d0 && tc <= d1) L.push({ t: tc, ent: e }); }   // jugadores y bots de la partida
@@ -1279,7 +1279,7 @@ function updateSmoke(dt) {
 }
 function castRay(ox, oz, dx, dz, max) {
   let t = max || 60, hit = null;
-  for (const b of boxesIn(ox, oz, ox + dx * t, oz + dz * t)) { if (b.prop && b.prop === P.cover) continue; const tb = rayBox(ox, oz, dx, dz, b); if (tb < t) { t = tb; hit = 'wall'; } }
+  for (const b of boxesIn(ox, oz, ox + dx * t, oz + dz * t)) { if (b.prop && b.prop === P.cover && coverPass(b.prop, ox, oz, dx, dz)) continue; const tb = rayBox(ox, oz, dx, dz, b); if (tb < t) { t = tb; hit = 'wall'; } }
   for (const tg of targets) {
     if (tg.hp <= 0 || !tg.g.visible) continue;
     const tc = rayCircle(ox, oz, dx, dz, tg.g.position.x, tg.g.position.z, .42); if (tc < t) { t = tc; hit = tg; }
@@ -1720,6 +1720,16 @@ function rayBox2(ox, oz, dx, dz, b) {
   }
   return [tmin, tmax];
 }
+/* cobertura por zonas: un coche es bajo (≈1 m) en el capó y en el maletero y alto (1,5 m) en la cabina. Agachado junto al capó o al maletero es cobertura baja:
+   te cubre y al apuntar disparas por encima, pero sólo si la bala cruza el coche por el capó o el maletero (no a través de la cabina). LOWEND: tramo de cabina en el eje largo del modelo. */
+const LOWEND = { car: { c0: -1.15, c1: .75 } };
+const _alongOf = (p, x, z) => { const g = p.g.rotation.y; return (x - p.x) * Math.cos(g) - (z - p.z) * Math.sin(g); };
+function lowCoverAt(p, x, z) { if (p.h <= .95) return true; const L = LOWEND[p.type]; if (!L) return false; const a = _alongOf(p, x, z); return a < L.c0 - .15 || a > L.c1 + .15; }
+function coverPass(p, ox, oz, dx, dz) {
+  const L = LOWEND[p.type]; if (!L) return true;
+  const r = rayBox2(ox, oz, dx, dz, p.box); if (!r) return true; const a0 = _alongOf(p, ox + dx * r[0], oz + dz * r[0]), a1 = _alongOf(p, ox + dx * r[1], oz + dz * r[1]);
+  return (a0 < L.c0 && a1 < L.c0) || (a0 > L.c1 && a1 > L.c1);
+}
 const IMPS = { wood: 'IMP_wood', plastic: 'IMP_plastic', metal: 'IMP_metal', sand: 'IMP_sand', block: 'IMP_block' };
 function impactSnd(mat, x, z) {
   playAt(IMPS[mat], x, z);
@@ -1753,7 +1763,7 @@ function bulletHitProp(p, b, px, pz, dx, dz, dmg, inner, by) {
 function updateProps(dt) {
   let cv = null, bd = 9;                                                             // cobertura: agachado junto a un objeto bajo, se dispara por encima de él
   for (const b of boxesIn(P.pos.x - 1.5, P.pos.z - 1.5, P.pos.x + 1.5, P.pos.z + 1.5)) {   // sólo lo cercano (índice espacial)
-    const p = b.prop; if (!p || p.box !== b || p.dead || p.h > .95) continue;
+    const p = b.prop; if (!p || p.box !== b || p.dead || !lowCoverAt(p, P.pos.x, P.pos.z)) continue;
     const dx = Math.max(Math.abs(P.pos.x - p.x) - p.hx, 0), dz = Math.max(Math.abs(P.pos.z - p.z) - p.hz, 0), d = Math.hypot(dx, dz);
     if (d < (p === P.cover ? 1 : .8) && d < bd) { bd = d; cv = p; }
   }
@@ -4369,7 +4379,7 @@ MX.findPath = findPath; MX.navAt = navAt; MX.lineFree = lineFree; MX.HOT = HOT;
 function segClear(ax, az, bx, bz, ign1, ign2, lowIgnore) {
   const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz); if (L < 1e-4) return true; const ux = dx / L, uz = dz / L;
   for (const b of boxesIn(ax, az, bx, bz)) {
-    if (b.prop && (b.prop === ign1 || b.prop === ign2)) continue;
+    if (b.prop && ((b.prop === ign1 && coverPass(b.prop, ax, az, ux, uz)) || b.prop === ign2)) continue;
     if (lowIgnore && b.prop && b.prop.h <= .95) continue;
     const r = rayBox2(ax, az, ux, uz, b); if (r && r[0] < L) return false;
   }
@@ -4568,8 +4578,9 @@ function coverPoint(e, tx, tz) {                                                
   for (const b of boxesIn(e.p.x - 17, e.p.z - 17, e.p.x + 17, e.p.z + 17)) { const p = b.prop; if (p) { if (!p.dead && !p.explosive && p.box === b) list.push(p); } else if (b.wall) list.push(b); }   // sólo lo cercano (índice espacial)
   for (const c of list) {
     if (Math.hypot(c.x - e.p.x, c.z - e.p.z) > 17) continue;
-    for (const [sx, sz] of DIRS4) {
-      const px = c.x + sx * (c.hx + .85), pz = c.z + sz * (c.hz + .85); if (!navAt(px, pz)) continue;
+    const pts = DIRS4.map(([sx, sz]) => [c.x + sx * (c.hx + .85), c.z + sz * (c.hz + .85)]);
+    if (c.type && LOWEND[c.type]) { const g = c.g.rotation.y, ca = Math.cos(g), sa = -Math.sin(g), L = LOWEND[c.type]; for (const a of [L.c1 + .7, L.c0 - .5]) for (const s of [-1, 1]) { const w = Math.min(c.hx, c.hz) + .85; pts.push([c.x + ca * a - sa * s * w, c.z + sa * a + ca * s * w]); } }   // coche: junto al capó y al maletero (cobertura baja desde la que se dispara)
+    for (const [px, pz] of pts) { if (!navAt(px, pz)) continue;
       if (segClear(tx, tz, px, pz, null, null, false)) continue;
       const sc = Math.hypot(px - e.p.x, pz - e.p.z) + (Math.hypot(px - tx, pz - tz) < 4 ? 20 : 0) + rnd() * 2; if (sc < bs) { bs = sc; best = { x: px, z: pz }; }
     }
@@ -4626,7 +4637,7 @@ function steerPath(e) {
 function think(e) {
   const df = DIFFS[M.diff];
   let cv = null, bd = 9;                                                             // cobertura baja pegada (se dispara por encima, como el jugador)
-  for (const b of boxesIn(e.p.x - 1.5, e.p.z - 1.5, e.p.x + 1.5, e.p.z + 1.5)) { const p = b.prop; if (!p || p.box !== b || p.dead || p.h > .95) continue; const dx = Math.max(Math.abs(e.p.x - p.x) - p.hx, 0), dz = Math.max(Math.abs(e.p.z - p.z) - p.hz, 0), d = Math.hypot(dx, dz); if (d < (p === e.cover ? 1 : .8) && d < bd) { bd = d; cv = p; } }
+  for (const b of boxesIn(e.p.x - 1.5, e.p.z - 1.5, e.p.x + 1.5, e.p.z + 1.5)) { const p = b.prop; if (!p || p.box !== b || p.dead || !lowCoverAt(p, e.p.x, e.p.z)) continue; const dx = Math.max(Math.abs(e.p.x - p.x) - p.hx, 0), dz = Math.max(Math.abs(e.p.z - p.z) - p.hz, 0), d = Math.hypot(dx, dz); if (d < (p === e.cover ? 1 : .8) && d < bd) { bd = d; cv = p; } }
   e.cover = cv; e.flee = dangerVec(e);
   const seen = perceive(e);
   if (MX.campaign) { e.syncT = (e.syncT || 0) - .13; if (e.syncT <= 0) { e.syncT = 1 + rnd() * .5; squadSync(e); } if (seen && seen.p && (!e.vis || e.tgt !== seen)) squadAlert(e, seen); }      // se avisa sólo cuando el bot VE al enemigo por primera vez (o a uno nuevo), no con seguimiento continuo
