@@ -2167,7 +2167,7 @@ function update(dt) {
   P.dashCD = Math.max(0, P.dashCD - dt); P.recover = Math.max(0, P.recover - dt);
   if (flags.dash && P.dashCD <= 0 && P.dash <= 0 && P.gState === 0) {   // con la granada en mano no hay dash
     if (imag > .1) tmp.set(mx, 0, mz).normalize(); else tmp.set(Math.sin(P.aim), 0, Math.cos(P.aim));
-    P.hs = false; P.crouchT = 0; P.vel.copy(tmp).multiplyScalar(17); P.dash = .18; P.dashT = 0; P.dashCD = .9; P.dashMax = .9; P.recover = .35; P.shake = Math.max(P.shake, .06); if (!playSnd('DASH_start')) sfxDash();
+    P.hs = false; P.crouchT = 0; P.vel.copy(tmp).multiplyScalar(17); P.dash = .18; P.dashT = 0; P.dashCD = .9; if (typeof DASHFX !== 'undefined') DASHFX.start(P.pos.x, P.pos.z, tmp.x, tmp.z, 0x7ec0ff); P.dashMax = .9; P.recover = .35; P.shake = Math.max(P.shake, .06); if (!playSnd('DASH_start')) sfxDash();
     for (let n = 0; n < 8; n++) { tmp2.copy(P.pos); tmp2.y = .06; spawn('smoke', tmp2, new V3((Math.random() - .5) * 1.6 - tmp.x * 1.5, .5 + Math.random() * .6, (Math.random() - .5) * 1.6 - tmp.z * 1.5), .35 + Math.random() * .2, .1, .1, .1, false, 1, -.5); }
   }
   if (flags.dash && (P.dashCD > 0 || P.gState > 0) && P.dash <= 0) P.deny = .3;
@@ -2406,7 +2406,7 @@ function update(dt) {
   const inHand = (rt >= .25 && rt < .5) || (rt >= .8 && rt < 1.05);
   handMag.visible = inHand; if (inHand) { handMag.scale.set(...cur.magSize); handMag.position.copy(K.hand); handMag.position.y -= .06; handMag.rotation.set(0, a, 0); }
 
-  ghostFx(dt);
+  ghostFx(dt); if (typeof DASHFX !== 'undefined') { if (P.dash > 0) { const sp = Math.hypot(P.vel.x, P.vel.z); if (sp > 1) DASHFX.trail(P, P.pos.x, P.pos.z, P.vel.x, P.vel.z, 0x7ec0ff); } DASHFX.update(dt); }
 
   // fogonazo
   flashMesh.visible = W.flash > .3;
@@ -5370,18 +5370,19 @@ const _hip = [new V3(), new V3()], _shd = [new V3(), new V3()], _ft = [new V3(),
 function poseBot(e, dt) {
   const R = e.R, a = e.yaw, b = e.body, sp = Math.hypot(e.v.x, e.v.z), c = e.crouch, sn = clamp(sp / 8, 0, 1);
   _fa.set(Math.sin(a), 0, Math.cos(a)); _sa.set(Math.cos(a), 0, -Math.sin(a)); _fb.set(Math.sin(b), 0, Math.cos(b)); _sb.set(Math.cos(b), 0, -Math.sin(b));
-  const Ll = .54, reach = Ll * 2 * .985, hw = .12 + .05 * c, beta = .5 + .05 * c, Lst = clamp(.5 + .09 * sp, .5, 1.15) * (1 - .35 * c), Dc = Lst / beta, moving = sp > .45;
+  e.run = damp(e.run, sp > 4.4 && !e.firing && e.st !== 'fight' && c < .3 ? clamp((sp - 4.4) / 2.6, 0, 1) : 0, 8, dt);   // carrera: 0 al paso, 1 a toda velocidad (sin disparar ni combatir)
+  const rn = e.run, Ll = .54, reach = Ll * 2 * .985, hw = .12 + .05 * c, beta = .5 + .05 * c, Lst = clamp(.5 + .09 * sp, .5, 1.15) * (1 + .1 * rn) * (1 - .35 * c), Dc = Lst / beta, moving = sp > .45;
   if (moving) { e.phase = (e.phase + dt * sp / Dc) % 1; _gd.set(e.v.x / sp, 0, e.v.z / sp); e.gd.lerp(_gd, 1 - Math.exp(-12 * dt)).normalize(); }
   e.walk = damp(e.walk, moving ? 1 : 0, 10, dt);
   const half = Math.floor(e.phase * 2); if (half !== e.half) { e.half = half; if (moving && sp > 1.2) playAt('STEP_walk', e.p.x, e.p.z, { vol: .42 * clamp(sp / 6, .5, 1) * (1 - .4 * c), gap: 70, rate: .93 + sn * .12 }); }
-  const bob = moving ? clamp(.01 + .006 * sp, 0, .05) * (.5 - .5 * Math.cos(4 * Math.PI * (e.phase - beta * .5))) : 0, x = e.p.x, z = e.p.z;
-  let py = 1.1 - sn * .2 - c * .38 + bob;
+  const bob = moving ? clamp(.01 + .006 * sp, 0, .05) * (1 + .7 * rn) * (.5 - .5 * Math.cos(4 * Math.PI * (e.phase - beta * .5))) : 0, x = e.p.x, z = e.p.z;
+  let py = 1.1 - sn * .2 - c * .38 - rn * .05 + bob;
   for (let i = 0; i < 2; i++) {
     const sg = i === 0 ? 1 : -1; _hip[i].set(x, 0, z).addScaledVector(_sb, sg * hw);
     const ph = (e.phase + i * .5) % 1; let off, lift;
-    if (ph < beta) { off = Lst * (.5 - ph / beta); lift = 0; } else { const u = (ph - beta) / (1 - beta); off = Lst * (-.5 + smooth(u)); lift = Math.sin(Math.PI * u) * (.08 + Math.min(sp, 9) * .022); }
+    if (ph < beta) { off = Lst * (.5 - ph / beta); lift = 0; } else { const u = (ph - beta) / (1 - beta); off = Lst * (-.5 + smooth(u)); lift = Math.sin(Math.PI * u) * (.08 + Math.min(sp, 9) * .022) * (1 + .5 * rn); }
     off *= e.walk; lift *= e.walk; _ft[i].copy(_hip[i]).addScaledVector(e.gd, off); _ft[i].y = lift;
-    e.fpitch[i] = ph < beta ? 0 : .35 * Math.sin(2 * Math.PI * ((ph - beta) / (1 - beta))) * e.walk;
+    e.fpitch[i] = ph < beta ? 0 : .35 * (1 + .5 * rn) * Math.sin(2 * Math.PI * ((ph - beta) / (1 - beta))) * e.walk;
     const dxz = Math.hypot(_ft[i].x - _hip[i].x, _ft[i].z - _hip[i].z); py = Math.min(py, lift + .09 + Math.sqrt(Math.max(reach * reach - dxz * dxz, 0)));
   }
   e.py = damp(e.py, py, py < e.py ? 30 : 16, dt); _pel.set(x, e.py, z);
@@ -5392,11 +5393,10 @@ function poseBot(e, dt) {
     R.foot[i].position.copy(IKO.end).addScaledVector(_fb, .06).y -= .05; R.foot[i].rotation.order = 'YXZ'; R.foot[i].rotation.set(e.fpitch[i], b, 0);
   }
   R.pelvis.position.copy(_pel); R.pelvis.rotation.order = 'YXZ'; R.pelvis.rotation.y = b;
-  _top.copy(_pel); _top.y += .1; _sh.copy(_top); _sh.y += .5 - c * .06; _sh.x += clamp(e.v.x * .015, -.12, .12); _sh.z += clamp(e.v.z * .015, -.12, .12); _sh.addScaledVector(_fa, -e.kick * .05 + c * .12);
+  _top.copy(_pel); _top.y += .1; _sh.copy(_top); _sh.y += .5 - c * .06; _sh.x += clamp(e.v.x * .015, -.12, .12); _sh.z += clamp(e.v.z * .015, -.12, .12); _sh.addScaledVector(_fa, -e.kick * .05 + c * .12); if (sp > .5) _sh.addScaledVector(e.gd, rn * .17).y -= rn * .04;   // al correr el torso se echa hacia delante
   _yA.copy(_sh).sub(_top).normalize(); R.torso.position.copy(_top).add(_sh).multiplyScalar(.5); orient(R.torso, _sa, _yA);
   R.head.position.copy(_sh).addScaledVector(_yA, .27); R.visor.position.copy(R.head.position).addScaledVector(_fa, .1); R.visor.rotation.y = a;
   const w = e.w, env = e.reloadT < 0 ? 0 : e.reloadT < .25 ? smooth(e.reloadT / .25) : e.reloadT < 1.3 ? 1 : 1 - smooth((e.reloadT - 1.3) / .25);
-  e.run = damp(e.run, sp > 5 && !e.firing && e.st !== 'fight' ? 1 : 0, 8, dt);
   e.gun.position.copy(_sh).addScaledVector(_fa, .44 - e.kick * .05 - e.run * .08).addScaledVector(_sa, -.13 + env * .04); e.gun.position.y -= .14 + e.run * .1;
   e.gun.rotation.set(-e.kick * .12 - env * .55 + e.run * .45, a, env * .5); e.gun.updateMatrixWorld(true);
   e.gun.localToWorld(_r1.set(w.rear[0], w.rear[1], w.rear[2])); e.gun.localToWorld(_r2.set(w.fore[0], w.fore[1], w.fore[2])); e.gun.localToWorld(_r3.set(w.well[0], w.well[1], w.well[2])); _r2.lerp(_r3, env);
@@ -5406,6 +5406,7 @@ function poseBot(e, dt) {
     setLimb(R.upper[i], _shd[i], IKO.mid); setLimb(R.fore[i], IKO.mid, IKO.end); R.hand[i].position.copy(IKO.end); R.shoulder[i].position.copy(_shd[i]);
   }
 }
+MX.poseBot = poseBot;
 function bake(e, dx, dz) {                                                           // al morir, el cuerpo cae como un bloque alrededor de los pies
   const r = e.root, px = e.p.x, pz = e.p.z; r.position.set(px, 0, pz);
   for (const ch of r.children) { ch.position.x -= px; ch.position.z -= pz; }
@@ -5607,7 +5608,7 @@ function think(e) {
     else if (e.st === 'cover' && e.path && (e.vis || M.t - e.lastHurt < 1.5 || e.supp > .4) && e.coverPt && Math.hypot(e.coverPt.x - e.p.x, e.coverPt.z - e.p.z) > 3.5) dir = { x: e.sdx, z: e.sdz };
     else if (MX.campaign && e.supp > .7 && !e.cover && e.st !== 'fight' && e.goal) dir = { x: e.sdx, z: e.sdz };
     if (dir && (dir.x || dir.z)) { const l = Math.hypot(dir.x, dir.z) || 1, ux = dir.x / l, uz = dir.z / l;
-      if (navAt(e.p.x + ux * 1.5, e.p.z + uz * 1.5) && navAt(e.p.x + ux * 3, e.p.z + uz * 3)) { e.dashT = .18; e.dashX = ux; e.dashZ = uz; e.dashCD = rr(2.5, 4.5); e.dashN = (e.dashN || 0) + 1; playAt('DASH_start', e.p.x, e.p.z, { vol: .55, gap: 80 }); } }
+      if (navAt(e.p.x + ux * 1.5, e.p.z + uz * 1.5) && navAt(e.p.x + ux * 3, e.p.z + uz * 3)) { e.dashT = .18; e.dashX = ux; e.dashZ = uz; if (typeof DASHFX !== 'undefined' && !e.dead) DASHFX.start(e.p.x, e.p.z, ux, uz, TM[e.team].acc.color.getHex()); e.dashCD = rr(2.5, 4.5); e.dashN = (e.dashN || 0) + 1; playAt('DASH_start', e.p.x, e.p.z, { vol: .55, gap: 80 }); } }
   }
   /* granadas: frag al rival a 5,6–8,6 m (cae a 7 m fijos); humo hacia la amenaza al retirarse */
   if (!e.wantThrow && e.reloadT < 0) {
@@ -5701,7 +5702,9 @@ function moveBot(e, dt) {
     const r = steerPath(e);
     if (r === 'arrived') { if (sqd && e.sqHold) { e.holdT = 1e9; e.path = null; } else { e.holdT = rr(.6, 2.2); e.goal = null; e.path = null; } }   // en su puesto: se queda (la escuadra le cambia el objetivo cuando toca)
     if (e.holdT > 0) { e.holdT -= dt; spd = 0; if (e.holdT <= 0) e.holdT = 0; if (sqd && e.sqHold) { if (e.sqCrouch || e.supp > .3) crT = 1; if (!e.vis && e.sqFace !== undefined) { const f = holdLife(e, dt); if (f.crT !== null) crT = f.crT; if (f.spd) { dx = f.dx; dz = f.dz; spd = f.spd; } e.yaw += clamp(angDiff(e.yaw, e.sqFace + (e.lookOff || 0)), -2.2 * dt, 2.2 * dt); } } }
-    else if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = sqd ? (e.sqSpeed || 5) : 6.4; }
+    else if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = sqd ? (e.sqSpeed || 5) : 6.4;
+      if (spd > 3.5 && !e.vis && !(e.supp > .15) && M.t - e.lastHurt > 4 && M.t - e.lastAttT > 4 && e.goal && Math.hypot(e.goal.x - e.p.x, e.goal.z - e.p.z) > 20) spd = Math.min(8.2, spd * 1.4);   // tramo largo y sin peligro: carrera a la velocidad del jugador (8,2 m/s)
+    }
   } else if (e.st === 'fight' && t && !t.dead) {
     const d = e.dT || 10, ux = (t.p.x - e.p.x) / (d || 1), uz = (t.p.z - e.p.z) / (d || 1);
     const tac = MX.campaign && MX.SQ && e.sqd, L = tac ? e.sqd.leader : null, leash = tac && L && L !== e && Math.hypot(L.p.x - e.p.x, L.p.z - e.p.z) > 18 && Math.hypot(L.p.x - t.p.x, L.p.z - t.p.z) > Math.hypot(e.p.x - t.p.x, e.p.z - t.p.z);
@@ -5724,7 +5727,7 @@ function moveBot(e, dt) {
   if (e.nudge) { dx += -dz * e.nudge * .5; dz += dx * e.nudge * .5; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; }
   e.crouchT = crT; e.crouch = damp(e.crouch, crT, 7, dt);
   const sMax = spd * (1 - .5 * e.crouch), tx = dx * sMax, tz = dz * sMax, ax = tx - e.v.x, az = tz - e.v.z, l = Math.hypot(ax, az), step = 32 * dt;
-  if (e.dashT > 0) { e.dashT -= dt; e.v.x = e.dashX * 17; e.v.z = e.dashZ * 17; e.crouch = 0; }        // dash: 17 m/s durante 0,18 s (como el jugador)
+  if (e.dashT > 0) { e.dashT -= dt; if (typeof DASHFX !== 'undefined') DASHFX.trail(e, e.p.x, e.p.z, e.dashX, e.dashZ, TM[e.team].acc.color.getHex()); e.v.x = e.dashX * 17; e.v.z = e.dashZ * 17; e.crouch = 0; }        // dash: 17 m/s durante 0,18 s (como el jugador)
   else if (l <= step) { e.v.x = tx; e.v.z = tz; } else { e.v.x += ax / l * step; e.v.z += az / l * step; }
   e.p.x += e.v.x * dt; e.p.z += e.v.z * dt; collide(e.p, .38, 2.6);
   const SEP = MX.campaign ? 1.7 : .85;                                               // espacio personal: en campaña nadie se pega a un compañero (no ir en piña)
@@ -7155,6 +7158,83 @@ function hudTick(dt) {
   panel.innerHTML = '<div class="hd"><span class="nm">' + s.name.toUpperCase() + '</span><span class="od">' + (s.playerLead ? '★ ' : '') + what + '</span></div><div class="ch">' + chips + '</div>' + ex;
   if (SQ.capTick) SQ.capTick();
 }
+})();
+</script>
+<script>/* Efecto visual del dash (jugador y bots), pensado para no costar nada:
+   · 3 mallas instanciadas en total (estelas, onda del suelo y polvo) = 3 llamadas de dibujo, y 0 cuando no hay dash;
+   · materiales sin luces ni sombras (no añaden variantes de shader ni entran en la pasada de sombra);
+   · todo reutiliza una reserva fija de elementos (sin crear objetos durante el juego);
+   · el brillo se apaga con mezcla aditiva (el color se acerca al negro), así que no hace falta transparencia por píxel.
+   Uso: DASHFX.start(x, z, dx, dz, color) al empezar un dash; DASHFX.trail(src, x, z, dx, dz, color) cada fotograma mientras dura; DASHFX.update(dt) una vez por fotograma. */
+const DASHFX = (() => {
+  const NS = 96, NR = 12, NP = 72;                                                   // capacidad de estelas, ondas y polvo
+  const add = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0xffffff, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: true });
+  const dust = new THREE.MeshBasicMaterial({ color: 0xb9b2a4, fog: true });
+  const strk = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, color: 0xffffff, transparent: true, opacity: .6, depthWrite: false, fog: true });   // estelas con mezcla normal: se ven igual sobre suelo claro u oscuro; se apagan afinándose
+  const mk = (geo, mat, n, order, colores) => { const m = new THREE.InstancedMesh(geo, mat, n); m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.frustumCulled = false; m.castShadow = m.receiveShadow = false; m.renderOrder = order; m.count = 0; m.visible = false;
+    if (colores) { m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3); m.instanceColor.setUsage(THREE.DynamicDrawUsage); } scene.add(m); return m; };
+  const sGeo = new THREE.PlaneGeometry(1, 1);
+  const rGeo = new THREE.RingGeometry(.8, 1, 32); rGeo.rotateX(-Math.PI / 2);
+  const pGeo = new THREE.IcosahedronGeometry(1, 0);
+  const S = mk(sGeo, strk, NS, 5, true), R = mk(rGeo, add, NR, 4, true), Pf = mk(pGeo, dust, NP, 3, false);
+  const ss = [], rs = [], ps = [];                                                  // elementos vivos (se reutilizan los objetos al morir: sin basura)
+  const poolS = [], poolR = [], poolP = [];
+  for (let i = 0; i < NS; i++) poolS.push({ x: 0, y: 0, z: 0, dx: 0, dz: 0, len: 1, w: 1, t: 0, life: 1, r: 1, g: 1, b: 1 });
+  for (let i = 0; i < NR; i++) poolR.push({ x: 0, z: 0, t: 0, life: 1, r: 1, g: 1, b: 1, s: 1 });
+  for (let i = 0; i < NP; i++) poolP.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, t: 0, life: 1, s: 1 });
+  const _m = new THREE.Matrix4(), _c = new THREE.Color(), _vx = new THREE.Vector3(), _vy = new THREE.Vector3(), _vz = new THREE.Vector3(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _sc = new THREE.Vector3(), _e = new THREE.Euler();
+  const col = new THREE.Color();
+  const rnd = () => Math.random();
+
+  function streak(x, y, z, dx, dz, len, w, life, c, k) {
+    const s = poolS.pop(); if (!s) return; s.x = x; s.y = y; s.z = z; s.dx = dx; s.dz = dz; s.len = len; s.w = w; s.t = 0; s.life = life; s.r = c.r * k; s.g = c.g * k; s.b = c.b * k; ss.push(s);
+  }
+  function start(x, z, dx, dz, color) {
+    col.set(color === undefined ? 0x7ec0ff : color);
+    const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    const r = poolR.pop(); if (r) { r.x = x; r.z = z; r.t = 0; r.life = .3; r.r = col.r; r.g = col.g; r.b = col.b; r.s = 1.9; rs.push(r); }       // onda que se expande por el suelo
+    for (let i = 0; i < 4; i++) { const sd = (i - 1.5) * .16, h = .25 + i * .3;                                                              // abanico de estelas largas detrás del cuerpo
+      streak(x - dx * (.5 + rnd() * .3) - dz * sd, h, z - dz * (.5 + rnd() * .3) + dx * sd, dx, dz, 2.3 + rnd() * 1.2, .14 + rnd() * .07, .28, col, 1); }
+    for (let i = 0; i < 7; i++) { const p = poolP.pop(); if (!p) break; const a = (rnd() - .5) * 1.7;                                          // polvo que se levanta y se queda atrás
+      p.x = x + (rnd() - .5) * .4; p.y = .08; p.z = z + (rnd() - .5) * .4;
+      const ca = Math.cos(a), sa = Math.sin(a), ux = -dx * ca + dz * sa, uz = -dz * ca - dx * sa, sp = 1.2 + rnd() * 1.6;             // hacia atrás, con abertura
+      p.vx = ux * sp; p.vz = uz * sp; p.vy = .5 + rnd() * .9; p.t = 0; p.life = .38 + rnd() * .15; p.s = .1 + rnd() * .09; ps.push(p); }
+  }
+  const trT = new WeakMap();
+  function trail(src, x, z, dx, dz, color) {                                          // mientras dura el dash: estelas cortas que se van soltando (cada ~30 ms)
+    const t = trT.get(src) || 0, now = performance.now(); if (now - t < 30) return; trT.set(src, now);
+    col.set(color === undefined ? 0x7ec0ff : color); const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    streak(x - dx * .2, .55 + rnd() * .5, z - dz * .2, dx, dz, 1.3 + rnd() * .8, .16, .18, col, .8);
+    streak(x - dx * .2 - dz * .2, .15, z - dz * .2 + dx * .2, dx, dz, 1, .1, .16, col, .55);
+  }
+  function update(dt) {
+    let n = 0;
+    for (let i = ss.length - 1; i >= 0; i--) {
+      const s = ss[i]; s.t += dt; if (s.t >= s.life) { ss.splice(i, 1); poolS.push(s); continue; }
+    }
+    for (const s of ss) {
+      const k = 1 - s.t / s.life, f = 1;
+      _vx.set(s.dx, 0, s.dz);                                                        // eje largo: la dirección del dash
+      _vz.set(camera.position.x - s.x, camera.position.y - s.y, camera.position.z - s.z).normalize();   // normal hacia la cámara
+      _vy.crossVectors(_vz, _vx).normalize(); _vz.crossVectors(_vx, _vy).normalize();
+      _p.set(s.x - s.dx * s.len * .35 * (1 - k) - s.dx * s.len * .5, s.y, s.z - s.dz * s.len * .35 * (1 - k) - s.dz * s.len * .5);
+      _m.makeBasis(_vx.multiplyScalar(s.len * (.6 + .4 * k)), _vy.multiplyScalar(s.w * k * k), _vz); _m.setPosition(_p);
+      S.setMatrixAt(n, _m); _c.setRGB(s.r * f, s.g * f, s.b * f); S.setColorAt(n, _c); n++;
+    }
+    S.count = n; S.visible = n > 0; if (n) { S.instanceMatrix.needsUpdate = true; S.instanceColor.needsUpdate = true; }
+    n = 0;
+    for (let i = rs.length - 1; i >= 0; i--) { const r = rs[i]; r.t += dt; if (r.t >= r.life) { rs.splice(i, 1); poolR.push(r); } }
+    for (const r of rs) { const k = r.t / r.life, f = (1 - k) * (1 - k), sc = .5 + r.s * Math.sqrt(k);
+      _m.makeScale(sc, 1, sc); _m.setPosition(r.x, .06, r.z); R.setMatrixAt(n, _m); _c.setRGB(r.r * f * .22, r.g * f * .22, r.b * f * .22); R.setColorAt(n, _c); n++; }
+    R.count = n; R.visible = n > 0; if (n) { R.instanceMatrix.needsUpdate = true; R.instanceColor.needsUpdate = true; }
+    n = 0;
+    for (let i = ps.length - 1; i >= 0; i--) { const p = ps[i]; p.t += dt; if (p.t >= p.life) { ps.splice(i, 1); poolP.push(p); continue; }
+      p.x += p.vx * dt; p.z += p.vz * dt; p.vy -= 3.2 * dt; p.y = Math.max(.05, p.y + p.vy * dt); const d = Math.exp(-3.5 * dt); p.vx *= d; p.vz *= d; }
+    for (const p of ps) { const k = p.t / p.life, sc = p.s * (k < .3 ? .4 + 2 * k : 1) * (1 - Math.max(0, k - .45) / .55);   // crece al salir y se encoge hasta desaparecer
+      _m.makeScale(sc * 1.4, sc, sc * 1.4); _m.setPosition(p.x, p.y, p.z); Pf.setMatrixAt(n, _m); n++; }
+    Pf.count = n; Pf.visible = n > 0; if (n) Pf.instanceMatrix.needsUpdate = true;
+  }
+  return { start, trail, update, get mallas() { return [S, R, Pf]; }, get vivos() { return ss.length + rs.length + ps.length; } };
 })();
 </script>
 <script>/* Telemetría de rendimiento (no cambia nada de lo que se ve).

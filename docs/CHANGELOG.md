@@ -1,5 +1,12 @@
 # Changelog
 
+## Rendimiento en móvil, efecto del dash y NPCs corriendo (26-11)
+- **Medición**: tocar el cuadro de FPS muestra p50/p95/p99, % de fotogramas lentos, reparto lógica/dibujo, partes de la lógica y los últimos tirones con su causa (`src/rendimiento.js`).
+- **Optimizaciones sin cambio visual** (detalle y cifras en `docs/RENDIMIENTO.md`): lista de objetos despiertos (`AWAKE`), sombras en fotogramas alternos con anclaje a texels (`?nosombra2`), HUD sin escrituras repetidas (`?nodomcache`).
+- **Efecto del dash** (`src/efectos.js`, `DASHFX`): onda azul en el suelo, abanico de estelas, estelas cortas durante el dash y polvo; para el jugador y para los bots (con el color de su facción). 3 mallas instanciadas, 0 cuando no hay dash, ningún shader nuevo, fuera de la pasada de sombra.
+- **NPCs corriendo**: pose de carrera continua según la velocidad (`e.run`: torso inclinado hacia delante, zancada y rodillas más altas, más vaivén, arma baja) y, en tramos largos de más de 20 m sin peligro, corren a la velocidad del jugador (8,2 m/s).
+- Tests nuevos: `tests/sombra_alterna.py`, `tests/dash_fx.py`.
+
 ## 13 puntos de dominio (28-11)
 - Se dejan 13 puntos capturables: los 4 refugios, los 4 puestos avanzados (uno por cuarto) y los 5 comunes (A Plaza Mayor, B/C Fábricas, D/E Estación y supermercado). Farmacia, tienda, clínica y granjas siguen siendo lugares con botín, sin bandera. Puntos cada 5 s: puesto avanzado +1, comunes y refugios +2; meta 1.000.
 

@@ -2159,7 +2159,7 @@ function update(dt) {
   P.dashCD = Math.max(0, P.dashCD - dt); P.recover = Math.max(0, P.recover - dt);
   if (flags.dash && P.dashCD <= 0 && P.dash <= 0 && P.gState === 0) {   // con la granada en mano no hay dash
     if (imag > .1) tmp.set(mx, 0, mz).normalize(); else tmp.set(Math.sin(P.aim), 0, Math.cos(P.aim));
-    P.hs = false; P.crouchT = 0; P.vel.copy(tmp).multiplyScalar(17); P.dash = .18; P.dashT = 0; P.dashCD = .9; P.dashMax = .9; P.recover = .35; P.shake = Math.max(P.shake, .06); if (!playSnd('DASH_start')) sfxDash();
+    P.hs = false; P.crouchT = 0; P.vel.copy(tmp).multiplyScalar(17); P.dash = .18; P.dashT = 0; P.dashCD = .9; if (typeof DASHFX !== 'undefined') DASHFX.start(P.pos.x, P.pos.z, tmp.x, tmp.z, 0x7ec0ff); P.dashMax = .9; P.recover = .35; P.shake = Math.max(P.shake, .06); if (!playSnd('DASH_start')) sfxDash();
     for (let n = 0; n < 8; n++) { tmp2.copy(P.pos); tmp2.y = .06; spawn('smoke', tmp2, new V3((Math.random() - .5) * 1.6 - tmp.x * 1.5, .5 + Math.random() * .6, (Math.random() - .5) * 1.6 - tmp.z * 1.5), .35 + Math.random() * .2, .1, .1, .1, false, 1, -.5); }
   }
   if (flags.dash && (P.dashCD > 0 || P.gState > 0) && P.dash <= 0) P.deny = .3;
@@ -2398,7 +2398,7 @@ function update(dt) {
   const inHand = (rt >= .25 && rt < .5) || (rt >= .8 && rt < 1.05);
   handMag.visible = inHand; if (inHand) { handMag.scale.set(...cur.magSize); handMag.position.copy(K.hand); handMag.position.y -= .06; handMag.rotation.set(0, a, 0); }
 
-  ghostFx(dt);
+  ghostFx(dt); if (typeof DASHFX !== 'undefined') { if (P.dash > 0) { const sp = Math.hypot(P.vel.x, P.vel.z); if (sp > 1) DASHFX.trail(P, P.pos.x, P.pos.z, P.vel.x, P.vel.z, 0x7ec0ff); } DASHFX.update(dt); }
 
   // fogonazo
   flashMesh.visible = W.flash > .3;
@@ -2483,6 +2483,7 @@ if (document.readyState === 'complete') requestAnimationFrame(frame); else windo
 <script src="partida.js"></script>
 <script src="zombis.js"></script>
 <script src="escuadras.js"></script>
+<script src="efectos.js"></script>
 <script src="rendimiento.js"></script>
 </body>
 </html>

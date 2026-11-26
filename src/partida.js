@@ -331,18 +331,19 @@ const _hip = [new V3(), new V3()], _shd = [new V3(), new V3()], _ft = [new V3(),
 function poseBot(e, dt) {
   const R = e.R, a = e.yaw, b = e.body, sp = Math.hypot(e.v.x, e.v.z), c = e.crouch, sn = clamp(sp / 8, 0, 1);
   _fa.set(Math.sin(a), 0, Math.cos(a)); _sa.set(Math.cos(a), 0, -Math.sin(a)); _fb.set(Math.sin(b), 0, Math.cos(b)); _sb.set(Math.cos(b), 0, -Math.sin(b));
-  const Ll = .54, reach = Ll * 2 * .985, hw = .12 + .05 * c, beta = .5 + .05 * c, Lst = clamp(.5 + .09 * sp, .5, 1.15) * (1 - .35 * c), Dc = Lst / beta, moving = sp > .45;
+  e.run = damp(e.run, sp > 4.4 && !e.firing && e.st !== 'fight' && c < .3 ? clamp((sp - 4.4) / 2.6, 0, 1) : 0, 8, dt);   // carrera: 0 al paso, 1 a toda velocidad (sin disparar ni combatir)
+  const rn = e.run, Ll = .54, reach = Ll * 2 * .985, hw = .12 + .05 * c, beta = .5 + .05 * c, Lst = clamp(.5 + .09 * sp, .5, 1.15) * (1 + .1 * rn) * (1 - .35 * c), Dc = Lst / beta, moving = sp > .45;
   if (moving) { e.phase = (e.phase + dt * sp / Dc) % 1; _gd.set(e.v.x / sp, 0, e.v.z / sp); e.gd.lerp(_gd, 1 - Math.exp(-12 * dt)).normalize(); }
   e.walk = damp(e.walk, moving ? 1 : 0, 10, dt);
   const half = Math.floor(e.phase * 2); if (half !== e.half) { e.half = half; if (moving && sp > 1.2) playAt('STEP_walk', e.p.x, e.p.z, { vol: .42 * clamp(sp / 6, .5, 1) * (1 - .4 * c), gap: 70, rate: .93 + sn * .12 }); }
-  const bob = moving ? clamp(.01 + .006 * sp, 0, .05) * (.5 - .5 * Math.cos(4 * Math.PI * (e.phase - beta * .5))) : 0, x = e.p.x, z = e.p.z;
-  let py = 1.1 - sn * .2 - c * .38 + bob;
+  const bob = moving ? clamp(.01 + .006 * sp, 0, .05) * (1 + .7 * rn) * (.5 - .5 * Math.cos(4 * Math.PI * (e.phase - beta * .5))) : 0, x = e.p.x, z = e.p.z;
+  let py = 1.1 - sn * .2 - c * .38 - rn * .05 + bob;
   for (let i = 0; i < 2; i++) {
     const sg = i === 0 ? 1 : -1; _hip[i].set(x, 0, z).addScaledVector(_sb, sg * hw);
     const ph = (e.phase + i * .5) % 1; let off, lift;
-    if (ph < beta) { off = Lst * (.5 - ph / beta); lift = 0; } else { const u = (ph - beta) / (1 - beta); off = Lst * (-.5 + smooth(u)); lift = Math.sin(Math.PI * u) * (.08 + Math.min(sp, 9) * .022); }
+    if (ph < beta) { off = Lst * (.5 - ph / beta); lift = 0; } else { const u = (ph - beta) / (1 - beta); off = Lst * (-.5 + smooth(u)); lift = Math.sin(Math.PI * u) * (.08 + Math.min(sp, 9) * .022) * (1 + .5 * rn); }
     off *= e.walk; lift *= e.walk; _ft[i].copy(_hip[i]).addScaledVector(e.gd, off); _ft[i].y = lift;
-    e.fpitch[i] = ph < beta ? 0 : .35 * Math.sin(2 * Math.PI * ((ph - beta) / (1 - beta))) * e.walk;
+    e.fpitch[i] = ph < beta ? 0 : .35 * (1 + .5 * rn) * Math.sin(2 * Math.PI * ((ph - beta) / (1 - beta))) * e.walk;
     const dxz = Math.hypot(_ft[i].x - _hip[i].x, _ft[i].z - _hip[i].z); py = Math.min(py, lift + .09 + Math.sqrt(Math.max(reach * reach - dxz * dxz, 0)));
   }
   e.py = damp(e.py, py, py < e.py ? 30 : 16, dt); _pel.set(x, e.py, z);
@@ -353,11 +354,10 @@ function poseBot(e, dt) {
     R.foot[i].position.copy(IKO.end).addScaledVector(_fb, .06).y -= .05; R.foot[i].rotation.order = 'YXZ'; R.foot[i].rotation.set(e.fpitch[i], b, 0);
   }
   R.pelvis.position.copy(_pel); R.pelvis.rotation.order = 'YXZ'; R.pelvis.rotation.y = b;
-  _top.copy(_pel); _top.y += .1; _sh.copy(_top); _sh.y += .5 - c * .06; _sh.x += clamp(e.v.x * .015, -.12, .12); _sh.z += clamp(e.v.z * .015, -.12, .12); _sh.addScaledVector(_fa, -e.kick * .05 + c * .12);
+  _top.copy(_pel); _top.y += .1; _sh.copy(_top); _sh.y += .5 - c * .06; _sh.x += clamp(e.v.x * .015, -.12, .12); _sh.z += clamp(e.v.z * .015, -.12, .12); _sh.addScaledVector(_fa, -e.kick * .05 + c * .12); if (sp > .5) _sh.addScaledVector(e.gd, rn * .17).y -= rn * .04;   // al correr el torso se echa hacia delante
   _yA.copy(_sh).sub(_top).normalize(); R.torso.position.copy(_top).add(_sh).multiplyScalar(.5); orient(R.torso, _sa, _yA);
   R.head.position.copy(_sh).addScaledVector(_yA, .27); R.visor.position.copy(R.head.position).addScaledVector(_fa, .1); R.visor.rotation.y = a;
   const w = e.w, env = e.reloadT < 0 ? 0 : e.reloadT < .25 ? smooth(e.reloadT / .25) : e.reloadT < 1.3 ? 1 : 1 - smooth((e.reloadT - 1.3) / .25);
-  e.run = damp(e.run, sp > 5 && !e.firing && e.st !== 'fight' ? 1 : 0, 8, dt);
   e.gun.position.copy(_sh).addScaledVector(_fa, .44 - e.kick * .05 - e.run * .08).addScaledVector(_sa, -.13 + env * .04); e.gun.position.y -= .14 + e.run * .1;
   e.gun.rotation.set(-e.kick * .12 - env * .55 + e.run * .45, a, env * .5); e.gun.updateMatrixWorld(true);
   e.gun.localToWorld(_r1.set(w.rear[0], w.rear[1], w.rear[2])); e.gun.localToWorld(_r2.set(w.fore[0], w.fore[1], w.fore[2])); e.gun.localToWorld(_r3.set(w.well[0], w.well[1], w.well[2])); _r2.lerp(_r3, env);
@@ -367,6 +367,7 @@ function poseBot(e, dt) {
     setLimb(R.upper[i], _shd[i], IKO.mid); setLimb(R.fore[i], IKO.mid, IKO.end); R.hand[i].position.copy(IKO.end); R.shoulder[i].position.copy(_shd[i]);
   }
 }
+MX.poseBot = poseBot;
 function bake(e, dx, dz) {                                                           // al morir, el cuerpo cae como un bloque alrededor de los pies
   const r = e.root, px = e.p.x, pz = e.p.z; r.position.set(px, 0, pz);
   for (const ch of r.children) { ch.position.x -= px; ch.position.z -= pz; }
@@ -568,7 +569,7 @@ function think(e) {
     else if (e.st === 'cover' && e.path && (e.vis || M.t - e.lastHurt < 1.5 || e.supp > .4) && e.coverPt && Math.hypot(e.coverPt.x - e.p.x, e.coverPt.z - e.p.z) > 3.5) dir = { x: e.sdx, z: e.sdz };
     else if (MX.campaign && e.supp > .7 && !e.cover && e.st !== 'fight' && e.goal) dir = { x: e.sdx, z: e.sdz };
     if (dir && (dir.x || dir.z)) { const l = Math.hypot(dir.x, dir.z) || 1, ux = dir.x / l, uz = dir.z / l;
-      if (navAt(e.p.x + ux * 1.5, e.p.z + uz * 1.5) && navAt(e.p.x + ux * 3, e.p.z + uz * 3)) { e.dashT = .18; e.dashX = ux; e.dashZ = uz; e.dashCD = rr(2.5, 4.5); e.dashN = (e.dashN || 0) + 1; playAt('DASH_start', e.p.x, e.p.z, { vol: .55, gap: 80 }); } }
+      if (navAt(e.p.x + ux * 1.5, e.p.z + uz * 1.5) && navAt(e.p.x + ux * 3, e.p.z + uz * 3)) { e.dashT = .18; e.dashX = ux; e.dashZ = uz; if (typeof DASHFX !== 'undefined' && !e.dead) DASHFX.start(e.p.x, e.p.z, ux, uz, TM[e.team].acc.color.getHex()); e.dashCD = rr(2.5, 4.5); e.dashN = (e.dashN || 0) + 1; playAt('DASH_start', e.p.x, e.p.z, { vol: .55, gap: 80 }); } }
   }
   /* granadas: frag al rival a 5,6–8,6 m (cae a 7 m fijos); humo hacia la amenaza al retirarse */
   if (!e.wantThrow && e.reloadT < 0) {
@@ -662,7 +663,9 @@ function moveBot(e, dt) {
     const r = steerPath(e);
     if (r === 'arrived') { if (sqd && e.sqHold) { e.holdT = 1e9; e.path = null; } else { e.holdT = rr(.6, 2.2); e.goal = null; e.path = null; } }   // en su puesto: se queda (la escuadra le cambia el objetivo cuando toca)
     if (e.holdT > 0) { e.holdT -= dt; spd = 0; if (e.holdT <= 0) e.holdT = 0; if (sqd && e.sqHold) { if (e.sqCrouch || e.supp > .3) crT = 1; if (!e.vis && e.sqFace !== undefined) { const f = holdLife(e, dt); if (f.crT !== null) crT = f.crT; if (f.spd) { dx = f.dx; dz = f.dz; spd = f.spd; } e.yaw += clamp(angDiff(e.yaw, e.sqFace + (e.lookOff || 0)), -2.2 * dt, 2.2 * dt); } } }
-    else if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = sqd ? (e.sqSpeed || 5) : 6.4; }
+    else if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = sqd ? (e.sqSpeed || 5) : 6.4;
+      if (spd > 3.5 && !e.vis && !(e.supp > .15) && M.t - e.lastHurt > 4 && M.t - e.lastAttT > 4 && e.goal && Math.hypot(e.goal.x - e.p.x, e.goal.z - e.p.z) > 20) spd = Math.min(8.2, spd * 1.4);   // tramo largo y sin peligro: carrera a la velocidad del jugador (8,2 m/s)
+    }
   } else if (e.st === 'fight' && t && !t.dead) {
     const d = e.dT || 10, ux = (t.p.x - e.p.x) / (d || 1), uz = (t.p.z - e.p.z) / (d || 1);
     const tac = MX.campaign && MX.SQ && e.sqd, L = tac ? e.sqd.leader : null, leash = tac && L && L !== e && Math.hypot(L.p.x - e.p.x, L.p.z - e.p.z) > 18 && Math.hypot(L.p.x - t.p.x, L.p.z - t.p.z) > Math.hypot(e.p.x - t.p.x, e.p.z - t.p.z);
@@ -685,7 +688,7 @@ function moveBot(e, dt) {
   if (e.nudge) { dx += -dz * e.nudge * .5; dz += dx * e.nudge * .5; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; }
   e.crouchT = crT; e.crouch = damp(e.crouch, crT, 7, dt);
   const sMax = spd * (1 - .5 * e.crouch), tx = dx * sMax, tz = dz * sMax, ax = tx - e.v.x, az = tz - e.v.z, l = Math.hypot(ax, az), step = 32 * dt;
-  if (e.dashT > 0) { e.dashT -= dt; e.v.x = e.dashX * 17; e.v.z = e.dashZ * 17; e.crouch = 0; }        // dash: 17 m/s durante 0,18 s (como el jugador)
+  if (e.dashT > 0) { e.dashT -= dt; if (typeof DASHFX !== 'undefined') DASHFX.trail(e, e.p.x, e.p.z, e.dashX, e.dashZ, TM[e.team].acc.color.getHex()); e.v.x = e.dashX * 17; e.v.z = e.dashZ * 17; e.crouch = 0; }        // dash: 17 m/s durante 0,18 s (como el jugador)
   else if (l <= step) { e.v.x = tx; e.v.z = tz; } else { e.v.x += ax / l * step; e.v.z += az / l * step; }
   e.p.x += e.v.x * dt; e.p.z += e.v.z * dt; collide(e.p, .38, 2.6);
   const SEP = MX.campaign ? 1.7 : .85;                                               // espacio personal: en campaña nadie se pega a un compañero (no ir en piña)
