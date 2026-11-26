@@ -53,6 +53,7 @@ function buildDistrict() {                                                      
   props.length = 0; for (const tg of targets) scene.remove(tg.g); targets.length = 0;
   grid.visible = false;                                                             // la cuadrícula de referencia de la arena no se usa en el distrito
   const D = MAPA.build(MAPA.data[MX.dataId || 'M1']());
+  if (D.info && D.info.refugeRects && typeof OBRAS !== 'undefined' && OBRAS.adopt) OBRAS.adopt(D.info.refugeRects);   // muros y portones de los refugios del distrito: obras de su facción (reparar y mejorar)
   WORLD.x = WORLD.z = D.half - .6; border.scale.set(WORLD.x / 40, 1, WORLD.z / 40); ground.scale.set(Math.max(1, (D.half * 2 + 20) / 120), Math.max(1, (D.half * 2 + 20) / 120), 1);
   for (const w of D.walls) M.walls.push(w);
   for (let tm = 0; tm < 4; tm++) M.spawn[tm] = D.spawns[tm].map(s => ({ x: s.x, z: s.z, yaw: s.yaw }));
@@ -214,8 +215,8 @@ MX.refill = () => refillAll(); MX.syncKit = e => syncKit(e); MX.findPath = findP
 function segClear(ax, az, bx, bz, ign1, ign2, lowIgnore) {
   const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz); if (L < 1e-4) return true; const ux = dx / L, uz = dz / L;
   for (const b of boxesIn(ax, az, bx, bz)) {
-    if (b.prop && ((b.prop === ign1 && coverPass(b.prop, ax, az, ux, uz)) || b.prop === ign2)) continue;
-    if (lowIgnore && b.prop && b.prop.h <= .95) continue;
+    if (b.prop && ((b.prop === ign1 && coverPass(b.prop, ax, az, ux, uz, true)) || b.prop === ign2)) continue;   // su propia cobertura (tras un parapeto, se levantará para disparar)
+    if (lowIgnore && b.prop && (b.prop.h <= .95 || isParapet(b.prop))) continue;   // se ve por encima de lo bajo y de los parapetos (a quien está agachado tras uno lo oculta hiddenBehind)
     const r = rayBox2(ax, az, ux, uz, b); if (r && r[0] < L) return false;
   }
   return true;
@@ -382,6 +383,11 @@ function sightUpdate() {
 }
 MX.SIGHT = SIGHT;
 const inSight = (e, dx, dz) => Math.abs(dx) < SIGHT.hw && Math.abs(dz) < SIGHT.hd;
+function hiddenBehind(o, vx, vz) {                                                  // agachado tras un parapeto (1,2 m), visto desde el otro lado: oculto
+  const c = o.isPlayer ? P.cover : o.cover, cr = o.isPlayer ? P.crouch : o.crouch; if (!c || !isParapet(c) || cr < .5) return false;
+  return c.hx > c.hz ? Math.sign(vz - c.z) !== Math.sign(o.p.z - c.z) : Math.sign(vx - c.x) !== Math.sign(o.p.x - c.x);
+}
+MX.hiddenBehind = (o, x, z) => hiddenBehind(o, x, z);
 function perceive(e) {
   let best = null, bs = 1e9;
   if (MX.zom) for (const o of MX.zom.list) {                                         // los zombis también son amenaza para los bots
@@ -393,7 +399,7 @@ function perceive(e) {
   for (const o of M.ents) {
     if (o.dead || o.team === e.team || o.inv > 0) continue;
     const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.hypot(dx, dz); if (!inSight(e, dx, dz)) continue;
-    if (!segClear(e.p.x, e.p.z, o.p.x, o.p.z, null, null, true) || smokeBlock(e.p.x, e.p.z, o.p.x, o.p.z)) continue;
+    if (!segClear(e.p.x, e.p.z, o.p.x, o.p.z, null, null, true) || smokeBlock(e.p.x, e.p.z, o.p.x, o.p.z) || hiddenBehind(o, e.p.x, e.p.z)) continue;
     const sc = d - (o === e.lastAtt && M.t - e.lastAttT < 3 ? 6 : 0); if (sc < bs) { bs = sc; best = o; }
   }
   return best;
@@ -549,7 +555,7 @@ function aimFire(e, dt) {
     const sp = MX.SQ.supPoint(e);
     if (sp) { const d = Math.hypot(sp.x - e.p.x, sp.z - e.p.z), ux = (sp.x - e.p.x) / (d || 1), uz = (sp.z - e.p.z) / (d || 1), aim = Math.atan2(sp.x - e.p.x, sp.z - e.p.z) + Math.sin(M.t * 1.7 + e.phase * 9) * .12;
       e.yaw += clamp(angDiff(e.yaw, aim), -df.turn * dt, df.turn * dt);
-      if (d > 4 && Math.abs(angDiff(e.yaw, aim)) < .25 && e.fireCd <= 0 && e.pause <= 0 && segClear(e.p.x, e.p.z, e.p.x + ux * Math.min(d - 2, 18), e.p.z + uz * Math.min(d - 2, 18), e.cover, null, true)) { shoot(e); e.pause = Math.max(e.pause, rr(.6, 1.6)); }
+      if (d > 4 && Math.abs(angDiff(e.yaw, aim)) < .25 && e.fireCd <= 0 && e.pause <= 0 && !(e.cover && isParapet(e.cover) && e.crouch > .5) && segClear(e.p.x, e.p.z, e.p.x + ux * Math.min(d - 2, 18), e.p.z + uz * Math.min(d - 2, 18), e.cover, null, true)) { shoot(e); e.pause = Math.max(e.pause, rr(.6, 1.6)); }
       return; }
   }
   if (!(e.vis && e.tgt && !e.tgt.dead) && Math.hypot(e.v.x, e.v.z) > .8) {
@@ -561,6 +567,7 @@ function aimFire(e, dt) {
   if (e.reactT < df.react || d > e.maxEng || Math.abs(angDiff(e.yaw, clean)) > thr) return;
   if (w.launch && (d < 9.5 || d > 19.5)) return;
   if (e.fireCd > 0 || e.pause > 0 || e.ammo <= 0) return;
+  if (e.cover && isParapet(e.cover) && e.crouch > .5) return;                     // tras el parapeto se dispara de pie
   shoot(e);
 }
 function moveBot(e, dt) {
@@ -569,6 +576,7 @@ function moveBot(e, dt) {
   else if (e.st === 'push') {
     const sqd = MX.campaign && MX.SQ && e.sqd;
     if (!e.goal && !e.holdT) pickGoal(e);
+    if (sqd && e.sqHold && e.goal && !(e.holdT > 0) && Math.hypot(e.goal.x - e.p.x, e.goal.z - e.p.z) < 1) { e.holdT = 1e9; e.path = null; }   // ya en su puesto (a < 1 m): se queda, aunque el punto exacto esté pegado al muro
     const r = steerPath(e);
     if (r === 'arrived') { if (sqd && e.sqHold) { e.holdT = 1e9; e.path = null; } else { e.holdT = rr(.6, 2.2); e.goal = null; e.path = null; } }   // en su puesto: se queda (la escuadra le cambia el objetivo cuando toca)
     if (e.holdT > 0) { e.holdT -= dt; spd = 0; if (e.holdT <= 0) e.holdT = 0; if (sqd && e.sqHold) { if (e.sqCrouch || e.supp > .3) crT = 1; if (!e.vis && e.sqFace !== undefined) e.yaw += clamp(angDiff(e.yaw, e.sqFace), -3 * dt, 3 * dt); } }
@@ -591,6 +599,7 @@ function moveBot(e, dt) {
   } else if (e.st === 'cover') {
     const r = steerPath(e); if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = 6.8; } else { spd = 0; crT = 1; if (e.ammo < e.w.max * .6 && e.reloadT < 0) startReload(e); }
   }
+  if (MX.campaign && e.cover && isParapet(e.cover) && spd < .5) crT = e.reloadT >= 0 || e.hp < 40 ? 1 : 0;   // tras el muro: de pie disparando por encima; agachado sólo para recargar o con poca vida
   if (e.nudge) { dx += -dz * e.nudge * .5; dz += dx * e.nudge * .5; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; }
   e.crouchT = crT; e.crouch = damp(e.crouch, crT, 7, dt);
   const sMax = spd * (1 - .5 * e.crouch), tx = dx * sMax, tz = dz * sMax, ax = tx - e.v.x, az = tz - e.v.z, l = Math.hypot(ax, az), step = 32 * dt;

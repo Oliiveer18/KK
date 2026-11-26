@@ -1,5 +1,10 @@
 # Changelog
 
+## Refugio compacto con muro bajo (26-11)
+- Refugios del distrito de 23,4 × 16 m (79 m de perímetro, antes 200): todo el perímetro es parapeto de troncos (`wallLow1`, 1,2 m: de pie se dispara por encima; agachado cubre), portón alto de dos hojas, tabique alto con puerta interior (almacén, armero y catres detrás), nidos de sacos fuera del portón y 25 m despejados delante. Igual en las 4 facciones.
+- Nuevos `wallLow1/2/3` (troncos, piedra, hierro), 1,2 m: de pie se dispara por encima (expuesto de hombros arriba: le llega la mitad de las balas); agachado, cubierto y oculto. Los bots defienden de pie y se agachan sólo para recargar o con poca vida. Se reparan y mejoran con las obras (`OBRAS.adopt` registra los 30 elementos de cada refugio con su facción; la puerta interior del portón de hierro se coloca hacia dentro en cualquier orientación).
+- La escuadra que defiende ocupa los puestos junto al muro, agachada y mirando fuera. Sin torres (se descartan hasta que haya altura transitable). Test `tests/refugio.py`.
+
 ## Objetivos, suministros y refuerzos (26-11)
 - 29 objetivos en el distrito: 6 propios por facción (empiezan siendo suyos) y 5 comunes (2 Fábricas, 2 Estaciones, Plaza Mayor). Captura en ~20 s con un solo bando dentro (hasta ×1,6 con más gente); disputado = congelado. Anillo en el suelo con el color del dueño.
 - Recompensas: munición, granadas y kit al pasar por uno propio (cada 25 s); reaparición 9 s menos 1 s por objetivo común (mín. 4 s); reaparición adelantada en el puesto avanzado propio. El mando ataca los comunes que no son suyos y recupera los propios perdidos.

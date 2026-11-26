@@ -3,6 +3,7 @@
 const OBRAS = (() => {
   const rules = {
     wall: {name:'Muro', repair:1, upgrades:[3,6], seconds:[4,10]},
+    wallLow: {name:'Parapeto', repair:1, upgrades:[2,4], seconds:[3,8]},
     gate: {name:'Portón', repair:2, upgrades:[4,8], seconds:[5,12]},
     gateInner: {name:'Puerta interior', repair:2, upgrades:[], seconds:[5,12]}
   };
@@ -18,10 +19,10 @@ const OBRAS = (() => {
     status.hidden = false;
     messageUntil = MX.M.t+2;
   }
-  function add(kind,x,z,level=1) {
+  function add(kind,x,z,level=1,rot=Math.PI/2,fac=0,inward=[-1,0]) {
     const type = kind==='gateInner' ? kind : kind+level;
-    const prop = OBJ.place(type,x,z,Math.PI/2,0);
-    const site = {kind,level,prop,progress:0,operation:null,worker:null};
+    const prop = OBJ.place(type,x,z,rot,fac);
+    const site = {kind,level,prop,progress:0,operation:null,worker:null,inward};
     sites.push(site);
     return site;
   }
@@ -77,7 +78,7 @@ const OBRAS = (() => {
     const nextLevel=site.level+(upgrade?1:0);
     const inner=upgrade && site.kind==='gate' && nextLevel===3;
     if (occupied(old.x,old.z,Math.max(.35,old.hx),old.hz) ||
-        (inner && occupied(old.x-1.6,old.z,.35,1.6))) {
+        (inner && occupied(old.x+site.inward[0]*1.6,old.z+site.inward[1]*1.6,.35,1.6))) {
       if (site.worker.bot) { pause(site); return; }
       message(site.worker,'Despeja el paso para terminar la obra');
       return;
@@ -87,7 +88,7 @@ const OBRAS = (() => {
     if (!old.dead) OBJ.removeObject(old);
     site.prop=OBJ.place(type,old.x,old.z,old.g.rotation.y,old.faction);
     if (opened) OBJ.setOpen(site.prop,true,true);
-    if (inner) add('gateInner',old.x-1.6,old.z,3);
+    if (inner) add('gateInner',old.x+site.inward[0]*1.6,old.z+site.inward[1]*1.6,3,old.g.rotation.y,old.faction,site.inward);   // la puerta interior, 1,6 m hacia dentro del refugio
     site.worker.bag.material-=q.cost;
     site.level=nextLevel;
     message(site.worker,rules[site.kind].name+' · nivel '+nextLevel+' · intacto');
@@ -136,5 +137,17 @@ const OBRAS = (() => {
     }
     return false;
   }
-  return {start,tick,controls,botRepair};
+  /* refugios del distrito: los tramos de muro (bajo y alto), el portón y la puerta interior que ya pone el mapa pasan a ser obras de su facción */
+  function adopt(rects) {
+    const kindOf = {wallLow1:['wallLow',1],wallLow2:['wallLow',2],wallLow3:['wallLow',3],wall1:['wall',1],wall2:['wall',2],wall3:['wall',3],gate1:['gate',1],gate2:['gate',2],gate3:['gate',3],gateInner:['gateInner',1]};
+    for (const p of props) {
+      const k = kindOf[p.type]; if (!k || p.dead || sites.some(s=>s.prop===p)) continue;
+      const r = rects.find(q=>Math.abs(p.x-q.x)<=q.hx && Math.abs(p.z-q.z)<=q.hz); if (!r) continue;
+      if (p.faction===null || p.faction===undefined) p.faction=r.fac;
+      const dx=r.x-p.x, dz=r.z-p.z, inward = Math.abs(dx)>Math.abs(dz) ? [Math.sign(dx),0] : [0,Math.sign(dz)];
+      sites.push({kind:k[0],level:k[1],prop:p,progress:0,operation:null,worker:null,inward});
+    }
+    return sites.length;
+  }
+  return {start,tick,controls,botRepair,adopt,sites};
 })();

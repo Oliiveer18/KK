@@ -1,5 +1,5 @@
 """El distrito completo (?mapa=6, v3 simétrico) tiene sentido e igualdad entre facciones: carreteras unidas, nada que no deba estar en la calzada, retenes por los que se puede pasar, edificios y árboles fuera de las calles,
-refugios con salida, todo alcanzable a pie, los 76 tipos y los 11 edificios presentes."""
+refugios con salida, todo alcanzable a pie, todos los tipos de objeto (salvo los niveles de mejora) y los 11 edificios presentes."""
 import os, sys
 from playwright.sync_api import sync_playwright
 bad = 0; errs = []
@@ -40,12 +40,12 @@ with sync_playwright() as p:
       const N=MX.NV,cell=(x,z)=>Math.floor((z-N.oz)/N.cs)*N.w+Math.floor((x-N.ox)/N.cs),res=[];
       for(let tm=0;tm<4;tm++){const s=D.spawns[tm][0],st=cell(s.x,s.z);if(N.bl[st]){res.push('bloqueada');continue}const seen=new Uint8Array(N.n);const q=[st];seen[st]=1;for(let h=0;h<q.length;h++){const c=q[h],cx=c%N.w,cz=(c/N.w)|0;for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=cx+dx,nz=cz+dz;if(nx<0||nz<0||nx>=N.w||nz>=N.h)continue;const k=nz*N.w+nx;if(!seen[k]&&!N.bl[k]){seen[k]=1;q.push(k)}}}
         let bad=0;for(const h of D.hot){if(!seen[cell(h[0],h[1])]){let ok=false;for(let d=-3;d<=3&&!ok;d++)for(let e=-3;e<=3;e++){const k=cell(h[0],h[1])+d*N.w+e;if(k>=0&&k<N.n&&seen[k]){ok=true;break}}if(!ok)bad++}}res.push(bad)}
-      const used=new Set(props.map(p=>p.type));const all=[...OBJ.types,"crate","crateS","barrier","barrel","barrelFuel","fence","sandbags","blocks"];
+      const used=new Set(props.map(p=>p.type));const MEJORA=new Set(["wallLow2","wallLow3"]);const all=[...OBJ.types,"crate","crateS","barrier","barrel","barrelFuel","fence","sandbags","blocks"].filter(k=>!MEJORA.has(k));   /* parapetos de piedra y de hierro: se obtienen mejorando el de troncos (obras) */
       return {kinds:Object.keys(c).length,houses:c.house||0,spawns:D.spawns.map(a=>a.length),alc:res,faltan:all.filter(k=>!used.has(k))}}''')
     print(r)
     chk(r['kinds'] == 11 and r['houses'] >= 40, 'los 11 tipos de edificio y %d casas' % r['houses'])
     chk(r['spawns'] == [6, 6, 6, 6] and all(x == 0 for x in r['alc']), 'desde los 4 refugios se llega a pie a todos los puntos de interés %s' % r['alc'])
-    chk(not r['faltan'], 'los 76 tipos de objeto aparecen en el mapa %s' % r['faltan'])
+    chk(not r['faltan'], 'todos los tipos de objeto aparecen en el mapa (salvo los niveles que se obtienen con mejoras) %s' % r['faltan'])
     # 5) igualdad: cada objeto y edificio tiene su copia girada 90° (mismo tipo y giro); árboles igual
     r = ev('''()=>{const D=MAPA.data.M2(),key=(t,x,z,g)=>t+'|'+Math.round(x)+'|'+Math.round(z)+'|'+(((Math.round((g||0)/(Math.PI/2))%4)+4)%4);
       const ES=new Set(['FAB','EST']),edge=o=>(Math.abs(o.x)<130&&Math.abs(o.z)>376)||(Math.abs(o.z)<130&&Math.abs(o.x)>376);

@@ -97,7 +97,7 @@ function assignMission(s) {
     const stay = type === 'recon' ? 25 : type === 'attack' ? 90 : 240;
     if (!(s.mission.arr ? M.t - s.mission.arr > stay : M.t - s.missionT > 260)) return; }
   let tg = null;
-  if (type === 'defend') { const c = { x: ref.x * .9, z: ref.z * .9 }; tg = navNear(c.x, c.z); tg.name = 'refugio'; }                                     // delante del portón
+  if (type === 'defend') { const rf = refugeOf(t); tg = rf ? { x: rf.x, z: rf.z } : navNear(ref.x * .9, ref.z * .9); tg.name = 'refugio'; }                 // el refugio: sus defensores ocupan los puestos junto al muro bajo
   else if (type === 'hold') { const lost = SQ.objs.filter(o => o.home === t && o.owner !== t).sort((a, b) => dist(a, ref) - dist(b, ref))[0];   // primero, recuperar lo propio perdido
     const own = pl.own[t]; const pue = own.find(p => p.id === 'PUE'); tg = lost || ((s.n % 2 === 1 && pue) ? pue : own[(rnd() * own.length) | 0] || ref); }
   else if (type === 'attack') {                                                      // objetivos comunes que no son nuestros; si los tenemos todos, el puesto avanzado enemigo más cercano
@@ -151,8 +151,15 @@ function holdPoint0(s, e, c, face) {
   const cp = coverPoint({ p }, c.x + Math.sin(face) * 30, c.z + Math.cos(face) * 30); if (cp && dist(cp, p) < 5) return cp;
   return p;
 }
+const refugeOf = t => { const r = MAPA.built && MAPA.built.info && MAPA.built.info.refugeRects; return r ? r.find(q => q.fac === t) : null; };
+const defensePts = t => { const d = MAPA.built && MAPA.built.info && MAPA.built.info.defense; const q = d && d.find(x => x.team === t); return q ? q.pts : null; };
 SQ.goalFor = e => {                                                                  // → { x, z, speed, hold, face } o null (sin escuadra)
   const s = e.sqd; if (!s) return null; const L = s.leader; const pl = MX.pl;
+  if (!s.playerLead && s.mission.type === 'defend' && L && s.mission.x !== undefined && dist(L.p, s.mission) < 32 && !(s.contact && M.t - s.contact.t < 10 && e.st !== 'fight' && dist(e.p, s.mission) > 20)) {
+    const dp = defensePts(s.team);                                                     // defensa del refugio: cada uno a su puesto pegado al muro bajo, agachado y mirando fuera
+    if (dp) { const i = (e === L ? 0 : slotOf(s, e) + 1) % dp.length, q = dp[i]; return { x: q[0], z: q[1], speed: dist(e.p, { x: q[0], z: q[1] }) > 10 ? 5 : 3.2, hold: true, face: q[2], crouch: false }; }
+  }
+  if (s.contact && s.contact.foe && s.contact.foe.dead) s.contact = null;
   if (s.contact && M.t - s.contact.t < 10 && e.st !== 'fight') {                       // contacto: posición de apoyo cerca de quien lo ve, mirando a la amenaza
     const c = s.contact, anchor = c.by && alive(c.by) && c.by !== e ? c.by.p : e.p, face = Math.atan2(c.x - anchor.x, c.z - anchor.z);
     const side = (slotOf(s, e) % 2 ? 1 : -1) * (3 + (slotOf(s, e) % 3) * 2), px = anchor.x + Math.cos(face) * side - Math.sin(face) * 2.5, pz = anchor.z - Math.sin(face) * side - Math.cos(face) * 2.5;
@@ -238,6 +245,7 @@ SQ.cmd = (k, long) => {
 SQ.supPoint = e => {                                                                 // a dónde hace fuego de supresión este bot (o null)
   const s = e.sqd; if (!s) return null;
   if (s.order && s.order.type === 'cover' && M.t - s.order.t < 10) return { x: s.order.tx, z: s.order.tz };
+  if (s.contact && s.contact.foe && s.contact.foe.dead) s.contact = null;          // el enemigo ha caído: se deja de batir la zona
   if (s.contact && M.t - s.contact.t < 6 && !e.vis) return { x: s.contact.x, z: s.contact.z };
   return null;
 };

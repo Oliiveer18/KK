@@ -847,9 +847,9 @@ let BW = null;                                                                  
 const bFall = (w, d) => { const b = w.bal; return d <= b.ef ? 1 : lerp(1, b.min, smooth((d - b.ef) / (b.max - b.ef))); };   // daño según distancia
 function spawnBullet(x, y, z, dx, dz, w, own) {
   let b = BUL.find(q => !q.on);
-  if (!b) { if (BUL.length >= 260) return; b = { on: false, m: new THREE.Mesh(geoCyl, bulMat), passed: new Set() }; b.m.visible = false; scene.add(b.m); BUL.push(b); }
+  if (!b) { if (BUL.length >= 260) return; b = { on: false, m: new THREE.Mesh(geoCyl, bulMat), passed: new Set(), pxc: new Map() }; b.m.visible = false; scene.add(b.m); BUL.push(b); }
   if (MX.on && MX.zom) MX.zom.shot(x, z, w);                                      // ruido: despierta zombis y desvía hordas
-  b.on = true; b.ox = x; b.oz = z; b.y = y; b.dx = dx; b.dz = dz; b.d = 0; b.age = 0; b.w = w; b.v = w.bal.v * (1 + (Math.random() - .5) * .05); b.dm = w.dmg; b.own = own || null; b.cover = own ? own.cover : P.cover; b.passed.clear(); b.pel = w.pellets > 1;
+  b.on = true; b.ox = x; b.oz = z; b.y = y; b.dx = dx; b.dz = dz; b.d = 0; b.age = 0; b.w = w; b.v = w.bal.v * (1 + (Math.random() - .5) * .05); b.dm = w.dmg; b.own = own || null; b.cover = own ? own.cover : P.cover; b.stand = (own ? own.crouch : P.crouch) < .5; b.passed.clear(); b.pxc.clear(); b.pel = w.pellets > 1;
   const th = b.pel ? .01 : w.dmg >= 80 ? .026 : .018; b.m.scale.set(th, 1, th); b.m.position.set(x, y, z); b.m.visible = true;
 }
 function bulletEnd(b, t, red, quiet) {                                                      // chispas + sonido en el punto de impacto contra pared o blanco
@@ -864,7 +864,8 @@ function updateBullets(dt) {
     const bl = b.w.bal, sp = b.v * (1 - bl.drag * Math.min(1, b.d / bl.max)), d0 = b.d, d1 = Math.min(b.d + sp * dt, bl.max); b.age += dt;
     if (MX.on && MX.bulletPass) MX.bulletPass(b, b.ox + b.dx * d0, b.oz + b.dz * d0, b.ox + b.dx * d1, b.oz + b.dz * d1);   // supresión (escuadras.js)
     const L = [];                                                                    // colisión continua: todo lo que cruza el tramo recorrido en este fotograma
-    for (const bx of boxesIn(b.ox + b.dx * d0, b.oz + b.dz * d0, b.ox + b.dx * d1, b.oz + b.dz * d1)) { if (bx.prop && ((bx.prop === b.cover && coverPass(bx.prop, b.ox, b.oz, b.dx, b.dz)) || b.passed.has(bx.prop))) continue; const r = rayBox2(b.ox, b.oz, b.dx, b.dz, bx); if (r && r[0] <= d1 && r[1] >= d0) L.push({ t: Math.max(r[0], d0), t2: r[1], bx }); }
+    for (const bx of boxesIn(b.ox + b.dx * d0, b.oz + b.dz * d0, b.ox + b.dx * d1, b.oz + b.dz * d1)) { if (bx.prop && ((bx.prop === b.cover && coverPass(bx.prop, b.ox, b.oz, b.dx, b.dz, b.stand)) || b.passed.has(bx.prop))) continue;
+      if (bx.prop && isParapet(bx.prop) && bx.prop !== b.cover && parapetExposed(bx.prop, b)) { b.passed.add(bx.prop); continue; }   /* alguien de pie justo detrás: expuesto de hombros arriba */ const r = rayBox2(b.ox, b.oz, b.dx, b.dz, bx); if (r && r[0] <= d1 && r[1] >= d0) L.push({ t: Math.max(r[0], d0), t2: r[1], bx }); }
     for (const tg of targets) { if (tg.hp <= 0) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, tg.g.position.x, tg.g.position.z, .42); if (tc >= d0 && tc <= d1) L.push({ t: tc, tg }); }
     if (MX.on && MX.zom) for (const z of MX.zom.list) { if (z.dead) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, z.p.x, z.p.z, z.r); if (tc >= d0 && tc <= d1) L.push({ t: tc, zom: z }); }   // zombis (campaña)
     if (MX.on) for (const e of MX.ents) { if (e.dead || e.inv > 0 || e.team === (b.own ? b.own.team : 0)) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, e.p.x, e.p.z, .36); if (tc >= d0 && tc <= d1) L.push({ t: tc, ent: e }); }   // jugadores y bots de la partida
@@ -1282,7 +1283,7 @@ function updateSmoke(dt) {
 }
 function castRay(ox, oz, dx, dz, max) {
   let t = max || 60, hit = null;
-  for (const b of boxesIn(ox, oz, ox + dx * t, oz + dz * t)) { if (b.prop && b.prop === P.cover && coverPass(b.prop, ox, oz, dx, dz)) continue; const tb = rayBox(ox, oz, dx, dz, b); if (tb < t) { t = tb; hit = 'wall'; } }
+  for (const b of boxesIn(ox, oz, ox + dx * t, oz + dz * t)) { if (b.prop && b.prop === P.cover && coverPass(b.prop, ox, oz, dx, dz, P.crouch < .5)) continue; const tb = rayBox(ox, oz, dx, dz, b); if (tb < t) { t = tb; hit = 'wall'; } }
   for (const tg of targets) {
     if (tg.hp <= 0 || !tg.g.visible) continue;
     const tc = rayCircle(ox, oz, dx, dz, tg.g.position.x, tg.g.position.z, .42); if (tc < t) { t = tc; hit = tg; }
@@ -1727,11 +1728,23 @@ function rayBox2(ox, oz, dx, dz, b) {
    te cubre y al apuntar disparas por encima, pero sólo si la bala cruza el coche por el capó o el maletero (no a través de la cabina). LOWEND: tramo de cabina en el eje largo del modelo. */
 const LOWEND = { car: { c0: -1.15, c1: .75 } };
 const _alongOf = (p, x, z) => { const g = p.g.rotation.y; return (x - p.x) * Math.cos(g) - (z - p.z) * Math.sin(g); };
-function lowCoverAt(p, x, z) { if (p.h <= .95) return true; const L = LOWEND[p.type]; if (!L) return false; const a = _alongOf(p, x, z); return a < L.c0 - .15 || a > L.c1 + .15; }
-function coverPass(p, ox, oz, dx, dz) {
+const isParapet = p => !!(p && p.type && p.type.startsWith('wallLow'));   // parapeto de 1,2 m (muros bajos de los refugios): sólo se dispara por encima de pie
+function lowCoverAt(p, x, z) { if (p.h <= .95 || isParapet(p)) return true; const L = LOWEND[p.type]; if (!L) return false; const a = _alongOf(p, x, z); return a < L.c0 - .15 || a > L.c1 + .15; }
+function coverPass(p, ox, oz, dx, dz, stand) {
+  if (isParapet(p)) return stand !== false;                                        // tras el parapeto: de pie, la bala pasa por encima; agachado, da en el muro
   const L = LOWEND[p.type]; if (!L) return true;
   const r = rayBox2(ox, oz, dx, dz, p.box); if (!r) return true; const a0 = _alongOf(p, ox + dx * r[0], oz + dz * r[0]), a1 = _alongOf(p, ox + dx * r[1], oz + dz * r[1]);
   return (a0 < L.c0 && a1 < L.c0) || (a0 > L.c1 && a1 > L.c1);
+}
+/* bala que llega al parapeto desde fuera: si justo detrás (≤ 1,4 m, en su trayectoria) hay alguien DE PIE, la mitad de las veces pasa por encima del muro (va a su
+   cabeza o sus hombros); si todos los de detrás están agachados, da en el muro. Se decide una vez por bala y parapeto. */
+function parapetExposed(p, b) {
+  if (b.pxc.has(p)) return b.pxc.get(p);
+  const r = rayBox2(b.ox, b.oz, b.dx, b.dz, p.box); let ex = false;
+  if (r) { const x = b.ox + b.dx * (r[1] + .7), z = b.oz + b.dz * (r[1] + .7), near = (px, pz) => Math.hypot(px - x, pz - z) < 1.4;
+    if (!P.dead && P.crouch < .5 && near(P.pos.x, P.pos.z)) ex = true;
+    if (!ex && typeof MX !== 'undefined' && MX.on) for (const e of MX.ents) if (e.bot && !e.dead && !e.dwn && e.crouch < .5 && near(e.p.x, e.p.z)) { ex = true; break; } }
+  const v = ex && Math.random() < .5; b.pxc.set(p, v); return v;
 }
 const IMPS = { wood: 'IMP_wood', plastic: 'IMP_plastic', metal: 'IMP_metal', sand: 'IMP_sand', block: 'IMP_block' };
 function impactSnd(mat, x, z) {
@@ -2568,6 +2581,39 @@ if (document.readyState === 'complete') requestAnimationFrame(frame); else windo
     lines(g, out, L - .9, 0, 2.3, .115, 1); lines(g, out, L - .9, 0, 2.3, -.115, -1);          // líneas de facción en la viga superior
     return { out, hx: L / 2, hz: .31, h: H + .4 };
   }
+  /* ---- muros de parapeto (1,2 m, a la altura del pecho de pie): agachado detrás, cubierto y oculto pero sin poder disparar; de pie, se dispara por encima
+     quedando expuesto de hombros arriba. Mismos niveles que los altos: 1 troncos tumbados sobre un caballón de tierra · 2 tres hiladas de sillería con
+     albardilla · 3 plancha de hierro entre postes en H ---- */
+  const PH = 1.2;
+  function wallLow1(g) {
+    const out = [], L = 3.2;
+    bx(g, out, OM.soil, L + .2, .22, .62, 0, .11, 0, false);                             // caballón de tierra
+    for (const s of [-1, 1]) log(g, out, BARK[(s + 3) % 3], .14, PH + .05, s * (L / 2 - .14), (PH + .05) / 2, 0, false);   // estacas de los extremos
+    for (let k = 0; k < 4; k++) { const t = log(g, out, BARK[k % 3], .17 - (k % 2) * .01, L - .1, 0, .3 + k * .25, (k % 2 ? .03 : -.03), true); t.rotation.z = Math.PI / 2; }   // troncos tumbados
+    bx(g, out, OM.woodD, L - .2, .07, .1, 0, PH - .1, .2, false); bx(g, out, OM.rope, L - .3, .05, .04, 0, .67, .21, false);
+    lines(g, out, L - .3, 0, PH - .1, .26, 1); lines(g, out, L - .3, 0, PH - .1, -.26, -1);
+    return { out, hx: L / 2, hz: .3, h: PH };
+  }
+  function wallLow2(g) {
+    const out = [], L = 3.2, T = .5;
+    tx(g, out, OM.stoneD, 1, L + .1, .2, T + .14, 0, .1, 0, false);
+    for (let r = 0; r < 3; r++) for (let k = 0; k < 4; k++) { const w = L / 4 - .02; tx(g, out, (k + r) % 2 ? OM.stoneD : OM.stone, 1, w, .3, T, -L / 2 + w / 2 + .01 + k * (L / 4), .35 + r * .3, 0, true); }
+    tx(g, out, OM.stoneD, 1, L + .1, .1, T + .1, 0, PH - .05, 0, false);               // albardilla
+    bx(g, out, OM.woodD, L - .8, .1, .03, 0, .92, T / 2 + .015, false); bx(g, out, OM.woodD, L - .8, .1, .03, 0, .92, -T / 2 - .015, false);
+    lines(g, out, L - .9, 0, .92, T / 2 + .03, 1); lines(g, out, L - .9, 0, .92, -T / 2 - .03, -1);
+    return { out, hx: L / 2, hz: T / 2 + .07, h: PH };
+  }
+  function wallLow3(g) {
+    const out = [], L = 3.2;
+    for (const s of [-1, 1]) { const px = s * (L / 2 - .15); bx(g, out, OM.iron, .1, PH, .3, px, PH / 2, 0, false); for (const z of [-1, 1]) bx(g, out, OM.iron, .3, PH, .07, px, PH / 2, z * .16, false); bx(g, out, OM.ironD, .5, .08, .5, px, .04, 0, false); }
+    for (const s of [-1, 1]) tx(g, out, OM.plate, 1.25, 1.35, .95, .12, s * .7, .58, 0, true);
+    bx(g, out, OM.ironD, L, .12, .22, 0, PH - .06, 0, false); bx(g, out, OM.ironD, L, .1, .2, 0, .1, 0, false);
+    for (const z of [-1, 1]) tx(g, out, OM.hazard, 3, L - .6, .1, .02, 0, .2, z * .07, false);
+    lines(g, out, L - .9, 0, PH - .06, .115, 1); lines(g, out, L - .9, 0, PH - .06, -.115, -1);
+    return { out, hx: L / 2, hz: .27, h: PH };
+  }
+  const WALLS_LOW = [null, wallLow1, wallLow2, wallLow3], lowNames = ['', 'Parapeto de troncos', 'Parapeto de piedra', 'Parapeto de hierro'];
+  for (let lv = 1; lv <= 3; lv++) def('wallLow' + lv, { name: lowNames[lv], cat: 'Accesos y defensa', level: lv, note: 'Parapeto (1,2 m): agachado cubre y oculta; de pie se dispara por encima, expuesto de hombros arriba' }, { mat: ['', 'wood', 'block', 'metal'][lv], hp: [0, 250, 600, 1100][lv], push: false, mass: 60, fric: 9, build: WALLS_LOW[lv] });
   const WALLS = [null, wall1, wall2, wall3], wallHp = [0, 250, 600, 1100], wallMat = [0, 'wood', 'block', 'metal'];
   const wallNames = ['', 'Empalizada de madera', 'Muro de piedra', 'Muro de hierro'];
   for (let lv = 1; lv <= 3; lv++) def('wall' + lv, { name: wallNames[lv], cat: 'Accesos y defensa', level: lv }, { mat: wallMat[lv], hp: wallHp[lv], push: false, mass: 60, fric: 9, build: WALLS[lv] });
@@ -3676,7 +3722,7 @@ MAPA.build = function (D) {
       if (!gateHere) { horiz ? wallBox(R.x + nx, R.z + nz, len, T, H, R.fac) : wallBox(R.x + nx, R.z + nz, T, len, H, R.fac); return; }
       const half = (len - g) / 2; for (const sg of [-1, 1]) { const o = sg * (g / 2 + half / 2); horiz ? wallBox(R.x + nx + o, R.z + nz, half, T, H, R.fac) : wallBox(R.x + nx, R.z + nz + o, T, half, H, R.fac); }
     };
-    side(0, -hd, R.w, true, R.face === 'n'); side(0, hd, R.w, true, R.face === 's'); side(-hw, 0, R.d, false, R.face === 'w'); side(hw, 0, R.d, false, R.face === 'e');
+    if (!R.noWalls) { side(0, -hd, R.w, true, R.face === 'n'); side(0, hd, R.w, true, R.face === 's'); side(-hw, 0, R.d, false, R.face === 'w'); side(hw, 0, R.d, false, R.face === 'e'); }   // noWalls: el muro son tramos de objetos (wall1…) puestos por los datos del mapa
     const dir = { n: [0, -1], s: [0, 1], w: [-1, 0], e: [1, 0] }[R.face], yaw = Math.atan2(dir[0], dir[1]);
     { const cx = R.x + dir[0] * (hw - 7), cz = R.z + dir[1] * (hd - 7); for (let i = 0; i < 6; i++) out.spawns[R.fac].push({ x: dir[1] ? cx + (i - 2.5) * 4 : cx, z: dir[1] ? cz : cz + (i - 2.5) * 4, yaw }); }      // 6 puntos de aparición dentro, cerca del portón
     const e = placeObject('emblem' + R.fac, R.x + dir[0] * (hw + .1), R.z + dir[1] * (hd + .1), Math.atan2(dir[0], dir[1]), { fac: R.fac }); if (e) out.props.push(e);
@@ -4069,14 +4115,41 @@ MAPA.data.M2 = function () {
   const free = (x, z, m) => D.occ.every(o => Math.abs(o.x - x) > o.hx + (m || 2) || Math.abs(o.z - z) > o.hz + (m || 2)) && D.RI.gap(x, z) > 4;
   const spot = (x, z) => { for (let r = 0; r <= 40; r += 3) for (let a = 0; a < 6.28; a += .6) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (free(px, pz, 2.5) && Math.abs(px) < half - 8 && Math.abs(pz) < half - 8) return [px, pz]; } return null; };
   let sd = 200;
-  /* ---------- 1. refugios (esquinas): 50 × 50 m, portón al sur hacia su acceso; dos torres de madera fuera del muro ---------- */
-  const FACE = ['s', 'w', 'n', 'e'];
-  for (const k of KS(4)) { const [x, z] = R(k, -445, -445); D.refuges.push({ fac: COMP.facRot(0, k), x, z, w: 50, d: 50, face: FACE[k], gate: 8 }); }
-  COMP.refugeKit(D, { seed: 900, x: -445, z: -445, w: 50, d: 50, face: 's' });
-  COMP.put(D, 'gate1', -447.1, -420, 0, { abierto: true, fac: 0 }, 0); COMP.put(D, 'gate1', -442.9, -420, 0, { abierto: true, fac: 0 }, 0);
-  COMP.reserve(D, -445, -445, 26, 26, 'refugio'); surf('concrete', -445, -417.5, 10, 5);                     // explanada entre el portón y el acceso
-  COMP.towerPost(D, { x: -405, z: -458, level: 1, fac: 0, seed: 950 }); COMP.towerPost(D, { x: -462, z: -404, level: 1, fac: 0, seed: 951 });
-  place('REF', 'Refugio', -445, -445); zone('Refugio', -470, -470, -420, -420);
+  /* ---------- 1. refugios (esquinas): compactos y defendibles, 23,4 × 16 m (79 m de perímetro) ----------
+     Todo el perímetro es parapeto de troncos (wallLow1, 1,2 m: agachado cubre y oculta pero no deja disparar; de pie se dispara por encima, expuesto de hombros
+     arriba; se repara y mejora con las obras: troncos → piedra
+     → hierro). Portón de madera de dos hojas (alto) en el centro del frente, hacia el acceso y la ronda exterior; nidos de sacos fuera, a sus lados. Dentro, un
+     tabique alto (wall1) con la puerta interior separa la zona de aparición y defensa (delante) del almacén, armero, catres y tablón (detrás): segunda línea si
+     revientan el portón. Delante, 25 m despejados. Coordenadas locales del Azul: a = hacia el portón (+z), b = lateral (+x). Tramos de 3,2 m. */
+  const RX = -445, RZ = -428, HX = 11.2, HD = 8, FACE = ['s', 'w', 'n', 'e'], PI2 = Math.PI / 2;
+  const at = (a, b) => [RX + b, RZ + a];
+  for (const k of KS(4)) { const [x, z] = R(k, RX, RZ); D.refuges.push({ fac: COMP.facRot(0, k), x, z, w: k % 2 ? 2 * HD : 2 * HX + 1, d: k % 2 ? 2 * HX + 1 : 2 * HD, face: FACE[k], gate: 8, noWalls: true }); }   // w/d: medida en x/z del mundo (girada)
+  const pc = (t, a, b, rot, o) => { const [x, z] = at(a, b); COMP.put(D, t, x, z, rot, o || { fac: 0 }, -.02); };   // tramos borde con borde: 2 cm de margen para el redondeo de las copias giradas
+  const AF = HD - .3;                                                                                       // eje del muro delantero y trasero
+  for (const b of [-9.6, -6.4, 6.4, 9.6]) pc('wallLow1', AF, b, 0);                                         // frente: 2 tramos · [portón 9,6 m] · 2 tramos
+  for (const b of [-2.1, 2.1]) pc('gate1', AF, b, 0, { abierto: true, fac: 0 });
+  for (const b of [-9.6, -6.4, -3.2, 0, 3.2, 6.4, 9.6]) pc('wallLow1', -AF, b, 0);                          // fondo: 7 tramos
+  for (const sg of [-1, 1]) for (const a of [-6.4, -3.2, 0, 3.2, 6.4]) pc('wallLow1', a, sg * (HX + .3), PI2);   // costados, por fuera de los extremos del frente y del fondo
+  const AP = -2.2;                                                                                          // tabique alto con la puerta interior
+  for (const b of [-9.6, -6.4, -3.2, 3.2, 6.4, 9.6]) pc('wall1', AP, b, 0);
+  pc('gateInner', AP, 0, 0, { abierto: true });
+  /* dentro, detrás: almacén (materiales, munición, médico), armero, catres, tablón; focos en las esquinas */
+  { const P = (t, a, b, g, o) => { const [x, z] = at(a, b); COMP.put(D, t, x, z, g || 0, o, .1); };
+    P('storeMat', -6.9, -7.9); P('storeAmmo', -6.9, -5.6); P('storeMed', -6.9, -2.8); P('rack', -6.95, 3.6); P('rack', -6.95, 6.2);
+    for (const b of [2.4, 4.4, 6.4, 8.4]) P('cot', -4.7, b, 0);
+    P('board', -2.9, -7.6); P('crate', -3.9, -10.2); P('crateS', -4.9, -10.3); P('barrel', -3.6, 10.3); P('barrelFuel', -4.5, 10.3);
+    for (const [a, b] of [[-1.5, -10.6], [-1.5, 10.6], [-2.9, -10.6]]) P('floodlight', a, b); }   // sin pisar los puestos de defensa
+  /* fuera: nidos de sacos a los lados del portón, mirando al acceso */
+  for (const sg of [-1, 1]) { const [x, z] = at(HD + 2.6, sg * 7.4); COMP.nest(D, { x, z, face: 's' }); }
+  COMP.reserve(D, RX, RZ, HX + .7, HD, 'refugio'); surf('concrete', -445, -417.5, 10, 5);                  // explanada entre el portón y el acceso
+  { const pts = [];                                                                                         // puestos de defensa (pegados al muro bajo, mirando fuera)
+    for (const b of [-9.6, -6.4, 6.4, 9.6]) pts.push([HD - 1.3, b, 0]);
+    for (const sg of [-1, 1]) for (const a of [4.8, 1.6]) pts.push([a, sg * (HX - .75), sg * PI2]);
+    pts.push([HD - 2.2, -2.6, 0], [HD - 2.2, 2.6, 0]);
+    for (const b of [-10, 10]) pts.push([-HD + 1.25, b, Math.PI]);
+    D.info.defense = [0, 1, 2, 3].map(k => ({ team: COMP.facRot(0, k), pts: pts.map(([a, b, yaw]) => { const [x, z] = at(a, b), [rx, rz] = R(k, x, z); return [rx, rz, yaw - k * PI2]; }) })); }
+  D.info.refugeRects = D.refuges.map(r => ({ fac: r.fac, x: r.x, z: r.z, hx: r.w / 2 + .6, hz: r.d / 2 + .6 }));
+  place('REF', 'Refugio', RX, RZ); zone('Refugio', RX - HX, RZ - HD, RX + HX, RZ + HD);
   /* ---------- 2. Plaza Mayor (centro exacto): 4 cuadros de adoquín en las esquinas del cruce, cada uno con el mismo campamento ---------- */
   surf('cobble', -30.1, -30.1, 39.8, 39.8);
   COMP.camp(D, { x: -30, z: -33, seed: 7002 });
@@ -4178,6 +4251,7 @@ MAPA.data.M2 = function () {
 const OBRAS = (() => {
   const rules = {
     wall: {name:'Muro', repair:1, upgrades:[3,6], seconds:[4,10]},
+    wallLow: {name:'Parapeto', repair:1, upgrades:[2,4], seconds:[3,8]},
     gate: {name:'Portón', repair:2, upgrades:[4,8], seconds:[5,12]},
     gateInner: {name:'Puerta interior', repair:2, upgrades:[], seconds:[5,12]}
   };
@@ -4193,10 +4267,10 @@ const OBRAS = (() => {
     status.hidden = false;
     messageUntil = MX.M.t+2;
   }
-  function add(kind,x,z,level=1) {
+  function add(kind,x,z,level=1,rot=Math.PI/2,fac=0,inward=[-1,0]) {
     const type = kind==='gateInner' ? kind : kind+level;
-    const prop = OBJ.place(type,x,z,Math.PI/2,0);
-    const site = {kind,level,prop,progress:0,operation:null,worker:null};
+    const prop = OBJ.place(type,x,z,rot,fac);
+    const site = {kind,level,prop,progress:0,operation:null,worker:null,inward};
     sites.push(site);
     return site;
   }
@@ -4252,7 +4326,7 @@ const OBRAS = (() => {
     const nextLevel=site.level+(upgrade?1:0);
     const inner=upgrade && site.kind==='gate' && nextLevel===3;
     if (occupied(old.x,old.z,Math.max(.35,old.hx),old.hz) ||
-        (inner && occupied(old.x-1.6,old.z,.35,1.6))) {
+        (inner && occupied(old.x+site.inward[0]*1.6,old.z+site.inward[1]*1.6,.35,1.6))) {
       if (site.worker.bot) { pause(site); return; }
       message(site.worker,'Despeja el paso para terminar la obra');
       return;
@@ -4262,7 +4336,7 @@ const OBRAS = (() => {
     if (!old.dead) OBJ.removeObject(old);
     site.prop=OBJ.place(type,old.x,old.z,old.g.rotation.y,old.faction);
     if (opened) OBJ.setOpen(site.prop,true,true);
-    if (inner) add('gateInner',old.x-1.6,old.z,3);
+    if (inner) add('gateInner',old.x+site.inward[0]*1.6,old.z+site.inward[1]*1.6,3,old.g.rotation.y,old.faction,site.inward);   // la puerta interior, 1,6 m hacia dentro del refugio
     site.worker.bag.material-=q.cost;
     site.level=nextLevel;
     message(site.worker,rules[site.kind].name+' · nivel '+nextLevel+' · intacto');
@@ -4311,7 +4385,19 @@ const OBRAS = (() => {
     }
     return false;
   }
-  return {start,tick,controls,botRepair};
+  /* refugios del distrito: los tramos de muro (bajo y alto), el portón y la puerta interior que ya pone el mapa pasan a ser obras de su facción */
+  function adopt(rects) {
+    const kindOf = {wallLow1:['wallLow',1],wallLow2:['wallLow',2],wallLow3:['wallLow',3],wall1:['wall',1],wall2:['wall',2],wall3:['wall',3],gate1:['gate',1],gate2:['gate',2],gate3:['gate',3],gateInner:['gateInner',1]};
+    for (const p of props) {
+      const k = kindOf[p.type]; if (!k || p.dead || sites.some(s=>s.prop===p)) continue;
+      const r = rects.find(q=>Math.abs(p.x-q.x)<=q.hx && Math.abs(p.z-q.z)<=q.hz); if (!r) continue;
+      if (p.faction===null || p.faction===undefined) p.faction=r.fac;
+      const dx=r.x-p.x, dz=r.z-p.z, inward = Math.abs(dx)>Math.abs(dz) ? [Math.sign(dx),0] : [0,Math.sign(dz)];
+      sites.push({kind:k[0],level:k[1],prop:p,progress:0,operation:null,worker:null,inward});
+    }
+    return sites.length;
+  }
+  return {start,tick,controls,botRepair,adopt,sites};
 })();
 </script>
 <script>/* Inventario de la campaña. Los estantes y los cuerpos conservan una sola reserva
@@ -4620,6 +4706,7 @@ function buildDistrict() {                                                      
   props.length = 0; for (const tg of targets) scene.remove(tg.g); targets.length = 0;
   grid.visible = false;                                                             // la cuadrícula de referencia de la arena no se usa en el distrito
   const D = MAPA.build(MAPA.data[MX.dataId || 'M1']());
+  if (D.info && D.info.refugeRects && typeof OBRAS !== 'undefined' && OBRAS.adopt) OBRAS.adopt(D.info.refugeRects);   // muros y portones de los refugios del distrito: obras de su facción (reparar y mejorar)
   WORLD.x = WORLD.z = D.half - .6; border.scale.set(WORLD.x / 40, 1, WORLD.z / 40); ground.scale.set(Math.max(1, (D.half * 2 + 20) / 120), Math.max(1, (D.half * 2 + 20) / 120), 1);
   for (const w of D.walls) M.walls.push(w);
   for (let tm = 0; tm < 4; tm++) M.spawn[tm] = D.spawns[tm].map(s => ({ x: s.x, z: s.z, yaw: s.yaw }));
@@ -4781,8 +4868,8 @@ MX.refill = () => refillAll(); MX.syncKit = e => syncKit(e); MX.findPath = findP
 function segClear(ax, az, bx, bz, ign1, ign2, lowIgnore) {
   const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz); if (L < 1e-4) return true; const ux = dx / L, uz = dz / L;
   for (const b of boxesIn(ax, az, bx, bz)) {
-    if (b.prop && ((b.prop === ign1 && coverPass(b.prop, ax, az, ux, uz)) || b.prop === ign2)) continue;
-    if (lowIgnore && b.prop && b.prop.h <= .95) continue;
+    if (b.prop && ((b.prop === ign1 && coverPass(b.prop, ax, az, ux, uz, true)) || b.prop === ign2)) continue;   // su propia cobertura (tras un parapeto, se levantará para disparar)
+    if (lowIgnore && b.prop && (b.prop.h <= .95 || isParapet(b.prop))) continue;   // se ve por encima de lo bajo y de los parapetos (a quien está agachado tras uno lo oculta hiddenBehind)
     const r = rayBox2(ax, az, ux, uz, b); if (r && r[0] < L) return false;
   }
   return true;
@@ -4949,6 +5036,11 @@ function sightUpdate() {
 }
 MX.SIGHT = SIGHT;
 const inSight = (e, dx, dz) => Math.abs(dx) < SIGHT.hw && Math.abs(dz) < SIGHT.hd;
+function hiddenBehind(o, vx, vz) {                                                  // agachado tras un parapeto (1,2 m), visto desde el otro lado: oculto
+  const c = o.isPlayer ? P.cover : o.cover, cr = o.isPlayer ? P.crouch : o.crouch; if (!c || !isParapet(c) || cr < .5) return false;
+  return c.hx > c.hz ? Math.sign(vz - c.z) !== Math.sign(o.p.z - c.z) : Math.sign(vx - c.x) !== Math.sign(o.p.x - c.x);
+}
+MX.hiddenBehind = (o, x, z) => hiddenBehind(o, x, z);
 function perceive(e) {
   let best = null, bs = 1e9;
   if (MX.zom) for (const o of MX.zom.list) {                                         // los zombis también son amenaza para los bots
@@ -4960,7 +5052,7 @@ function perceive(e) {
   for (const o of M.ents) {
     if (o.dead || o.team === e.team || o.inv > 0) continue;
     const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.hypot(dx, dz); if (!inSight(e, dx, dz)) continue;
-    if (!segClear(e.p.x, e.p.z, o.p.x, o.p.z, null, null, true) || smokeBlock(e.p.x, e.p.z, o.p.x, o.p.z)) continue;
+    if (!segClear(e.p.x, e.p.z, o.p.x, o.p.z, null, null, true) || smokeBlock(e.p.x, e.p.z, o.p.x, o.p.z) || hiddenBehind(o, e.p.x, e.p.z)) continue;
     const sc = d - (o === e.lastAtt && M.t - e.lastAttT < 3 ? 6 : 0); if (sc < bs) { bs = sc; best = o; }
   }
   return best;
@@ -5116,7 +5208,7 @@ function aimFire(e, dt) {
     const sp = MX.SQ.supPoint(e);
     if (sp) { const d = Math.hypot(sp.x - e.p.x, sp.z - e.p.z), ux = (sp.x - e.p.x) / (d || 1), uz = (sp.z - e.p.z) / (d || 1), aim = Math.atan2(sp.x - e.p.x, sp.z - e.p.z) + Math.sin(M.t * 1.7 + e.phase * 9) * .12;
       e.yaw += clamp(angDiff(e.yaw, aim), -df.turn * dt, df.turn * dt);
-      if (d > 4 && Math.abs(angDiff(e.yaw, aim)) < .25 && e.fireCd <= 0 && e.pause <= 0 && segClear(e.p.x, e.p.z, e.p.x + ux * Math.min(d - 2, 18), e.p.z + uz * Math.min(d - 2, 18), e.cover, null, true)) { shoot(e); e.pause = Math.max(e.pause, rr(.6, 1.6)); }
+      if (d > 4 && Math.abs(angDiff(e.yaw, aim)) < .25 && e.fireCd <= 0 && e.pause <= 0 && !(e.cover && isParapet(e.cover) && e.crouch > .5) && segClear(e.p.x, e.p.z, e.p.x + ux * Math.min(d - 2, 18), e.p.z + uz * Math.min(d - 2, 18), e.cover, null, true)) { shoot(e); e.pause = Math.max(e.pause, rr(.6, 1.6)); }
       return; }
   }
   if (!(e.vis && e.tgt && !e.tgt.dead) && Math.hypot(e.v.x, e.v.z) > .8) {
@@ -5128,6 +5220,7 @@ function aimFire(e, dt) {
   if (e.reactT < df.react || d > e.maxEng || Math.abs(angDiff(e.yaw, clean)) > thr) return;
   if (w.launch && (d < 9.5 || d > 19.5)) return;
   if (e.fireCd > 0 || e.pause > 0 || e.ammo <= 0) return;
+  if (e.cover && isParapet(e.cover) && e.crouch > .5) return;                     // tras el parapeto se dispara de pie
   shoot(e);
 }
 function moveBot(e, dt) {
@@ -5136,6 +5229,7 @@ function moveBot(e, dt) {
   else if (e.st === 'push') {
     const sqd = MX.campaign && MX.SQ && e.sqd;
     if (!e.goal && !e.holdT) pickGoal(e);
+    if (sqd && e.sqHold && e.goal && !(e.holdT > 0) && Math.hypot(e.goal.x - e.p.x, e.goal.z - e.p.z) < 1) { e.holdT = 1e9; e.path = null; }   // ya en su puesto (a < 1 m): se queda, aunque el punto exacto esté pegado al muro
     const r = steerPath(e);
     if (r === 'arrived') { if (sqd && e.sqHold) { e.holdT = 1e9; e.path = null; } else { e.holdT = rr(.6, 2.2); e.goal = null; e.path = null; } }   // en su puesto: se queda (la escuadra le cambia el objetivo cuando toca)
     if (e.holdT > 0) { e.holdT -= dt; spd = 0; if (e.holdT <= 0) e.holdT = 0; if (sqd && e.sqHold) { if (e.sqCrouch || e.supp > .3) crT = 1; if (!e.vis && e.sqFace !== undefined) e.yaw += clamp(angDiff(e.yaw, e.sqFace), -3 * dt, 3 * dt); } }
@@ -5158,6 +5252,7 @@ function moveBot(e, dt) {
   } else if (e.st === 'cover') {
     const r = steerPath(e); if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = 6.8; } else { spd = 0; crT = 1; if (e.ammo < e.w.max * .6 && e.reloadT < 0) startReload(e); }
   }
+  if (MX.campaign && e.cover && isParapet(e.cover) && spd < .5) crT = e.reloadT >= 0 || e.hp < 40 ? 1 : 0;   // tras el muro: de pie disparando por encima; agachado sólo para recargar o con poca vida
   if (e.nudge) { dx += -dz * e.nudge * .5; dz += dx * e.nudge * .5; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; }
   e.crouchT = crT; e.crouch = damp(e.crouch, crT, 7, dt);
   const sMax = spd * (1 - .5 * e.crouch), tx = dx * sMax, tz = dz * sMax, ax = tx - e.v.x, az = tz - e.v.z, l = Math.hypot(ax, az), step = 32 * dt;
@@ -6072,7 +6167,7 @@ function assignMission(s) {
     const stay = type === 'recon' ? 25 : type === 'attack' ? 90 : 240;
     if (!(s.mission.arr ? M.t - s.mission.arr > stay : M.t - s.missionT > 260)) return; }
   let tg = null;
-  if (type === 'defend') { const c = { x: ref.x * .9, z: ref.z * .9 }; tg = navNear(c.x, c.z); tg.name = 'refugio'; }                                     // delante del portón
+  if (type === 'defend') { const rf = refugeOf(t); tg = rf ? { x: rf.x, z: rf.z } : navNear(ref.x * .9, ref.z * .9); tg.name = 'refugio'; }                 // el refugio: sus defensores ocupan los puestos junto al muro bajo
   else if (type === 'hold') { const lost = SQ.objs.filter(o => o.home === t && o.owner !== t).sort((a, b) => dist(a, ref) - dist(b, ref))[0];   // primero, recuperar lo propio perdido
     const own = pl.own[t]; const pue = own.find(p => p.id === 'PUE'); tg = lost || ((s.n % 2 === 1 && pue) ? pue : own[(rnd() * own.length) | 0] || ref); }
   else if (type === 'attack') {                                                      // objetivos comunes que no son nuestros; si los tenemos todos, el puesto avanzado enemigo más cercano
@@ -6126,8 +6221,15 @@ function holdPoint0(s, e, c, face) {
   const cp = coverPoint({ p }, c.x + Math.sin(face) * 30, c.z + Math.cos(face) * 30); if (cp && dist(cp, p) < 5) return cp;
   return p;
 }
+const refugeOf = t => { const r = MAPA.built && MAPA.built.info && MAPA.built.info.refugeRects; return r ? r.find(q => q.fac === t) : null; };
+const defensePts = t => { const d = MAPA.built && MAPA.built.info && MAPA.built.info.defense; const q = d && d.find(x => x.team === t); return q ? q.pts : null; };
 SQ.goalFor = e => {                                                                  // → { x, z, speed, hold, face } o null (sin escuadra)
   const s = e.sqd; if (!s) return null; const L = s.leader; const pl = MX.pl;
+  if (!s.playerLead && s.mission.type === 'defend' && L && s.mission.x !== undefined && dist(L.p, s.mission) < 32 && !(s.contact && M.t - s.contact.t < 10 && e.st !== 'fight' && dist(e.p, s.mission) > 20)) {
+    const dp = defensePts(s.team);                                                     // defensa del refugio: cada uno a su puesto pegado al muro bajo, agachado y mirando fuera
+    if (dp) { const i = (e === L ? 0 : slotOf(s, e) + 1) % dp.length, q = dp[i]; return { x: q[0], z: q[1], speed: dist(e.p, { x: q[0], z: q[1] }) > 10 ? 5 : 3.2, hold: true, face: q[2], crouch: false }; }
+  }
+  if (s.contact && s.contact.foe && s.contact.foe.dead) s.contact = null;
   if (s.contact && M.t - s.contact.t < 10 && e.st !== 'fight') {                       // contacto: posición de apoyo cerca de quien lo ve, mirando a la amenaza
     const c = s.contact, anchor = c.by && alive(c.by) && c.by !== e ? c.by.p : e.p, face = Math.atan2(c.x - anchor.x, c.z - anchor.z);
     const side = (slotOf(s, e) % 2 ? 1 : -1) * (3 + (slotOf(s, e) % 3) * 2), px = anchor.x + Math.cos(face) * side - Math.sin(face) * 2.5, pz = anchor.z - Math.sin(face) * side - Math.cos(face) * 2.5;
@@ -6213,6 +6315,7 @@ SQ.cmd = (k, long) => {
 SQ.supPoint = e => {                                                                 // a dónde hace fuego de supresión este bot (o null)
   const s = e.sqd; if (!s) return null;
   if (s.order && s.order.type === 'cover' && M.t - s.order.t < 10) return { x: s.order.tx, z: s.order.tz };
+  if (s.contact && s.contact.foe && s.contact.foe.dead) s.contact = null;          // el enemigo ha caído: se deja de batir la zona
   if (s.contact && M.t - s.contact.t < 6 && !e.vis) return { x: s.contact.x, z: s.contact.z };
   return null;
 };

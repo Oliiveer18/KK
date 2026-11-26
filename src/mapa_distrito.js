@@ -86,14 +86,41 @@ MAPA.data.M2 = function () {
   const free = (x, z, m) => D.occ.every(o => Math.abs(o.x - x) > o.hx + (m || 2) || Math.abs(o.z - z) > o.hz + (m || 2)) && D.RI.gap(x, z) > 4;
   const spot = (x, z) => { for (let r = 0; r <= 40; r += 3) for (let a = 0; a < 6.28; a += .6) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (free(px, pz, 2.5) && Math.abs(px) < half - 8 && Math.abs(pz) < half - 8) return [px, pz]; } return null; };
   let sd = 200;
-  /* ---------- 1. refugios (esquinas): 50 × 50 m, portón al sur hacia su acceso; dos torres de madera fuera del muro ---------- */
-  const FACE = ['s', 'w', 'n', 'e'];
-  for (const k of KS(4)) { const [x, z] = R(k, -445, -445); D.refuges.push({ fac: COMP.facRot(0, k), x, z, w: 50, d: 50, face: FACE[k], gate: 8 }); }
-  COMP.refugeKit(D, { seed: 900, x: -445, z: -445, w: 50, d: 50, face: 's' });
-  COMP.put(D, 'gate1', -447.1, -420, 0, { abierto: true, fac: 0 }, 0); COMP.put(D, 'gate1', -442.9, -420, 0, { abierto: true, fac: 0 }, 0);
-  COMP.reserve(D, -445, -445, 26, 26, 'refugio'); surf('concrete', -445, -417.5, 10, 5);                     // explanada entre el portón y el acceso
-  COMP.towerPost(D, { x: -405, z: -458, level: 1, fac: 0, seed: 950 }); COMP.towerPost(D, { x: -462, z: -404, level: 1, fac: 0, seed: 951 });
-  place('REF', 'Refugio', -445, -445); zone('Refugio', -470, -470, -420, -420);
+  /* ---------- 1. refugios (esquinas): compactos y defendibles, 23,4 × 16 m (79 m de perímetro) ----------
+     Todo el perímetro es parapeto de troncos (wallLow1, 1,2 m: agachado cubre y oculta pero no deja disparar; de pie se dispara por encima, expuesto de hombros
+     arriba; se repara y mejora con las obras: troncos → piedra
+     → hierro). Portón de madera de dos hojas (alto) en el centro del frente, hacia el acceso y la ronda exterior; nidos de sacos fuera, a sus lados. Dentro, un
+     tabique alto (wall1) con la puerta interior separa la zona de aparición y defensa (delante) del almacén, armero, catres y tablón (detrás): segunda línea si
+     revientan el portón. Delante, 25 m despejados. Coordenadas locales del Azul: a = hacia el portón (+z), b = lateral (+x). Tramos de 3,2 m. */
+  const RX = -445, RZ = -428, HX = 11.2, HD = 8, FACE = ['s', 'w', 'n', 'e'], PI2 = Math.PI / 2;
+  const at = (a, b) => [RX + b, RZ + a];
+  for (const k of KS(4)) { const [x, z] = R(k, RX, RZ); D.refuges.push({ fac: COMP.facRot(0, k), x, z, w: k % 2 ? 2 * HD : 2 * HX + 1, d: k % 2 ? 2 * HX + 1 : 2 * HD, face: FACE[k], gate: 8, noWalls: true }); }   // w/d: medida en x/z del mundo (girada)
+  const pc = (t, a, b, rot, o) => { const [x, z] = at(a, b); COMP.put(D, t, x, z, rot, o || { fac: 0 }, -.02); };   // tramos borde con borde: 2 cm de margen para el redondeo de las copias giradas
+  const AF = HD - .3;                                                                                       // eje del muro delantero y trasero
+  for (const b of [-9.6, -6.4, 6.4, 9.6]) pc('wallLow1', AF, b, 0);                                         // frente: 2 tramos · [portón 9,6 m] · 2 tramos
+  for (const b of [-2.1, 2.1]) pc('gate1', AF, b, 0, { abierto: true, fac: 0 });
+  for (const b of [-9.6, -6.4, -3.2, 0, 3.2, 6.4, 9.6]) pc('wallLow1', -AF, b, 0);                          // fondo: 7 tramos
+  for (const sg of [-1, 1]) for (const a of [-6.4, -3.2, 0, 3.2, 6.4]) pc('wallLow1', a, sg * (HX + .3), PI2);   // costados, por fuera de los extremos del frente y del fondo
+  const AP = -2.2;                                                                                          // tabique alto con la puerta interior
+  for (const b of [-9.6, -6.4, -3.2, 3.2, 6.4, 9.6]) pc('wall1', AP, b, 0);
+  pc('gateInner', AP, 0, 0, { abierto: true });
+  /* dentro, detrás: almacén (materiales, munición, médico), armero, catres, tablón; focos en las esquinas */
+  { const P = (t, a, b, g, o) => { const [x, z] = at(a, b); COMP.put(D, t, x, z, g || 0, o, .1); };
+    P('storeMat', -6.9, -7.9); P('storeAmmo', -6.9, -5.6); P('storeMed', -6.9, -2.8); P('rack', -6.95, 3.6); P('rack', -6.95, 6.2);
+    for (const b of [2.4, 4.4, 6.4, 8.4]) P('cot', -4.7, b, 0);
+    P('board', -2.9, -7.6); P('crate', -3.9, -10.2); P('crateS', -4.9, -10.3); P('barrel', -3.6, 10.3); P('barrelFuel', -4.5, 10.3);
+    for (const [a, b] of [[-1.5, -10.6], [-1.5, 10.6], [-2.9, -10.6]]) P('floodlight', a, b); }   // sin pisar los puestos de defensa
+  /* fuera: nidos de sacos a los lados del portón, mirando al acceso */
+  for (const sg of [-1, 1]) { const [x, z] = at(HD + 2.6, sg * 7.4); COMP.nest(D, { x, z, face: 's' }); }
+  COMP.reserve(D, RX, RZ, HX + .7, HD, 'refugio'); surf('concrete', -445, -417.5, 10, 5);                  // explanada entre el portón y el acceso
+  { const pts = [];                                                                                         // puestos de defensa (pegados al muro bajo, mirando fuera)
+    for (const b of [-9.6, -6.4, 6.4, 9.6]) pts.push([HD - 1.3, b, 0]);
+    for (const sg of [-1, 1]) for (const a of [4.8, 1.6]) pts.push([a, sg * (HX - .75), sg * PI2]);
+    pts.push([HD - 2.2, -2.6, 0], [HD - 2.2, 2.6, 0]);
+    for (const b of [-10, 10]) pts.push([-HD + 1.25, b, Math.PI]);
+    D.info.defense = [0, 1, 2, 3].map(k => ({ team: COMP.facRot(0, k), pts: pts.map(([a, b, yaw]) => { const [x, z] = at(a, b), [rx, rz] = R(k, x, z); return [rx, rz, yaw - k * PI2]; }) })); }
+  D.info.refugeRects = D.refuges.map(r => ({ fac: r.fac, x: r.x, z: r.z, hx: r.w / 2 + .6, hz: r.d / 2 + .6 }));
+  place('REF', 'Refugio', RX, RZ); zone('Refugio', RX - HX, RZ - HD, RX + HX, RZ + HD);
   /* ---------- 2. Plaza Mayor (centro exacto): 4 cuadros de adoquín en las esquinas del cruce, cada uno con el mismo campamento ---------- */
   surf('cobble', -30.1, -30.1, 39.8, 39.8);
   COMP.camp(D, { x: -30, z: -33, seed: 7002 });

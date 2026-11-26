@@ -155,3 +155,6 @@ Sustituye al trazado diagonal anterior. Decisión del usuario (26-11): las carre
 - **Zombis**: ~600 en el distrito por zonas e interiores, 4 hordas migratorias; simulación por cercanía y dibujo sólo de los cercanos (`ZOMBIS.md`).
 - **Objetivos**: 29 capturables con suministros y refuerzos.
 - Medido en headless (100 combatientes + ~600 zombis): ~4 ms por actualización de lógica. Ritmo: primer combate a los ~2,5 min, capturas a partir de los ~2 min. **Nada de esto se ha probado en iPhone.**
+
+## Refugio compacto (26-11)
+23,4 × 16 m con muro bajo de troncos en todo el perímetro (cobertura que deja disparar por encima), portón alto, tabique con puerta interior y nidos fuera; mejoras de muro troncos → piedra → hierro con las obras. Decisión del usuario: sin torres ni escaleras por ahora (no hay altura transitable); los muros bajos dan la protección y el tiro. Ver `tests/refugio.py`.

@@ -7,10 +7,10 @@ Coordenadas del mundo en metros: **x** hacia la derecha (este), **z** hacia abaj
 ## Zonas (rectángulos x de … a, z de … a)
 | Zona | x | z |
 |---|---|---|
-| Refugio · Azul | -470 … -420 | -470 … -420 |
-| Refugio · Rojo | 420 … 470 | -470 … -420 |
-| Refugio · Violeta | 420 … 470 | 420 … 470 |
-| Refugio · Ámbar | -470 … -420 | 420 … 470 |
+| Refugio · Azul | -456 … -434 | -436 … -420 |
+| Refugio · Rojo | 420 … 436 | -456 … -434 |
+| Refugio · Violeta | 434 … 456 | 420 … 436 |
+| Refugio · Ámbar | -436 … -420 | 434 … 456 |
 | Plaza Mayor (norte) | -50 … 50 | -50 … 50 |
 | Fábrica (norte) | -125 … 125 | -500 … -379 |
 | Fábrica (sur) | -125 … 125 | 379 … 500 |
@@ -105,7 +105,7 @@ Coordenadas del mundo en metros: **x** hacia la derecha (este), **z** hacia abaj
 | ★ Granja | Azul | -187 | -399 |
 | ★ Granja | Azul | -399 | -187 |
 | ★ Puesto avanzado | Azul | -187 | -146 |
-| Refugio Azul | Azul | -445 | -445 |
+| Refugio Azul | Azul | -445 | -428 |
 | Subestación | Azul | -344 | -346 |
 | ★ Tienda | Azul | -187 | -15 |
 | Aldea (cruce) | Rojo | 312 | -312 |
@@ -114,7 +114,7 @@ Coordenadas del mundo en metros: **x** hacia la derecha (este), **z** hacia abaj
 | ★ Granja | Rojo | 399 | -187 |
 | ★ Granja | Rojo | 187 | -399 |
 | ★ Puesto avanzado | Rojo | 146 | -187 |
-| Refugio Rojo | Rojo | 445 | -445 |
+| Refugio Rojo | Rojo | 428 | -445 |
 | Subestación | Rojo | 346 | -344 |
 | ★ Tienda | Rojo | 15 | -187 |
 | Aldea (cruce) | Violeta | 312 | 312 |
@@ -123,7 +123,7 @@ Coordenadas del mundo en metros: **x** hacia la derecha (este), **z** hacia abaj
 | ★ Granja | Violeta | 187 | 399 |
 | ★ Granja | Violeta | 399 | 187 |
 | ★ Puesto avanzado | Violeta | 187 | 146 |
-| Refugio Violeta | Violeta | 445 | 445 |
+| Refugio Violeta | Violeta | 445 | 428 |
 | Subestación | Violeta | 344 | 346 |
 | ★ Tienda | Violeta | 187 | 15 |
 | Aldea (cruce) | Ámbar | -312 | 312 |
@@ -132,7 +132,7 @@ Coordenadas del mundo en metros: **x** hacia la derecha (este), **z** hacia abaj
 | ★ Granja | Ámbar | -399 | 187 |
 | ★ Granja | Ámbar | -187 | 399 |
 | ★ Puesto avanzado | Ámbar | -146 | 187 |
-| Refugio Ámbar | Ámbar | -445 | 445 |
+| Refugio Ámbar | Ámbar | -428 | 445 |
 | Subestación | Ámbar | -346 | 344 |
 | ★ Tienda | Ámbar | -15 | 187 |
 
@@ -606,7 +606,7 @@ Coordenadas del mundo en metros: **x** hacia la derecha (este), **z** hacia abaj
 | warehouse | 70 | 391 |
 
 ## Objetos colocados (por tipo)
-bwallSolid 4308, bwallGlass 1656, door 416, tvUnit 400, sofa 400, kitchenUnit 400, table 400, bed 400, wardrobe 400, car 388, chainFence 252, sandbags 164, fence 160, wall1 136, barrier 88, wall2 84, dumpster 70, floodlight 68, crateS 60, barrel 58, wheelie 56, pallet 56, bench 52, cart 48, planter 48, palletBoxes 46, pillar 46, wall3 46, fridge 44, crate 44, palletRack 40, cage 38, stall 36, cot 32, pharmaCab 28, pump 28, shopDoor 24, blocks 24, counter 20, gondola3 20, tower1 20, busStop 20, supplyMed 18, waitSeat 16, gate1 16, supplyMat 14, shelf 14, forklift 12, checkout 12, slideGate 12, switchCab 12, shutter 12, glassPane 12, supplyAmmo 10, rollDoor 8, gondola4 8, transformer 8, rack 8, barrelFuel 8, tower2 8, board 6, locker 4, storeMat 4, storeAmmo 4, storeMed 4, gateInner 4, kiosk 4, stairs 4, gate2 4, gate3 2, tower3 2, catwalk 2, emblem0 1, emblem1 1, emblem3 1, emblem2 1
+bwallSolid 4308, bwallGlass 1656, door 416, tvUnit 400, sofa 400, kitchenUnit 400, table 400, bed 400, wardrobe 400, car 388, chainFence 252, wall1 160, fence 160, sandbags 136, barrier 88, wallLow1 84, wall2 84, dumpster 70, floodlight 64, crateS 60, barrel 58, wheelie 56, pallet 56, bench 52, crate 52, cart 48, planter 48, palletBoxes 46, pillar 46, wall3 46, fridge 44, palletRack 40, cage 38, stall 36, cot 32, pharmaCab 28, pump 28, shopDoor 24, blocks 24, counter 20, gondola3 20, busStop 20, supplyMed 18, waitSeat 16, gate1 16, supplyMat 14, shelf 14, forklift 12, checkout 12, slideGate 12, switchCab 12, shutter 12, glassPane 12, tower1 12, supplyAmmo 10, rollDoor 8, gondola4 8, transformer 8, rack 8, barrelFuel 8, tower2 8, board 6, locker 4, gateInner 4, storeMat 4, storeAmmo 4, storeMed 4, kiosk 4, stairs 4, gate2 4, gate3 2, tower3 2, catwalk 2, emblem0 1, emblem1 1, emblem3 1, emblem2 1
 
 ## Puntos de aparición de cada refugio (primero de 6)
 Azul (-455, -427), Rojo (427, -455), Ámbar (-427, 435), Violeta (435, 427)

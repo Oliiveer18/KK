@@ -839,9 +839,9 @@ let BW = null;                                                                  
 const bFall = (w, d) => { const b = w.bal; return d <= b.ef ? 1 : lerp(1, b.min, smooth((d - b.ef) / (b.max - b.ef))); };   // daño según distancia
 function spawnBullet(x, y, z, dx, dz, w, own) {
   let b = BUL.find(q => !q.on);
-  if (!b) { if (BUL.length >= 260) return; b = { on: false, m: new THREE.Mesh(geoCyl, bulMat), passed: new Set() }; b.m.visible = false; scene.add(b.m); BUL.push(b); }
+  if (!b) { if (BUL.length >= 260) return; b = { on: false, m: new THREE.Mesh(geoCyl, bulMat), passed: new Set(), pxc: new Map() }; b.m.visible = false; scene.add(b.m); BUL.push(b); }
   if (MX.on && MX.zom) MX.zom.shot(x, z, w);                                      // ruido: despierta zombis y desvía hordas
-  b.on = true; b.ox = x; b.oz = z; b.y = y; b.dx = dx; b.dz = dz; b.d = 0; b.age = 0; b.w = w; b.v = w.bal.v * (1 + (Math.random() - .5) * .05); b.dm = w.dmg; b.own = own || null; b.cover = own ? own.cover : P.cover; b.passed.clear(); b.pel = w.pellets > 1;
+  b.on = true; b.ox = x; b.oz = z; b.y = y; b.dx = dx; b.dz = dz; b.d = 0; b.age = 0; b.w = w; b.v = w.bal.v * (1 + (Math.random() - .5) * .05); b.dm = w.dmg; b.own = own || null; b.cover = own ? own.cover : P.cover; b.stand = (own ? own.crouch : P.crouch) < .5; b.passed.clear(); b.pxc.clear(); b.pel = w.pellets > 1;
   const th = b.pel ? .01 : w.dmg >= 80 ? .026 : .018; b.m.scale.set(th, 1, th); b.m.position.set(x, y, z); b.m.visible = true;
 }
 function bulletEnd(b, t, red, quiet) {                                                      // chispas + sonido en el punto de impacto contra pared o blanco
@@ -856,7 +856,8 @@ function updateBullets(dt) {
     const bl = b.w.bal, sp = b.v * (1 - bl.drag * Math.min(1, b.d / bl.max)), d0 = b.d, d1 = Math.min(b.d + sp * dt, bl.max); b.age += dt;
     if (MX.on && MX.bulletPass) MX.bulletPass(b, b.ox + b.dx * d0, b.oz + b.dz * d0, b.ox + b.dx * d1, b.oz + b.dz * d1);   // supresión (escuadras.js)
     const L = [];                                                                    // colisión continua: todo lo que cruza el tramo recorrido en este fotograma
-    for (const bx of boxesIn(b.ox + b.dx * d0, b.oz + b.dz * d0, b.ox + b.dx * d1, b.oz + b.dz * d1)) { if (bx.prop && ((bx.prop === b.cover && coverPass(bx.prop, b.ox, b.oz, b.dx, b.dz)) || b.passed.has(bx.prop))) continue; const r = rayBox2(b.ox, b.oz, b.dx, b.dz, bx); if (r && r[0] <= d1 && r[1] >= d0) L.push({ t: Math.max(r[0], d0), t2: r[1], bx }); }
+    for (const bx of boxesIn(b.ox + b.dx * d0, b.oz + b.dz * d0, b.ox + b.dx * d1, b.oz + b.dz * d1)) { if (bx.prop && ((bx.prop === b.cover && coverPass(bx.prop, b.ox, b.oz, b.dx, b.dz, b.stand)) || b.passed.has(bx.prop))) continue;
+      if (bx.prop && isParapet(bx.prop) && bx.prop !== b.cover && parapetExposed(bx.prop, b)) { b.passed.add(bx.prop); continue; }   /* alguien de pie justo detrás: expuesto de hombros arriba */ const r = rayBox2(b.ox, b.oz, b.dx, b.dz, bx); if (r && r[0] <= d1 && r[1] >= d0) L.push({ t: Math.max(r[0], d0), t2: r[1], bx }); }
     for (const tg of targets) { if (tg.hp <= 0) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, tg.g.position.x, tg.g.position.z, .42); if (tc >= d0 && tc <= d1) L.push({ t: tc, tg }); }
     if (MX.on && MX.zom) for (const z of MX.zom.list) { if (z.dead) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, z.p.x, z.p.z, z.r); if (tc >= d0 && tc <= d1) L.push({ t: tc, zom: z }); }   // zombis (campaña)
     if (MX.on) for (const e of MX.ents) { if (e.dead || e.inv > 0 || e.team === (b.own ? b.own.team : 0)) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, e.p.x, e.p.z, .36); if (tc >= d0 && tc <= d1) L.push({ t: tc, ent: e }); }   // jugadores y bots de la partida
@@ -1274,7 +1275,7 @@ function updateSmoke(dt) {
 }
 function castRay(ox, oz, dx, dz, max) {
   let t = max || 60, hit = null;
-  for (const b of boxesIn(ox, oz, ox + dx * t, oz + dz * t)) { if (b.prop && b.prop === P.cover && coverPass(b.prop, ox, oz, dx, dz)) continue; const tb = rayBox(ox, oz, dx, dz, b); if (tb < t) { t = tb; hit = 'wall'; } }
+  for (const b of boxesIn(ox, oz, ox + dx * t, oz + dz * t)) { if (b.prop && b.prop === P.cover && coverPass(b.prop, ox, oz, dx, dz, P.crouch < .5)) continue; const tb = rayBox(ox, oz, dx, dz, b); if (tb < t) { t = tb; hit = 'wall'; } }
   for (const tg of targets) {
     if (tg.hp <= 0 || !tg.g.visible) continue;
     const tc = rayCircle(ox, oz, dx, dz, tg.g.position.x, tg.g.position.z, .42); if (tc < t) { t = tc; hit = tg; }
@@ -1719,11 +1720,23 @@ function rayBox2(ox, oz, dx, dz, b) {
    te cubre y al apuntar disparas por encima, pero sólo si la bala cruza el coche por el capó o el maletero (no a través de la cabina). LOWEND: tramo de cabina en el eje largo del modelo. */
 const LOWEND = { car: { c0: -1.15, c1: .75 } };
 const _alongOf = (p, x, z) => { const g = p.g.rotation.y; return (x - p.x) * Math.cos(g) - (z - p.z) * Math.sin(g); };
-function lowCoverAt(p, x, z) { if (p.h <= .95) return true; const L = LOWEND[p.type]; if (!L) return false; const a = _alongOf(p, x, z); return a < L.c0 - .15 || a > L.c1 + .15; }
-function coverPass(p, ox, oz, dx, dz) {
+const isParapet = p => !!(p && p.type && p.type.startsWith('wallLow'));   // parapeto de 1,2 m (muros bajos de los refugios): sólo se dispara por encima de pie
+function lowCoverAt(p, x, z) { if (p.h <= .95 || isParapet(p)) return true; const L = LOWEND[p.type]; if (!L) return false; const a = _alongOf(p, x, z); return a < L.c0 - .15 || a > L.c1 + .15; }
+function coverPass(p, ox, oz, dx, dz, stand) {
+  if (isParapet(p)) return stand !== false;                                        // tras el parapeto: de pie, la bala pasa por encima; agachado, da en el muro
   const L = LOWEND[p.type]; if (!L) return true;
   const r = rayBox2(ox, oz, dx, dz, p.box); if (!r) return true; const a0 = _alongOf(p, ox + dx * r[0], oz + dz * r[0]), a1 = _alongOf(p, ox + dx * r[1], oz + dz * r[1]);
   return (a0 < L.c0 && a1 < L.c0) || (a0 > L.c1 && a1 > L.c1);
+}
+/* bala que llega al parapeto desde fuera: si justo detrás (≤ 1,4 m, en su trayectoria) hay alguien DE PIE, la mitad de las veces pasa por encima del muro (va a su
+   cabeza o sus hombros); si todos los de detrás están agachados, da en el muro. Se decide una vez por bala y parapeto. */
+function parapetExposed(p, b) {
+  if (b.pxc.has(p)) return b.pxc.get(p);
+  const r = rayBox2(b.ox, b.oz, b.dx, b.dz, p.box); let ex = false;
+  if (r) { const x = b.ox + b.dx * (r[1] + .7), z = b.oz + b.dz * (r[1] + .7), near = (px, pz) => Math.hypot(px - x, pz - z) < 1.4;
+    if (!P.dead && P.crouch < .5 && near(P.pos.x, P.pos.z)) ex = true;
+    if (!ex && typeof MX !== 'undefined' && MX.on) for (const e of MX.ents) if (e.bot && !e.dead && !e.dwn && e.crouch < .5 && near(e.p.x, e.p.z)) { ex = true; break; } }
+  const v = ex && Math.random() < .5; b.pxc.set(p, v); return v;
 }
 const IMPS = { wood: 'IMP_wood', plastic: 'IMP_plastic', metal: 'IMP_metal', sand: 'IMP_sand', block: 'IMP_block' };
 function impactSnd(mat, x, z) {

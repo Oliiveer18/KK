@@ -161,6 +161,39 @@
     lines(g, out, L - .9, 0, 2.3, .115, 1); lines(g, out, L - .9, 0, 2.3, -.115, -1);          // líneas de facción en la viga superior
     return { out, hx: L / 2, hz: .31, h: H + .4 };
   }
+  /* ---- muros de parapeto (1,2 m, a la altura del pecho de pie): agachado detrás, cubierto y oculto pero sin poder disparar; de pie, se dispara por encima
+     quedando expuesto de hombros arriba. Mismos niveles que los altos: 1 troncos tumbados sobre un caballón de tierra · 2 tres hiladas de sillería con
+     albardilla · 3 plancha de hierro entre postes en H ---- */
+  const PH = 1.2;
+  function wallLow1(g) {
+    const out = [], L = 3.2;
+    bx(g, out, OM.soil, L + .2, .22, .62, 0, .11, 0, false);                             // caballón de tierra
+    for (const s of [-1, 1]) log(g, out, BARK[(s + 3) % 3], .14, PH + .05, s * (L / 2 - .14), (PH + .05) / 2, 0, false);   // estacas de los extremos
+    for (let k = 0; k < 4; k++) { const t = log(g, out, BARK[k % 3], .17 - (k % 2) * .01, L - .1, 0, .3 + k * .25, (k % 2 ? .03 : -.03), true); t.rotation.z = Math.PI / 2; }   // troncos tumbados
+    bx(g, out, OM.woodD, L - .2, .07, .1, 0, PH - .1, .2, false); bx(g, out, OM.rope, L - .3, .05, .04, 0, .67, .21, false);
+    lines(g, out, L - .3, 0, PH - .1, .26, 1); lines(g, out, L - .3, 0, PH - .1, -.26, -1);
+    return { out, hx: L / 2, hz: .3, h: PH };
+  }
+  function wallLow2(g) {
+    const out = [], L = 3.2, T = .5;
+    tx(g, out, OM.stoneD, 1, L + .1, .2, T + .14, 0, .1, 0, false);
+    for (let r = 0; r < 3; r++) for (let k = 0; k < 4; k++) { const w = L / 4 - .02; tx(g, out, (k + r) % 2 ? OM.stoneD : OM.stone, 1, w, .3, T, -L / 2 + w / 2 + .01 + k * (L / 4), .35 + r * .3, 0, true); }
+    tx(g, out, OM.stoneD, 1, L + .1, .1, T + .1, 0, PH - .05, 0, false);               // albardilla
+    bx(g, out, OM.woodD, L - .8, .1, .03, 0, .92, T / 2 + .015, false); bx(g, out, OM.woodD, L - .8, .1, .03, 0, .92, -T / 2 - .015, false);
+    lines(g, out, L - .9, 0, .92, T / 2 + .03, 1); lines(g, out, L - .9, 0, .92, -T / 2 - .03, -1);
+    return { out, hx: L / 2, hz: T / 2 + .07, h: PH };
+  }
+  function wallLow3(g) {
+    const out = [], L = 3.2;
+    for (const s of [-1, 1]) { const px = s * (L / 2 - .15); bx(g, out, OM.iron, .1, PH, .3, px, PH / 2, 0, false); for (const z of [-1, 1]) bx(g, out, OM.iron, .3, PH, .07, px, PH / 2, z * .16, false); bx(g, out, OM.ironD, .5, .08, .5, px, .04, 0, false); }
+    for (const s of [-1, 1]) tx(g, out, OM.plate, 1.25, 1.35, .95, .12, s * .7, .58, 0, true);
+    bx(g, out, OM.ironD, L, .12, .22, 0, PH - .06, 0, false); bx(g, out, OM.ironD, L, .1, .2, 0, .1, 0, false);
+    for (const z of [-1, 1]) tx(g, out, OM.hazard, 3, L - .6, .1, .02, 0, .2, z * .07, false);
+    lines(g, out, L - .9, 0, PH - .06, .115, 1); lines(g, out, L - .9, 0, PH - .06, -.115, -1);
+    return { out, hx: L / 2, hz: .27, h: PH };
+  }
+  const WALLS_LOW = [null, wallLow1, wallLow2, wallLow3], lowNames = ['', 'Parapeto de troncos', 'Parapeto de piedra', 'Parapeto de hierro'];
+  for (let lv = 1; lv <= 3; lv++) def('wallLow' + lv, { name: lowNames[lv], cat: 'Accesos y defensa', level: lv, note: 'Parapeto (1,2 m): agachado cubre y oculta; de pie se dispara por encima, expuesto de hombros arriba' }, { mat: ['', 'wood', 'block', 'metal'][lv], hp: [0, 250, 600, 1100][lv], push: false, mass: 60, fric: 9, build: WALLS_LOW[lv] });
   const WALLS = [null, wall1, wall2, wall3], wallHp = [0, 250, 600, 1100], wallMat = [0, 'wood', 'block', 'metal'];
   const wallNames = ['', 'Empalizada de madera', 'Muro de piedra', 'Muro de hierro'];
   for (let lv = 1; lv <= 3; lv++) def('wall' + lv, { name: wallNames[lv], cat: 'Accesos y defensa', level: lv }, { mat: wallMat[lv], hp: wallHp[lv], push: false, mass: 60, fric: 9, build: WALLS[lv] });
