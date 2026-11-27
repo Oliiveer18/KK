@@ -10,7 +10,7 @@
      en contacto buscan posición de tiro con cobertura en vez de cargar, se apoyan, hacen fuego de supresión y no persiguen más allá de su escuadra.
      Supresión: las balas que pasan cerca hacen agacharse y empeoran la puntería.
    - Formaciones automáticas (cuña, columna por calles, círculo al parar, línea en contacto) con puestos que se anticipan al líder.
-   - Cruceta en dos tiempos: la 1.ª pulsación enseña la tarjeta de órdenes; pulsar otra vez la flecha (6 s) la ejecuta.
+   - Cruceta en dos tiempos: la 1.ª pulsación abre la tarjeta (3,5 s); pulsar una flecha con ella abierta ejecuta la orden y la cierra al instante; 1,5 s después se puede encadenar otra sin tarjeta.
    - Órdenes del jugador cuando lidera (cruceta del mando PS5; teclado 1–8):
        ← toque: SEGUIRME · ↓ toque: MANTENER posición · ↑ toque: AVANZAR al punto al que apuntas · → toque: FUEGO DE COBERTURA hacia donde apuntas (10 s)
        ← mantener: UNIRSE a la escuadra amiga más cercana · → mantener: TOMAR / CEDER el mando · ↓ mantener: IR POR LIBRE · ↑ mantener: REAGRUPAR (a mí, ya)
@@ -350,13 +350,16 @@ function padShow(i) {
   padCard.style.display = 'block'; void padCard.offsetWidth; padCard.classList.add('on');
 }
 function padHide() { padCard.classList.remove('on'); setTimeout(() => { if (!padCard.classList.contains('on')) padCard.style.display = 'none'; }, 180); }
-SQ.padOpenT = -99;
+SQ.padOpenT = -99; SQ.padGraceT = -99;
+/* Tarjeta: 1.ª pulsación → se abre (3,5 s). Con ella abierta, pulsar una flecha ejecuta la orden Y LA CIERRA AL INSTANTE (no se vuelve a mostrar). Tras ejecutar hay 1,5 s en que otra flecha
+   ejecuta directamente (encadenar órdenes sin tarjeta). */
 function padTick(dt) {
-  const g = typeof getPad === 'function' ? getPad() : null; if (!g || MX.dpadLock) { padPrev = [false, false, false, false]; if (padCard.classList.contains('on')) padHide(); return; }
-  const open = M.t < SQ.padOpenT; if (!open && padCard.classList.contains('on')) padHide();
+  const g = typeof getPad === 'function' ? getPad() : null; if (!g || MX.dpadLock) { padPrev = [false, false, false, false]; if (padCard.classList.contains('on')) { SQ.padOpenT = -99; padHide(); } return; }
+  const open = M.t < SQ.padOpenT, grace = M.t < SQ.padGraceT; if (!open && padCard.classList.contains('on')) padHide();
+  const run = (i, long) => { SQ.cmd(PADK[i][long ? 1 : 0], long); SQ.padOpenT = -99; SQ.padGraceT = M.t + 1.5; padHide(); };
   for (let i = 0; i < 4; i++) { const b = g.buttons[12 + i], d = !!(b && (b.pressed || b.value > .5));
-    if (d) { padT[i] += dt; if (padT[i] >= .55 && padT[i] - dt < .55) { if (open) { SQ.cmd(PADK[i][1], true); SQ.padOpenT = M.t + 3; } else { SQ.padOpenT = M.t + 6; padShow(i); } } }
-    else if (padPrev[i]) { if (padT[i] < .55) { if (open) { SQ.cmd(PADK[i][0], false); SQ.padOpenT = M.t + 3; padShow(i); } else { SQ.padOpenT = M.t + 6; padShow(i); } } padT[i] = 0; }
+    if (d) { padT[i] += dt; if (padT[i] >= .55 && padT[i] - dt < .55) { if (open || grace) run(i, true); else { SQ.padOpenT = M.t + 3.5; padShow(i); } } }
+    else if (padPrev[i]) { if (padT[i] < .55) { if (open || grace) run(i, false); else { SQ.padOpenT = M.t + 3.5; padShow(i); } } padT[i] = 0; }
     padPrev[i] = d; }
 }
 addEventListener('keydown', ev => {
