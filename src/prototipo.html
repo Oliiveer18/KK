@@ -1229,14 +1229,19 @@ function updateGrenades(dt) {
   } else { for (const d of dots) d.visible = false; landRing.visible = false; }
 }
 const puffs = [], clouds = [];
-for (let i = 0; i < 130; i++) {
-  const m = new THREE.Mesh(geoBall, new THREE.MeshBasicMaterial({ color: 0xb8c0cc, transparent: true, opacity: 0, depthWrite: false }));
-  m.visible = false; scene.add(m); puffs.push({ m, v: new V3(), age: 0, life: 0, s0: .5, s1: 2 });
-}
+/* bocanadas de polvo y humo: las 130 comparten UN dibujo instanciado (antes una malla transparente, y una llamada, cada una). Misma esfera, color plano gris y opacidad por instancia;
+   la niebla y la mezcla son las del MeshBasicMaterial de antes. `m` es sólo el transformador de cada una. */
+const PFF = { max: 130, n: 0 }; PFF.op = new THREE.InstancedBufferAttribute(new Float32Array(PFF.max), 1); PFF.op.setUsage(THREE.DynamicDrawUsage); PFF.ord = new Int32Array(PFF.max); PFF.dep = new Float32Array(PFF.max);
+{ const geo = geoBall.clone(); geo.setAttribute('iop', PFF.op);
+  const mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false });
+  mat.onBeforeCompile = sh => { sh.vertexShader = sh.vertexShader.replace('void main() {', 'attribute float iop; varying float vOp;\nvoid main() { vOp = iop;'); sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'varying float vOp;\nvoid main() {').replace('#include <alphatest_fragment>', '#include <alphatest_fragment>\n\tdiffuseColor.a *= vOp;'); };
+  mat.customProgramCacheKey = () => 'puffs';
+  PFF.mesh = new THREE.InstancedMesh(geo, mat, PFF.max); PFF.mesh.setMatrixAt(0, new THREE.Matrix4()); PFF.mesh.setColorAt(0, new THREE.Color(1, 1, 1)); PFF.mesh.count = 0; PFF.mesh.frustumCulled = false; PFF.mesh.castShadow = false;
+  PFF.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); PFF.mesh.instanceColor.setUsage(THREE.DynamicDrawUsage); scene.add(PFF.mesh); }
+for (let i = 0; i < PFF.max; i++) puffs.push({ m: new THREE.Object3D(), v: new V3(), age: 0, life: 0, s0: .5, s1: 2, sh: .7, op: 0 });
 function emitPuff(x, y, z, vx, vy, vz, s0, s1, life, shade) {
   const q = puffs.find(o => o.life <= 0); if (!q) return;
-  q.m.position.set(x, y, z); q.v.set(vx, vy, vz); q.age = 0; q.life = life; q.s0 = s0; q.s1 = s1;
-  q.m.visible = true; q.m.material.color.setScalar(shade); q.m.scale.setScalar(s0);
+  q.m.position.set(x, y, z); q.v.set(vx, vy, vz); q.age = 0; q.life = life; q.s0 = s0; q.s1 = s1; q.sh = shade; q.op = 0; q.m.scale.setScalar(s0);
 }
 let CID = 0;
 const SMOKE_R = 2.8;                                                        // radio de la nube de humo (antes 3,6 y una bola visual de ~6 m)
@@ -1332,12 +1337,22 @@ function updateSmoke(dt) {
     SMK.n = n; SMK.geo.instanceCount = n; SMK.mesh.visible = n > 0 && !SMK.off;   // ?sinhumo: no dibuja el humo (para comparar FPS con y sin él)
     if (n) { SMK.pos.needsUpdate = SMK.dat.needsUpdate = true; SMK.u.camR.value.set(me[0], me[1], me[2]); SMK.u.camU.value.set(me[4], me[5], me[6]); SMK.u.uTime.value = time; }
   }
-  for (const q of puffs) {
-    if (q.life <= 0) continue;
-    q.age += dt; if (q.age >= q.life) { q.life = 0; q.m.visible = false; continue; }
-    const k = q.age / q.life;
-    q.m.position.addScaledVector(q.v, dt); q.m.scale.setScalar(lerp(q.s0, q.s1, smooth(Math.min(1, q.age / 2.5))));
-    q.m.material.opacity = .6 * Math.min(1, q.age / .6) * (k > .78 ? (1 - k) / .22 : 1);
+  {
+    const me = camera.matrixWorld.elements; let k = 0;
+    for (let i = 0; i < puffs.length; i++) {
+      const q = puffs[i]; if (q.life <= 0) continue;
+      q.age += dt; if (q.age >= q.life) { q.life = 0; continue; }
+      const kk = q.age / q.life;
+      q.m.position.addScaledVector(q.v, dt); q.m.scale.setScalar(lerp(q.s0, q.s1, smooth(Math.min(1, q.age / 2.5))));
+      q.op = .6 * Math.min(1, q.age / .6) * (kk > .78 ? (1 - kk) / .22 : 1);
+      const p = q.m.position; PFF.dep[k] = -((p.x - me[12]) * me[8] + (p.y - me[13]) * me[9] + (p.z - me[14]) * me[10]); PFF.ord[k] = i; k++;
+    }
+    const ord = PFF.ord, dep = PFF.dep;                                       // de lejos a cerca (como las ordenaba three.js); inserción: casi ordenado de un fotograma a otro
+    for (let i = 1; i < k; i++) { const v = ord[i], dv = dep[i]; let j = i - 1; while (j >= 0 && dep[j] < dv) { ord[j + 1] = ord[j]; dep[j + 1] = dep[j]; j--; } ord[j + 1] = v; dep[j + 1] = dv; }
+    const ia = PFF.mesh.instanceMatrix.array, ca = PFF.mesh.instanceColor.array, oa = PFF.op.array;
+    for (let i = 0; i < k; i++) { const q = puffs[ord[i]]; q.m.updateMatrix(); q.m.matrix.toArray(ia, i * 16); ca[i * 3] = ca[i * 3 + 1] = ca[i * 3 + 2] = q.sh; oa[i] = q.op; }
+    if (k || PFF.mesh.count) { PFF.mesh.count = k; PFF.mesh.instanceMatrix.needsUpdate = PFF.mesh.instanceColor.needsUpdate = PFF.op.needsUpdate = true; }
+    PFF.mesh.visible = k > 0; PFF.n = k;
   }
 }
 function castRay(ox, oz, dx, dz, max) {
