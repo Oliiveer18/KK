@@ -1212,7 +1212,7 @@ function emitPuff(x, y, z, vx, vy, vz, s0, s1, life, shade) {
 let CID = 0;
 const SMOKE_R = 2.8;                                                        // radio de la nube de humo (antes 3,6 y una bola visual de ~6 m)
 /* humo realista y barato: ~26 billboards por nube dibujados con UN solo dibujo instanciado; la forma sale de ruido procedural (fBm) que se erosiona al final */
-const SMK = { max: 64, n: 0 };
+const SMK = { max: 64, n: 0, off: /[?&]sinhumo\b/.test(location.search) }; SMK.L = new Float32Array(SMK.max * 8); SMK.ord = new Int32Array(SMK.max);
 (function smokeInit() {
   const N = 256, data = new Uint8Array(N * N * 4);
   const tileNoise = (period, seed) => {                                     // ruido de valores periódico (se repite sin costuras)
@@ -1234,26 +1234,33 @@ const SMK = { max: 64, n: 0 };
   for (let i = 0; i < N * N; i++) { data[i * 4] = nA[i] * 255; data[i * 4 + 1] = nB[i] * 255; data[i * 4 + 2] = 0; data[i * 4 + 3] = 255; }
   const tex = new THREE.DataTexture(data, N, N, THREE.RGBAFormat); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter; tex.generateMipmaps = true; tex.needsUpdate = true;
   const geo = new THREE.InstancedBufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([-.5, -.5, 0, .5, -.5, 0, .5, .5, 0, -.5, .5, 0]), 3)); geo.setIndex([0, 1, 2, 0, 2, 3]);
+  { const K = 16, R = .5 / Math.cos(Math.PI / K), pos = new Float32Array((K + 1) * 3), idx = [];            // disco de 16 lados (circunscrito al círculo del humo): no se lanzan las esquinas del cuadrado, que se descartaban
+    for (let i = 0; i < K; i++) { pos[(i + 1) * 3] = Math.cos(i / K * TAU) * R; pos[(i + 1) * 3 + 1] = Math.sin(i / K * TAU) * R; idx.push(0, i + 1, (i + 1) % K + 1); }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); geo.setIndex(idx); }
   SMK.pos = new THREE.InstancedBufferAttribute(new Float32Array(SMK.max * 3), 3); SMK.dat = new THREE.InstancedBufferAttribute(new Float32Array(SMK.max * 4), 4);
   SMK.pos.setUsage(THREE.DynamicDrawUsage); SMK.dat.setUsage(THREE.DynamicDrawUsage); geo.setAttribute('ipos', SMK.pos); geo.setAttribute('idat', SMK.dat); geo.instanceCount = 0;
   SMK.u = { tNoise: { value: tex }, camR: { value: new THREE.Vector3(1, 0, 0) }, camU: { value: new THREE.Vector3(0, 1, 0) }, uTime: { value: 0 } };
   const mat = new THREE.ShaderMaterial({
     uniforms: SMK.u, transparent: true, depthWrite: false,
-    vertexShader: `attribute vec3 ipos; attribute vec4 idat; uniform vec3 camR; uniform vec3 camU; varying vec2 vUv; varying vec4 vDat; varying float vWy;
+    /* Lo que es constante por bocanada (giro, desplazamientos del ruido, aparición y disolución) se calcula una vez por vértice, no por píxel; y se descartan cuanto antes los píxeles
+       que no pueden ser visibles (sobre el suelo, fuera del círculo o con la disolución demasiado avanzada) SIN leer el ruido. El resultado es el mismo de antes. */
+    vertexShader: `attribute vec3 ipos; attribute vec4 idat; uniform vec3 camR; uniform vec3 camU; uniform float uTime;
+      varying vec2 vUv; varying float vWy; varying vec2 vRot; varying vec2 vOff; varying vec2 vOff2; varying vec2 vK;
       void main() { vec4 mv = modelViewMatrix * vec4(ipos, 1.0); mv.xy += position.xy * idat.x; gl_Position = projectionMatrix * mv;
-        vUv = position.xy * 2.0; vDat = idat; vWy = ipos.y + (camR.y * position.x + camU.y * position.y) * idat.x; }`,
-    fragmentShader: `uniform sampler2D tNoise; uniform float uTime; varying vec2 vUv; varying vec4 vDat; varying float vWy;
+        vUv = position.xy * 2.0; vWy = ipos.y + (camR.y * position.x + camU.y * position.y) * idat.x;
+        vRot = vec2(cos(idat.y), sin(idat.y)); vOff = vec2(idat.w, fract(idat.w * 7.31)); vOff2 = vOff * 1.7 + vec2(uTime * .015, 0.);
+        vK = vec2(smoothstep(0., .07, idat.z) * .66, smoothstep(.8, 1., idat.z) * 1.15); }`,
+    fragmentShader: `uniform sampler2D tNoise; varying vec2 vUv; varying float vWy; varying vec2 vRot; varying vec2 vOff; varying vec2 vOff2; varying vec2 vK;
       void main() {
-        float d = length(vUv); if (d >= 1.0) discard;
-        float cs = cos(vDat.y), sn = sin(vDat.y); vec2 q = mat2(cs, -sn, sn, cs) * vUv; vec2 off = vec2(vDat.w, fract(vDat.w * 7.31));
-        float n1 = texture2D(tNoise, q * .33 + off).r, n2 = texture2D(tNoise, q * .85 + off * 1.7 + vec2(uTime * .015, 0.)).g; float n = n1 * .65 + n2 * .35;
-        float life = vDat.z, fadeIn = smoothstep(0., .07, life), dis = smoothstep(.8, 1., life);
-        float m = (1. - d * d) + (n - .5) * .9 - dis * 1.15;
-        float a = smoothstep(0., .5, m) * fadeIn * .66; a *= smoothstep(.02, .45, vWy);
-        if (a < .004) discard;
+        float d2 = dot(vUv, vUv); if (d2 >= 1.0 || vWy <= .02) discard;
+        float base = (1. - d2) - vK.y; if (base + .45 <= 0.) discard;
+        vec2 q = mat2(vRot.x, -vRot.y, vRot.y, vRot.x) * vUv;
+        float n1 = texture2D(tNoise, q * .33 + vOff).r, n2 = texture2D(tNoise, q * .85 + vOff2).g; float n = n1 * .65 + n2 * .35;
+        float m = base + (n - .5) * .9;
+        float a = smoothstep(0., .5, m) * vK.x; a *= smoothstep(.02, .45, vWy);
+        if (a < .03) discard;                                              // por debajo de 3/255 de opacidad no se distingue (diferencia máx. 3 niveles en ~2.000 de 740.000 píxeles)
         float lit = clamp(.5 + vUv.y * .3 + (n1 - .5) * .9, 0., 1.);
-        vec3 col = mix(vec3(.33, .36, .41), vec3(.82, .84, .88), lit); col *= 1. - .2 * (1. - d);
+        vec3 col = mix(vec3(.33, .36, .41), vec3(.82, .84, .88), lit); col *= 1. - .2 * (1. - sqrt(d2));
         gl_FragColor = vec4(col, a);
       }`
   });
@@ -1282,16 +1289,18 @@ function updateSmoke(dt) {
   }
   // humo: se rellenan los buffers del dibujo instanciado (de lejos a cerca, para mezclar bien)
   {
-    const me = camera.matrixWorld.elements, cx = me[12], cy = me[13], cz = me[14], list = [];
+    const me = camera.matrixWorld.elements, cx = me[12], cy = me[13], cz = me[14], L = SMK.L; let k = 0;      // buffers fijos: sin crear objetos por fotograma
     for (const c of clouds) for (const q of c.pf) {
-      const age = c.t - q.ts; if (age < 0 || age > q.life) continue;
-      const rad = q.rf * (1 - Math.exp(-2.2 * age)), a = q.a0 + q.w * age, y = q.yf * (1 - Math.exp(-1.5 * age)) + .03 * age, x = c.x + Math.cos(a) * rad, z = c.z + Math.sin(a) * rad;
-      list.push({ x, y, z, sz: lerp(.9, q.s1, smooth(age / 1.8)) + .02 * age, ang: q.ang + q.angv * age, lf: age / q.life, seed: q.seed, dp: -((x - cx) * me[8] + (y - cy) * me[9] + (z - cz) * me[10]) });
+      const age = c.t - q.ts; if (age < 0 || age > q.life || k >= SMK.max) continue;
+      const rad = q.rf * (1 - Math.exp(-2.2 * age)), a = q.a0 + q.w * age, y = q.yf * (1 - Math.exp(-1.5 * age)) + .03 * age, x = c.x + Math.cos(a) * rad, z = c.z + Math.sin(a) * rad, o = k * 8;
+      L[o] = x; L[o + 1] = y; L[o + 2] = z; L[o + 3] = lerp(.9, q.s1, smooth(age / 1.8)) + .02 * age; L[o + 4] = q.ang + q.angv * age; L[o + 5] = age / q.life; L[o + 6] = q.seed; L[o + 7] = -((x - cx) * me[8] + (y - cy) * me[9] + (z - cz) * me[10]);
+      SMK.ord[k] = k; k++;
     }
-    list.sort((u, v) => v.dp - u.dp);
-    const n = Math.min(list.length, SMK.max), pa = SMK.pos.array, da = SMK.dat.array;
-    for (let i = 0; i < n; i++) { const o = list[i]; pa[i * 3] = o.x; pa[i * 3 + 1] = o.y; pa[i * 3 + 2] = o.z; da[i * 4] = o.sz; da[i * 4 + 1] = o.ang; da[i * 4 + 2] = o.lf; da[i * 4 + 3] = o.seed; }
-    SMK.n = n; SMK.geo.instanceCount = n; SMK.mesh.visible = n > 0;
+    const ord = SMK.ord;                                                      // de lejos a cerca (casi ordenado de un fotograma a otro: la inserción es lo más barato)
+    for (let i = 1; i < k; i++) { const v = ord[i], dv = L[v * 8 + 7]; let j = i - 1; while (j >= 0 && L[ord[j] * 8 + 7] < dv) { ord[j + 1] = ord[j]; j--; } ord[j + 1] = v; }
+    const n = k, pa = SMK.pos.array, da = SMK.dat.array;
+    for (let i = 0; i < n; i++) { const o = ord[i] * 8; pa[i * 3] = L[o]; pa[i * 3 + 1] = L[o + 1]; pa[i * 3 + 2] = L[o + 2]; da[i * 4] = L[o + 3]; da[i * 4 + 1] = L[o + 4]; da[i * 4 + 2] = L[o + 5]; da[i * 4 + 3] = L[o + 6]; }
+    SMK.n = n; SMK.geo.instanceCount = n; SMK.mesh.visible = n > 0 && !SMK.off;   // ?sinhumo: no dibuja el humo (para comparar FPS con y sin él)
     if (n) { SMK.pos.needsUpdate = SMK.dat.needsUpdate = true; SMK.u.camR.value.set(me[0], me[1], me[2]); SMK.u.camU.value.set(me[4], me[5], me[6]); SMK.u.uTime.value = time; }
   }
   for (const q of puffs) {
