@@ -472,7 +472,7 @@ MX.perfHook = w => {                                                            
   const rs = respawn, kl = kill; respawn = function () { PERF.tag('reaparece'); return rs.apply(this, arguments); }; kill = function () { PERF.tag('baja'); return kl.apply(this, arguments); };
 };
 MX.poseBot = poseBot;
-MX.setWeapon = (e, i) => setWeapon(e, i); MX.WI = WI; MX.tryEquip = tryEquip; MX.P = P;
+MX.shootBot = e => shoot(e); MX.setWeapon = (e, i) => setWeapon(e, i); MX.WI = WI; MX.tryEquip = tryEquip; MX.P = P;
 function bake(e, dx, dz) {                                                           // al morir, el cuerpo cae como un bloque alrededor de los pies
   const r = e.root, px = e.p.x, pz = e.p.z; r.position.set(px, 0, pz);
   for (const ch of r.children) { ch.position.x -= px; ch.position.z -= pz; }
@@ -548,8 +548,36 @@ function hiddenBehind(o, vx, vz) {                                              
   return c.hx > c.hz ? Math.sign(vz - c.z) !== Math.sign(o.p.z - c.z) : Math.sign(vx - c.x) !== Math.sign(o.p.x - c.x);
 }
 MX.hiddenBehind = (o, x, z) => hiddenBehind(o, x, z);
+/* CONCIENCIA DE LA SITUACIÓN (campaña). Cada bot guarda UNA amenaza conocida e.aw = { x, z, kind, until }: de dónde cree que viene el peligro (contacto perdido, impacto, sonido, aviso de su escuadra, o alguien que le apunta).
+   · Mira hacia ella (y no a «su sector» al azar) mientras dura, con un barrido corto; si se mueve, lo hace con pasos cautos.
+   · Oye disparos de otras facciones (alcance según el arma: subfusil 40 m, fusil 55, ametralladora 70, precisión 85) con una incertidumbre en la dirección del 12 % de la distancia, sin dispararles a ciegas.
+   · Nota que un enemigo lo apunta (el jugador, a < 45 m, línea libre y apuntando a menos de ~6°): tras ~0,35 s reacciona: se agacha, se gira hacia él y busca cobertura.
+   · Si se ve rodeado (2+ enemigos a la vista a < 30 m) no sale de la cobertura antes de tiempo, y con poca vida y 3+ enemigos se repliega. */
+function noteThreat(e, x, z, kind, dur) {
+  if (e.dead || e.dwn || e.isPlayer) return; const aw = e.aw, pr = { sound: 1, radio: 2, contact: 3, hit: 4, aimed: 5 };
+  if (aw && M.t < aw.until && pr[aw.kind] > pr[kind] && M.t - aw.t < 2.5) return;                 // no pisa una amenaza más fiable reciente
+  e.aw = { x, z, kind, t: M.t, until: M.t + dur };
+}
+function heardShot(shooter) {
+  const w = shooter.w, R = w.sid === 'F2' ? 85 : w.sid === 'H1' ? 70 : w.kind === 'shot' ? 50 : w.sid === 'S1' || w.sid === 'S2' ? 40 : w.launch ? 80 : 55, x = shooter.p.x, z = shooter.p.z;
+  for (let i = 0, EL = gridRect(GRID.E, M.ents, x - R, z - R, x + R, z + R, _gE); i < EL.length; i++) { const o = EL[i]; if (o.dead || o.dwn || o.isPlayer || o.team === shooter.team || o.vis) continue;
+    const d = Math.sqrt((o.p.x - x) * (o.p.x - x) + (o.p.z - z) * (o.p.z - z)); if (d > R || d < 3) continue; const u = d * .12; noteThreat(o, x + rr(-u, u), z + rr(-u, u), 'sound', 4 + rnd() * 2); }
+}
+function gazeBearing(e) {                                                            // hacia dónde mira un bot que no combate: la amenaza conocida, el contacto de su escuadra o nada (null)
+  const aw = e.aw; if (aw && M.t < aw.until) { const d = Math.sqrt((aw.x - e.p.x) * (aw.x - e.p.x) + (aw.z - e.p.z) * (aw.z - e.p.z)); if (d > 2) return Math.atan2(aw.x - e.p.x, aw.z - e.p.z); }
+  const c = e.sqd && e.sqd.contact; if (c && M.t - c.t < 8) { const d = Math.sqrt((c.x - e.p.x) * (c.x - e.p.x) + (c.z - e.p.z) * (c.z - e.p.z)); if (d > 2 && d < 90) return Math.atan2(c.x - e.p.x, c.z - e.p.z); }
+  return null;
+}
+function aimedAtCheck(e) {                                                           // ¿me apunta el jugador? (solo el jugador: es quien lo nota un humano; coste mínimo)
+  const pl = M.ents[0]; if (!pl || pl.dead || pl.dwn || pl.team === e.team) { e.aimT = 0; return; }
+  const dx = e.p.x - P.pos.x, dz = e.p.z - P.pos.z, d = Math.sqrt(dx * dx + dz * dz); if (d > 45 || d < 2) { e.aimT = 0; return; }
+  const err = Math.abs(angDiff(P.aim, Math.atan2(dx, dz)));
+  if (err < Math.max(.06, Math.atan(.9 / d)) && (P.ads > .4 || W.reload < 0) && segClear(P.pos.x, P.pos.z, e.p.x, e.p.z, null, null, true)) {
+    e.aimT = (e.aimT || 0) + .13; if (e.aimT > .35 && M.t - (e.aimedAt || -9) > 4) { e.aimedAt = M.t; noteThreat(e, P.pos.x, P.pos.z, 'aimed', 5); e.crouchUntil = M.t + 1.6; e.strafeDir = rnd() < .5 ? 1 : -1; if (!e.cover && e.st !== 'cover') { const cp = coverPoint(e, P.pos.x, P.pos.z); if (cp && Math.sqrt((cp.x - e.p.x) * (cp.x - e.p.x) + (cp.z - e.p.z) * (cp.z - e.p.z)) < 8) { e.st = 'cover'; e.coverStart = M.t - 3; e.coverPt = cp; setGoal(e, cp.x, cp.z); } } }
+  } else e.aimT = Math.max(0, (e.aimT || 0) - .2);
+}
 function perceive(e) {
-  let best = null, bs = 1e9;
+  let best = null, bs = 1e9; e.foesNear = 0;
   if (MX.zom) for (let i_z = 0, ZL = gridRect(GRID.Z, MX.zom.list, e.p.x - SIGHT.hw - 1, e.p.z - SIGHT.hd - 1, e.p.x + SIGHT.hw + 1, e.p.z + SIGHT.hd + 1, _gZ); i_z < ZL.length; i_z++) { const o = ZL[i_z];   // los zombis también son amenaza para los bots
     if (o.dead) continue;
     const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)); if (!inSight(e, dx, dz)) continue;
@@ -560,6 +588,7 @@ function perceive(e) {
     if (o.dead || o.team === e.team || o.inv > 0) continue;
     const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)); if (!inSight(e, dx, dz)) continue;
     if (!segClear(e.p.x, e.p.z, o.p.x, o.p.z, null, null, true) || smokeBlock(e.p.x, e.p.z, o.p.x, o.p.z) || hiddenBehind(o, e.p.x, e.p.z)) continue;
+    if (d < 30 && !o.dwn) e.foesNear++;
     const sc = d + (o.dwn ? 14 : 0) - (o === e.lastAtt && M.t - e.lastAttT < 3 ? 6 : 0); if (sc < bs) { bs = sc; best = o; }                // un enemigo abatido sigue siendo objetivo (se remata), pero después de los que están en pie
   }
   return best;
@@ -629,7 +658,7 @@ function squadSync(e) {                                                         
   if (!e.goal || far || Math.sqrt((e.goal.x - g.x) * (e.goal.x - g.x) + (e.goal.z - g.z) * (e.goal.z - g.z)) > 5) setGoal(e, g.x + rr(-.6, .6), g.z + rr(-.6, .6));
 }
 function squadAlert(e, seen) {                                                       // un miembro ve un enemigo: avisa a los de su escuadra que no lo ven
-  if (MX.SQ && e.sqd) { MX.SQ.contact(e, seen); return; }                             // campaña: la escuadra toma posiciones de apoyo (escuadras.js), no corre hacia el enemigo
+  if (MX.SQ && e.sqd) { MX.SQ.contact(e, seen); if (seen && seen.team >= 0 && seen.p) for (const o of e.sqd.members) if (o !== e && !o.dead && !o.dwn && !o.isPlayer && !o.vis && Math.sqrt((o.p.x - e.p.x) * (o.p.x - e.p.x) + (o.p.z - e.p.z) * (o.p.z - e.p.z)) < 80) noteThreat(o, seen.p.x, seen.p.z, 'radio', 5); return; }                             // campaña: la escuadra toma posiciones de apoyo (escuadras.js), no corre hacia el enemigo
   if (M.t - (e.sqAlert || -9) < 1.5) return; e.sqAlert = M.t;
   for (let i_o = 0; i_o < M.ents.length; i_o++) { const o = M.ents[i_o];
     if (o === e || o.dead || o.dwn || o.isPlayer || o.team !== e.team || o.sq !== e.sq || o.vis || o.st === 'cover' || M.t - o.alertT < 3) continue;
@@ -674,6 +703,7 @@ function think(e) {
   for (let i_b = 0, A_b = boxesIn(e.p.x - 1.5, e.p.z - 1.5, e.p.x + 1.5, e.p.z + 1.5); i_b < A_b.length; i_b++) { const b = A_b[i_b]; const p = b.prop; if (!p || p.box !== b || p.dead || !lowCoverAt(p, e.p.x, e.p.z)) continue; const dx = Math.max(Math.abs(e.p.x - p.x) - p.hx, 0), dz = Math.max(Math.abs(e.p.z - p.z) - p.hz, 0), d = Math.sqrt((dx) * (dx) + (dz) * (dz)); if (d < (p === e.cover ? 1 : .8) && d < bd) { bd = d; cv = p; } }
   e.cover = cv; e.flee = dangerVec(e);
   const seen = perceive(e);
+  if (MX.campaign) aimedAtCheck(e);
   if (MX.campaign) { e.syncT = (e.syncT || 0) - .13; if (e.syncT <= 0) { e.syncT = 1 + rnd() * .5; squadSync(e); } if (seen && seen.p && (!e.vis || e.tgt !== seen)) squadAlert(e, seen); }      // se avisa sólo cuando el bot VE al enemigo por primera vez (o a uno nuevo), no con seguimiento continuo
 
   if (seen) { if (e.tgt !== seen) { e.tgt = seen; e.reactT = 0; e.leadK = rr(.6, 1.05);
@@ -681,7 +711,7 @@ function think(e) {
     if (MX.campaign) { const off = Math.abs(angDiff(e.yaw, Math.atan2(seen.p.x - e.p.x, seen.p.z - e.p.z))), dd = Math.sqrt((seen.p.x - e.p.x) * (seen.p.x - e.p.x) + (seen.p.z - e.p.z) * (seen.p.z - e.p.z)); e.reactNeed = df.react + rr(.08, .28) + (off > 1 ? .3 : off > .5 ? .12 : 0) + Math.min(.2, dd / 120); } else e.reactNeed = df.react; } e.vis = true; e.seenT = M.t; e.ls.x = seen.p.x; e.ls.z = seen.p.z; } else e.vis = false;
   if (e.vis) { const sx = e.p.x + Math.sin(e.yaw) * .6, sz = e.p.z + Math.cos(e.yaw) * .6; e.dT = Math.sqrt((e.tgt.p.x - e.p.x) * (e.tgt.p.x - e.p.x) + (e.tgt.p.z - e.p.z) * (e.tgt.p.z - e.p.z)); e.canShoot = segClear(sx, sz, e.tgt.p.x, e.tgt.p.z, e.cover, null, false) && !smokeBlock(sx, sz, e.tgt.p.x, e.tgt.p.z); } else e.canShoot = false;
   const tac = MX.campaign && MX.SQ && e.sqd;                                         // campaña: táctica de escuadra (no se persigue ni se va a buscar al que dispara)
-  if (tac && !e.vis && e.hitSrc && M.t - e.lastAttT < .6) MX.SQ.contact(e, { p: e.hitSrc, team: -1 });
+  if (tac && !e.vis && e.hitSrc && M.t - e.lastAttT < .6) { MX.SQ.contact(e, { p: e.hitSrc, team: -1 }); noteThreat(e, e.hitSrc.x, e.hitSrc.z, 'hit', 6); }
   if (tac && e.vis && e.st !== 'cover' && !e.cover && e.ammo <= Math.max(1, e.w.max * .25) && e.reloadT < 0) { const cp = coverPoint(e, e.tgt.p.x, e.tgt.p.z); if (cp && Math.sqrt((cp.x - e.p.x) * (cp.x - e.p.x) + (cp.z - e.p.z) * (cp.z - e.p.z)) < 10) { e.st = 'cover'; e.coverStart = M.t - 6; e.coverPt = cp; setGoal(e, cp.x, cp.z); } }   // poca munición a la vista del enemigo: recarga a cubierto
   if (tac && e.supp > .55 && e.st !== 'cover' && !e.cover && (e.vis || e.suppFrom)) { const th = e.vis ? e.tgt.p : e.suppFrom, cp = coverPoint(e, th.x, th.z); if (cp && Math.sqrt((cp.x - e.p.x) * (cp.x - e.p.x) + (cp.z - e.p.z) * (cp.z - e.p.z)) < 9) { e.st = 'cover'; e.coverStart = M.t - 4; e.coverPt = cp; setGoal(e, cp.x, cp.z); } }   // suprimido: a cubierto
   if (!tac && !e.vis && e.hitSrc && e.lastAtt && !e.lastAtt.dead && e.lastAtt.team !== e.team && M.t - e.lastAttT < .6 && e.st !== 'cover' && M.t - e.alertT > 4) {   // me han disparado y no veo a nadie: voy hacia el lugar de donde vino el disparo (dirección del impacto, no la posición real del atacante)
@@ -689,12 +719,12 @@ function think(e) {
   }
   const lowHp = e.hp < 36;
   if (e.st === 'cover') {
-    if (((e.hp > 72 && M.t - e.coverStart > 2) || M.t - e.coverStart > 9) && e.reloadT < 0 && e.ammo > e.w.max * .25) { e.st = e.vis ? 'fight' : 'push'; e.path = null; e.goal = null; }   // no sale de la cobertura hasta tener el cargador listo
-  } else if (lowHp && (e.vis || M.t - e.lastHurt < 3)) {
+    if (((e.hp > 72 && M.t - e.coverStart > 2) || M.t - e.coverStart > 9) && e.reloadT < 0 && e.ammo > e.w.max * .25 && !((e.foesNear || 0) >= 2 && M.t - e.coverStart < 12)) { e.st = e.vis ? 'fight' : 'push'; e.path = null; e.goal = null; }   // no sale de la cobertura hasta tener el cargador listo
+  } else if ((lowHp || (MX.campaign && (e.foesNear || 0) >= 3 && e.hp < 65)) && (e.vis || M.t - e.lastHurt < 3)) {
     const th = e.vis ? e.tgt.p : (e.hitSrc || null);
     if (th) { const cp = coverPoint(e, th.x, th.z) || retreatPoint(e, th.x, th.z); if (cp) { e.st = 'cover'; e.coverStart = M.t; e.coverPt = cp; setGoal(e, cp.x, cp.z); } }
   } else if (e.vis) { if (e.st !== 'fight') { e.st = 'fight'; e.path = null; e.goal = null; } }
-  else if (e.st === 'fight' && M.t - e.seenT > 1.0) { if (tac) { e.st = 'push'; e.goal = null; } else { e.st = 'search'; e.searchStart = M.t; setGoal(e, e.ls.x, e.ls.z); } }
+  else if (e.st === 'fight' && M.t - e.seenT > 1.0) { if (tac) { e.st = 'push'; e.goal = null; noteThreat(e, e.ls.x, e.ls.z, 'contact', 7); } else { e.st = 'search'; e.searchStart = M.t; setGoal(e, e.ls.x, e.ls.z); } }
   else if (e.st === 'search' && M.t - e.searchStart > 6) { e.st = 'push'; e.goal = null; }
   if (e.st === 'push' && !e.goal) pickGoal(e);
   /* dash táctico (todos los combatientes, como el jugador): apartarse de una granada o de algo que va a explotar, cruzar a la carrera hasta la cobertura
@@ -732,6 +762,7 @@ function shoot(e) {
   const w = e.w, dx = Math.sin(e.yaw), dz = Math.cos(e.yaw), y = e.crouch > .5 ? .86 : 1.12, mx = e.p.x + dx * .62, mz = e.p.z + dz * .62, sp = Math.sqrt((e.v.x) * (e.v.x) + (e.v.z) * (e.v.z));
   if (w.launch) botLaunch(e, mx, mz, dx, dz);
   else for (let n = 0; n < w.pellets; n++) { const yw = e.yaw + (rnd() - .5) * (w.spr * .8 + (e.spread * .06 + Math.min(sp, 8) * .006) * (1 - e.crouch * .35)); spawnBullet(mx, y, mz, Math.sin(yw), Math.cos(yw), w, e); }
+  if (MX.campaign) heardShot(e);
   e.ammo--; e.spread = Math.min(1, e.spread + .14); e.kick = 1; e.flashT = .05; e.firing = true; e.fireCd = w.cd * (w.auto ? 1 : rr(1.1, 1.7));
   if (e.burst <= 0) e.burst = w.auto ? Math.round(w.sid === 'H1' ? rr(6, 14) : rr(3, 8)) : 1;
   if (--e.burst <= 0) e.pause = w.auto ? rr(.25, .7) : rr(0, .15);
@@ -759,7 +790,7 @@ function aimFire(e, dt) {
       return; }
   }
   if (!(e.vis && e.tgt && !e.tgt.dead) && Math.sqrt((e.v.x) * (e.v.x) + (e.v.z) * (e.v.z)) > .8) {
-    e.glanceT -= dt; if (e.glanceT <= 0) { e.glanceT = rr(1.2, 3); e.glance = rr(-.9, .9); } want = Math.atan2(e.v.x, e.v.z) + e.glance * .6;
+    e.glanceT -= dt; if (e.glanceT <= 0) { e.glanceT = rr(1.2, 3); e.glance = rr(-.9, .9); } const gb = MX.campaign ? gazeBearing(e) : null; want = gb !== null && Math.abs(angDiff(gb, Math.atan2(e.v.x, e.v.z))) < 2.2 ? gb : Math.atan2(e.v.x, e.v.z) + e.glance * .6;   // con una amenaza conocida mira hacia ella aunque camine
   }
   if (want !== null) e.yaw += clamp(angDiff(e.yaw, want), -df.turn * dt, df.turn * dt);
   if (clean === null || e.reloadT >= 0 || !e.canShoot) return;
@@ -800,7 +831,7 @@ function moveBot(e, dt) {
     if (sqd && e.sqHold && e.goal && !(e.holdT > 0) && Math.sqrt((e.goal.x - e.p.x) * (e.goal.x - e.p.x) + (e.goal.z - e.p.z) * (e.goal.z - e.p.z)) < 1) { e.holdT = 1e9; e.path = null; }   // ya en su puesto (a < 1 m): se queda, aunque el punto exacto esté pegado al muro
     const r = steerPath(e);
     if (r === 'arrived') { if (sqd && e.sqHold) { e.holdT = 1e9; e.path = null; } else { e.holdT = rr(.6, 2.2); e.goal = null; e.path = null; } }   // en su puesto: se queda (la escuadra le cambia el objetivo cuando toca)
-    if (e.holdT > 0) { e.holdT -= dt; spd = 0; if (e.holdT <= 0) e.holdT = 0; if (sqd && e.sqHold) { if (e.sqCrouch || e.supp > .3) crT = 1; if (!e.vis && e.sqFace !== undefined) { const f = holdLife(e, dt); if (f.crT !== null) crT = f.crT; if (f.spd) { dx = f.dx; dz = f.dz; spd = f.spd; } e.yaw += clamp(angDiff(e.yaw, e.sqFace + (e.lookOff || 0)), -2.2 * dt, 2.2 * dt); } } }
+    if (e.holdT > 0) { e.holdT -= dt; spd = 0; if (e.holdT <= 0) e.holdT = 0; if (sqd && e.sqHold) { if (e.sqCrouch || e.supp > .3) crT = 1; if (!e.vis && e.sqFace !== undefined) { const f = holdLife(e, dt); if (f.crT !== null) crT = f.crT; if (f.spd) { dx = f.dx; dz = f.dz; spd = f.spd; } const gb = gazeBearing(e); e.yaw += clamp(angDiff(e.yaw, gb !== null ? gb + Math.sin(M.t * .9 + e.phase * 9) * .3 : e.sqFace + (e.lookOff || 0)), -(gb !== null ? 3.4 : 2.2) * dt, (gb !== null ? 3.4 : 2.2) * dt); } } }
     else if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = sqd ? (e.sqSpeed || 5) : 6.4;
       if (spd > 3.5 && !e.vis && !(e.supp > .15) && M.t - e.lastHurt > 4 && M.t - e.lastAttT > 4 && e.goal && Math.sqrt((e.goal.x - e.p.x) * (e.goal.x - e.p.x) + (e.goal.z - e.p.z) * (e.goal.z - e.p.z)) > 20) spd = Math.min(8.2, spd * 1.4);   // tramo largo y sin peligro: carrera a la velocidad del jugador (8,2 m/s)
     }
@@ -822,6 +853,8 @@ function moveBot(e, dt) {
   } else if (e.st === 'cover') {
     const r = steerPath(e); if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = 6.8; } else { spd = 0; crT = 1; if (e.ammo < e.w.max * .6 && e.reloadT < 0) startReload(e); }
   }
+  if (MX.campaign && e.aw && M.t < e.aw.until && !e.vis && spd > 4.6 && !e.sqCatch && e.dashT <= 0 && e.st !== 'cover') spd = 4.6;     // amenaza conocida y sin verla: pasos cautos
+  if (e.crouchUntil && M.t < e.crouchUntil) crT = 1;
   if (MX.campaign && e.cover && isParapet(e.cover) && spd < .5) crT = e.reloadT >= 0 || e.hp < 40 ? 1 : 0;   // tras el muro: de pie disparando por encima; agachado sólo para recargar o con poca vida
   if (e.nudge) { dx += -dz * e.nudge * .5; dz += dx * e.nudge * .5; const l = Math.sqrt((dx) * (dx) + (dz) * (dz)) || 1; dx /= l; dz /= l; }
   e.crouchT = crT; e.crouch = damp(e.crouch, crT, 7, dt);

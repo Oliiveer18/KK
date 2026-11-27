@@ -1,5 +1,12 @@
 # Changelog
 
+## Bots conscientes de la situación (27-11)
+- **Amenaza conocida** (`e.aw`): de dónde cree el bot que viene el peligro (contacto perdido, impacto, sonido, aviso de su escuadra o alguien que le apunta). Mira hacia ella con un barrido corto en vez de a «su sector» al azar, y si camina lo hace con pasos cautos.
+- **Oído**: oyen disparos de otras facciones (subfusil 40 m, fusil 55, escopeta 50, ametralladora 70, lanzagranadas 80, precisión 85) con una incertidumbre del 12 % de la distancia. Nunca disparan a ciegas.
+- **Notan que los apuntan**: si el jugador apunta a un bot (< 45 m, línea libre, error < ~6°) tras ~0,35 s se agacha, se gira hacia él y busca cobertura.
+- **Riesgo**: no salen de la cobertura antes de tiempo si hay 2+ enemigos a la vista a < 30 m, y con 3+ y poca vida se repliegan. Al perder de vista al enemigo recuerdan su última posición 7 s.
+- Test: `tests/conciencia.py`.
+
 ## Remate de abatidos (27-11)
 - Un enemigo abatido (esperando reanimación) se puede rematar: las balas del jugador y de cualquier rival lo alcanzan (40 de vida extra) y los bots lo tienen como objetivo, pero **después** de los enemigos en pie. El kill feed marca «· remate». `tests/remate.py`.
 

@@ -12,9 +12,10 @@ with sync_playwright() as p:
     pg = b.new_page(viewport={'width': 900, 'height': 500}); errs = []; pg.on('pageerror', lambda e: errs.append(str(e))); ev = pg.evaluate
     pg.goto('file://' + os.path.abspath('index.html') + '?mapa=6'); pg.wait_for_timeout(1200); ev('begin()'); pg.wait_for_timeout(1500)
     r = ev('''(MIN)=>{ renderer.render=()=>{}; const N=Math.round(MIN*3600), fr=[], out={samples:[], refuerzo:0, firstContact:-1, tact:{}, onpt:[]}; const M=MX.M, SQ=MX.SQ; const seen=new Set();
-      const cd={}; const ob=SQ.objs.filter(o=>o.id!=='REF'); const last=new Map(); out.ev={};
+      const cd={}; const ob=SQ.objs.filter(o=>o.id!=='REF'); const last=new Map(); out.ev={}; out.shots=0; out.blind=0;
       for(let i=0;i<N;i++){ time+=1/60; const t0=performance.now(); update(1/60); fr.push(performance.now()-t0);
         if(out.firstContact<0 && M.ents.some(e=>!e.dead&&e.tgt&&e.tgt.team>=0&&e.tgt.team!==e.team&&e.vis)) out.firstContact=+M.t.toFixed(1);
+        for(const e of M.ents){ if(!e.isPlayer&&!e.dead&&e.firing){ out.shots++; if(!e.vis&&!(e.sqd&&e.sqd.order&&e.sqd.order.type==='cover')) out.blind++; } }
         if(i%300===0){ // cada 5 s de juego
           for(const s of SQ.list){ if(s.playerLead||!s.mission) continue; if(s.mission.name&&/refuerzo/.test(s.mission.name)&&!seen.has(s.id+':'+Math.round(s.missionT))){ seen.add(s.id+':'+Math.round(s.missionT)); out.refuerzo++; }
             if(s.mission.x!==undefined&&(s.mission.type==='attack')&&s.leader){ const L=s.leader; if(Math.hypot(L.p.x-s.mission.x,L.p.z-s.mission.z)<45 && !(s.contact&&M.t-s.contact.t<8)){ for(const m of s.members){ if(m.dead||m.clsWait) continue; const d=Math.hypot(m.p.x-s.mission.x,m.p.z-s.mission.z); if(d<100) (cd[m.cls]=cd[m.cls]||[]).push(d); } } } }
@@ -31,5 +32,6 @@ with sync_playwright() as p:
     chk(r['firstContact'] > 0, 'primer contacto entre facciones a los %s s de partida' % r['firstContact'])
     late = r['onpt'][len(r['onpt']) // 3:]
     chk(sum(late) / len(late) > .3, 'proporción de soldados en/junto a un punto tras el primer tercio: %.0f %%' % (100 * sum(late) / len(late)))
+    chk(r['blind'] == 0, 'disparos sin ver al objetivo: %d de %d' % (r['blind'], r['shots']))
     chk(not errs, 'sin errores JS ' + str(errs[:2]))
 sys.exit(1 if bad else 0)
