@@ -1,5 +1,10 @@
 # Changelog
 
+## Cruceta táctica y vista previa de la formación (27-11)
+- **Cruceta (toque / mantener)**: ▲ Avanzar / Capturar el punto no propio más cercano · ▼ Mantener / Replegarse al refugio · ◀ Seguirme / Cambiar formación (auto → cuña → línea → columna → círculo) · ▶ Fuego de cobertura / Atacar (todos se acercan al enemigo más cercano a ≤ 60 m, cada uno por un lado, con línea de tiro; 16 s).
+- **Gestión de escuadra** (unirse, por libre, tomar/ceder el mando, reagrupar) pasa a Mochila → Escuadra (y siguen las teclas 5–8).
+- **Vista previa de la formación**: al cambiarla, ~3 s de tarjeta con el croquis visto desde arriba (tú al centro, cada compañero con la inicial y el color de su clase) y marcas fantasma en el suelo pegadas a ti.
+
 ## Mapas con toda tu facción y zombis con marcha anclada al suelo (27-11)
 - **Aliados en el minimapa y el mapa táctico**: tu escuadra siempre suelta (en el mapa grande con el color y la inicial de su clase); el resto de tu facción agrupado en celdas (10 m en el minimapa, 14 m en el grande) con un círculo y su número, sin solaparse; aro ámbar si hay abatidos, estrella si lleva líder. En el minimapa los grupos fuera de radio salen como flechas en el borde con su número (16 sectores). En el mapa grande, cada escuadra dibuja una línea suave a su objetivo y la cabecera dice cuántos de tu facción siguen en pie.
 - **Zombis**: la fase de la marcha avanza con la distancia recorrida (una zancada por tipo: caminante 1,9 m, corredor 3,4 m, pesado 2,3 m) con la amplitud de pierna que corresponde a esa zancada, de modo que el pie apoyado no patina; giro visual con velocidad angular limitada (5,5 rad/s; 9 corredor; 3,2 pesado) y miran hacia donde caminan.

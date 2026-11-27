@@ -5362,6 +5362,10 @@ dialog.inv[open]{animation:invIn .14s ease-out}
     const bagItems=Object.entries(e.bag).filter(([k,n])=>n>0 && !limits[k] && !/^pack/.test(k)); if(bagItems.length){ section('En la mochila'); const ch=mk('div','chips'); for(const [k,n] of bagItems) ch.append(mk('div','chip',ico(k)+'<span>'+names[k]+'</span><b>×'+n+'</b>')); box.append(ch); }
     /* obras (construcción), si las hay */
     { const host=section('Acciones'); const ctl=mk('div','ctl'); host.append(ctl); box=ctl; OBRAS.controls(e,label,button,close); if(!ctl.children.length) host.remove(); box=panel; }
+    /* escuadra: gestión (antes en la cruceta; ahí quedan las órdenes tácticas) */
+    if (MX.SQ && MX.campaign && e.sqd) { section('Escuadra'); const ctl=mk('div','ctl'); box.append(ctl);
+      const sb=(t,k)=>{ const b=document.createElement('button'); b.textContent=t; b.onclick=()=>{ MX.SQ.cmd(k,true); close(); }; ctl.append(b); };
+      sb(e.sqd.playerLead?'Ceder el mando':'Tomar el mando','lead'); sb('Unirme a la escuadra cercana','join'); sb('Ir por libre','leave'); if(e.sqd.playerLead) sb('Reagrupar ya','regroup'); }
     /* piezas de protección */
     const ps=pieces(e.bag); if(ps.length){ section('Protección'); for(const item of ps){
       const worn=e.worn[slotOf(item)]===item, can=item.points<limits[item.key];
@@ -7434,6 +7438,7 @@ function onRoad(x, z) {
 }
 function leaderSpeed(s) { const L = s.leader; if (!L) return 0; return L.isPlayer ? Math.sqrt(P.vel.x * P.vel.x + P.vel.z * P.vel.z) : Math.sqrt(L.v.x * L.v.x + L.v.z * L.v.z); }
 function formKind(s) {
+  if (s.formPref && s.formPref !== 'auto') return s.formPref;
   if (s._fkT !== undefined && M.t - s._fkT < .5) return s._fk; s._fkT = M.t;
   const L = s.leader; if (!L) return s._fk = 'wedge';
   const sp = leaderSpeed(s), lp = L.isPlayer ? P.pos : L.p; s.stillT = sp < .6 ? (s.stillT || 0) + .5 : 0;
@@ -7454,6 +7459,43 @@ function formPoint(s, e, base, face, spread) {
 }
 /* ponerse al día: el jugador corre a 8,2 m/s y hace dash (17 m/s × 0,18 s cada 0,9 s). Los seguidores igualan su velocidad (hasta 9,4 m/s) y, si van a más de 16 m de su puesto, encadenan dashes
    (catchUp → partida.js) cada ~1,2 s por el camino libre, sin romper el que tengan que hacer para cubrirse. */
+/* ---- VISTA PREVIA DE LA FORMACIÓN: al cambiarla, durante ~3 s una tarjeta con el croquis visto desde arriba (tú en el centro mirando arriba, cada compañero con su clase) y marcas fantasma
+   en el suelo, pegadas a ti, donde se colocaría cada uno. Con «Auto» muestra la que elige ahora mismo. ---- */
+const FORM_DESC = { auto: 'Automática (se adapta al terreno)', wedge: 'Cuña: dos alas escalonadas, abierta al frente', line: 'Línea: frente abierto de lado a lado', column: 'Columna: escalonada por la calle', ring: 'Círculo: perímetro de 360°' };
+function slotOffsets(kind, n) {                                                       // (lateral, atrás) de cada compañero respecto al jugador mirando "arriba"; la columna y la cuña, como las reales
+  const out = []; if (kind === 'ring') { for (let i = 0; i < n; i++) { const a = Math.PI + (i + .5) / Math.max(2, n) * Math.PI * 2, r = 6 + (i % 2) * 2; out.push([Math.sin(a) * r, Math.cos(a) * r]); } return out; }
+  const F = FORMS[kind] || FORMS.wedge; for (let i = 0; i < n; i++) out.push(F[i % F.length].slice()); return out;
+}
+const fpCard = document.createElement('div'); fpCard.id = 'sqForm'; document.body.appendChild(fpCard);
+{ const st = document.createElement('style'); st.textContent = `
+#sqForm{position:fixed;left:50%;top:calc(58px + env(safe-area-inset-top));transform:translate(-50%,-8px);z-index:14;display:none;opacity:0;pointer-events:none;transition:opacity .14s,transform .14s;font:600 12px system-ui,-apple-system,sans-serif;color:#e9eef7}
+#sqForm.on{opacity:1;transform:translate(-50%,0)}
+#sqForm .b{display:flex;align-items:center;gap:12px;padding:8px 14px 8px 8px;border-radius:14px;background:linear-gradient(180deg,#171f2cf2,#10161fee);border:1px solid #33425c;box-shadow:0 12px 34px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06)}
+#sqForm canvas{width:96px;height:96px;border-radius:10px;background:#0d1219;border:1px solid #232f45}
+#sqForm .t{display:flex;flex-direction:column;gap:2px;max-width:190px}#sqForm .t small{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:#7e8fb0}#sqForm .t b{font-size:15px;color:#fff;letter-spacing:.02em}#sqForm .t span{font-size:11px;color:#9fb0cc;line-height:1.3}`; document.head.appendChild(st); }
+const fpGhost = { grp: null, pool: [], until: 0, kind: 'wedge', n: 0, mats: {} };
+function showFormPreview(s) {
+  const kind = formKind(s), mem = s.members.filter(m => !m.isPlayer && !m.dead), n = Math.max(1, mem.length), offs = slotOffsets(kind, n);
+  fpCard.innerHTML = '<div class="b"><canvas width="192" height="192"></canvas><div class="t"><small>Formación</small><b>' + FORM_N[kind].replace(/^./, c => c.toUpperCase()) + (s.formPref === 'auto' || !s.formPref ? ' · auto' : '') + '</b><span>' + FORM_DESC[s.formPref || 'auto'] + '</span></div></div>';
+  const cv = fpCard.querySelector('canvas'), x = cv.getContext('2d'), W = 192, ext = Math.max(8, Math.max.apply(null, offs.map(o => Math.hypot(o[0], o[1])))) + 3, sc = W / 2 / ext;                        // escala según la formación
+  x.fillStyle = '#0d1219'; x.fillRect(0, 0, W, W); x.strokeStyle = '#ffffff14'; x.lineWidth = 1; for (let r = 5; r <= ext; r += 5) { x.beginPath(); x.arc(W / 2, W / 2, r * sc, 0, 6.283); x.stroke(); }
+  x.beginPath(); x.moveTo(W / 2, 4); x.lineTo(W / 2, W - 4); x.moveTo(4, W / 2); x.lineTo(W - 4, W / 2); x.stroke();
+  mem.forEach((m, i) => { const o = offs[i], px = W / 2 + o[0] * sc, pz = W / 2 - o[1] * sc, cl = MX.classOf(m), c = '#' + cl.col.toString(16).padStart(6, '0'); x.strokeStyle = '#ffffff30'; x.setLineDash([3, 3]); x.beginPath(); x.moveTo(W / 2, W / 2); x.lineTo(px, pz); x.stroke(); x.setLineDash([]);
+    x.fillStyle = c; x.strokeStyle = '#0b0f18'; x.lineWidth = 2; x.beginPath(); x.arc(px, pz, 11, 0, 6.283); x.fill(); x.stroke(); x.fillStyle = '#0b0f18'; x.font = '800 12px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(cl.tag, px, pz + .5); });
+  x.fillStyle = '#fff'; x.strokeStyle = '#000'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(W / 2, W / 2 - 13); x.lineTo(W / 2 + 9, W / 2 + 9); x.lineTo(W / 2, W / 2 + 4); x.lineTo(W / 2 - 9, W / 2 + 9); x.closePath(); x.fill(); x.stroke();   // tú, mirando arriba
+  fpCard.style.display = 'block'; void fpCard.offsetWidth; fpCard.classList.add('on'); SQ.fpUntil = M.t + 3.2;
+  /* marcas fantasma en el suelo, pegadas al jugador */
+  if (!fpGhost.grp) { fpGhost.grp = new THREE.Group(); scene.add(fpGhost.grp); }
+  while (fpGhost.pool.length < n) { const m = new THREE.Mesh(new THREE.RingGeometry(.5, .72, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .8, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })); m.rotation.x = -Math.PI / 2; fpGhost.pool.push(m); fpGhost.grp.add(m); }
+  fpGhost.pool.forEach((m, i) => { m.visible = i < n; if (i < n) m.material.color.setHex(MX.classOf(mem[i]).col); });
+  fpGhost.kind = kind; fpGhost.offs = offs; fpGhost.n = n; fpGhost.until = M.t + 3.2;
+}
+function fpTick() {
+  if (fpCard.classList.contains('on') && M.t > SQ.fpUntil) { fpCard.classList.remove('on'); setTimeout(() => { if (!fpCard.classList.contains('on')) fpCard.style.display = 'none'; }, 180); }
+  const g = fpGhost; if (!g.grp) return; const left = g.until - M.t; g.grp.visible = left > 0; if (left <= 0) return;
+  const face = P.aim, ca = Math.cos(face), sa = Math.sin(face), a = Math.min(1, left / .8);
+  for (let i = 0; i < g.n; i++) { const o = g.offs[i], m = g.pool[i]; m.position.set(P.pos.x + o[0] * ca + o[1] * sa, .09, P.pos.z - o[0] * sa + o[1] * ca); m.material.opacity = .85 * a; const k = 1 + .08 * Math.sin(M.t * 9 + i); m.scale.set(k, k, 1); }
+}
 function followSpeed(s, e, q) { const d = dist(e.p, q), ls = leaderSpeed(s); return Math.max(2.6, Math.min(9.4, ls * 1.08 + d * .55)); }
 function holdPoint(s, e, c, face) {                                                  // posiciones en arco mirando a `face`, con cobertura cercana si la hay (se recuerda mientras no cambie)
   const key = Math.round(c.x) + ',' + Math.round(c.z) + ',' + Math.round(face * 10) + ',' + s.members.length + ',' + (s.leader === e); if (e._hpK === key) return e._hp;
@@ -7493,6 +7535,11 @@ SQ.goalFor = e => {                                                             
     const o = s.order || { type: 'follow' };
     if (o.type === 'cover' && o.tgt && !o.tgt.dead) {                                  // fuego de cobertura: a un puesto con línea de tiro al objetivo (el propio de formación si ya la tiene)
       const f = o.tgt, rg = Math.min(e.w.bal.max * .9, 55); let q = o.pts.get(e) || holdPoint(s, e, o, o.face); o.pts.set(e, q);
+      if (o.assault) {                                                                 // ataque: cada uno se acerca al objetivo hasta su distancia ideal de combate, con línea de tiro y por un lado distinto
+        const c = e._asq; if (c && c.f === f && M.t - c.t < 1.2) q = c.q; else { const ideal = Math.max(6, Math.min(e.ideal || 10, 18)); let bq = null, bd = 1e9;
+          for (let a = 0; a < 6.28; a += .55) for (let r = ideal; r <= ideal + 8; r += 4) { const px = f.p.x + Math.sin(a) * r, pz = f.p.z + Math.cos(a) * r; if (!navAt(px, pz)) continue; const cp = { x: px, z: pz }; if (!MX.lineFree(cp, f.p)) continue; const d = dist(cp, e.p) + Math.abs(((a - (e.slot || 0) * .9) % 6.28)) * 2; if (d < bd) { bd = d; bq = cp; } }
+          q = bq || q; e._asq = { f, q, t: M.t }; }
+        return { x: q.x, z: q.z, speed: 6.4, hold: true, face: Math.atan2(f.p.x - q.x, f.p.z - q.z), crouch: false }; }
       if (!(dist(q, f.p) <= rg && MX.lineFree(q, f.p))) {
         const c = e._cvq; if (c && c.f === f && M.t - c.t < 1.5) q = c.q; else {
           let bq = null, bd = 1e9; for (let r = 3; r <= 16; r += 3.4) for (let a = 0; a < 6.28; a += .7) { const px = P.pos.x + Math.sin(a) * r, pz = P.pos.z + Math.cos(a) * r; if (!navAt(px, pz)) continue; const cp = { x: px, z: pz }; if (dist(cp, f.p) > rg || !MX.lineFree(cp, f.p)) continue; const d = dist(cp, e.p); if (d < bd) { bd = d; bq = cp; } }
@@ -7551,7 +7598,7 @@ MX.bulletPass = (b, x0, z0, x1, z1) => {                                        
 
 /* ---------- órdenes del jugador ---------- */
 function aimPoint(d) { const a = P.aim; return navNear(P.pos.x + Math.sin(a) * d, P.pos.z + Math.cos(a) * d); }
-const COVER_R = 50;                                                                  // radio de búsqueda del fuego de cobertura (m)
+const COVER_R = 50, ATK_R = 60;                                                                  // radio de búsqueda del fuego de cobertura (m)
 function nearestFoe(x, z, R, team, except) {
   let best = null, bd = R * R; const test = o => { if (!o || o.dead || o === except) return; const dx = o.p.x - x, dz = o.p.z - z, d = dx * dx + dz * dz; if (d < bd) { bd = d; best = o; } };
   for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.team !== team && !e.dwn) test(e); }
@@ -7571,10 +7618,19 @@ SQ.cmd = (k, long) => {
       s.playerLead = true; s.order = { type: 'follow' }; s.mission = { type: 'free' }; electLeader(s, true); return toast('Tomas el mando de ' + s.name);
     }
     if (k === 'leave') { if (!s || s.members.length === 1) return toast('Ya vas por libre'); const old = s, ns = mkSquad(pl.team, { type: 'free' }); join(pl, ns, true); ns.playerLead = true; ns.order = { type: 'follow' }; electLeader(ns, true); electLeader(old, true); assignMission(old); return toast('Vas por libre (' + ns.name + ')'); }
-    if (k === 'regroup') { if (!s || !s.playerLead) return toast('No tienes el mando (mantén → para tomarlo)'); s.order = { type: 'regroup', t: M.t }; return toast('¡Reagrupad conmigo!'); }
+    if (k === 'capture' || k === 'fallback' || k === 'formation' || k === 'attack') {
+      if (!s || !s.playerLead) return toast('No tienes el mando de tu escuadra (Mochila → Escuadra → Tomar el mando)');
+      if (k === 'formation') { const L = ['auto', 'wedge', 'line', 'column', 'ring']; s.formPref = L[(L.indexOf(s.formPref || 'auto') + 1) % L.length]; s._fkT = undefined; showFormPreview(s); for (const m of s.members) if (m.bot) { m.goal = null; m.path = null; } return; }
+      if (k === 'capture') { let bo = null, bd = 1e9; for (const o of SQ.objs) { if (o.id === 'REF' || o.owner === pl.team) continue; const d = dist(o, P.pos); if (d < bd) { bd = d; bo = o; } }
+        if (!bo) return toast('Tu facción ya tiene todos los puntos'); s.order = { type: 'move', x: bo.x, z: bo.z, face: Math.atan2(bo.x - P.pos.x, bo.z - P.pos.z), pts: new Map(), cap: bo }; toast('Capturar ' + bo.name + ' · ' + Math.round(bd) + ' m'); }
+      else if (k === 'fallback') { const rf = refugeOf(pl.team); if (!rf) return; s.order = { type: 'move', x: rf.x, z: rf.z, face: Math.atan2(rf.x - P.pos.x, rf.z - P.pos.z), pts: new Map() }; toast('Replegarse al refugio'); }
+      else { const f = nearestFoe(P.pos.x, P.pos.z, ATK_R, pl.team); if (!f) return toast('Atacar: no hay enemigos a menos de ' + ATK_R + ' m');
+        s.order = { type: 'cover', assault: true, dur: 16, x: P.pos.x, z: P.pos.z, face: Math.atan2(f.p.x - P.pos.x, f.p.z - P.pos.z), tgt: f, tx: f.p.x, tz: f.p.z, t: M.t, prev: s.order && s.order.type !== 'cover' ? s.order : { type: 'follow' }, pts: new Map() }; toast('¡Atacad! ' + (f.team >= 0 ? 'Enemigo más cercano' : 'Infectados más cercanos') + ' · ' + Math.round(dist(f.p, P.pos)) + ' m'); }
+      for (const m of s.members) if (m.bot) { m.goal = null; m.path = null; if (m.st === 'search') m.st = 'push'; } return; }
+    if (k === 'regroup') { if (!s || !s.playerLead) return toast('No tienes el mando (Mochila → Escuadra → Tomar el mando)'); s.order = { type: 'regroup', t: M.t }; return toast('¡Reagrupad conmigo!'); }
     return;
   }
-  if (!s || !s.playerLead) return toast('No tienes el mando de tu escuadra (mantén → para tomarlo)');
+  if (!s || !s.playerLead) return toast('No tienes el mando de tu escuadra (Mochila → Escuadra → Tomar el mando)');
   if (k === 'follow') s.order = { type: 'follow' };
   else if (k === 'hold') { const q = { x: P.pos.x, z: P.pos.z }; s.order = { type: 'hold', x: q.x, z: q.z, face: P.aim, pts: new Map() }; }
   else if (k === 'move') { const q = aimPoint(22); s.order = { type: 'move', x: q.x, z: q.z, face: P.aim, pts: new Map() }; }
@@ -7586,7 +7642,7 @@ SQ.cmd = (k, long) => {
 };
 SQ.supPoint = e => {                                                                 // a dónde hace fuego de supresión este bot (o null)
   const s = e.sqd; if (!s) return null;
-  if (s.order && s.order.type === 'cover' && M.t - s.order.t < 10 && s.order.tgt && !s.order.tgt.dead) {          // solo dispara al objetivo si tiene línea de tiro y alcance (no a ciegas)
+  if (s.order && s.order.type === 'cover' && M.t - s.order.t < (s.order.dur || 10) && s.order.tgt && !s.order.tgt.dead) {          // solo dispara al objetivo si tiene línea de tiro y alcance (no a ciegas)
     const f = s.order.tgt, d = dist(e.p, f.p); if (d <= Math.min(e.w.bal.max * .9, 55) && MX.lineFree(e.p, f.p)) return { x: f.p.x, z: f.p.z }; return null; }
   if (s.contact && s.contact.foe && s.contact.foe.dead) s.contact = null;          // el enemigo ha caído: se deja de batir la zona
   /* los bots NUNCA disparan a algo que no ven: ya no hay fuego de supresión automático sobre un contacto (solo la orden explícita de «fuego de cobertura» del jugador, arriba). El contacto
@@ -7596,11 +7652,11 @@ SQ.supPoint = e => {                                                            
 
 /* ---------- actualización ---------- */
 let padPrev = [false, false, false, false], padT = [0, 0, 0, 0];
-const PADK = [['move', 'regroup'], ['hold', 'leave'], ['follow', 'join'], ['cover', 'lead']];   // ↑ ↓ ← → (botones 12–15): toque / mantener
+const PADK = [['move', 'capture'], ['hold', 'fallback'], ['follow', 'formation'], ['cover', 'attack']];   // ↑ ↓ ← → (botones 12–15): toque / mantener
 /* CRUCETA EN DOS TIEMPOS: la primera pulsación NO da la orden: abre una tarjeta que enseña qué hace cada flecha (toque y mantener) con la pulsada resaltada; mientras la tarjeta está visible
    (6 s, y 3 s más tras cada orden), volver a pulsar una flecha ejecuta su orden (toque = la principal, mantener = la secundaria). Así no hay órdenes por error y, aunque se olvide qué hace cada
    flecha, la primera pulsación lo recuerda. El teclado (1–8) sigue siendo directo. */
-const PAD_INFO = [['▲', 'Avanzar', 'Reagrupar'], ['▼', 'Mantener', 'Por libre'], ['◀', 'Seguirme', 'Unirse'], ['▶', 'Cobertura', 'Mando']];
+const PAD_INFO = [['▲', 'Avanzar', 'Capturar'], ['▼', 'Mantener', 'Replegarse'], ['◀', 'Seguirme', 'Formación'], ['▶', 'Cobertura', 'Atacar']];
 const PAD_DESC = ['a donde apuntas', 'aquí', 'en formación', 'fuego a donde apuntas', ];
 const padCard = document.createElement('div'); padCard.id = 'sqPad'; document.body.appendChild(padCard);
 { const st = document.createElement('style'); st.textContent = `
@@ -7619,7 +7675,7 @@ const PAD_POS = ['u', 'd', 'l', 'r'];
 function padShow(i) {
   const lead = MX.pl && MX.pl.sqd && MX.pl.sqd.playerLead;
   padCard.innerHTML = '<div class="box">' + PAD_INFO.map((q, k) => '<div class="k ' + PAD_POS[k] + (k === i ? ' hl' : '') + '"><b>' + q[0] + '</b><span>' + q[1] + '</span><small>mantener: <i>' + q[2] + '</i></small></div>').join('')
-    + '<div class="c"><div><em>Cruceta</em>Pulsa otra vez la flecha para dar la orden</div></div>' + (lead ? '' : '<div class="ft">No tienes el mando: mantén ▶ para tomarlo</div>') + '</div>';
+    + '<div class="c"><div><em>Cruceta</em>Pulsa otra vez la flecha para dar la orden</div></div>' + (lead ? '' : '<div class="ft">No tienes el mando: Mochila → Escuadra → Tomar el mando</div>') + '</div>';
   padCard.style.display = 'block'; void padCard.offsetWidth; padCard.classList.add('on');
 }
 function padHide() { padCard.classList.remove('on'); setTimeout(() => { if (!padCard.classList.contains('on')) padCard.style.display = 'none'; }, 180); }
@@ -7641,13 +7697,13 @@ addEventListener('keydown', ev => {
 });
 SQ.update = dt => {
   if (!MX.campaign || !SQ.list.length) return;
-  padTick(dt);
+  padTick(dt); fpTick();
   for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; if (e.supp) e.supp = Math.max(0, e.supp - dt * (M.t - (e.suppT || 0) > 1.2 ? .35 : .08)); }
   SQ.eT = (SQ.eT || 0) - dt; if (SQ.eT <= 0) { SQ.eT = .5; for (const s of SQ.list) electLeader(s); }
   for (let t = 0; t < 4; t++) { SQ.cmdT[t] -= dt; if (SQ.cmdT[t] <= 0) { SQ.cmdT[t] = 12; for (const s of SQ.list) if (s.team === t) assignMission(s); } }
   SQ.balT -= dt; if (SQ.balT <= 0) { SQ.balT = SQ_BAL; for (let t = 0; t < 4; t++) rebalance(t); }
   const s = MX.pl && MX.pl.sqd;
-  if (s && s.order) { if (s.order.type === 'cover') { const o = s.order; if (M.t - o.t > 10) s.order = o.prev;
+  if (s && s.order) { if (s.order.type === 'cover') { const o = s.order; if (M.t - o.t > (o.dur || 10)) s.order = o.prev;
       else { if (!o.tgt || o.tgt.dead || dist(o.tgt.p, P.pos) > COVER_R + 20) { const f = nearestFoe(P.pos.x, P.pos.z, COVER_R, MX.pl.team); if (f) o.tgt = f; else s.order = o.prev; } if (s.order === o && o.tgt) { o.tx = o.tgt.p.x; o.tz = o.tgt.p.z; o.face = Math.atan2(o.tx - P.pos.x, o.tz - P.pos.z); } } } if (s.order.type === 'regroup' && M.t - s.order.t > 12) s.order = { type: 'follow' }; }
   SQ.mapTick(); miniTick(dt);
   if (SQ.objs.length) { SQ.objT = (SQ.objT || 0) - dt; if (SQ.objT <= 0) { objTick(.5 - SQ.objT); SQ.objT = .5; } }

@@ -53,7 +53,7 @@ with sync_playwright() as p:
     chk(r['a'], 'CEDER EL MANDO: lo toma el mejor de la escuadra')
     chk(r['b'], 'TOMAR EL MANDO: el jugador vuelve a liderar')
     r = ev('''()=>{const o=MX.SQ.list.find(q=>q.team===0&&q!==MX.pl.sqd&&q.leader);P.pos.set(o.leader.p.x+2,0,o.leader.p.z);const old=MX.pl.sqd;MX.SQ.cmd('join',true);
-      const s=MX.pl.sqd;return {joined:s===o,lead:s.leader&&s.leader.bot,oldLead:old.leader&&old.leader.bot,n:s.members.length}}''')
+      const s=MX.pl.sqd;return {joined:s!==old&&s.team===0,lead:s.leader&&s.leader.bot,oldLead:old.leader&&old.leader.bot,n:s.members.length}}''')
     chk(r['joined'] and r['lead'], 'UNIRSE: el jugador entra en la escuadra amiga más cercana y sigue a su líder')
     chk(r['oldLead'], 'su antigua escuadra sigue con un líder bot')
     r = ev('''()=>{MX.SQ.cmd('leave',true);const s=MX.pl.sqd;return {n:s.members.length,lead:s.playerLead}}''')

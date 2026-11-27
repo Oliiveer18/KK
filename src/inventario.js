@@ -229,6 +229,10 @@ dialog.inv[open]{animation:invIn .14s ease-out}
     const bagItems=Object.entries(e.bag).filter(([k,n])=>n>0 && !limits[k] && !/^pack/.test(k)); if(bagItems.length){ section('En la mochila'); const ch=mk('div','chips'); for(const [k,n] of bagItems) ch.append(mk('div','chip',ico(k)+'<span>'+names[k]+'</span><b>×'+n+'</b>')); box.append(ch); }
     /* obras (construcción), si las hay */
     { const host=section('Acciones'); const ctl=mk('div','ctl'); host.append(ctl); box=ctl; OBRAS.controls(e,label,button,close); if(!ctl.children.length) host.remove(); box=panel; }
+    /* escuadra: gestión (antes en la cruceta; ahí quedan las órdenes tácticas) */
+    if (MX.SQ && MX.campaign && e.sqd) { section('Escuadra'); const ctl=mk('div','ctl'); box.append(ctl);
+      const sb=(t,k)=>{ const b=document.createElement('button'); b.textContent=t; b.onclick=()=>{ MX.SQ.cmd(k,true); close(); }; ctl.append(b); };
+      sb(e.sqd.playerLead?'Ceder el mando':'Tomar el mando','lead'); sb('Unirme a la escuadra cercana','join'); sb('Ir por libre','leave'); if(e.sqd.playerLead) sb('Reagrupar ya','regroup'); }
     /* piezas de protección */
     const ps=pieces(e.bag); if(ps.length){ section('Protección'); for(const item of ps){
       const worn=e.worn[slotOf(item)]===item, can=item.points<limits[item.key];
