@@ -5998,24 +5998,24 @@ MX.hiddenBehind = (o, x, z) => hiddenBehind(o, x, z);
    · Oye disparos de otras facciones (alcance según el arma: subfusil 40 m, fusil 55, ametralladora 70, precisión 85) con una incertidumbre en la dirección del 12 % de la distancia, sin dispararles a ciegas.
    · Nota que un enemigo lo apunta (el jugador, a < 45 m, línea libre y apuntando a menos de ~6°): tras ~0,35 s reacciona: se agacha, se gira hacia él y busca cobertura.
    · Si se ve rodeado (2+ enemigos a la vista a < 30 m) no sale de la cobertura antes de tiempo, y con poca vida y 3+ enemigos se repliega. */
-function noteThreat(e, x, z, kind, dur) {
+function noteThreat(e, x, z, kind, dur, delay) {
   if (e.dead || e.dwn || e.isPlayer) return; const aw = e.aw, pr = { sound: 1, radio: 2, contact: 3, hit: 4, aimed: 5 };
   if (aw && M.t < aw.until && pr[aw.kind] > pr[kind] && M.t - aw.t < 2.5) return;                 // no pisa una amenaza más fiable reciente
-  e.aw = { x, z, kind, t: M.t, until: M.t + dur };
+  e.aw = { x, z, kind, t: M.t, from: M.t + (delay || 0), until: M.t + (delay || 0) + dur };
 }
 function heardShot(shooter) {
-  const w = shooter.w, R = w.sid === 'F2' ? 85 : w.sid === 'H1' ? 70 : w.kind === 'shot' ? 50 : w.sid === 'S1' || w.sid === 'S2' ? 40 : w.launch ? 80 : 55, x = shooter.p.x, z = shooter.p.z;
+  const w = shooter.w, R = w.sid === 'F2' ? 60 : w.sid === 'H1' ? 48 : w.kind === 'shot' ? 32 : w.sid === 'S1' || w.sid === 'S2' ? 28 : w.launch ? 50 : 38, x = shooter.p.x, z = shooter.p.z;
   for (let i = 0, EL = gridRect(GRID.E, M.ents, x - R, z - R, x + R, z + R, _gE); i < EL.length; i++) { const o = EL[i]; if (o.dead || o.dwn || o.isPlayer || o.team === shooter.team || o.vis) continue;
-    const d = Math.sqrt((o.p.x - x) * (o.p.x - x) + (o.p.z - z) * (o.p.z - z)); if (d > R || d < 3) continue; const u = d * .12; noteThreat(o, x + rr(-u, u), z + rr(-u, u), 'sound', 4 + rnd() * 2); }
+    const d = Math.sqrt((o.p.x - x) * (o.p.x - x) + (o.p.z - z) * (o.p.z - z)); if (d > R || d < 3) continue; if (d > R * .65 && !segClear(o.p.x, o.p.z, x, z, null, null, true)) continue; const u = d * .18; /* tras muros se oye menos: a partir del 65 % del alcance, sin línea libre no llega */ noteThreat(o, x + rr(-u, u), z + rr(-u, u), 'sound', 4 + rnd() * 2); }
 }
 function gazeBearing(e) {                                                            // hacia dónde mira un bot que no combate: la amenaza conocida, el contacto de su escuadra o nada (null)
-  const aw = e.aw; if (aw && M.t < aw.until) { const d = Math.sqrt((aw.x - e.p.x) * (aw.x - e.p.x) + (aw.z - e.p.z) * (aw.z - e.p.z)); if (d > 2) return Math.atan2(aw.x - e.p.x, aw.z - e.p.z); }
-  const c = e.sqd && e.sqd.contact; if (c && M.t - c.t < 8) { const d = Math.sqrt((c.x - e.p.x) * (c.x - e.p.x) + (c.z - e.p.z) * (c.z - e.p.z)); if (d > 2 && d < 90) return Math.atan2(c.x - e.p.x, c.z - e.p.z); }
+  const aw = e.aw; if (aw && M.t >= (aw.from || 0) && M.t < aw.until) { const d = Math.sqrt((aw.x - e.p.x) * (aw.x - e.p.x) + (aw.z - e.p.z) * (aw.z - e.p.z)); if (d > 2) return Math.atan2(aw.x - e.p.x, aw.z - e.p.z); }
+  const c = e.sqd && e.sqd.contact; if (c && M.t - c.t < 8) { const d = Math.sqrt((c.x - e.p.x) * (c.x - e.p.x) + (c.z - e.p.z) * (c.z - e.p.z)); if (d > 2 && d < 70) return Math.atan2(c.x - e.p.x, c.z - e.p.z); }
   return null;
 }
 function aimedAtCheck(e) {                                                           // ¿me apunta el jugador? (solo el jugador: es quien lo nota un humano; coste mínimo)
   const pl = M.ents[0]; if (!pl || pl.dead || pl.dwn || pl.team === e.team) { e.aimT = 0; return; }
-  const dx = e.p.x - P.pos.x, dz = e.p.z - P.pos.z, d = Math.sqrt(dx * dx + dz * dz); if (d > 45 || d < 2) { e.aimT = 0; return; }
+  const dx = e.p.x - P.pos.x, dz = e.p.z - P.pos.z, d = Math.sqrt(dx * dx + dz * dz); if (d < 2 || !inSight(e, -dx, -dz) || smokeBlock(e.p.x, e.p.z, P.pos.x, P.pos.z) || hiddenBehind(pl, e.p.x, e.p.z)) { e.aimT = 0; return; }   // solo si el bot PUEDE VERTE: mismo campo de visión que tú (no más)
   const err = Math.abs(angDiff(P.aim, Math.atan2(dx, dz)));
   if (err < Math.max(.06, Math.atan(.9 / d)) && (P.ads > .4 || W.reload < 0) && segClear(P.pos.x, P.pos.z, e.p.x, e.p.z, null, null, true)) {
     e.aimT = (e.aimT || 0) + .13; if (e.aimT > .35 && M.t - (e.aimedAt || -9) > 4) { e.aimedAt = M.t; noteThreat(e, P.pos.x, P.pos.z, 'aimed', 5); e.crouchUntil = M.t + 1.6; e.strafeDir = rnd() < .5 ? 1 : -1; if (!e.cover && e.st !== 'cover') { const cp = coverPoint(e, P.pos.x, P.pos.z); if (cp && Math.sqrt((cp.x - e.p.x) * (cp.x - e.p.x) + (cp.z - e.p.z) * (cp.z - e.p.z)) < 8) { e.st = 'cover'; e.coverStart = M.t - 3; e.coverPt = cp; setGoal(e, cp.x, cp.z); } } }
@@ -6103,7 +6103,7 @@ function squadSync(e) {                                                         
   if (!e.goal || far || Math.sqrt((e.goal.x - g.x) * (e.goal.x - g.x) + (e.goal.z - g.z) * (e.goal.z - g.z)) > 5) setGoal(e, g.x + rr(-.6, .6), g.z + rr(-.6, .6));
 }
 function squadAlert(e, seen) {                                                       // un miembro ve un enemigo: avisa a los de su escuadra que no lo ven
-  if (MX.SQ && e.sqd) { MX.SQ.contact(e, seen); if (seen && seen.team >= 0 && seen.p) for (const o of e.sqd.members) if (o !== e && !o.dead && !o.dwn && !o.isPlayer && !o.vis && Math.sqrt((o.p.x - e.p.x) * (o.p.x - e.p.x) + (o.p.z - e.p.z) * (o.p.z - e.p.z)) < 80) noteThreat(o, seen.p.x, seen.p.z, 'radio', 5); return; }                             // campaña: la escuadra toma posiciones de apoyo (escuadras.js), no corre hacia el enemigo
+  if (MX.SQ && e.sqd) { MX.SQ.contact(e, seen); if (seen && seen.team >= 0 && seen.p) for (const o of e.sqd.members) if (o !== e && !o.dead && !o.dwn && !o.isPlayer && !o.vis && Math.sqrt((o.p.x - e.p.x) * (o.p.x - e.p.x) + (o.p.z - e.p.z) * (o.p.z - e.p.z)) < 60) noteThreat(o, seen.p.x, seen.p.z, 'radio', 5, .7); return; }                             // campaña: la escuadra toma posiciones de apoyo (escuadras.js), no corre hacia el enemigo
   if (M.t - (e.sqAlert || -9) < 1.5) return; e.sqAlert = M.t;
   for (let i_o = 0; i_o < M.ents.length; i_o++) { const o = M.ents[i_o];
     if (o === e || o.dead || o.dwn || o.isPlayer || o.team !== e.team || o.sq !== e.sq || o.vis || o.st === 'cover' || M.t - o.alertT < 3) continue;
@@ -6151,9 +6151,10 @@ function think(e) {
   if (MX.campaign) aimedAtCheck(e);
   if (MX.campaign) { e.syncT = (e.syncT || 0) - .13; if (e.syncT <= 0) { e.syncT = 1 + rnd() * .5; squadSync(e); } if (seen && seen.p && (!e.vis || e.tgt !== seen)) squadAlert(e, seen); }      // se avisa sólo cuando el bot VE al enemigo por primera vez (o a uno nuevo), no con seguimiento continuo
 
-  if (seen) { if (e.tgt !== seen) { e.tgt = seen; e.reactT = 0; e.leadK = rr(.6, 1.05);
+  if (seen) { if (e.tgt !== seen) { const chain = !!(e.tgt && e.tgt.team === -1 && seen.team === -1); e.tgt = seen; if (!chain) e.reactT = 0;      // de un infectado al siguiente sin volver a reaccionar
+     e.leadK = rr(.6, 1.05);
     /* reacción humana (campaña): tarda más si le pilla de lado o de espaldas y si está lejos; el que embosca gana, pero el emboscado tiene un instante para cubrirse */
-    if (MX.campaign) { const off = Math.abs(angDiff(e.yaw, Math.atan2(seen.p.x - e.p.x, seen.p.z - e.p.z))), dd = Math.sqrt((seen.p.x - e.p.x) * (seen.p.x - e.p.x) + (seen.p.z - e.p.z) * (seen.p.z - e.p.z)); e.reactNeed = df.react + rr(.08, .28) + (off > 1 ? .3 : off > .5 ? .12 : 0) + Math.min(.2, dd / 120); } else e.reactNeed = df.react; } e.vis = true; e.seenT = M.t; e.ls.x = seen.p.x; e.ls.z = seen.p.z; } else e.vis = false;
+    if (MX.campaign) { const off = Math.abs(angDiff(e.yaw, Math.atan2(seen.p.x - e.p.x, seen.p.z - e.p.z))), dd = Math.sqrt((seen.p.x - e.p.x) * (seen.p.x - e.p.x) + (seen.p.z - e.p.z) * (seen.p.z - e.p.z)); e.reactNeed = df.react + rr(.08, .28) + (off > 1 ? .3 : off > .5 ? .12 : 0) + Math.min(.2, dd / 120); /* un infectado (o cualquiera) encima: reflejo, no cálculo */ if (seen.team === -1) e.reactNeed = Math.min(e.reactNeed, dd < 8 ? .1 : .25); else if (dd < 5) e.reactNeed = Math.min(e.reactNeed, .18); } else e.reactNeed = df.react; } e.vis = true; e.seenT = M.t; e.ls.x = seen.p.x; e.ls.z = seen.p.z; } else e.vis = false;
   if (e.vis) { const sx = e.p.x + Math.sin(e.yaw) * .6, sz = e.p.z + Math.cos(e.yaw) * .6; e.dT = Math.sqrt((e.tgt.p.x - e.p.x) * (e.tgt.p.x - e.p.x) + (e.tgt.p.z - e.p.z) * (e.tgt.p.z - e.p.z)); e.canShoot = segClear(sx, sz, e.tgt.p.x, e.tgt.p.z, e.cover, null, false) && !smokeBlock(sx, sz, e.tgt.p.x, e.tgt.p.z); } else e.canShoot = false;
   const tac = MX.campaign && MX.SQ && e.sqd;                                         // campaña: táctica de escuadra (no se persigue ni se va a buscar al que dispara)
   if (tac && !e.vis && e.hitSrc && M.t - e.lastAttT < .6) { MX.SQ.contact(e, { p: e.hitSrc, team: -1 }); noteThreat(e, e.hitSrc.x, e.hitSrc.z, 'hit', 6); }
@@ -6208,9 +6209,10 @@ function shoot(e) {
   if (w.launch) botLaunch(e, mx, mz, dx, dz);
   else for (let n = 0; n < w.pellets; n++) { const yw = e.yaw + (rnd() - .5) * (w.spr * .8 + (e.spread * .06 + Math.min(sp, 8) * .006) * (1 - e.crouch * .35)); spawnBullet(mx, y, mz, Math.sin(yw), Math.cos(yw), w, e); }
   if (MX.campaign) heardShot(e);
-  e.ammo--; e.spread = Math.min(1, e.spread + .14); e.kick = 1; e.flashT = .05; e.firing = true; e.fireCd = w.cd * (w.auto ? 1 : rr(1.1, 1.7));
+  e.ammo--; e.spread = Math.min(1, e.spread + .14); e.kick = 1; e.flashT = .05; e.firing = true; const zomT = !!(e.tgt && e.tgt.team === -1 && e.vis);                               // contra infectados cerca: fuego continuo (sin ráfagas ni pausas); contra otra facción, ráfagas y pausas tácticas
+  e.fireCd = w.cd * (w.auto ? 1 : (zomT ? rr(1, 1.2) : rr(1.1, 1.7)));
   if (e.burst <= 0) e.burst = w.auto ? Math.round(w.sid === 'H1' ? rr(6, 14) : rr(3, 8)) : 1;
-  if (--e.burst <= 0) e.pause = w.auto ? rr(.25, .7) : rr(0, .15);
+  if (--e.burst <= 0) e.pause = zomT ? (e.dT < 9 ? 0 : w.auto ? rr(.08, .2) : 0) : w.auto ? rr(.25, .7) : rr(0, .15);
   playAt(w.sid + '_shot', e.p.x, e.p.z, { gap: 20 });
 }
 function startReload(e) { e.reloadT = 0; e.rp = 0; e.burst = 0; }
@@ -6283,7 +6285,8 @@ function moveBot(e, dt) {
   } else if (e.st === 'fight' && t && !t.dead) {
     const d = e.dT || 10, ux = (t.p.x - e.p.x) / (d || 1), uz = (t.p.z - e.p.z) / (d || 1);
     const tac = MX.campaign && MX.SQ && e.sqd, L = tac ? e.sqd.leader : null, leash = tac && L && L !== e && Math.sqrt((L.p.x - e.p.x) * (L.p.x - e.p.x) + (L.p.z - e.p.z) * (L.p.z - e.p.z)) > 18 && Math.sqrt((L.p.x - t.p.x) * (L.p.x - t.p.x) + (L.p.z - t.p.z) * (L.p.z - t.p.z)) > Math.sqrt((e.p.x - t.p.x) * (e.p.x - t.p.x) + (e.p.z - t.p.z) * (e.p.z - t.p.z));
-    if (tac && (leash || e.supp > .45) && (!e.canShoot || d > e.ideal * 1.35)) { spd = 0; crT = 1; }                 // no se separa de su escuadra persiguiendo; suprimido, se queda agachado
+    if (t.team === -1 && d < 3.4 && !e.rt && navAt(e.p.x - ux * 1.2, e.p.z - uz * 1.2)) { dx = -ux; dz = -uz; spd = 3.8; }                // infectado encima: retrocede disparando, no se lanza a por él
+    else if (tac && (leash || e.supp > .45) && (!e.canShoot || d > e.ideal * 1.35)) { spd = 0; crT = 1; }                 // no se separa de su escuadra persiguiendo; suprimido, se queda agachado
     else if (!e.canShoot || d > e.ideal * 1.35 || d > e.maxEng * .9) {
       if (!e.goal || M.t - e.pathT > .7 || Math.sqrt((e.goal.x - t.p.x) * (e.goal.x - t.p.x) + (e.goal.z - t.p.z) * (e.goal.z - t.p.z)) > 3) setGoal(e, t.p.x, t.p.z);
       const r = steerPath(e); if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = tac ? (e.canShoot ? 2.6 : 3.4) : e.canShoot ? 3.6 : 5.4; }
@@ -7402,7 +7405,11 @@ function strength(s) { return s.members.filter(alive).length; }
 /* MANDO DE LA FACCIÓN: cada punto se puntúa por valor (la Plaza vale más; robar uno enemigo, más), distancia, carga (cuántas escuadras propias ya van) y presencia enemiga; una escuadra
    de reserva o de mantener acude como refuerzo a un punto propio donde hay más enemigos que amigos. */
 function objLoad(t, o, except) { let n = 0; for (const q of SQ.list) if (q.team === t && q !== except && q.mission && q.mission.x !== undefined && Math.abs(q.mission.x - o.x) < 5 && Math.abs(q.mission.z - o.z) < 5) n++; return n; }
-function objThreat(t, o) { let foes = 0, fr = 0; const R = o.r + 28; for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.dead || e.dwn) continue; const d = dist(e.p, o); if (d > R) continue; if (e.team === t) fr++; else foes++; } return { foes, fr }; }
+function objThreat(t, o) {                                                           // el mando solo sabe lo que ve su facción: hay enemigos contados si hay amigos en el punto (ven) o se vieron hace < 25 s
+  let foes = 0, fr = 0; const R = o.r + 28, seen = SQ.seen && SQ.seen[t];
+  for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.dead || e.dwn) continue; const d = dist(e.p, o); if (d > R) continue; if (e.team === t) fr++; else if (e.team >= 0) foes += (seen && M.t - (seen.get(e) || -99) < 25) ? 1 : (1e-3); }
+  return { foes: fr > 0 ? Math.round(foes) : Math.round(foes), fr };
+}
 SQ.objThreat = objThreat;
 function leaderOf(t) { let b = -1, bs = -1; for (let q = 0; q < 4; q++) if (q !== t && SQ.score[q] > bs) { bs = SQ.score[q]; b = q; } return bs > 0 ? b : -1; }   // la facción que va primera entre las demás
 function pickObjective(s, t, ref, mode) {
@@ -7658,7 +7665,9 @@ function bound(s, e, m) {
 }
 
 /* ---------- contacto, apoyo y supresión ---------- */
-SQ.contact = (e, seen) => {                                                          // un miembro ve a un enemigo: la escuadra lo sabe (radio de 60 m alrededor del líder)
+SQ.seen = [new Map(), new Map(), new Map(), new Map()];                            // enemigos vistos por cada facción (cuándo)
+SQ.contact = (e, seen) => {
+  if (seen && seen.team >= 0 && e.team >= 0) SQ.seen[e.team].set(seen, M.t);                                                          // un miembro ve a un enemigo: la escuadra lo sabe (radio de 60 m alrededor del líder)
   const s = e.sqd; if (!s || !seen || !seen.p || seen.team === undefined) return;
   s.contact = { x: seen.p.x, z: seen.p.z, t: M.t, by: e, foe: seen };
   if (seen.team >= 0 && seen.team !== e.team) { SQ.lastFoe = SQ.lastFoe || []; SQ.lastFoe[e.team] = { x: seen.p.x, z: seen.p.z, t: M.t, name: 'contacto' }; }   // último enemigo de otra facción visto por cualquier escuadra de este equipo
@@ -7676,8 +7685,14 @@ MX.bulletPass = (b, x0, z0, x1, z1) => {                                        
 /* ---------- órdenes del jugador ---------- */
 function aimPoint(d) { const a = P.aim; return navNear(P.pos.x + Math.sin(a) * d, P.pos.z + Math.cos(a) * d); }
 const COVER_R = 50, ATK_R = 60;                                                                  // radio de búsqueda del fuego de cobertura (m)
+function knownFoe(o) {                                                                // solo se puede ordenar atacar a lo que alguien de la escuadra o tú veis (mismo campo de visión que el juego)
+  const S = MX.SIGHT || { hw: 13, hd: 8 }, dx = o.p.x - P.pos.x, dz = o.p.z - P.pos.z;
+  if (Math.abs(dx) < S.hw * 1.1 && Math.abs(dz) < S.hd * 1.1 && MX.lineFree(P.pos, o.p)) return true;
+  const s = MX.pl && MX.pl.sqd; if (s) for (const m of s.members) if (!m.dead && !m.dwn && m.tgt === o && (m.vis || M.t - (m.seenT || -9) < 2)) return true;
+  return false;
+}
 function nearestFoe(x, z, R, team, except) {
-  let best = null, bd = R * R; const test = o => { if (!o || o.dead || o === except) return; const dx = o.p.x - x, dz = o.p.z - z, d = dx * dx + dz * dz; if (d < bd) { bd = d; best = o; } };
+  let best = null, bd = R * R; const test = o => { if (!o || o.dead || o === except) return; const dx = o.p.x - x, dz = o.p.z - z, d = dx * dx + dz * dz; if (d < bd && knownFoe(o)) { bd = d; best = o; } };
   for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.team !== team && !e.dwn) test(e); }
   const Z = MX.zom && MX.zom.list; if (Z) for (let i = 0; i < Z.length; i++) test(Z[i]);
   return best;
@@ -7701,7 +7716,7 @@ SQ.cmd = (k, long) => {
       if (k === 'capture') { let bo = null, bd = 1e9; for (const o of SQ.objs) { if (o.id === 'REF' || o.owner === pl.team) continue; const d = dist(o, P.pos); if (d < bd) { bd = d; bo = o; } }
         if (!bo) return toast('Tu facción ya tiene todos los puntos'); s.order = { type: 'move', x: bo.x, z: bo.z, face: Math.atan2(bo.x - P.pos.x, bo.z - P.pos.z), pts: new Map(), cap: bo }; toast('Capturar ' + bo.name + ' · ' + Math.round(bd) + ' m'); }
       else if (k === 'fallback') { const rf = refugeOf(pl.team); if (!rf) return; s.order = { type: 'move', x: rf.x, z: rf.z, face: Math.atan2(rf.x - P.pos.x, rf.z - P.pos.z), pts: new Map() }; toast('Replegarse al refugio'); }
-      else { const f = nearestFoe(P.pos.x, P.pos.z, ATK_R, pl.team); if (!f) return toast('Atacar: no hay enemigos a menos de ' + ATK_R + ' m');
+      else { const f = nearestFoe(P.pos.x, P.pos.z, ATK_R, pl.team); if (!f) return toast('Atacar: no hay enemigos a la vista');
         s.order = { type: 'cover', assault: true, dur: 16, x: P.pos.x, z: P.pos.z, face: Math.atan2(f.p.x - P.pos.x, f.p.z - P.pos.z), tgt: f, tx: f.p.x, tz: f.p.z, t: M.t, prev: s.order && s.order.type !== 'cover' ? s.order : { type: 'follow' }, pts: new Map() }; toast('¡Atacad! ' + (f.team >= 0 ? 'Enemigo más cercano' : 'Infectados más cercanos') + ' · ' + Math.round(dist(f.p, P.pos)) + ' m'); }
       for (const m of s.members) if (m.bot) { m.goal = null; m.path = null; if (m.st === 'search') m.st = 'push'; } return; }
     if (k === 'regroup') { if (!s || !s.playerLead) return toast('No tienes el mando (Mochila → Escuadra → Tomar el mando)'); s.order = { type: 'regroup', t: M.t }; return toast('¡Reagrupad conmigo!'); }
@@ -7712,7 +7727,7 @@ SQ.cmd = (k, long) => {
   else if (k === 'hold') { const q = { x: P.pos.x, z: P.pos.z }; s.order = { type: 'hold', x: q.x, z: q.z, face: P.aim, pts: new Map() }; }
   else if (k === 'move') { const q = aimPoint(22); s.order = { type: 'move', x: q.x, z: q.z, face: P.aim, pts: new Map() }; }
   else if (k === 'cover') {                                                           // FUEGO DE COBERTURA: busca el enemigo más cercano (soldado o zombi) a ≤ 50 m del jugador y la escuadra lo bate buscando línea de tiro
-    const f = nearestFoe(P.pos.x, P.pos.z, COVER_R, pl.team); if (!f) return toast('Fuego de cobertura: no hay enemigos a menos de ' + COVER_R + ' m');
+    const f = nearestFoe(P.pos.x, P.pos.z, COVER_R, pl.team); if (!f) return toast('Fuego de cobertura: no hay enemigos a la vista');
     s.order = { type: 'cover', x: P.pos.x, z: P.pos.z, face: Math.atan2(f.p.x - P.pos.x, f.p.z - P.pos.z), tgt: f, tx: f.p.x, tz: f.p.z, t: M.t, prev: s.order && s.order.type !== 'cover' ? s.order : { type: 'follow' }, pts: new Map() }; toast('Fuego de cobertura sobre ' + (f.team >= 0 ? 'el enemigo más cercano' : 'los infectados más cercanos') + ' · ' + Math.round(dist(f.p, P.pos)) + ' m'); return; }
   for (const m of s.members) if (m.bot) { m.goal = null; m.path = null; if (m.st === 'search') m.st = 'push'; }
   toast('Orden: ' + ORDER_N[s.order.type]);

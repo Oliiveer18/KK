@@ -553,24 +553,24 @@ MX.hiddenBehind = (o, x, z) => hiddenBehind(o, x, z);
    · Oye disparos de otras facciones (alcance según el arma: subfusil 40 m, fusil 55, ametralladora 70, precisión 85) con una incertidumbre en la dirección del 12 % de la distancia, sin dispararles a ciegas.
    · Nota que un enemigo lo apunta (el jugador, a < 45 m, línea libre y apuntando a menos de ~6°): tras ~0,35 s reacciona: se agacha, se gira hacia él y busca cobertura.
    · Si se ve rodeado (2+ enemigos a la vista a < 30 m) no sale de la cobertura antes de tiempo, y con poca vida y 3+ enemigos se repliega. */
-function noteThreat(e, x, z, kind, dur) {
+function noteThreat(e, x, z, kind, dur, delay) {
   if (e.dead || e.dwn || e.isPlayer) return; const aw = e.aw, pr = { sound: 1, radio: 2, contact: 3, hit: 4, aimed: 5 };
   if (aw && M.t < aw.until && pr[aw.kind] > pr[kind] && M.t - aw.t < 2.5) return;                 // no pisa una amenaza más fiable reciente
-  e.aw = { x, z, kind, t: M.t, until: M.t + dur };
+  e.aw = { x, z, kind, t: M.t, from: M.t + (delay || 0), until: M.t + (delay || 0) + dur };
 }
 function heardShot(shooter) {
-  const w = shooter.w, R = w.sid === 'F2' ? 85 : w.sid === 'H1' ? 70 : w.kind === 'shot' ? 50 : w.sid === 'S1' || w.sid === 'S2' ? 40 : w.launch ? 80 : 55, x = shooter.p.x, z = shooter.p.z;
+  const w = shooter.w, R = w.sid === 'F2' ? 60 : w.sid === 'H1' ? 48 : w.kind === 'shot' ? 32 : w.sid === 'S1' || w.sid === 'S2' ? 28 : w.launch ? 50 : 38, x = shooter.p.x, z = shooter.p.z;
   for (let i = 0, EL = gridRect(GRID.E, M.ents, x - R, z - R, x + R, z + R, _gE); i < EL.length; i++) { const o = EL[i]; if (o.dead || o.dwn || o.isPlayer || o.team === shooter.team || o.vis) continue;
-    const d = Math.sqrt((o.p.x - x) * (o.p.x - x) + (o.p.z - z) * (o.p.z - z)); if (d > R || d < 3) continue; const u = d * .12; noteThreat(o, x + rr(-u, u), z + rr(-u, u), 'sound', 4 + rnd() * 2); }
+    const d = Math.sqrt((o.p.x - x) * (o.p.x - x) + (o.p.z - z) * (o.p.z - z)); if (d > R || d < 3) continue; if (d > R * .65 && !segClear(o.p.x, o.p.z, x, z, null, null, true)) continue; const u = d * .18; /* tras muros se oye menos: a partir del 65 % del alcance, sin línea libre no llega */ noteThreat(o, x + rr(-u, u), z + rr(-u, u), 'sound', 4 + rnd() * 2); }
 }
 function gazeBearing(e) {                                                            // hacia dónde mira un bot que no combate: la amenaza conocida, el contacto de su escuadra o nada (null)
-  const aw = e.aw; if (aw && M.t < aw.until) { const d = Math.sqrt((aw.x - e.p.x) * (aw.x - e.p.x) + (aw.z - e.p.z) * (aw.z - e.p.z)); if (d > 2) return Math.atan2(aw.x - e.p.x, aw.z - e.p.z); }
-  const c = e.sqd && e.sqd.contact; if (c && M.t - c.t < 8) { const d = Math.sqrt((c.x - e.p.x) * (c.x - e.p.x) + (c.z - e.p.z) * (c.z - e.p.z)); if (d > 2 && d < 90) return Math.atan2(c.x - e.p.x, c.z - e.p.z); }
+  const aw = e.aw; if (aw && M.t >= (aw.from || 0) && M.t < aw.until) { const d = Math.sqrt((aw.x - e.p.x) * (aw.x - e.p.x) + (aw.z - e.p.z) * (aw.z - e.p.z)); if (d > 2) return Math.atan2(aw.x - e.p.x, aw.z - e.p.z); }
+  const c = e.sqd && e.sqd.contact; if (c && M.t - c.t < 8) { const d = Math.sqrt((c.x - e.p.x) * (c.x - e.p.x) + (c.z - e.p.z) * (c.z - e.p.z)); if (d > 2 && d < 70) return Math.atan2(c.x - e.p.x, c.z - e.p.z); }
   return null;
 }
 function aimedAtCheck(e) {                                                           // ¿me apunta el jugador? (solo el jugador: es quien lo nota un humano; coste mínimo)
   const pl = M.ents[0]; if (!pl || pl.dead || pl.dwn || pl.team === e.team) { e.aimT = 0; return; }
-  const dx = e.p.x - P.pos.x, dz = e.p.z - P.pos.z, d = Math.sqrt(dx * dx + dz * dz); if (d > 45 || d < 2) { e.aimT = 0; return; }
+  const dx = e.p.x - P.pos.x, dz = e.p.z - P.pos.z, d = Math.sqrt(dx * dx + dz * dz); if (d < 2 || !inSight(e, -dx, -dz) || smokeBlock(e.p.x, e.p.z, P.pos.x, P.pos.z) || hiddenBehind(pl, e.p.x, e.p.z)) { e.aimT = 0; return; }   // solo si el bot PUEDE VERTE: mismo campo de visión que tú (no más)
   const err = Math.abs(angDiff(P.aim, Math.atan2(dx, dz)));
   if (err < Math.max(.06, Math.atan(.9 / d)) && (P.ads > .4 || W.reload < 0) && segClear(P.pos.x, P.pos.z, e.p.x, e.p.z, null, null, true)) {
     e.aimT = (e.aimT || 0) + .13; if (e.aimT > .35 && M.t - (e.aimedAt || -9) > 4) { e.aimedAt = M.t; noteThreat(e, P.pos.x, P.pos.z, 'aimed', 5); e.crouchUntil = M.t + 1.6; e.strafeDir = rnd() < .5 ? 1 : -1; if (!e.cover && e.st !== 'cover') { const cp = coverPoint(e, P.pos.x, P.pos.z); if (cp && Math.sqrt((cp.x - e.p.x) * (cp.x - e.p.x) + (cp.z - e.p.z) * (cp.z - e.p.z)) < 8) { e.st = 'cover'; e.coverStart = M.t - 3; e.coverPt = cp; setGoal(e, cp.x, cp.z); } } }
@@ -658,7 +658,7 @@ function squadSync(e) {                                                         
   if (!e.goal || far || Math.sqrt((e.goal.x - g.x) * (e.goal.x - g.x) + (e.goal.z - g.z) * (e.goal.z - g.z)) > 5) setGoal(e, g.x + rr(-.6, .6), g.z + rr(-.6, .6));
 }
 function squadAlert(e, seen) {                                                       // un miembro ve un enemigo: avisa a los de su escuadra que no lo ven
-  if (MX.SQ && e.sqd) { MX.SQ.contact(e, seen); if (seen && seen.team >= 0 && seen.p) for (const o of e.sqd.members) if (o !== e && !o.dead && !o.dwn && !o.isPlayer && !o.vis && Math.sqrt((o.p.x - e.p.x) * (o.p.x - e.p.x) + (o.p.z - e.p.z) * (o.p.z - e.p.z)) < 80) noteThreat(o, seen.p.x, seen.p.z, 'radio', 5); return; }                             // campaña: la escuadra toma posiciones de apoyo (escuadras.js), no corre hacia el enemigo
+  if (MX.SQ && e.sqd) { MX.SQ.contact(e, seen); if (seen && seen.team >= 0 && seen.p) for (const o of e.sqd.members) if (o !== e && !o.dead && !o.dwn && !o.isPlayer && !o.vis && Math.sqrt((o.p.x - e.p.x) * (o.p.x - e.p.x) + (o.p.z - e.p.z) * (o.p.z - e.p.z)) < 60) noteThreat(o, seen.p.x, seen.p.z, 'radio', 5, .7); return; }                             // campaña: la escuadra toma posiciones de apoyo (escuadras.js), no corre hacia el enemigo
   if (M.t - (e.sqAlert || -9) < 1.5) return; e.sqAlert = M.t;
   for (let i_o = 0; i_o < M.ents.length; i_o++) { const o = M.ents[i_o];
     if (o === e || o.dead || o.dwn || o.isPlayer || o.team !== e.team || o.sq !== e.sq || o.vis || o.st === 'cover' || M.t - o.alertT < 3) continue;
@@ -706,9 +706,10 @@ function think(e) {
   if (MX.campaign) aimedAtCheck(e);
   if (MX.campaign) { e.syncT = (e.syncT || 0) - .13; if (e.syncT <= 0) { e.syncT = 1 + rnd() * .5; squadSync(e); } if (seen && seen.p && (!e.vis || e.tgt !== seen)) squadAlert(e, seen); }      // se avisa sólo cuando el bot VE al enemigo por primera vez (o a uno nuevo), no con seguimiento continuo
 
-  if (seen) { if (e.tgt !== seen) { e.tgt = seen; e.reactT = 0; e.leadK = rr(.6, 1.05);
+  if (seen) { if (e.tgt !== seen) { const chain = !!(e.tgt && e.tgt.team === -1 && seen.team === -1); e.tgt = seen; if (!chain) e.reactT = 0;      // de un infectado al siguiente sin volver a reaccionar
+     e.leadK = rr(.6, 1.05);
     /* reacción humana (campaña): tarda más si le pilla de lado o de espaldas y si está lejos; el que embosca gana, pero el emboscado tiene un instante para cubrirse */
-    if (MX.campaign) { const off = Math.abs(angDiff(e.yaw, Math.atan2(seen.p.x - e.p.x, seen.p.z - e.p.z))), dd = Math.sqrt((seen.p.x - e.p.x) * (seen.p.x - e.p.x) + (seen.p.z - e.p.z) * (seen.p.z - e.p.z)); e.reactNeed = df.react + rr(.08, .28) + (off > 1 ? .3 : off > .5 ? .12 : 0) + Math.min(.2, dd / 120); } else e.reactNeed = df.react; } e.vis = true; e.seenT = M.t; e.ls.x = seen.p.x; e.ls.z = seen.p.z; } else e.vis = false;
+    if (MX.campaign) { const off = Math.abs(angDiff(e.yaw, Math.atan2(seen.p.x - e.p.x, seen.p.z - e.p.z))), dd = Math.sqrt((seen.p.x - e.p.x) * (seen.p.x - e.p.x) + (seen.p.z - e.p.z) * (seen.p.z - e.p.z)); e.reactNeed = df.react + rr(.08, .28) + (off > 1 ? .3 : off > .5 ? .12 : 0) + Math.min(.2, dd / 120); /* un infectado (o cualquiera) encima: reflejo, no cálculo */ if (seen.team === -1) e.reactNeed = Math.min(e.reactNeed, dd < 8 ? .1 : .25); else if (dd < 5) e.reactNeed = Math.min(e.reactNeed, .18); } else e.reactNeed = df.react; } e.vis = true; e.seenT = M.t; e.ls.x = seen.p.x; e.ls.z = seen.p.z; } else e.vis = false;
   if (e.vis) { const sx = e.p.x + Math.sin(e.yaw) * .6, sz = e.p.z + Math.cos(e.yaw) * .6; e.dT = Math.sqrt((e.tgt.p.x - e.p.x) * (e.tgt.p.x - e.p.x) + (e.tgt.p.z - e.p.z) * (e.tgt.p.z - e.p.z)); e.canShoot = segClear(sx, sz, e.tgt.p.x, e.tgt.p.z, e.cover, null, false) && !smokeBlock(sx, sz, e.tgt.p.x, e.tgt.p.z); } else e.canShoot = false;
   const tac = MX.campaign && MX.SQ && e.sqd;                                         // campaña: táctica de escuadra (no se persigue ni se va a buscar al que dispara)
   if (tac && !e.vis && e.hitSrc && M.t - e.lastAttT < .6) { MX.SQ.contact(e, { p: e.hitSrc, team: -1 }); noteThreat(e, e.hitSrc.x, e.hitSrc.z, 'hit', 6); }
@@ -763,9 +764,10 @@ function shoot(e) {
   if (w.launch) botLaunch(e, mx, mz, dx, dz);
   else for (let n = 0; n < w.pellets; n++) { const yw = e.yaw + (rnd() - .5) * (w.spr * .8 + (e.spread * .06 + Math.min(sp, 8) * .006) * (1 - e.crouch * .35)); spawnBullet(mx, y, mz, Math.sin(yw), Math.cos(yw), w, e); }
   if (MX.campaign) heardShot(e);
-  e.ammo--; e.spread = Math.min(1, e.spread + .14); e.kick = 1; e.flashT = .05; e.firing = true; e.fireCd = w.cd * (w.auto ? 1 : rr(1.1, 1.7));
+  e.ammo--; e.spread = Math.min(1, e.spread + .14); e.kick = 1; e.flashT = .05; e.firing = true; const zomT = !!(e.tgt && e.tgt.team === -1 && e.vis);                               // contra infectados cerca: fuego continuo (sin ráfagas ni pausas); contra otra facción, ráfagas y pausas tácticas
+  e.fireCd = w.cd * (w.auto ? 1 : (zomT ? rr(1, 1.2) : rr(1.1, 1.7)));
   if (e.burst <= 0) e.burst = w.auto ? Math.round(w.sid === 'H1' ? rr(6, 14) : rr(3, 8)) : 1;
-  if (--e.burst <= 0) e.pause = w.auto ? rr(.25, .7) : rr(0, .15);
+  if (--e.burst <= 0) e.pause = zomT ? (e.dT < 9 ? 0 : w.auto ? rr(.08, .2) : 0) : w.auto ? rr(.25, .7) : rr(0, .15);
   playAt(w.sid + '_shot', e.p.x, e.p.z, { gap: 20 });
 }
 function startReload(e) { e.reloadT = 0; e.rp = 0; e.burst = 0; }
@@ -838,7 +840,8 @@ function moveBot(e, dt) {
   } else if (e.st === 'fight' && t && !t.dead) {
     const d = e.dT || 10, ux = (t.p.x - e.p.x) / (d || 1), uz = (t.p.z - e.p.z) / (d || 1);
     const tac = MX.campaign && MX.SQ && e.sqd, L = tac ? e.sqd.leader : null, leash = tac && L && L !== e && Math.sqrt((L.p.x - e.p.x) * (L.p.x - e.p.x) + (L.p.z - e.p.z) * (L.p.z - e.p.z)) > 18 && Math.sqrt((L.p.x - t.p.x) * (L.p.x - t.p.x) + (L.p.z - t.p.z) * (L.p.z - t.p.z)) > Math.sqrt((e.p.x - t.p.x) * (e.p.x - t.p.x) + (e.p.z - t.p.z) * (e.p.z - t.p.z));
-    if (tac && (leash || e.supp > .45) && (!e.canShoot || d > e.ideal * 1.35)) { spd = 0; crT = 1; }                 // no se separa de su escuadra persiguiendo; suprimido, se queda agachado
+    if (t.team === -1 && d < 3.4 && !e.rt && navAt(e.p.x - ux * 1.2, e.p.z - uz * 1.2)) { dx = -ux; dz = -uz; spd = 3.8; }                // infectado encima: retrocede disparando, no se lanza a por él
+    else if (tac && (leash || e.supp > .45) && (!e.canShoot || d > e.ideal * 1.35)) { spd = 0; crT = 1; }                 // no se separa de su escuadra persiguiendo; suprimido, se queda agachado
     else if (!e.canShoot || d > e.ideal * 1.35 || d > e.maxEng * .9) {
       if (!e.goal || M.t - e.pathT > .7 || Math.sqrt((e.goal.x - t.p.x) * (e.goal.x - t.p.x) + (e.goal.z - t.p.z) * (e.goal.z - t.p.z)) > 3) setGoal(e, t.p.x, t.p.z);
       const r = steerPath(e); if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = tac ? (e.canShoot ? 2.6 : 3.4) : e.canShoot ? 3.6 : 5.4; }

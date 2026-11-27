@@ -42,11 +42,11 @@ with sync_playwright() as p:
     chk(r['t'] == 'move' and sorted(r['d'])[len(r['d']) // 2] < 12, 'AVANZAR: la escuadra llega al punto al que apunta el jugador (22 m delante)')
     ev("()=>{MX.pl.sqd.members.forEach(e=>{if(e.bot){e.ammo=e.w.max;e.shots=0}});window.__sh=0;const f=MX.pl.sqd.members.filter(e=>e.bot);f.forEach(e=>{e.__a=e.ammo})}")
     # sin enemigos a 50 m: no hay orden; con un enemigo a 20 m delante: la escuadra lo bate (solo con línea de tiro)
-    ev("()=>{const z=MX.zom.spawn('brute', P.pos.x+Math.sin(P.aim)*20, P.pos.z+Math.cos(P.aim)*20, {st:'dorm'}); z.hp=z.maxhp=100000; window.__foe=z}")
+    ev("()=>{const z=MX.zom.spawn('brute', P.pos.x+Math.sin(P.aim)*7, P.pos.z+Math.cos(P.aim)*7, {st:'dorm'}); z.hp=z.maxhp=100000; window.__foe=z}")
     ev("MX.SQ.cmd('cover',false)"); ord0 = ev('()=>MX.pl.sqd.order.type'); ev('()=>__run(60*6,__only(0))')
     r = ev('()=>{const s=MX.pl.sqd;return {t:s.order.type,shots:s.members.filter(e=>e.bot).reduce((a,e)=>a+Math.max(0,(e.__a-e.ammo+(e.reloadT>=0?e.w.max:0))),0)}}')
     print('cobertura:', r)
-    chk(ord0 == 'cover', 'FUEGO DE COBERTURA: encuentra al enemigo más cercano (infectado a 20 m) y da la orden (disparo real: tests/estrategia.py / simulación del distrito)')
+    chk(ord0 == 'cover', 'FUEGO DE COBERTURA: encuentra al enemigo más cercano a la vista (infectado a 7 m) y da la orden (disparo real: tests/estrategia.py / simulación del distrito)')
     ev("()=>{ if(window.__foe){ window.__foe.hp=1; MX.zom.hit(window.__foe,50,{x:0,z:0},0,0,null) } }")
     # mando: ceder y tomar; unirse; por libre
     r = ev('''()=>{MX.SQ.cmd('lead',true);const s=MX.pl.sqd,a=!s.playerLead&&s.leader&&s.leader.bot;MX.SQ.cmd('lead',true);const b2=s.playerLead&&s.leader===MX.pl;return {a,b:b2}}''')

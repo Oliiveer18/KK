@@ -1,5 +1,10 @@
 # Changelog
 
+## Coherencia de la percepción y tiroteo contra infectados (27-11)
+- **Nadie sabe lo que no puede ver** (mismo campo de visión que el jugador, ~13–20 m): un bot solo nota que lo apuntas si puede verte (campo de visión, línea libre, sin humo ni agachado tras cobertura); el oído se reduce a un fusil 38 m, subfusil 28, escopeta 32, ametralladora 48, precisión 60, y tras muros a partir del 65 % del alcance no llega, con 18 % de error; el aviso por radio de la escuadra se limita a 60 m y llega con 0,7 s de retraso; el contacto de escuadra solo orienta la mirada a < 70 m.
+- **Las órdenes valen para lo que se ve**: «Fuego de cobertura» y «Atacar» solo eligen enemigos a la vista del jugador o de algún miembro de la escuadra (antes, cualquiera a ≤ 50/60 m aunque estuviera fuera de pantalla). El mando de la facción solo cuenta enemigos que su facción haya visto en los últimos 25 s o que estén junto a un amigo.
+- **Infectados cerca = fuego continuo**: reacción de reflejo (≤ 0,1 s a < 8 m, antes ~1 s), sin ráfagas ni pausas (cadencia máxima del arma), sin reiniciar la reacción al cambiar de un infectado al siguiente, y retroceden disparando si hay uno a < 3,4 m en vez de ir a por él. Contra otra facción siguen las ráfagas, pausas y coberturas. `tests/zombis_tiroteo.py`: fusil, subfusil, escopeta y ametralladora abaten 3 infectados a 3–5 m en 0,6–1,9 s, empezando a disparar a los 0,2–0,45 s.
+
 ## Bots conscientes de la situación (27-11)
 - **Amenaza conocida** (`e.aw`): de dónde cree el bot que viene el peligro (contacto perdido, impacto, sonido, aviso de su escuadra o alguien que le apunta). Mira hacia ella con un barrido corto en vez de a «su sector» al azar, y si camina lo hace con pasos cautos.
 - **Oído**: oyen disparos de otras facciones (subfusil 40 m, fusil 55, escopeta 50, ametralladora 70, lanzagranadas 80, precisión 85) con una incertidumbre del 12 % de la distancia. Nunca disparan a ciegas.

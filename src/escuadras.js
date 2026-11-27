@@ -109,7 +109,11 @@ function strength(s) { return s.members.filter(alive).length; }
 /* MANDO DE LA FACCIÓN: cada punto se puntúa por valor (la Plaza vale más; robar uno enemigo, más), distancia, carga (cuántas escuadras propias ya van) y presencia enemiga; una escuadra
    de reserva o de mantener acude como refuerzo a un punto propio donde hay más enemigos que amigos. */
 function objLoad(t, o, except) { let n = 0; for (const q of SQ.list) if (q.team === t && q !== except && q.mission && q.mission.x !== undefined && Math.abs(q.mission.x - o.x) < 5 && Math.abs(q.mission.z - o.z) < 5) n++; return n; }
-function objThreat(t, o) { let foes = 0, fr = 0; const R = o.r + 28; for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.dead || e.dwn) continue; const d = dist(e.p, o); if (d > R) continue; if (e.team === t) fr++; else foes++; } return { foes, fr }; }
+function objThreat(t, o) {                                                           // el mando solo sabe lo que ve su facción: hay enemigos contados si hay amigos en el punto (ven) o se vieron hace < 25 s
+  let foes = 0, fr = 0; const R = o.r + 28, seen = SQ.seen && SQ.seen[t];
+  for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.dead || e.dwn) continue; const d = dist(e.p, o); if (d > R) continue; if (e.team === t) fr++; else if (e.team >= 0) foes += (seen && M.t - (seen.get(e) || -99) < 25) ? 1 : (1e-3); }
+  return { foes: fr > 0 ? Math.round(foes) : Math.round(foes), fr };
+}
 SQ.objThreat = objThreat;
 function leaderOf(t) { let b = -1, bs = -1; for (let q = 0; q < 4; q++) if (q !== t && SQ.score[q] > bs) { bs = SQ.score[q]; b = q; } return bs > 0 ? b : -1; }   // la facción que va primera entre las demás
 function pickObjective(s, t, ref, mode) {
@@ -365,7 +369,9 @@ function bound(s, e, m) {
 }
 
 /* ---------- contacto, apoyo y supresión ---------- */
-SQ.contact = (e, seen) => {                                                          // un miembro ve a un enemigo: la escuadra lo sabe (radio de 60 m alrededor del líder)
+SQ.seen = [new Map(), new Map(), new Map(), new Map()];                            // enemigos vistos por cada facción (cuándo)
+SQ.contact = (e, seen) => {
+  if (seen && seen.team >= 0 && e.team >= 0) SQ.seen[e.team].set(seen, M.t);                                                          // un miembro ve a un enemigo: la escuadra lo sabe (radio de 60 m alrededor del líder)
   const s = e.sqd; if (!s || !seen || !seen.p || seen.team === undefined) return;
   s.contact = { x: seen.p.x, z: seen.p.z, t: M.t, by: e, foe: seen };
   if (seen.team >= 0 && seen.team !== e.team) { SQ.lastFoe = SQ.lastFoe || []; SQ.lastFoe[e.team] = { x: seen.p.x, z: seen.p.z, t: M.t, name: 'contacto' }; }   // último enemigo de otra facción visto por cualquier escuadra de este equipo
@@ -383,8 +389,14 @@ MX.bulletPass = (b, x0, z0, x1, z1) => {                                        
 /* ---------- órdenes del jugador ---------- */
 function aimPoint(d) { const a = P.aim; return navNear(P.pos.x + Math.sin(a) * d, P.pos.z + Math.cos(a) * d); }
 const COVER_R = 50, ATK_R = 60;                                                                  // radio de búsqueda del fuego de cobertura (m)
+function knownFoe(o) {                                                                // solo se puede ordenar atacar a lo que alguien de la escuadra o tú veis (mismo campo de visión que el juego)
+  const S = MX.SIGHT || { hw: 13, hd: 8 }, dx = o.p.x - P.pos.x, dz = o.p.z - P.pos.z;
+  if (Math.abs(dx) < S.hw * 1.1 && Math.abs(dz) < S.hd * 1.1 && MX.lineFree(P.pos, o.p)) return true;
+  const s = MX.pl && MX.pl.sqd; if (s) for (const m of s.members) if (!m.dead && !m.dwn && m.tgt === o && (m.vis || M.t - (m.seenT || -9) < 2)) return true;
+  return false;
+}
 function nearestFoe(x, z, R, team, except) {
-  let best = null, bd = R * R; const test = o => { if (!o || o.dead || o === except) return; const dx = o.p.x - x, dz = o.p.z - z, d = dx * dx + dz * dz; if (d < bd) { bd = d; best = o; } };
+  let best = null, bd = R * R; const test = o => { if (!o || o.dead || o === except) return; const dx = o.p.x - x, dz = o.p.z - z, d = dx * dx + dz * dz; if (d < bd && knownFoe(o)) { bd = d; best = o; } };
   for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.team !== team && !e.dwn) test(e); }
   const Z = MX.zom && MX.zom.list; if (Z) for (let i = 0; i < Z.length; i++) test(Z[i]);
   return best;
@@ -408,7 +420,7 @@ SQ.cmd = (k, long) => {
       if (k === 'capture') { let bo = null, bd = 1e9; for (const o of SQ.objs) { if (o.id === 'REF' || o.owner === pl.team) continue; const d = dist(o, P.pos); if (d < bd) { bd = d; bo = o; } }
         if (!bo) return toast('Tu facción ya tiene todos los puntos'); s.order = { type: 'move', x: bo.x, z: bo.z, face: Math.atan2(bo.x - P.pos.x, bo.z - P.pos.z), pts: new Map(), cap: bo }; toast('Capturar ' + bo.name + ' · ' + Math.round(bd) + ' m'); }
       else if (k === 'fallback') { const rf = refugeOf(pl.team); if (!rf) return; s.order = { type: 'move', x: rf.x, z: rf.z, face: Math.atan2(rf.x - P.pos.x, rf.z - P.pos.z), pts: new Map() }; toast('Replegarse al refugio'); }
-      else { const f = nearestFoe(P.pos.x, P.pos.z, ATK_R, pl.team); if (!f) return toast('Atacar: no hay enemigos a menos de ' + ATK_R + ' m');
+      else { const f = nearestFoe(P.pos.x, P.pos.z, ATK_R, pl.team); if (!f) return toast('Atacar: no hay enemigos a la vista');
         s.order = { type: 'cover', assault: true, dur: 16, x: P.pos.x, z: P.pos.z, face: Math.atan2(f.p.x - P.pos.x, f.p.z - P.pos.z), tgt: f, tx: f.p.x, tz: f.p.z, t: M.t, prev: s.order && s.order.type !== 'cover' ? s.order : { type: 'follow' }, pts: new Map() }; toast('¡Atacad! ' + (f.team >= 0 ? 'Enemigo más cercano' : 'Infectados más cercanos') + ' · ' + Math.round(dist(f.p, P.pos)) + ' m'); }
       for (const m of s.members) if (m.bot) { m.goal = null; m.path = null; if (m.st === 'search') m.st = 'push'; } return; }
     if (k === 'regroup') { if (!s || !s.playerLead) return toast('No tienes el mando (Mochila → Escuadra → Tomar el mando)'); s.order = { type: 'regroup', t: M.t }; return toast('¡Reagrupad conmigo!'); }
@@ -419,7 +431,7 @@ SQ.cmd = (k, long) => {
   else if (k === 'hold') { const q = { x: P.pos.x, z: P.pos.z }; s.order = { type: 'hold', x: q.x, z: q.z, face: P.aim, pts: new Map() }; }
   else if (k === 'move') { const q = aimPoint(22); s.order = { type: 'move', x: q.x, z: q.z, face: P.aim, pts: new Map() }; }
   else if (k === 'cover') {                                                           // FUEGO DE COBERTURA: busca el enemigo más cercano (soldado o zombi) a ≤ 50 m del jugador y la escuadra lo bate buscando línea de tiro
-    const f = nearestFoe(P.pos.x, P.pos.z, COVER_R, pl.team); if (!f) return toast('Fuego de cobertura: no hay enemigos a menos de ' + COVER_R + ' m');
+    const f = nearestFoe(P.pos.x, P.pos.z, COVER_R, pl.team); if (!f) return toast('Fuego de cobertura: no hay enemigos a la vista');
     s.order = { type: 'cover', x: P.pos.x, z: P.pos.z, face: Math.atan2(f.p.x - P.pos.x, f.p.z - P.pos.z), tgt: f, tx: f.p.x, tz: f.p.z, t: M.t, prev: s.order && s.order.type !== 'cover' ? s.order : { type: 'follow' }, pts: new Map() }; toast('Fuego de cobertura sobre ' + (f.team >= 0 ? 'el enemigo más cercano' : 'los infectados más cercanos') + ' · ' + Math.round(dist(f.p, P.pos)) + ' m'); return; }
   for (const m of s.members) if (m.bot) { m.goal = null; m.path = null; if (m.st === 'search') m.st = 'push'; }
   toast('Orden: ' + ORDER_N[s.order.type]);
