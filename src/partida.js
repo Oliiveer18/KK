@@ -569,7 +569,7 @@ function think(e) {
     else if (e.st === 'cover' && e.path && (e.vis || M.t - e.lastHurt < 1.5 || e.supp > .4) && e.coverPt && Math.hypot(e.coverPt.x - e.p.x, e.coverPt.z - e.p.z) > 3.5) dir = { x: e.sdx, z: e.sdz };
     else if (MX.campaign && e.supp > .7 && !e.cover && e.st !== 'fight' && e.goal) dir = { x: e.sdx, z: e.sdz };
     if (dir && (dir.x || dir.z)) { const l = Math.hypot(dir.x, dir.z) || 1, ux = dir.x / l, uz = dir.z / l;
-      if (navAt(e.p.x + ux * 1.5, e.p.z + uz * 1.5) && navAt(e.p.x + ux * 3, e.p.z + uz * 3)) { e.dashT = .18; e.dashX = ux; e.dashZ = uz; if (typeof DASHFX !== 'undefined' && !e.dead) DASHFX.start(e.p.x, e.p.z, ux, uz, TM[e.team].acc.color.getHex()); e.dashCD = rr(2.5, 4.5); e.dashN = (e.dashN || 0) + 1; playAt('DASH_start', e.p.x, e.p.z, { vol: .55, gap: 80 }); } }
+      if (navAt(e.p.x + ux * 1.5, e.p.z + uz * 1.5) && navAt(e.p.x + ux * 3, e.p.z + uz * 3)) { e.dashT = .18; e.dashX = ux; e.dashZ = uz; if (typeof DASHFX !== 'undefined' && !e.dead) DASHFX.start(e.p.x, e.p.z, ux, uz); e.dashCD = rr(2.5, 4.5); e.dashN = (e.dashN || 0) + 1; playAt('DASH_start', e.p.x, e.p.z, { vol: .55, gap: 80 }); } }
   }
   /* granadas: frag al rival a 5,6–8,6 m (cae a 7 m fijos); humo hacia la amenaza al retirarse */
   if (!e.wantThrow && e.reloadT < 0) {
@@ -688,7 +688,7 @@ function moveBot(e, dt) {
   if (e.nudge) { dx += -dz * e.nudge * .5; dz += dx * e.nudge * .5; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l; }
   e.crouchT = crT; e.crouch = damp(e.crouch, crT, 7, dt);
   const sMax = spd * (1 - .5 * e.crouch), tx = dx * sMax, tz = dz * sMax, ax = tx - e.v.x, az = tz - e.v.z, l = Math.hypot(ax, az), step = 32 * dt;
-  if (e.dashT > 0) { e.dashT -= dt; if (typeof DASHFX !== 'undefined') DASHFX.trail(e, e.p.x, e.p.z, e.dashX, e.dashZ, TM[e.team].acc.color.getHex()); e.v.x = e.dashX * 17; e.v.z = e.dashZ * 17; e.crouch = 0; }        // dash: 17 m/s durante 0,18 s (como el jugador)
+  if (e.dashT > 0) { e.dashT -= dt; if (typeof DASHFX !== 'undefined') DASHFX.trail(e, e.p.x, e.p.z, e.dashX, e.dashZ); e.v.x = e.dashX * 17; e.v.z = e.dashZ * 17; e.crouch = 0; }        // dash: 17 m/s durante 0,18 s (como el jugador)
   else if (l <= step) { e.v.x = tx; e.v.z = tz; } else { e.v.x += ax / l * step; e.v.z += az / l * step; }
   e.p.x += e.v.x * dt; e.p.z += e.v.z * dt; collide(e.p, .38, 2.6);
   const SEP = MX.campaign ? 1.7 : .85;                                               // espacio personal: en campaña nadie se pega a un compañero (no ir en piña)

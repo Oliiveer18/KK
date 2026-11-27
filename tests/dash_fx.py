@@ -14,12 +14,12 @@ with sync_playwright() as p:
     n0 = ev('renderer.info.programs.length')
     r = ev('''()=>{ const idle=DASHFX.mallas.filter(m=>m.visible).length; const out={idle};
       renderer.info.reset(); renderer.render(scene,camera); out.callsIdle=renderer.info.render.calls;
-      DASHFX.start(P.pos.x,P.pos.z,1,0,0x7ec0ff); for(let i=0;i<4;i++){DASHFX.trail(P,P.pos.x+i*.3,P.pos.z,1,0,0x7ec0ff);DASHFX.update(1/60);}
+      DASHFX.start(P.pos.x,P.pos.z,1,0); for(let i=0;i<4;i++){DASHFX.trail(P,P.pos.x+i*.3,P.pos.z,1,0);DASHFX.update(1/60);}
       out.vis=DASHFX.mallas.filter(m=>m.visible).length; renderer.info.reset(); renderer.render(scene,camera); out.callsDash=renderer.info.render.calls;
       for(let i=0;i<60;i++)DASHFX.update(1/60); out.after=DASHFX.vivos; out.visAfter=DASHFX.mallas.filter(m=>m.visible).length; return out}''')
     print(r)
     chk(r['idle'] == 0, 'sin dash no hay ninguna malla de efecto visible')
-    chk(0 < r['vis'] <= 3 and r['callsDash'] - r['callsIdle'] <= 3 + 3, 'con dash: %d mallas, %d llamadas más (las 3 del efecto como mucho; la sombra no las dibuja)' % (r['vis'], r['callsDash'] - r['callsIdle']))
+    chk(0 < r["vis"] <= 1 and r["callsDash"] - r["callsIdle"] <= 1, 'con dash: %d mallas, %d llamadas más (las 3 del efecto como mucho; la sombra no las dibuja)' % (r['vis'], r['callsDash'] - r['callsIdle']))
     chk(r['after'] == 0 and r['visAfter'] == 0, 'a los ~1 s todo se ha apagado y devuelto a la reserva')
     chk(ev('renderer.info.programs.length') == n0, 'ningún shader nuevo por el efecto (%d programas)' % n0)
     # carrera: pose

@@ -3,7 +3,7 @@
 ## Rendimiento en móvil, efecto del dash y NPCs corriendo (26-11)
 - **Medición**: tocar el cuadro de FPS muestra p50/p95/p99, % de fotogramas lentos, reparto lógica/dibujo, partes de la lógica y los últimos tirones con su causa (`src/rendimiento.js`).
 - **Optimizaciones sin cambio visual** (detalle y cifras en `docs/RENDIMIENTO.md`): lista de objetos despiertos (`AWAKE`), sombras en fotogramas alternos con anclaje a texels (`?nosombra2`), HUD sin escrituras repetidas (`?nodomcache`).
-- **Efecto del dash** (`src/efectos.js`, `DASHFX`): onda azul en el suelo, abanico de estelas, estelas cortas durante el dash y polvo; para el jugador y para los bots (con el color de su facción). 3 mallas instanciadas, 0 cuando no hay dash, ningún shader nuevo, fuera de la pasada de sombra.
+- **Efecto del dash** (`src/efectos.js`, `DASHFX`): marcas de viento, 3 líneas finas blancas y translúcidas al empezar y una suelta cada ~45 ms mientras dura, afinadas en las puntas y que se encogen hasta desaparecer; para el jugador y los bots. Una malla instanciada (1 llamada, 0 sin dash), sin shaders nuevos y fuera de la pasada de sombra. Sustituye a las 3 siluetas fantasma (~75 mallas translúcidas) y al anillo/polvo/estelas de colores de la primera versión.
 - **NPCs corriendo**: pose de carrera continua según la velocidad (`e.run`: torso inclinado hacia delante, zancada y rodillas más altas, más vaivén, arma baja) y, en tramos largos de más de 20 m sin peligro, corren a la velocidad del jugador (8,2 m/s).
 - Tests nuevos: `tests/sombra_alterna.py`, `tests/dash_fx.py`.
 
