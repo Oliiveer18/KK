@@ -12,12 +12,13 @@ with sync_playwright() as p:
     pg = b.new_page(viewport={'width': 900, 'height': 500}); errs = []; pg.on('pageerror', lambda e: errs.append(str(e))); ev = pg.evaluate
     pg.goto('file://' + os.path.abspath('index.html') + '?mapa=6'); pg.wait_for_timeout(1200); ev('begin()'); pg.wait_for_timeout(1500)
     r = ev('''(MIN)=>{ renderer.render=()=>{}; const N=Math.round(MIN*3600), fr=[], out={samples:[], refuerzo:0, firstContact:-1, tact:{}, onpt:[]}; const M=MX.M, SQ=MX.SQ; const seen=new Set();
-      const cd={}; const ob=SQ.objs.filter(o=>o.id!=='REF');
+      const cd={}; const ob=SQ.objs.filter(o=>o.id!=='REF'); const last=new Map(); out.ev={};
       for(let i=0;i<N;i++){ time+=1/60; const t0=performance.now(); update(1/60); fr.push(performance.now()-t0);
         if(out.firstContact<0 && M.ents.some(e=>!e.dead&&e.tgt&&e.tgt.team>=0&&e.tgt.team!==e.team&&e.vis)) out.firstContact=+M.t.toFixed(1);
         if(i%300===0){ // cada 5 s de juego
           for(const s of SQ.list){ if(s.playerLead||!s.mission) continue; if(s.mission.name&&/refuerzo/.test(s.mission.name)&&!seen.has(s.id+':'+Math.round(s.missionT))){ seen.add(s.id+':'+Math.round(s.missionT)); out.refuerzo++; }
             if(s.mission.x!==undefined&&(s.mission.type==='attack')&&s.leader){ const L=s.leader; if(Math.hypot(L.p.x-s.mission.x,L.p.z-s.mission.z)<45 && !(s.contact&&M.t-s.contact.t<8)){ for(const m of s.members){ if(m.dead||m.clsWait) continue; const d=Math.hypot(m.p.x-s.mission.x,m.p.z-s.mission.z); if(d<100) (cd[m.cls]=cd[m.cls]||[]).push(d); } } } }
+          for(const q of SQ.list){ if(q.playerLead||!q.mission) continue; const mm=q.mission; const key=(mm.role||'')+'|'+(mm.name||'').split(' · ')[0]+'|'+Math.round(mm.x||0)+','+Math.round(mm.z||0); if(last.get(q.id)!==key){ last.set(q.id,key); const lbl=mm.role?mm.role:(/refuerzo|recuperar|reserva|guarnici/.test(mm.name||'')?(mm.name||'').split(' · ')[0]:mm.type); const k2=q.kind+':'+lbl; out.ev[k2]=(out.ev[k2]||0)+1; } }
           let near=0, alive=0; for(const e of M.ents){ if(e.dead||e.isPlayer) continue; alive++; if(ob.some(o=>Math.hypot(o.x-e.p.x,o.z-e.p.z)<o.r+25)) near++; }
           out.onpt.push(+(near/alive).toFixed(2)); out.samples.push([Math.round(M.t), SQ.score.map(x=>Math.round(x)).join('/'), ob.map(o=>o.owner).join('')]); } }
       for(const k in cd){ const a=cd[k]; a.sort((x,y)=>x-y); out.tact[k]=[Math.round(a[a.length>>1]), a.length]; }

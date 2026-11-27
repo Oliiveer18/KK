@@ -23,7 +23,7 @@ const KTEAM = [0, 1, 3, 2];                                                     
 const MAXS = 8;
 /* formación (lateral, atrás) en metros respecto al líder y su rumbo: cuña abierta, nunca en piña */
 const FORM = [[-3.5, -3], [3.5, -3], [-6, -7], [6, -7], [0, -9], [-8.5, -11], [8.5, -11], [0, -14]];
-const MISSION_N = { defend: 'Defender el refugio', hold: 'Mantener', attack: 'Atacar', recon: 'Reconocimiento', free: 'Por libre' };
+const MISSION_N = { defend: 'Defender el refugio', hold: 'Mantener', attack: 'Atacar', recon: 'Reconocimiento', reserve: 'Reserva', free: 'Por libre' };
 const ORDER_N = { follow: 'Seguirme', hold: 'Mantener posición', move: 'Avanzar', cover: 'Fuego de cobertura', regroup: 'Reagrupar' };
 const alive = e => e && !e.dead && !e.dwn;
 const dist = (a, b) => Math.sqrt((a.x - b.x) * (a.x - b.x) + (a.z - b.z) * (a.z - b.z));
@@ -58,12 +58,30 @@ function join(e, s, silent) {
   s.members.push(e); e.sqd = s; e.sq = s.id; e.slot = s.members.length - 1; e.goal = null; e.path = null;
   if (!silent && (s.members.includes(MX.pl) || (o && o.members.includes(MX.pl)))) toast(e.id + (e.isPlayer ? '' : '') + ' se une a ' + s.name);
 }
+/* TIPOS DE ESCUADRA (50 por facción = 12 escuadras; mismo presupuesto en todas, con variaciones del MISMO tamaño al azar en cada partida: línea↔asalto, reserva↔apoyo, flanco↔guarnición).
+   asalto 5 (abre puntos) · línea 5 (captura y sostiene) · apoyo 4 (bate desde lejos, fija al enemigo) · flanco 3 (rodea y embosca) · reserva 4 (refuerza y recupera) · guarnición 3 (defiende refugio y puesto). */
+const KINDS = {
+  asalto: { cls: ['asa', 'asa', 'fus', 'med', 'fla'], mission: 'attack', name: 'Asalto' },
+  linea: { cls: ['fus', 'fus', 'fus', 'med', 'apo'], mission: 'hold', name: 'Línea' },
+  apoyo: { cls: ['apo', 'apo', 'fra', 'med'], mission: 'attack', name: 'Apoyo' },
+  flanco: { cls: ['fla', 'fla', 'fra'], mission: 'attack', name: 'Flanco' },
+  reserva: { cls: ['fus', 'fus', 'asa', 'med'], mission: 'reserve', name: 'Reserva' },
+  guarnicion: { cls: ['fus', 'fus', 'apo'], mission: 'defend', name: 'Guarnición' }
+};
+MX.KINDS = KINDS;
+function squadPlan() {
+  const plan = ['linea', 'asalto', 'linea', 'apoyo', 'flanco', 'reserva', 'asalto', 'linea', 'apoyo', 'flanco', 'reserva', 'guarnicion'];           // la 1.ª (con el jugador en la facción Azul) es línea
+  const swaps = [['linea', 'asalto'], ['reserva', 'apoyo'], ['flanco', 'guarnicion']];
+  for (let n = 0; n < 2; n++) if (rnd() < .65) { const [x, y] = swaps[(rnd() * swaps.length) | 0], from = rnd() < .5 ? x : y, to = from === x ? y : x, idx = plan.map((k, i) => k === from && i > 0 ? i : -1).filter(i => i > 0); if (idx.length > 1) plan[idx[(rnd() * idx.length) | 0]] = to; }
+  return plan;
+}
+/* RASGOS SUAVES de cada facción (invisibles, ±15 % al azar en cada partida; no son una personalidad): agresividad, atracción por el centro y rivalidad con quien va ganando */
+SQ.traits = [0, 1, 2, 3].map(() => ({ aggr: .85 + .3 * rnd(), center: .85 + .3 * rnd(), rival: .85 + .3 * rnd() }));
 SQ.init = () => {
-  SQ.list = []; SQ.uid = 0; PL = null;
+  SQ.list = []; SQ.uid = 0; PL = null; SQ.traits = [0, 1, 2, 3].map(() => ({ aggr: .85 + .3 * rnd(), center: .85 + .3 * rnd(), rival: .85 + .3 * rnd() }));
   for (let t = 0; t < 4; t++) {
-    const ents = M.ents.filter(e => e.team === t); if (!ents.length) continue; let k = 0;
-    const SZ = ents.length > 25 ? SIZES.concat(SIZES) : SIZES, RL = ents.length > 25 ? ROLE0.concat(ROLE0) : ROLE0;                // más de 25 por facción: el doble de escuadras con la misma composición
-    for (let i = 0; i < SZ.length && k < ents.length; i++) { const s = mkSquad(t, { type: RL[i] }); for (let j = 0; j < SZ[i] && k < ents.length; j++) join(ents[k++], s, true); }
+    const ents = M.ents.filter(e => e.team === t); if (!ents.length) continue; let k = 0; const plan = squadPlan();
+    for (let i = 0; i < plan.length && k < ents.length; i++) { const kd = KINDS[plan[i]], s = mkSquad(t, { type: kd.mission }); s.kind = plan[i]; for (let j = 0; j < kd.cls.length && k < ents.length; j++) join(ents[k++], s, true); }
     while (k < ents.length) join(ents[k++], SQ.list.filter(s => s.team === t)[0], true);
   }
   for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; e.vet = e.isPlayer ? 0 : rr(0, 4); e.lifeStart = 0; e.supp = 0; }
@@ -93,13 +111,16 @@ function strength(s) { return s.members.filter(alive).length; }
 function objLoad(t, o, except) { let n = 0; for (const q of SQ.list) if (q.team === t && q !== except && q.mission && q.mission.x !== undefined && Math.abs(q.mission.x - o.x) < 5 && Math.abs(q.mission.z - o.z) < 5) n++; return n; }
 function objThreat(t, o) { let foes = 0, fr = 0; const R = o.r + 28; for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.dead || e.dwn) continue; const d = dist(e.p, o); if (d > R) continue; if (e.team === t) fr++; else foes++; } return { foes, fr }; }
 SQ.objThreat = objThreat;
+function leaderOf(t) { let b = -1, bs = -1; for (let q = 0; q < 4; q++) if (q !== t && SQ.score[q] > bs) { bs = SQ.score[q]; b = q; } return bs > 0 ? b : -1; }   // la facción que va primera entre las demás
 function pickObjective(s, t, ref, mode) {
   const lf = SQ.lastFoe && SQ.lastFoe[t]; let best = null, bs = -1e9;
   for (const o of SQ.objs) {
     if (o.id === 'REF') continue; const mine = o.owner === t || (o.home === t && o.owner < 0);
     if (mode === 'attack' ? o.owner === t : !(mine || (o.owner < 0 && o.home < 0 && dist(o, ref) < 420))) continue;
-    const th = objThreat(t, o), d = dist(o, ref), sc = (o.id === 'PLAZA' ? 1.35 : 1) + (mode === 'attack' ? (o.owner >= 0 ? .5 : 0) : (o.owner !== t ? .6 : 0)) - d / 650 - objLoad(t, o, s) * .55
-      + (mode === 'attack' ? -Math.min(1, th.foes / 12) * .35 : Math.min(1.2, Math.max(0, th.foes - th.fr) / 5)) + (lf && M.t - lf.t < 150 && dist(lf, o) < 90 ? .25 : 0) + rnd() * .25;
+    const th = objThreat(t, o), d = dist(o, ref), tr = SQ.traits[t] || { aggr: 1, center: 1, rival: 1 }, lead = leaderOf(t), gap = lead >= 0 ? Math.max(0, SQ.score[lead] - SQ.score[t]) : 0, risk = tr.aggr * (1 + Math.min(.5, gap / 200));
+    const soft = (mode === 'attack' && lead >= 0 && o.owner === lead ? .7 * tr.rival * Math.min(1, gap / 150) : 0) + (o.id === 'PLAZA' ? (tr.center - 1) * 1.5 : o.id === 'PUE' ? (1 - tr.center) * .5 : 0) + (mode === 'attack' && o._lostT && o._lostT[t] && M.t - o._lostT[t] < 120 && o.owner !== t ? .5 : 0);
+    const sc = soft + (o.id === 'PLAZA' ? 1.35 : 1) + (mode === 'attack' ? (o.owner >= 0 ? .5 : 0) : (o.owner !== t ? .6 : 0)) - d / 650 - objLoad(t, o, s) * .55
+      + (mode === 'attack' ? -Math.min(1, th.foes / 12) * .35 / risk : Math.min(1.2, Math.max(0, th.foes - th.fr) / 5)) + (lf && M.t - lf.t < 150 && dist(lf, o) < 90 ? .25 : 0) + rnd() * .25;
     if (sc > bs) { bs = sc; best = o; } }
   return best;
 }
@@ -115,9 +136,21 @@ function assignMission(s) {
     if (bo && !(s.mission.x !== undefined && Math.abs(s.mission.x - bo.x) < 5 && Math.abs(s.mission.z - bo.z) < 5)) { s.mission = { type: 'hold', x: bo.x, z: bo.z, name: 'refuerzo · ' + bo.name }; s.missionT = M.t; s.ap = null; return; } }
   if (s.mission.x !== undefined) {                                                   // misión en curso: se cambia al cabo de un rato en el sitio (o si no llega nunca)
     const L = s.leader, there = L && dist(L.p, s.mission) < 15; if (there && !s.mission.arr) s.mission.arr = M.t;
-    const stay = type === 'recon' ? 25 : type === 'attack' ? 90 : 240;
+    const stay = type === 'recon' ? 25 : type === 'attack' ? (s.mission.role === 'ambush' ? 150 : 90) : s.kind === 'reserva' ? 70 : 240;
     if (!(s.mission.arr ? M.t - s.mission.arr > stay : M.t - s.missionT > 260)) return; }
   let tg = null;
+  if (s.kind === 'guarnicion' && !s.mission.regroup) {                                                         // guarnición: refugio si el enemigo anda cerca de él; si no, el puesto avanzado propio
+    const rf = refugeOf(t), near = rf && M.ents.some(e2 => alive(e2) && e2.team !== t && dist(e2.p, rf) < 150), pue = SQ.objs.find(o => o.id === 'PUE' && o.home === t);
+    s.mission = near || !pue ? { type: 'defend', x: rf ? rf.x : ref.x, z: rf ? rf.z : ref.z, name: 'refugio' } : { type: 'hold', x: pue.x, z: pue.z, name: 'guarnición · ' + pue.name }; s.missionT = M.t; s.ap = null; return; }
+  if (type === 'reserve' || s.kind === 'reserva') {                                                              // reserva: recuperar lo perdido > reforzar lo amenazado > el mejor punto propio/neutral
+    let bo = null, why = ''; for (const o of SQ.objs) { if (o.id === 'REF') continue; if (o._lostT && o._lostT[t] && M.t - o._lostT[t] < 120 && o.owner !== t) { bo = o; why = 'recuperar'; break; } }
+    if (!bo) { let bsc = 1; for (const o of SQ.objs) { if (o.id === 'REF' || o.owner !== t) continue; const th = objThreat(t, o); if (th.foes - th.fr >= bsc) { bsc = th.foes - th.fr; bo = o; why = 'refuerzo'; } } }
+    if (!bo) bo = pickObjective(s, t, ref, 'hold'), why = 'reserva';
+    s.mission = bo ? { type: 'hold', x: bo.x, z: bo.z, name: why + ' · ' + bo.name } : { type: 'hold' }; s.missionT = M.t; s.ap = null; return; }
+  if (s.kind === 'flanco' && type === 'attack' && !s.mission.partner) {                                          // flanco sin pareja: emboscada en la ruta del rival, o ataque por el flanco al punto elegido
+    const rv = leaderOf(t), rf = rv >= 0 ? places().ref[rv] : null; const pk = pickObjective(s, t, ref, 'attack');
+    if (pk && rf && rnd() < .5) { const k = .5 + .1 * rnd(), q = navNear(pk.x + (rf.x - pk.x) * k * .8 + rr(-18, 18), pk.z + (rf.z - pk.z) * k * .8 + rr(-18, 18)); s.mission = { type: 'attack', x: q.x, z: q.z, name: 'emboscada', role: 'ambush' }; s.missionT = M.t; s.ap = null; return; }
+    if (pk) { s.mission = { type: 'attack', x: pk.x, z: pk.z, name: pk.name, role: 'flank' }; s.missionT = M.t; s.ap = null; return; } }
   if (type === 'defend') { const rf = refugeOf(t); tg = rf ? { x: rf.x, z: rf.z } : navNear(ref.x * .9, ref.z * .9); tg.name = 'refugio'; }                 // el refugio: sus defensores ocupan los puestos junto al muro bajo
   else if (type === 'hold') { const pk = SQ.objs.length ? pickObjective(s, t, ref, 'hold') : null;                    // mantener/capturar: el punto propio o neutral con más valor y menos carga (los amenazados atraen refuerzos)
     if (pk) tg = { x: pk.x, z: pk.z, name: pk.name };
@@ -129,6 +162,17 @@ function assignMission(s) {
   else if (type === 'recon') { const c = pl.all.filter(p => dist(p, ref) < 520 && dist(p, ref) > 40); tg = c.length ? c[(rnd() * c.length) | 0] : ref; }
   else tg = ref;
   s.mission = { type, x: tg.x, z: tg.z, name: tg.name || '' }; s.missionT = M.t; s.ap = null;
+  if (type === 'attack' && (s.kind === 'asalto') && tg.id) pairSupport(s, tg, t);
+}
+/* MANIOBRA: un asalto elige punto y recluta, si están libres, un APOYO (fija al enemigo desde lejos) y un FLANCO. 70 %: pinza (el flanco rodea y entra a la vez); 30 %: finta (el flanco ataca de frente
+   y es el asalto quien rodea). */
+function pairSupport(s, tg, t) {
+  const free = k => SQ.list.find(q => q.team === t && q.kind === k && q !== s && !q.playerLead && q.leader && !(q.mission && q.mission.partner && M.t - q.missionT < 120) && q.members.some(alive) && dist(q.leader.p, tg) < 750);
+  const ap = free('apoyo'), fl = free('flanco'), feint = rnd() < .3;
+  if (ap) { ap.mission = { type: 'attack', x: tg.x, z: tg.z, name: 'apoyo · ' + (tg.name || ''), role: 'fix', partner: s.id }; ap.missionT = M.t; ap.ap = null; }
+  if (fl) { fl.mission = { type: 'attack', x: tg.x, z: tg.z, name: (feint ? 'finta · ' : 'flanco · ') + (tg.name || ''), role: feint ? 'feint' : 'flank', partner: s.id }; fl.missionT = M.t; fl.ap = null; }
+  if (feint && fl) { s.mission.role = 'flank'; s.mission.partner = fl.id; s.mission.name = 'flanco · ' + (tg.name || ''); }
+  if (ap || fl) s.mission.pair = { ap: ap ? ap.id : 0, fl: fl ? fl.id : 0 };
 }
 /* reparto profesional: rezagados se unen a la escuadra amiga cercana; escuadras de 1 se funden; las grandes ceden 2 a una muy pequeña */
 function rebalance(team) {
@@ -489,7 +533,7 @@ function objTick(dt) {
       o.cap += dt / (o.owner >= 0 ? CAP_N : CAP_C) * Math.min(1.6, 1 + (n[t] - 1) * .15);
       if (o.cap >= 1) {
         const prev = o.owner; o.cap = 0;
-        if (prev >= 0) { o.owner = -1; o.capBy = t;                                  // neutralizado: sigue la captura sin soltar
+        if (prev >= 0) { (o._lostT = o._lostT || [])[prev] = M.t; o.owner = -1; o.capBy = t;                                  // neutralizado: sigue la captura sin soltar
           if (pl && t === pl.team) { toast('Neutralizado ' + o.name); beep('neu'); } else if (pl && prev === pl.team) { toast('Nos han neutralizado ' + o.name); beep('lost'); } }
         else { o.owner = t; o.capBy = -1;
           if (pl && t === pl.team) { toast('Capturado ' + o.name); beep('cap'); } else if (pl && dist(pl.p, o) < 120) toast(TN[t] + ' captura ' + o.name); }

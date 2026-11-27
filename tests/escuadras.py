@@ -20,10 +20,10 @@ with sync_playwright() as p:
       tot:[0,1,2,3].map(t=>MX.ents.filter(e=>e.team===t).length),pl:MX.pl.sqd.name,lead:MX.pl.sqd.leader===MX.pl,plLead:MX.pl.sqd.playerLead,size:MX.pl.sqd.members.length})''')
     print(r)
     chk(r['tot'] == [50, 50, 50, 50], '50 combatientes por facción')
-    chk(len(set(r['teams'])) == 1 and r['teams'][0] == '2,2,3,3,4,4,5,5,5,5,6,6', '12 escuadras de tamaño realista (el doble de las 6 de antes) e iguales para las 4 facciones: %s' % r['teams'][0])
+    chk(len(set(r['teams'])) == 1 and r['teams'][0] == '3,3,3,4,4,4,4,5,5,5,5,5', '12 escuadras por tipo (asalto 5, línea 5, apoyo 4, flanco 3, reserva 4, guarnición 3: mismos tamaños en las 4 facciones): %s' % r['teams'][0])
     chk(r['lead'] and r['plLead'] and r['size'] == 5, 'el jugador lidera su escuadra (%s, 5 miembros)' % r['pl'])
     # líder por mérito y relevo al caer
-    r = ev('''()=>{const s=MX.SQ.list.find(q=>q.team===1&&q.members.length===6);const m=s.members;m.forEach(e=>{e.cls='fus';e.kills=0;e.vet=0;e.lifeStart=MX.M.t});m[3].kills=5;m[4].kills=3;
+    r = ev('''()=>{const s=MX.SQ.list.find(q=>q.team===1&&q.members.length===5&&q.kind==='asalto');const m=s.members;m.forEach(e=>{e.cls='fus';e.kills=0;e.vet=0;e.lifeStart=MX.M.t});m[3].kills=5;m[4].kills=3;
       for(let i=0;i<40;i++)update(1/60);const a=s.leader===m[3];m[3].inv=0;m[3].revived=true;m[3].hp=1;MX.hit(m[3],999,null,0,1,null);for(let i=0;i<40;i++)update(1/60);const b2=s.leader===m[4];return {a,b:b2}}''')
     chk(r['a'], 'el líder de una escuadra de bots es el mejor (más bajas)')
     chk(r['b'], 'si el líder cae, el siguiente mejor vivo toma el mando')
@@ -59,8 +59,8 @@ with sync_playwright() as p:
     r = ev('''()=>{MX.SQ.cmd('leave',true);const s=MX.pl.sqd;return {n:s.members.length,lead:s.playerLead}}''')
     chk(r['n'] == 1 and r['lead'], 'POR LIBRE: el jugador forma su propia escuadra de 1')
     # fusión: una escuadra que se queda en 1 miembro se une a otra
-    r = ev('''()=>{const s=MX.SQ.list.find(q=>q.team===0&&q.members.length===2&&!q.members.includes(MX.pl));if(!s)return {skip:true};const m=s.members[1],left=s.members[0];const o=MX.SQ.list.find(q=>q.team===0&&q!==s&&!q.members.includes(MX.pl)&&q.leader);
-      o.members.push(m);s.members=s.members.filter(x=>x!==m);m.sqd=o;m.sq=o.id;for(let i=0;i<60*12;i++){__noZ();__only(0)();update(1/60)}return {merged:left&&left.sqd!==s,size:left&&left.sqd.members.length}}''')
+    r = ev('''()=>{const s=MX.SQ.list.find(q=>q.team===0&&q.members.length===3&&!q.members.includes(MX.pl));if(!s)return {skip:true};const m=s.members[1],m2=s.members[2],left=s.members[0];const o=MX.SQ.list.find(q=>q.team===0&&q!==s&&!q.members.includes(MX.pl)&&q.leader);
+      o.members.push(m,m2);s.members=s.members.filter(x=>x!==m&&x!==m2);m.sqd=o;m.sq=o.id;m2.sqd=o;m2.sq=o.id;for(let i=0;i<60*12;i++){__noZ();__only(0)();update(1/60)}return {merged:left&&left.sqd!==s,size:left&&left.sqd.members.length}}''')
     print('fusión:', r)
     chk(r.get('merged'), 'una escuadra que se queda con 1 miembro se une a otra de su facción')
     # supresión

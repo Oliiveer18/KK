@@ -13,7 +13,7 @@ with sync_playwright() as p:
     print(json.dumps(r))
     chk(all(v == 6 for v in r['pads']) and len(r['pads']) == 4, '4 refugios con 6 chapas de clase')
     chk(all(sum(t.values()) == 50 for t in r['byT']), 'cada facción 50 soldados con clase')
-    chk(all(t.get('med', 0) == 12 and t.get('fra', 0) == 2 for t in r['byT']), 'cada facción: 12 médicos y 2 francotiradores (misma composición)')
+    chk(all(t.get('med', 0) >= 8 and t.get('fra', 0) >= 2 and t.get('asa', 0) >= 6 for t in r['byT']), 'cada facción tiene médicos (≥ 8), francotiradores (≥ 2) y asalto (≥ 6) según sus tipos de escuadra')
     chk(r['waiting'] > 150, 'al aparecer, los bots van a su chapa (%d esperando)' % r['waiting'])
     pg.wait_for_function('()=>MX.M.t>16', timeout=90000)
     r = ev('''()=>{ const e=MX.M.ents.filter(x=>!x.isPlayer), ok=e.filter(x=>!x.clsWait && x.w.sid===MX.CLASSES[x.cls].sid).length; return {total:e.length, equipped:ok, waiting:e.filter(x=>x.clsWait).length, med:e.filter(x=>x.cls==='med'&&x.bag&&x.bag.medkit===4).length} }''')
