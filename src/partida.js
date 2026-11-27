@@ -619,7 +619,7 @@ function squadGoal(e, L) {                                                      
   return { x: base.x + o[0] * ca + o[1] * sa, z: base.z - o[0] * sa + o[1] * ca };
 }
 function sqApply(e, g) {                                                             // aplica el objetivo que da la escuadra (escuadras.js): punto, ritmo, si se queda y hacia dónde mira
-  e.sqSpeed = g.speed; e.sqHold = !!g.hold; e.sqFace = g.face; e.sqCrouch = !!g.crouch;
+  e.sqSpeed = g.speed; e.sqCatch = !!g.catchUp; e.sqHold = !!g.hold; e.sqFace = g.face; e.sqCrouch = !!g.crouch;
   if (!e.goal || Math.sqrt((e.goal.x - g.x) * (e.goal.x - g.x) + (e.goal.z - g.z) * (e.goal.z - g.z)) > 2.5) { setGoal(e, g.x + rr(-.4, .4), g.z + rr(-.4, .4)); e.holdT = 0; }
 }
 function squadSync(e) {                                                              // llamado desde think: mantiene al seguidor con su escuadra
@@ -705,8 +705,9 @@ function think(e) {
     if (e.flee) dir = e.flee;
     else if (e.st === 'cover' && e.path && (e.vis || M.t - e.lastHurt < 1.5 || e.supp > .4) && e.coverPt && Math.sqrt((e.coverPt.x - e.p.x) * (e.coverPt.x - e.p.x) + (e.coverPt.z - e.p.z) * (e.coverPt.z - e.p.z)) > 3.5) dir = { x: e.sdx, z: e.sdz };
     else if (MX.campaign && e.supp > .7 && !e.cover && e.st !== 'fight' && e.goal) dir = { x: e.sdx, z: e.sdz };
+    else if (MX.campaign && e.sqCatch && e.st === 'push' && e.goal && !e.vis && e.supp < .4) dir = { x: e.sdx, z: e.sdz };                           // ponerse al día con el líder: dash por el camino libre
     if (dir && (dir.x || dir.z)) { const l = Math.sqrt((dir.x) * (dir.x) + (dir.z) * (dir.z)) || 1, ux = dir.x / l, uz = dir.z / l;
-      if (navAt(e.p.x + ux * 1.5, e.p.z + uz * 1.5) && navAt(e.p.x + ux * 3, e.p.z + uz * 3)) { e.dashT = .18; e.dashX = ux; e.dashZ = uz; if (typeof DASHFX !== 'undefined' && !e.dead) DASHFX.start(e.p.x, e.p.z, ux, uz); e.dashCD = rr(2.5, 4.5); e.dashN = (e.dashN || 0) + 1; playAt('DASH_start', e.p.x, e.p.z, { vol: .55, gap: 80 }); } }
+      if (navAt(e.p.x + ux * 1.5, e.p.z + uz * 1.5) && navAt(e.p.x + ux * 3, e.p.z + uz * 3)) { e.dashT = .18; e.dashX = ux; e.dashZ = uz; if (typeof DASHFX !== 'undefined' && !e.dead) DASHFX.start(e.p.x, e.p.z, ux, uz); e.dashCD = e.sqCatch && !e.flee ? rr(1, 1.4) : rr(2.5, 4.5); e.dashN = (e.dashN || 0) + 1; playAt('DASH_start', e.p.x, e.p.z, { vol: .55, gap: 80 }); } }
   }
   /* granadas: frag al rival a 5,6–8,6 m (cae a 7 m fijos); humo hacia la amenaza al retirarse */
   if (!e.wantThrow && e.reloadT < 0) {

@@ -196,7 +196,9 @@ function formPoint(s, e, base, face, spread) {
   const o = (FORMS[kind] || FORMS.wedge)[i % FORMS.wedge.length], k = spread || 1, ca = Math.cos(face), sa = Math.sin(face);
   return navNear(base.x + (o[0] * ca + o[1] * sa) * k, base.z + (-o[0] * sa + o[1] * ca) * k);
 }
-function followSpeed(s, e, q) { const d = dist(e.p, q), ls = leaderSpeed(s); return Math.max(2.6, Math.min(6.6, ls * 1.08 + d * .55)); }
+/* ponerse al día: el jugador corre a 8,2 m/s y hace dash (17 m/s × 0,18 s cada 0,9 s). Los seguidores igualan su velocidad (hasta 9,4 m/s) y, si van a más de 16 m de su puesto, encadenan dashes
+   (catchUp → partida.js) cada ~1,2 s por el camino libre, sin romper el que tengan que hacer para cubrirse. */
+function followSpeed(s, e, q) { const d = dist(e.p, q), ls = leaderSpeed(s); return Math.max(2.6, Math.min(9.4, ls * 1.08 + d * .55)); }
 function holdPoint(s, e, c, face) {                                                  // posiciones en arco mirando a `face`, con cobertura cercana si la hay (se recuerda mientras no cambie)
   const key = Math.round(c.x) + ',' + Math.round(c.z) + ',' + Math.round(face * 10) + ',' + s.members.length + ',' + (s.leader === e); if (e._hpK === key) return e._hp;
   const q = holdPoint0(s, e, c, face); e._hpK = key; e._hp = q; return q;
@@ -234,10 +236,10 @@ SQ.goalFor = e => {                                                             
   if (s.playerLead && L && L.isPlayer) {                                             // escuadra del jugador: sus órdenes
     const o = s.order || { type: 'follow' };
     if (o.type === 'hold' || o.type === 'cover') { const q = o.pts && o.pts.get(e) || holdPoint(s, e, o, o.face); if (o.pts) o.pts.set(e, q); return { x: q.x, z: q.z, speed: 4.6, hold: true, face: o.face, crouch: true }; }
-    if (o.type === 'move') { const q = o.pts.get(e) || holdPoint(s, e, o, o.face); o.pts.set(e, q); return { x: q.x, z: q.z, speed: dist(e.p, q) > 25 ? 5.6 : 4.4, hold: true, face: o.face, crouch: dist(e.p, q) < 3 }; }
+    if (o.type === 'move') { const q = o.pts.get(e) || holdPoint(s, e, o, o.face); o.pts.set(e, q); const dq = dist(e.p, q); return { x: q.x, z: q.z, speed: dq > 25 ? 8.4 : dq > 8 ? 6.2 : 4.4, hold: true, face: o.face, crouch: dq < 3, catchUp: dq > 30 }; }
     const q = formPoint(s, e, P.pos, facingOf(s), 1);
     if (formKind(s) === 'ring' && o.type !== 'regroup') return { x: q.x, z: q.z, speed: followSpeed(s, e, q), hold: true, face: e._ringFace !== undefined ? e._ringFace : facingOf(s), crouch: false };
-    return { x: q.x, z: q.z, speed: o.type === 'regroup' || dist(e.p, P.pos) > 16 ? 6.4 : followSpeed(s, e, q), hold: false, face: facingOf(s) };
+    return { x: q.x, z: q.z, speed: o.type === 'regroup' ? Math.max(8.6, followSpeed(s, e, q)) : followSpeed(s, e, q), hold: false, face: facingOf(s), catchUp: dist(e.p, q) > 16 };
   }
   if (!L) return null;
   if (e === L) {                                                                     // líder de bots: hacia la misión; espera a los rezagados; salto por equipos al atacar
@@ -314,12 +316,9 @@ SQ.supPoint = e => {                                                            
   const s = e.sqd; if (!s) return null;
   if (s.order && s.order.type === 'cover' && M.t - s.order.t < 10) return { x: s.order.tx, z: s.order.tz };
   if (s.contact && s.contact.foe && s.contact.foe.dead) s.contact = null;          // el enemigo ha caído: se deja de batir la zona
-  /* fuego de supresión SOLO con motivo: contacto reciente (< 4 s), a distancia de tiro de quien dispara (≤ 32 m; 50 m el de apoyo con ametralladora), que no lo vea ya otro enemigo, y con un
-     presupuesto por contacto (6 disparos; 16 el de apoyo). Antes bastaba un contacto a < 6 s en cualquier punto de la escuadra para que todos dispararan al aire. */
-  const c = s.contact; if (!c || M.t - c.t >= 4 || e.vis) return null;
-  const d = dist(e.p, c), apo = e.cls === 'apo'; if (d > (apo ? 50 : 32) || d < 5) return null;
-  if (e._supK !== c.t) { e._supK = c.t; e._supN = 0; } if (e._supN >= (apo ? 16 : 6)) return null;
-  return { x: c.x, z: c.z };
+  /* los bots NUNCA disparan a algo que no ven: ya no hay fuego de supresión automático sobre un contacto (solo la orden explícita de «fuego de cobertura» del jugador, arriba). El contacto
+     sigue sirviendo para que la escuadra tome posiciones de apoyo y mire hacia la amenaza, pero apuntar y disparar exige ver al enemigo. */
+  return null;
 };
 
 /* ---------- actualización ---------- */

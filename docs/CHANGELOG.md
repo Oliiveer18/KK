@@ -1,5 +1,9 @@
 # Changelog
 
+## Escuadra al día y sin disparos a ciegas (27-11)
+- **Seguir al jugador a la carrera**: los seguidores igualan la velocidad del jugador (hasta 9,4 m/s; él corre a 8,2) y, a más de 16 m de su puesto, encadenan dashes (cada ~1,2 s por el camino libre). «Avanzar» y «Reagrupar» también van a la carrera. Medido: con el jugador corriendo 25 s en línea recta, los 4 compañeros se quedan a 4–8 m (12 dashes).
+- **Sin disparar a lo que no ven**: se elimina el fuego de supresión automático sobre contactos; solo queda la orden explícita «fuego de cobertura» del jugador. Medido: 0 disparos de 814 sin ver al objetivo.
+
 ## Correcciones: inventario, mapa táctico, disparos sin motivo y vibraciones (27-11)
 - **Inventario** compacto (≈ la mitad de alto), anclado a la derecha y sin velo ni desenfoque: el minimapa y el mundo se ven siempre; la capacidad va en la cabecera y el equipo en una sola fila.
 - **Mapa táctico**: la leyenda y la cabecera ya no tapan el mapa; el tamaño del mapa descuenta su altura real.
