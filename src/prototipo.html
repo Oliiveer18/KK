@@ -272,9 +272,15 @@ function mergeParts(list) {
   for (const g of gs) { pos.set(g.attributes.position.array, vo * 3); nor.set(g.attributes.normal.array, vo * 3); for (let k = 0; k < g.index.count; k++) idx[io + k] = g.index.array[k] + vo; vo += g.attributes.position.count; io += g.index.count; g.dispose(); }
   const out = new THREE.BufferGeometry(); out.setAttribute('position', new THREE.BufferAttribute(pos, 3)); out.setAttribute('normal', new THREE.BufferAttribute(nor, 3)); out.setIndex(new THREE.BufferAttribute(idx, 1)); return out;
 }
+const MERGE_CACHE = new Map();
+/* geometría soldada de un conjunto de piezas de equipo: los combatientes con el mismo equipo (misma facción y niveles) comparten la misma, en vez de una propia cada uno (3.200 geometrías para 200 bots) */
+function mergeCached(list) {
+  let sig = ''; for (const p of list) { sig += p.geo.id + ':'; const e = p.m.elements; for (let i = 0; i < 16; i++) sig += e[i].toFixed(4) + ','; sig += '|'; }
+  let g = MERGE_CACHE.get(sig); if (!g) { g = mergeParts(list); g.userData.shared = true; MERGE_CACHE.set(sig, g); } return g;
+}
 function dress(R, fi, L) {
   L = Object.assign({}, DRESS_DEF, L || {}); const M = FACM[fi % FACM.length], SK = SKINM[L.skin % SKINM.length], HR = HAIRM[L.skin % HAIRM.length];
-  if (R._gear) for (const h of R._gear) { h.parent.remove(h); h.traverse(o => { if (o.geometry && o.isMesh) o.geometry.dispose(); }); }
+  if (R._gear) for (const h of R._gear) { h.parent.remove(h); h.traverse(o => { if (o.geometry && o.isMesh && !o.geometry.userData.shared) o.geometry.dispose(); }); }
   R._gear = [];
   R.torso.material = R.shoulder[0].material = R.shoulder[1].material = M.uni; R.pelvis.material = M.pants; R.head.material = SK; R.visor.material = M.goggle;   // colores base del cuerpo
   for (let i = 0; i < 2; i++) { R.thigh[i].material = R.shin[i].material = R.knee[i].material = M.pants; R.upper[i].material = R.fore[i].material = M.uni; R.foot[i].material = R.hand[i].material = M.gear; }
@@ -335,7 +341,7 @@ function dress(R, fi, L) {
   }
   for (const [target, mp] of jobs) {
     const g = new THREE.Group(); g.scale.set(1 / target.scale.x, 1 / target.scale.y, 1 / target.scale.z);
-    for (const [mat, list] of mp) { const m = new THREE.Mesh(mergeParts(list), mat); m.castShadow = true; g.add(m); }
+    for (const [mat, list] of mp) { const m = new THREE.Mesh(mergeCached(list), mat); m.castShadow = true; g.add(m); }
     target.add(g); R._gear.push(g);
   }
 }

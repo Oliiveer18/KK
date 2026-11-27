@@ -24,7 +24,7 @@ const FORM = [[-3.5, -3], [3.5, -3], [-6, -7], [6, -7], [0, -9], [-8.5, -11], [8
 const MISSION_N = { defend: 'Defender el refugio', hold: 'Mantener', attack: 'Atacar', recon: 'Reconocimiento', free: 'Por libre' };
 const ORDER_N = { follow: 'Seguirme', hold: 'Mantener posición', move: 'Avanzar', cover: 'Fuego de cobertura', regroup: 'Reagrupar' };
 const alive = e => e && !e.dead && !e.dwn;
-const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const dist = (a, b) => Math.sqrt((a.x - b.x) * (a.x - b.x) + (a.z - b.z) * (a.z - b.z));
 
 /* ---------- lugares del mapa: refugio, objetivos propios y comunes (distrito); en mapas sin lugares, los puntos calientes ---------- */
 let PL = null;
@@ -60,7 +60,8 @@ SQ.init = () => {
   SQ.list = []; SQ.uid = 0; PL = null;
   for (let t = 0; t < 4; t++) {
     const ents = M.ents.filter(e => e.team === t); if (!ents.length) continue; let k = 0;
-    for (let i = 0; i < SIZES.length && k < ents.length; i++) { const s = mkSquad(t, { type: ROLE0[i] }); for (let j = 0; j < SIZES[i] && k < ents.length; j++) join(ents[k++], s, true); }
+    const SZ = ents.length > 25 ? SIZES.concat(SIZES) : SIZES, RL = ents.length > 25 ? ROLE0.concat(ROLE0) : ROLE0;                // más de 25 por facción: el doble de escuadras con la misma composición
+    for (let i = 0; i < SZ.length && k < ents.length; i++) { const s = mkSquad(t, { type: RL[i] }); for (let j = 0; j < SZ[i] && k < ents.length; j++) join(ents[k++], s, true); }
     while (k < ents.length) join(ents[k++], SQ.list.filter(s => s.team === t)[0], true);
   }
   for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; e.vet = e.isPlayer ? 0 : rr(0, 4); e.lifeStart = 0; e.supp = 0; }
@@ -133,7 +134,7 @@ const SQ_BAL = 5;
 /* ---------- objetivo de cada miembro (lo pide pickGoal / squadSync de partida.js) ---------- */
 function facingOf(s) {
   const L = s.leader; if (!L) return 0;
-  if (L.isPlayer) { const sp = Math.hypot(P.vel.x, P.vel.z); return sp > 1.5 ? Math.atan2(P.vel.x, P.vel.z) : P.aim; }
+  if (L.isPlayer) { const sp = Math.sqrt((P.vel.x) * (P.vel.x) + (P.vel.z) * (P.vel.z)); return sp > 1.5 ? Math.atan2(P.vel.x, P.vel.z) : P.aim; }
   if (L.goal) return Math.atan2(L.goal.x - L.p.x, L.goal.z - L.p.z); return L.yaw;
 }
 function slotOf(s, e) { let i = 0; for (let i_m = 0; i_m < s.members.length; i_m++) { const m = s.members[i_m]; if (m === e) return i; if (m !== s.leader) i++; } return 0; }
@@ -146,7 +147,7 @@ function holdPoint(s, e, c, face) {                                             
   const q = holdPoint0(s, e, c, face); e._hpK = key; e._hp = q; return q;
 }
 function holdPoint0(s, e, c, face) {
-  const ob = SQ.objs.find(o => Math.hypot(o.x - c.x, o.z - c.z) < 3);
+  const ob = SQ.objs.find(o => Math.sqrt((o.x - c.x) * (o.x - c.x) + (o.z - c.z) * (o.z - c.z)) < 3);
   if (ob) {                                                                          // punto de dominio: todos DENTRO de la zona, repartidos en círculo, cada uno vigilando su sector
     const i = slotOf(s, e) + (e === s.leader ? 0 : 1), n = Math.max(1, s.members.length), a = face + i / n * Math.PI * 2, r = ob.r * (i % 2 ? .45 : .7);
     let p = navNear(c.x + Math.sin(a) * r, c.z + Math.cos(a) * r); const cp = coverPoint({ p }, c.x + Math.sin(a) * 30, c.z + Math.cos(a) * 30);
@@ -219,7 +220,7 @@ MX.bulletPass = (b, x0, z0, x1, z1) => {                                        
   for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e];
     if (e.dead || e.team === team) continue;
     const ex = e.p.x, ez = e.p.z; if (ex < Math.min(x0, x1) - 3 || ex > Math.max(x0, x1) + 3 || ez < Math.min(z0, z1) - 3 || ez > Math.max(z0, z1) + 3) continue;
-    const t = clamp(((ex - x0) * dx + (ez - z0) * dz) / L2, 0, 1), d = Math.hypot(x0 + dx * t - ex, z0 + dz * t - ez);
+    const t = clamp(((ex - x0) * dx + (ez - z0) * dz) / L2, 0, 1), d = Math.sqrt((x0 + dx * t - ex) * (x0 + dx * t - ex) + (z0 + dz * t - ez) * (z0 + dz * t - ez));
     if (d < 2.5) { if (MX.combat) MX.combat('hit', e.p.x, e.p.z, team, e.team); e.supp = Math.min(1, (e.supp || 0) + (2.5 - d) * .16); e.suppT = M.t; if (own && own.p) { e.suppFrom = { x: own.p.x, z: own.p.z }; } }
   }
 };
@@ -420,7 +421,7 @@ SQ.objHtml = () => '';
 const CMB = [];                                                                       // eventos de combate: { x, z, t, k: 'shot' | 'boom' | 'hit', team (quien dispara), vic (facción atacada) }
 const HEAR_R = 150, BOOM_R = 250, FADE = 20;                                         // se oyen los disparos a 150 m y las explosiones a 250 m; la marca dura 20 s
 MX.combat = (k, x, z, team, vic) => { if (!MX.on || !MX.campaign) return; const last = CMB[CMB.length - 1];
-  if (k === 'shot' && last && last.k === 'shot' && M.t - last.t < .15 && Math.hypot(last.x - x, last.z - z) < 6) return;   // ráfagas: un evento cada 0,15 s por zona
+  if (k === 'shot' && last && last.k === 'shot' && M.t - last.t < .15 && Math.sqrt((last.x - x) * (last.x - x) + (last.z - z) * (last.z - z)) < 6) return;   // ráfagas: un evento cada 0,15 s por zona
   if (k === 'hit') { for (let i = CMB.length - 1; i >= 0 && M.t - CMB[i].t < .5; i--) if (CMB[i].k === 'hit' && CMB[i].vic === vic && Math.hypot(CMB[i].x - x, CMB[i].z - z) < 8) return; }
   CMB.push({ x, z, t: M.t, k, team: team === undefined ? -1 : team, vic: vic === undefined ? -1 : vic }); if (CMB.length > 1500) CMB.splice(0, CMB.length - 1500); };
 /* qué ve la facción `team` desde (px,pz): los disparos y explosiones que oye (a su alcance) y, a cualquier distancia, el fuego contra su facción */
@@ -428,7 +429,7 @@ SQ.combatCells = (t, x, z, a) => combatCells(t, x, z, a || FADE);
 function combatCells(team, px, pz, maxAge) {
   const cells = new Map();
   for (const e of CMB) { const age = M.t - e.t; if (age > maxAge) continue;
-    const ally = e.vic === team, d = Math.hypot(e.x - px, e.z - pz);
+    const ally = e.vic === team, d = Math.sqrt((e.x - px) * (e.x - px) + (e.z - pz) * (e.z - pz));
     if (!ally && (e.k === 'hit' || (e.k === 'shot' && d > HEAR_R) || (e.k === 'boom' && d > BOOM_R))) continue;
     const key = (ally ? 'a' : 'f') + Math.floor(e.x / 20) + ',' + Math.floor(e.z / 20), c = cells.get(key) || { x: 0, z: 0, w: 0, boom: 0, young: 99, ally };
     const w = (e.k === 'boom' ? 6 : e.k === 'hit' ? 3 : 1) * (1 - age / maxAge); c.x += e.x * w; c.z += e.z * w; c.w += w; if (e.k === 'boom') c.boom = Math.max(c.boom, 1 - age / maxAge); c.young = Math.min(c.young, age); cells.set(key, c); }
@@ -516,7 +517,7 @@ function miniTick(dt) {
   const bs = base.width / G.sz; x.drawImage(base, (cx - MM.R + G.half) * G.k * bs, (cz - MM.R + G.half) * G.k * bs, 2 * MM.R * G.k * bs, 2 * MM.R * G.k * bs, 0, 0, size, size);
   const W2 = (wx, wz) => [(wx - cx + MM.R) * k, (wz - cz + MM.R) * k], pulse = .5 + .5 * Math.sin(M.t * 6);
   for (const h of combatCells(team, cx, cz, FADE)) { let [px, pz] = W2(h.x / h.w, h.z / h.w); const out = px < 6 || pz < 6 || px > size - 6 || pz > size - 6;
-    if (out) { if (!h.ally) continue; const dx = px - size / 2, dz = pz - size / 2, l = Math.hypot(dx, dz) || 1; px = size / 2 + dx / l * (size / 2 - 9); pz = size / 2 + dz / l * (size / 2 - 9);   // aliados bajo fuego fuera del minimapa: flecha en el borde
+    if (out) { if (!h.ally) continue; const dx = px - size / 2, dz = pz - size / 2, l = Math.sqrt((dx) * (dx) + (dz) * (dz)) || 1; px = size / 2 + dx / l * (size / 2 - 9); pz = size / 2 + dz / l * (size / 2 - 9);   // aliados bajo fuego fuera del minimapa: flecha en el borde
       x.save(); x.translate(px, pz); x.rotate(Math.atan2(dz, dx)); x.fillStyle = 'rgba(255,80,80,' + (.6 + .4 * pulse) + ')'; x.beginPath(); x.moveTo(7, 0); x.lineTo(-4, -5); x.lineTo(-4, 5); x.closePath(); x.fill(); x.restore(); continue; }
     const r = Math.min(14, 4 + Math.sqrt(h.w) * 2), rgb = h.ally ? '255,60,60' : '255,140,40', gr = x.createRadialGradient(px, pz, 0, px, pz, r);
     gr.addColorStop(0, 'rgba(' + rgb + ',' + Math.min(.9, .3 + h.w * .06) + ')'); gr.addColorStop(1, 'rgba(' + rgb + ',0)'); x.fillStyle = gr; x.beginPath(); x.arc(px, pz, r, 0, 6.283); x.fill();

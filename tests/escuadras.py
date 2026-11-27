@@ -19,8 +19,8 @@ with sync_playwright() as p:
     r = ev('''()=>({teams:[0,1,2,3].map(t=>MX.SQ.list.filter(s=>s.team===t).map(s=>s.members.length).sort((a,b)=>a-b).join(',')),
       tot:[0,1,2,3].map(t=>MX.ents.filter(e=>e.team===t).length),pl:MX.pl.sqd.name,lead:MX.pl.sqd.leader===MX.pl,plLead:MX.pl.sqd.playerLead,size:MX.pl.sqd.members.length})''')
     print(r)
-    chk(r['tot'] == [25, 25, 25, 25], '25 combatientes por facción')
-    chk(len(set(r['teams'])) == 1 and r['teams'][0] == '2,3,4,5,5,6', 'escuadras de tamaño realista (2, 3, 4, 5, 5 y 6) e iguales para las 4 facciones: %s' % r['teams'][0])
+    chk(r['tot'] == [50, 50, 50, 50], '50 combatientes por facción')
+    chk(len(set(r['teams'])) == 1 and r['teams'][0] == '2,2,3,3,4,4,5,5,5,5,6,6', '12 escuadras de tamaño realista (el doble de las 6 de antes) e iguales para las 4 facciones: %s' % r['teams'][0])
     chk(r['lead'] and r['plLead'] and r['size'] == 5, 'el jugador lidera su escuadra (%s, 5 miembros)' % r['pl'])
     # líder por mérito y relevo al caer
     r = ev('''()=>{const s=MX.SQ.list.find(q=>q.team===1&&q.members.length===6);const m=s.members;m.forEach(e=>{e.kills=0;e.vet=0;e.lifeStart=MX.M.t});m[3].kills=5;m[4].kills=3;

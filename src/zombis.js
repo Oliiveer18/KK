@@ -122,26 +122,26 @@ function aimAtPose(pointer, point) {
 function noise(x, z, R, scream) {
   for (let i_zb = 0; i_zb < Z.length; i_zb++) { const zb = Z[i_zb];
     if (zb.dead) continue;
-    const d = Math.hypot(zb.p.x - x, zb.p.z - z), lim = R * (zb.st === 'dorm' && !scream ? .65 : 1);
+    const d = Math.sqrt((zb.p.x - x) * (zb.p.x - x) + (zb.p.z - z) * (zb.p.z - z)), lim = R * (zb.st === 'dorm' && !scream ? .65 : 1);
     if (d > lim || zb.st === 'chase' || zb.st === 'attack') continue;
     zb.st = 'invest'; zb.hx = x + rr(-2.5, 2.5); zb.hz = z + rr(-2.5, 2.5); zb.noiseDelay = rr(.1, .9) + d * .02; zb.path = null; zb.wait = 0;
   }
   for (let i_h = 0; i_h < HORDES.length; i_h++) { const h = HORDES[i_h];
-    if (!h.members.length) continue; const l = h.members[0], d = Math.hypot(l.p.x - x, l.p.z - z);
+    if (!h.members.length) continue; const l = h.members[0], d = Math.sqrt((l.p.x - x) * (l.p.x - x) + (l.p.z - z) * (l.p.z - z));
     if (d < R * 1.2 && (h.st !== 'chase') && (M.t - h.divertT > 5 || scream)) { h.divertT = M.t; h.st = 'invest'; h.tx = x; h.tz = z; h.path = null; h.pi = 0; h.wait = 0; }
   }
 }
 MX.zom = { list: Z, count: () => nAlive || Z.filter(z => !z.dead).length, noise,
   shot: (x, z, w) => { if (!MX.campaign || !M.built) return; if (M.t - lastShot < .1 && lastShotSid === w.sid) return; lastShot = M.t; lastShotSid = w.sid; noise(x, z, NOISE_R[w.sid] || 30); },
   blast: (p, R, own) => { if (!MX.campaign) return; noise(p.x, p.z, 62);
-    for (let i_z = 0; i_z < Z.length; i_z++) { const z = Z[i_z]; if (z.dead) continue; const d = Math.hypot(z.p.x - p.x, z.p.z - p.z); if (d < R + z.r) hitZ(z, 260 * (1 - d / (R + z.r)) + 30, own, z.p.x - p.x, z.p.z - p.z, null, true); } },
+    for (let i_z = 0; i_z < Z.length; i_z++) { const z = Z[i_z]; if (z.dead) continue; const d = Math.sqrt((z.p.x - p.x) * (z.p.x - p.x) + (z.p.z - p.z) * (z.p.z - p.z)); if (d < R + z.r) hitZ(z, 260 * (1 - d / (R + z.r)) + 30, own, z.p.x - p.x, z.p.z - p.z, null, true); } },
   hitDistance, aimAtPose,
   hit: (z, dmg, from, dx, dz, w) => hitZ(z, dmg, from, dx, dz, w), total: () => nextId - 1, spawn: (type, x, z, o) => newZ(type, x, z, o), horde: (x, z, mix) => newHorde(x, z, mix) };
 
 /* ---- daño ---- */
 function hitZ(z, dmg, from, dx, dz, w, quiet) {
   if (z.dead) return;
-  z.hp -= dmg; z.stag = 1; z.brk = M.t; const l = Math.hypot(dx, dz) || 1; z.v.x += dx / l * 1.2; z.v.z += dz / l * 1.2;
+  z.hp -= dmg; z.stag = 1; z.brk = M.t; const l = Math.sqrt((dx) * (dx) + (dz) * (dz)) || 1; z.v.x += dx / l * 1.2; z.v.z += dz / l * 1.2;
   if (from && from.p && z.st !== 'chase' && z.st !== 'attack') { z.tgt = from; z.st = 'chase'; z.tgtT = M.t; alertNear(z, from); }
   const pl = from && from.isPlayer; if (pl && MX.popNum) MX.popNum(z, dmg);
   for (let i = 0; i < 3; i++) spawn('red', _gp.set(z.p.x, 1, z.p.z), _gv.set((Math.random() - .5) * 3 + dx / l, 1 + Math.random() * 2, (Math.random() - .5) * 3 + dz / l), .35, .035, .035, .035, true, 8);
@@ -151,7 +151,7 @@ function hitZ(z, dmg, from, dx, dz, w, quiet) {
   } else { playAt('ZOM_hurt', z.p.x, z.p.z, { gap: 90 }); if (pl && !quiet) playSnd('HIT_marker', { vol: 1 }); }
 }
 function alertNear(z, tgt) {
-  for (let i_o = 0; i_o < Z.length; i_o++) { const o = Z[i_o]; if (o === z || o.dead || o.st === 'chase' || o.st === 'attack') continue; if (Math.hypot(o.p.x - z.p.x, o.p.z - z.p.z) < 20 && (o.horde === z.horde || Math.hypot(o.p.x - z.p.x, o.p.z - z.p.z) < 9)) { o.tgt = tgt; o.st = 'chase'; o.tgtT = M.t; o.noiseDelay = rr(.2, 1.2); } }
+  for (let i_o = 0; i_o < Z.length; i_o++) { const o = Z[i_o]; if (o === z || o.dead || o.st === 'chase' || o.st === 'attack') continue; if (Math.sqrt((o.p.x - z.p.x) * (o.p.x - z.p.x) + (o.p.z - z.p.z) * (o.p.z - z.p.z)) < 20 && (o.horde === z.horde || Math.sqrt((o.p.x - z.p.x) * (o.p.x - z.p.x) + (o.p.z - z.p.z) * (o.p.z - z.p.z)) < 9)) { o.tgt = tgt; o.st = 'chase'; o.tgtT = M.t; o.noiseDelay = rr(.2, 1.2); } }
 }
 
 
@@ -160,7 +160,7 @@ let extraA = 0;
 let PJT = 0;                                                                         // identificador de cada petición de ruta (para ignorar respuestas de zombis ya reutilizados)
 function pathFail(z) { z.noPath = M.t; }
 function pathTo(z, x, zz) {                                                          // ruta por la cola (MX.pathAsync): se pide aquí y llega en el mismo fotograma o en los siguientes
-  if (z.pj) { if (Math.hypot(x - z.pjx, zz - z.pjz) < 3) return true; z.pj = 0; }       // pedida y aún pendiente: se espera, salvo que el destino haya cambiado
+  if (z.pj) { if (Math.sqrt((x - z.pjx) * (x - z.pjx) + (zz - z.pjz) * (zz - z.pjz)) < 3) return true; z.pj = 0; }       // pedida y aún pendiente: se espera, salvo que el destino haya cambiado
   if (astar > 0) astar--; else if (z.starve >= 3 && extraA < 3) extraA++; else { z.starve = (z.starve || 0) + 1; return false; }
   z.starve = 0; z.pathT = M.t; const tok = ++PJT;
   if (!MX.pathAsync(z.p.x, z.p.z, x, zz, path => { if (z.pj !== tok) return; z.pj = 0; if (path === undefined) return; z.path = path; z.pi = 0; z.pathT = M.t; if (!path) pathFail(z); }, () => z.pj === tok && !z.dead)) { z.starve = 1; return false; }
@@ -168,8 +168,8 @@ function pathTo(z, x, zz) {                                                     
 }
 function steer(z, tx, tz, spd, dt) {                                                // avanza hacia un punto (o por su camino); devuelve la distancia que queda
   let gx = tx, gz = tz;
-  if (z.path && z.pi < z.path.length) { const w = z.path[z.pi]; if (Math.hypot(w.x - z.p.x, w.z - z.p.z) < .9) z.pi++; if (z.pi < z.path.length) { gx = z.path[z.pi].x; gz = z.path[z.pi].z; } else z.path = null; }
-  let dx = gx - z.p.x, dz = gz - z.p.z; const d = Math.hypot(dx, dz) || 1; dx /= d; dz /= d;
+  if (z.path && z.pi < z.path.length) { const w = z.path[z.pi]; if (Math.sqrt((w.x - z.p.x) * (w.x - z.p.x) + (w.z - z.p.z) * (w.z - z.p.z)) < .9) z.pi++; if (z.pi < z.path.length) { gx = z.path[z.pi].x; gz = z.path[z.pi].z; } else z.path = null; }
+  let dx = gx - z.p.x, dz = gz - z.p.z; const d = Math.sqrt((dx) * (dx) + (dz) * (dz)) || 1; dx /= d; dz /= d;
   if (MX.navAt) {                                                                   // mira por delante y rodea el obstáculo sin esperar a atascarse
     const L = Math.min(1.5, d);
     if (!MX.navAt(z.p.x + dx * L, z.p.z + dz * L) || !MX.navAt(z.p.x + dx * L * .5, z.p.z + dz * L * .5)) {
@@ -179,11 +179,11 @@ function steer(z, tx, tz, spd, dt) {                                            
     }
   }
   z.v.x += (dx * spd - z.v.x) * Math.min(1, dt * 5); z.v.z += (dz * spd - z.v.z) * Math.min(1, dt * 5);
-  return Math.hypot(tx - z.p.x, tz - z.p.z);
+  return Math.sqrt((tx - z.p.x) * (tx - z.p.x) + (tz - z.p.z) * (tz - z.p.z));
 }
 function pickTarget(z) {
   const T = TY[z.type], R = z.st === 'dorm' ? 5.5 : T.sight; let best = null, bd = R;
-  for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; if (e.dead) continue; const d = Math.hypot(e.p.x - z.p.x, e.p.z - z.p.z); if (d < bd) { bd = d; best = e; } }   // ataca a quien sea, de cualquier facción (incluidos los abatidos)
+  for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; if (e.dead) continue; const d = Math.sqrt((e.p.x - z.p.x) * (e.p.x - z.p.x) + (e.p.z - z.p.z) * (e.p.z - z.p.z)); if (d < bd) { bd = d; best = e; } }   // ataca a quien sea, de cualquier facción (incluidos los abatidos)
   return best;
 }
 function stepZ(z, dt) {
@@ -193,14 +193,14 @@ function stepZ(z, dt) {
   z.thinkT -= dt; if (z.thinkT <= 0) {
     z.thinkT = .22 + rnd() * .08; const t = pickTarget(z);
     if (t && z.st !== 'chase' && z.st !== 'attack') { z.tgt = t; z.st = 'chase'; z.tgtT = M.t; alertNear(z, t); playAt('ZOM_alert', z.p.x, z.p.z, { gap: 400 }); }
-    else if (t && z.tgt !== t && (!z.tgt || z.tgt.dead || Math.hypot(t.p.x - z.p.x, t.p.z - z.p.z) < Math.hypot(z.tgt.p.x - z.p.x, z.tgt.p.z - z.p.z) - 2)) z.tgt = t;
+    else if (t && z.tgt !== t && (!z.tgt || z.tgt.dead || Math.sqrt((t.p.x - z.p.x) * (t.p.x - z.p.x) + (t.p.z - z.p.z) * (t.p.z - z.p.z)) < Math.sqrt((z.tgt.p.x - z.p.x) * (z.tgt.p.x - z.p.x) + (z.tgt.p.z - z.p.z) * (z.tgt.p.z - z.p.z)) - 2)) z.tgt = t;
     if (t) z.tgtT = M.t;
-    if ((z.st === 'chase') && z.tgt && !z.path && MX.lineFree && !MX.lineFree(z.p, z.tgt.p) && Math.hypot(z.tgt.p.x - z.p.x, z.tgt.p.z - z.p.z) > 3) z.needPath = true;   // objetivo tras un obstáculo: ruta ya
+    if ((z.st === 'chase') && z.tgt && !z.path && MX.lineFree && !MX.lineFree(z.p, z.tgt.p) && Math.sqrt((z.tgt.p.x - z.p.x) * (z.tgt.p.x - z.p.x) + (z.tgt.p.z - z.p.z) * (z.tgt.p.z - z.p.z)) > 3) z.needPath = true;   // objetivo tras un obstáculo: ruta ya
   }
   let spd = 0;
   if (z.st === 'chase' || z.st === 'attack') {
-    const t = z.tgt; if (!t || t.dead && !t.dwn || M.t - z.tgtT > 5 || Math.hypot(t.p.x - z.p.x, t.p.z - z.p.z) > 30) { z.st = 'invest'; z.hx = t ? t.p.x + (t.v ? clamp(t.v.x, -6, 6) * 1.5 : 0) : z.p.x; z.hz = t ? t.p.z + (t.v ? clamp(t.v.z, -6, 6) * 1.5 : 0) : z.p.z; z.tgt = null; z.path = null; z.wait = 0; return; }
-    const dx = t.p.x - z.p.x, dz = t.p.z - z.p.z, d = Math.hypot(dx, dz); z.yaw = Math.atan2(dx, dz);
+    const t = z.tgt; if (!t || t.dead && !t.dwn || M.t - z.tgtT > 5 || Math.sqrt((t.p.x - z.p.x) * (t.p.x - z.p.x) + (t.p.z - z.p.z) * (t.p.z - z.p.z)) > 30) { z.st = 'invest'; z.hx = t ? t.p.x + (t.v ? clamp(t.v.x, -6, 6) * 1.5 : 0) : z.p.x; z.hz = t ? t.p.z + (t.v ? clamp(t.v.z, -6, 6) * 1.5 : 0) : z.p.z; z.tgt = null; z.path = null; z.wait = 0; return; }
+    const dx = t.p.x - z.p.x, dz = t.p.z - z.p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)); z.yaw = Math.atan2(dx, dz);
     z.atkCd -= dt;
     if (d < z.r + .75) {                                                            // a distancia de golpe
       z.st = 'attack'; z.v.x *= .8; z.v.z *= .8;
@@ -231,7 +231,7 @@ function stepZ(z, dt) {
   if (z.st !== 'attack' && z.st !== 'dorm' && (Math.abs(z.v.x) + Math.abs(z.v.z)) > .2 && z.st !== 'chase') z.yaw = Math.atan2(z.v.x, z.v.z);
   else if (z.st === 'chase') z.yaw = Math.atan2((z.tgt ? z.tgt.p.x : z.p.x + z.v.x) - z.p.x, (z.tgt ? z.tgt.p.z : z.p.z + z.v.z) - z.p.z);
 }
-const d0 = (z, x, zz) => Math.hypot(x - z.p.x, zz - z.p.z);
+const d0 = (z, x, zz) => Math.sqrt((x - z.p.x) * (x - z.p.x) + (zz - z.p.z) * (zz - z.p.z));
 function bruteSmash(z, dmg) {                                                            // el pesado revienta lo que tenga delante (cajas, vallas, barriles)
   if (z.smashT !== undefined && M.t - z.smashT < 1.2) return; z.smashT = M.t;
   const fx = Math.sin(z.yaw), fz = Math.cos(z.yaw);
@@ -242,14 +242,14 @@ function bruteSmash(z, dmg) {                                                   
 function moveZ(z, dt) {
   if (z.st === 'dead') return;
   const k = gk(z.p.x, z.p.z); let sx = 0, sz = 0;
-  for (let ox = -1; ox <= 1; ox++) for (let oz = -1; oz <= 1; oz++) { const a = grid.get(gk(z.p.x + ox * 1.6, z.p.z + oz * 1.6)); if (!a) continue; for (const o of a) { if (o === z) continue; const dx = z.p.x - o.p.x, dz = z.p.z - o.p.z, d = Math.hypot(dx, dz), m = (z.r + o.r) * .9; if (d < m && d > 1e-3) { sx += dx / d * (m - d); sz += dz / d * (m - d); } } }
+  for (let ox = -1; ox <= 1; ox++) for (let oz = -1; oz <= 1; oz++) { const a = grid.get(gk(z.p.x + ox * 1.6, z.p.z + oz * 1.6)); if (!a) continue; for (const o of a) { if (o === z) continue; const dx = z.p.x - o.p.x, dz = z.p.z - o.p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)), m = (z.r + o.r) * .9; if (d < m && d > 1e-3) { sx += dx / d * (m - d); sz += dz / d * (m - d); } } }
   const ox0 = z.p.x, oz0 = z.p.z;
   z.p.x += (z.v.x + sx * 2.5) * dt; z.p.z += (z.v.z + sz * 2.5) * dt; collide(z.p, z.r * .85, 2.6);
-  z.mv = Math.hypot(z.p.x - ox0, z.p.z - oz0) / Math.max(dt, 1e-3);
-  z.stuckT += dt; if (z.stuckT > .3) { const mv = Math.hypot(z.p.x - z.sx, z.p.z - z.sz); z.stk = Math.hypot(z.v.x, z.v.z) > .5 && mv < .08 ? (z.stk || 0) + 1 : 0; z.sx = z.p.x; z.sz = z.p.z; z.stuckT = 0; if (z.stk >= 2 && z.st !== 'dorm') { z.needPath = true; z.path = null; } }
+  z.mv = Math.sqrt((z.p.x - ox0) * (z.p.x - ox0) + (z.p.z - oz0) * (z.p.z - oz0)) / Math.max(dt, 1e-3);
+  z.stuckT += dt; if (z.stuckT > .3) { const mv = Math.sqrt((z.p.x - z.sx) * (z.p.x - z.sx) + (z.p.z - z.sz) * (z.p.z - z.sz)); z.stk = Math.sqrt((z.v.x) * (z.v.x) + (z.v.z) * (z.v.z)) > .5 && mv < .08 ? (z.stk || 0) + 1 : 0; z.sx = z.p.x; z.sz = z.p.z; z.stuckT = 0; if (z.stk >= 2 && z.st !== 'dorm') { z.needPath = true; z.path = null; } }
 }
 function pose(z, dt) {
-  const T = TY[z.type], s = z.sc, sp = Math.min(Math.hypot(z.v.x, z.v.z), (z.mv === undefined ? 9 : z.mv) * 1.15 + .15), lerp = (a, b, k) => a + (b - a) * k;
+  const T = TY[z.type], s = z.sc, sp = Math.min(Math.sqrt((z.v.x) * (z.v.x) + (z.v.z) * (z.v.z)), (z.mv === undefined ? 9 : z.mv) * 1.15 + .15), lerp = (a, b, k) => a + (b - a) * k;
   z.gaitSpd += (sp - z.gaitSpd) * Math.min(1, dt * 6); z.ph += dt * (2.2 + z.gaitSpd * (z.type === 'runner' ? 2.4 : 1.9));
   const alive = z.st !== 'dead', dorm = z.st === 'dorm', amp = clamp(z.gaitSpd / (T.chase * .8), 0, 1), ph = z.ph, atk = z.atk >= 0, scr = z.scream >= 0;
   z.twT -= dt; if (z.twT <= 0 && alive) { z.twT = rr(2.5, 7); z.tw0 = .35; } z.tw0 = Math.max(0, z.tw0 - dt);          // espasmo ocasional
@@ -366,7 +366,7 @@ function initDistrict() {
 MX.zom.init = () => {                                                               // reparto inicial: grupos locales dormidos y una horda itinerante
   if (MX.district && MAPA.built && MAPA.built.info && MAPA.built.info.zones && MAPA.built.info.zones.length) return initDistrict();
   const sp = []; for (const t of [0, 1, 2, 3]) for (const s of (M.spawn[t] || [])) sp.push(s);
-  const okp = (x, z) => sp.every(s => Math.hypot(s.x - x, s.z - z) > 16);
+  const okp = (x, z) => sp.every(s => Math.sqrt((s.x - x) * (s.x - x) + (s.z - z) * (s.z - z)) > 16);
   const pts = (MX.HOT || []).filter(h => okp(h[0], h[1])); let n = 0;
   for (const h of pts) { if (n >= 16) break; const c = 3 + ((rnd() * 3) | 0); for (let i = 0; i < c; i++) { newZ(rnd() < .15 ? 'runner' : 'walker', h[0] + rr(-3, 3), h[1] + rr(-3, 3)); } n++; }
   const start = pts.length ? pts[(rnd() * pts.length) | 0] : [0, 0];
@@ -380,12 +380,12 @@ function stepHorde(h, dt) {
     if (h.st === 'roam' && h.wait <= 0 && (!h.path || h.pi >= h.path.length)) { const c = (h.roamPts || []).filter(q => { const d = Math.hypot(q[0] - l.p.x, q[1] - l.p.z); return h.migrate ? d > 120 && d < 320 : d > 12; }); /* las hordas del distrito migran de barrio en barrio */ const q = c.length ? c[(rnd() * c.length) | 0] : [0, 0]; h.tx = q[0]; h.tz = q[1]; h.path = null; h.wait = rr(6, 14); }
     h.wait -= dt;
     if (!h.path && !h.pj && astar > 0) { astar--; const tx = h.tx, tz = h.tz; h.pj = MX.pathAsync(l.p.x, l.p.z, tx, tz, path => { h.pj = false; if (path !== undefined && h.tx === tx && h.tz === tz && !h.path) { h.path = path || [{ x: tx, z: tz }]; h.pi = 0; } }); }
-    if (h.path) { const w = h.path[Math.min(h.pi, h.path.length - 1)], d = Math.hypot(w.x - l.p.x, w.z - l.p.z); if (d < 2.2 && h.pi < h.path.length - 1) h.pi++; else if (d < 2.2) { if (h.st === 'invest') { h.wait = 3; if (h.divertT < M.t - 3) { h.st = 'roam'; h.path = null; h.wait = 0; } } else h.wait = Math.max(0, h.wait - dt * 2); } h.curX = w.x; h.curZ = w.z; }
+    if (h.path) { const w = h.path[Math.min(h.pi, h.path.length - 1)], d = Math.sqrt((w.x - l.p.x) * (w.x - l.p.x) + (w.z - l.p.z) * (w.z - l.p.z)); if (d < 2.2 && h.pi < h.path.length - 1) h.pi++; else if (d < 2.2) { if (h.st === 'invest') { h.wait = 3; if (h.divertT < M.t - 3) { h.st = 'roam'; h.path = null; h.wait = 0; } } else h.wait = Math.max(0, h.wait - dt * 2); } h.curX = w.x; h.curZ = w.z; }
   }
 }
 /* población: la región se repuebla poco a poco con grupos dormidos y, si la horda cae, aparece otra desde lejos (nunca a la vista de un combatiente) */
 let popT = 20, hordeGone = 0;
-const farFromAll = (x, z, R) => M.ents.every(e => e.dead || Math.hypot(e.p.x - x, e.p.z - z) > R) && M.spawn.every(a => a.every(s => Math.hypot(s.x - x, s.z - z) > 16));
+const farFromAll = (x, z, R) => M.ents.every(e => e.dead || Math.sqrt((e.p.x - x) * (e.p.x - x) + (e.p.z - z) * (e.p.z - z)) > R) && M.spawn.every(a => a.every(s => Math.sqrt((s.x - x) * (s.x - x) + (s.z - z) * (s.z - z)) > 16));
 const ZTARGET = 880;
 function restockDistrict() {
   const alive = MX.zom.count(); if (!ZPTS || !ZPTS.length) return;
@@ -445,7 +445,7 @@ function farStep(z, dt) {
   if (z.st === 'dead') { z.deadT += dt; if (z.deadT > 14) freeZ(z); return; }
   if (!z.horde || z.st !== 'wander') { z.v.set(0, 0, 0); return; }
   const h = z.horde, lead = h.members[0] === z ? 0 : 2.8, gx = (h.curX === undefined ? h.tx : h.curX) + Math.sin(z.seed * 40) * lead, gz = (h.curZ === undefined ? h.tz : h.curZ) + Math.cos(z.seed * 40) * lead;   // el guía va por la ruta exacta; los demás, a su lado
-  const dx = gx - z.p.x, dz = gz - z.p.z, d = Math.hypot(dx, dz); if (d < .5) return;
+  const dx = gx - z.p.x, dz = gz - z.p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)); if (d < .5) return;
   const step = Math.min(d, TY[z.type].roam * 1.8 * dt), nx = z.p.x + dx / d * step, nz = z.p.z + dz / d * step;
   let ok = !MX.navAt || MX.navAt(nx, nz), px = nx, pz = nz;
   if (!ok) for (const a of [.7, -.7, 1.4, -1.4]) { const c = Math.cos(a), n = Math.sin(a), rx = (dx * c - dz * n) / d, rz = (dx * n + dz * c) / d; if (MX.navAt(z.p.x + rx * step, z.p.z + rz * step)) { px = z.p.x + rx * step; pz = z.p.z + rz * step; ok = true; break; } }   // rodea el obstáculo
