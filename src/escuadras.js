@@ -18,7 +18,7 @@
 (function () {
 const M = MX.M, rnd = Math.random, rr = (a, b) => a + (b - a) * rnd(), navAt = (x, z) => MX.navAt(x, z), coverPoint = (e, x, z) => MX.coverPoint(e, x, z), HOT = MX.HOT;
 const SQ = MX.SQ = { list: [], uid: 0, cmdT: [3, 6, 9, 12], balT: 15, toasts: [], marker: null };
-const TN = ['Azul', 'Rojo', 'Ámbar', 'Violeta'], SIZES = [5, 6, 5, 4, 3, 2], ROLE0 = ['attack', 'attack', 'hold', 'defend', 'recon', 'recon'];
+const TN = ['Azul', 'Rojo', 'Ámbar', 'Violeta'], SIZES = [5, 6, 5, 4, 3, 2], ROLE0 = ['attack', 'hold', 'attack', 'hold', 'defend', 'recon'];   // 12 por facción: 4 atacan, 4 mantienen/capturan (80 % en puntos), 2 defienden el refugio, 2 exploran
 const KTEAM = [0, 1, 3, 2];                                                         // índice de copia del mapa simétrico (NO, NE, SE, SO) → facción
 const MAXS = 8;
 /* formación (lateral, atrás) en metros respecto al líder y su rumbo: cuña abierta, nunca en piña */
@@ -73,7 +73,7 @@ SQ.init = () => {
 };
 
 /* ---------- liderazgo: el mejor vivo y en pie ---------- */
-const merit = e => e.kills * 6 + (e.vet || 0) * 3 + Math.min(M.t - (e.lifeStart || 0), 600) / 60 - e.deaths * .5;
+const merit = e => e.kills * 6 + (e.vet || 0) * 3 + Math.min(M.t - (e.lifeStart || 0), 600) / 60 - e.deaths * .5 + (MX.classBias ? MX.classBias(e) : 0);   // el líder es fusilero o de asalto, no el francotirador ni el médico
 function electLeader(s, quiet) {
   const pl = MX.pl, prev = s.leader;
   if (s.playerLead && pl && pl.sqd === s && (pl.dead || pl.dwn)) {                   // el jugador líder cae: el mejor vivo toma el mando y la escuadra se queda donde está
@@ -88,6 +88,21 @@ function electLeader(s, quiet) {
 
 /* ---------- mando de cada facción: misiones (cada ~12 s, escalonado) ---------- */
 function strength(s) { return s.members.filter(alive).length; }
+/* MANDO DE LA FACCIÓN: cada punto se puntúa por valor (la Plaza vale más; robar uno enemigo, más), distancia, carga (cuántas escuadras propias ya van) y presencia enemiga; una escuadra
+   de reserva o de mantener acude como refuerzo a un punto propio donde hay más enemigos que amigos. */
+function objLoad(t, o, except) { let n = 0; for (const q of SQ.list) if (q.team === t && q !== except && q.mission && q.mission.x !== undefined && Math.abs(q.mission.x - o.x) < 5 && Math.abs(q.mission.z - o.z) < 5) n++; return n; }
+function objThreat(t, o) { let foes = 0, fr = 0; const R = o.r + 28; for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.dead || e.dwn) continue; const d = dist(e.p, o); if (d > R) continue; if (e.team === t) fr++; else foes++; } return { foes, fr }; }
+SQ.objThreat = objThreat;
+function pickObjective(s, t, ref, mode) {
+  const lf = SQ.lastFoe && SQ.lastFoe[t]; let best = null, bs = -1e9;
+  for (const o of SQ.objs) {
+    if (o.id === 'REF') continue; const mine = o.owner === t || (o.home === t && o.owner < 0);
+    if (mode === 'attack' ? o.owner === t : !(mine || (o.owner < 0 && o.home < 0 && dist(o, ref) < 420))) continue;
+    const th = objThreat(t, o), d = dist(o, ref), sc = (o.id === 'PLAZA' ? 1.35 : 1) + (mode === 'attack' ? (o.owner >= 0 ? .5 : 0) : (o.owner !== t ? .6 : 0)) - d / 650 - objLoad(t, o, s) * .55
+      + (mode === 'attack' ? -Math.min(1, th.foes / 12) * .35 : Math.min(1.2, Math.max(0, th.foes - th.fr) / 5)) + (lf && M.t - lf.t < 150 && dist(lf, o) < 90 ? .25 : 0) + rnd() * .25;
+    if (sc > bs) { bs = sc; best = o; } }
+  return best;
+}
 function assignMission(s) {
   if (s.playerLead) return;
   const pl = places(), t = s.team, ref = pl.ref[t], m = s.mission, st = strength(s), tot = s.members.length;
@@ -95,18 +110,22 @@ function assignMission(s) {
   if (m.regroup && st >= Math.ceil(tot * .75)) s.mission = { type: s.baseType || 'hold' };                                                                  // reorganizada: vuelve a lo suyo
   if (!s.baseType) s.baseType = m.type;
   const type = s.mission.type;
+  if ((type === 'hold' || type === 'recon') && SQ.objs.length && !m.regroup) {                                   // refuerzo a un punto propio amenazado
+    let bo = null, bsc = 0; for (const o of SQ.objs) { if (o.id === 'REF' || o.owner !== t) continue; const th = objThreat(t, o), sc = th.foes - th.fr; if (sc >= 2 && dist(s.leader ? s.leader.p : ref, o) < 320 && objLoad(t, o, s) < 2 && sc > bsc) { bsc = sc; bo = o; } }
+    if (bo && !(s.mission.x !== undefined && Math.abs(s.mission.x - bo.x) < 5 && Math.abs(s.mission.z - bo.z) < 5)) { s.mission = { type: 'hold', x: bo.x, z: bo.z, name: 'refuerzo · ' + bo.name }; s.missionT = M.t; s.ap = null; return; } }
   if (s.mission.x !== undefined) {                                                   // misión en curso: se cambia al cabo de un rato en el sitio (o si no llega nunca)
     const L = s.leader, there = L && dist(L.p, s.mission) < 15; if (there && !s.mission.arr) s.mission.arr = M.t;
     const stay = type === 'recon' ? 25 : type === 'attack' ? 90 : 240;
     if (!(s.mission.arr ? M.t - s.mission.arr > stay : M.t - s.missionT > 260)) return; }
   let tg = null;
   if (type === 'defend') { const rf = refugeOf(t); tg = rf ? { x: rf.x, z: rf.z } : navNear(ref.x * .9, ref.z * .9); tg.name = 'refugio'; }                 // el refugio: sus defensores ocupan los puestos junto al muro bajo
-  else if (type === 'hold') { const lost = SQ.objs.filter(o => o.home === t && o.owner !== t).sort((a, b) => dist(a, ref) - dist(b, ref))[0];   // primero, recuperar lo propio perdido
-    const own = pl.own[t]; const pue = own.find(p => p.id === 'PUE'); tg = lost || ((s.n % 2 === 1 && pue) ? pue : own[(rnd() * own.length) | 0] || ref); }
+  else if (type === 'hold') { const pk = SQ.objs.length ? pickObjective(s, t, ref, 'hold') : null;                    // mantener/capturar: el punto propio o neutral con más valor y menos carga (los amenazados atraen refuerzos)
+    if (pk) tg = { x: pk.x, z: pk.z, name: pk.name };
+    else { const lost = SQ.objs.filter(o => o.home === t && o.owner !== t).sort((a, b) => dist(a, ref) - dist(b, ref))[0]; const own = pl.own[t]; const pue = own.find(p => p.id === 'PUE'); tg = lost || ((s.n % 2 === 1 && pue) ? pue : own[(rnd() * own.length) | 0] || ref); } }
   else if (type === 'attack') {                                                      // objetivos comunes que no son nuestros; si los tenemos todos, el puesto avanzado enemigo más cercano
     const ob = SQ.objs.length ? SQ.objs.filter(o => o.shared && o.owner !== t) : pl.shared, alt = SQ.objs.filter(o => o.id === 'PUE' && o.owner !== t);
-    const c = (ob.length ? ob : alt.length ? alt : pl.shared).map(p => ({ p, d: dist(p, ref) + rnd() * 120 + (p.id === 'PLAZA' ? 60 : 0) })).sort((a, b) => a.d - b.d); tg = c.length ? c[0].p : ref;
-    const lf = SQ.lastFoe && SQ.lastFoe[t]; if (lf && M.t - lf.t < 150 && rnd() < .6) { const q = navNear(lf.x, lf.z); if (q) tg = { x: q.x, z: q.z, name: 'último contacto' }; } }   // a menudo ataca hacia donde se vio al enemigo: los encuentros se buscan, no se esperan
+    const pk = SQ.objs.length ? pickObjective(s, t, ref, 'attack') : null; if (pk) tg = pk; else { const c = (ob.length ? ob : alt.length ? alt : pl.shared).map(p => ({ p, d: dist(p, ref) + rnd() * 120 + (p.id === 'PLAZA' ? 60 : 0) })).sort((a, b) => a.d - b.d); tg = c.length ? c[0].p : ref; }
+    const lf = SQ.lastFoe && SQ.lastFoe[t]; if (lf && M.t - lf.t < 150 && rnd() < .3) { const q = navNear(lf.x, lf.z); if (q) tg = { x: q.x, z: q.z, name: 'último contacto' }; } }   // a menudo ataca hacia donde se vio al enemigo: los encuentros se buscan, no se esperan
   else if (type === 'recon') { const c = pl.all.filter(p => dist(p, ref) < 520 && dist(p, ref) > 40); tg = c.length ? c[(rnd() * c.length) | 0] : ref; }
   else tg = ref;
   s.mission = { type, x: tg.x, z: tg.z, name: tg.name || '' }; s.missionT = M.t; s.ap = null;

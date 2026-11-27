@@ -75,6 +75,37 @@ const sqInit = SQ.init;
 SQ.init = () => { sqInit(); assign(); build();
   for (const e of M.ents) { e.clsWait = null; if (e.isPlayer) { applyKit(e); continue; } sqOnRespawn2(e); } };   // las apariciones iniciales ocurren antes de SQ.init: se les asigna aquí su chapa
 
+MX.classBias = e => { const k = e.cls; return k === 'fra' ? -60 : k === 'med' ? -40 : k === 'apo' ? -25 : k === 'fla' ? -10 : k === 'fus' ? 6 : 4; };   // quién lidera la escuadra: fusilero o asalto, no el francotirador ni el médico
+
+/* ---------- táctica por clase (cuando la escuadra va a un punto o lo mantiene, sin contacto reciente) ----------
+   Apoyo y francotirador: puesto de vigilancia a 38 y 62 m del punto, con cobertura y línea de tiro al centro (se elige una vez por misión). Asalto: entra en el punto el primero y no espera.
+   Flanqueador: se desvía 32 m a un lado del eje y entra por el flanco. */
+const dm2 = (x, z, a, b) => Math.sqrt((x - a) * (x - a) + (z - b) * (z - b));
+function overwatch(e, s, m, range) {
+  const key = Math.round(m.x) + ',' + Math.round(m.z); if (e._ow && e._ow.k === key) return e._ow.q;
+  const L = s.leader, base = Math.atan2(L.p.x - m.x, L.p.z - m.z); let best = null, bs = -1e9;
+  for (let i = 0; i < 16; i++) { const a = base + (i - 7.5) * .2 + ((e.slot || 0) % 3 - 1) * .3, r = range * (.88 + ((i * 7) % 5) * .04), x = m.x + Math.sin(a) * r, z = m.z + Math.cos(a) * r; if (!MX.navAt(x, z)) continue;
+    const cp = MX.coverPoint({ p: { x, z } }, m.x, m.z), near = cp && dm2(cp.x, cp.z, x, z) < 5, px = x, pz = z, los = MX.lineFree({ x, z }, { x: m.x, z: m.z });   // se elige un sitio con línea al punto y cobertura a ≤ 5 m (la cobertura la usa su IA al recibir fuego)
+    const sc = (los ? 30 : 0) + (near ? 14 : 0) - Math.abs(i - 7.5) * .9 + rnd(); if (sc > bs) { bs = sc; best = { x: px, z: pz }; } }
+  e._ow = { k: key, q: best || { x: m.x + Math.sin(base) * range, z: m.z + Math.cos(base) * range } }; return e._ow.q;
+}
+function flank(e, s, m) {
+  const key = Math.round(m.x) + ',' + Math.round(m.z) + ',' + (s.leader === e); if (e._fl && e._fl.k === key) return e._fl.q;
+  const L = s.leader, dx = m.x - L.p.x, dz = m.z - L.p.z, d = Math.sqrt(dx * dx + dz * dz) || 1, side = ((e.slot || 0) % 2 ? 1 : -1) * 32;
+  let q = { x: L.p.x + dx * .72 + (-dz / d) * side, z: L.p.z + dz * .72 + (dx / d) * side }; if (!MX.navAt(q.x, q.z)) { for (let r = 2; r < 14 && !MX.navAt(q.x, q.z); r += 2) q = { x: q.x + (L.p.x - q.x) * .15, z: q.z + (L.p.z - q.z) * .15 }; }
+  e._fl = { k: key, q }; return q;
+}
+function classGoal(e) {
+  const s = e.sqd, c = e.cls; if (!s || s.playerLead || !s.leader || !s.mission || s.mission.x === undefined || (c !== 'apo' && c !== 'fra' && c !== 'asa' && c !== 'fla')) return null;
+  if (s.mission.type !== 'attack' && s.mission.type !== 'hold') return null; if (s.contact && M.t - s.contact.t < 8) return null;
+  const m = s.mission, L = s.leader, dm = dm2(L.p.x, L.p.z, m.x, m.z), face = Math.atan2(m.x - e.p.x, m.z - e.p.z);
+  if (c === 'fra' && dm < 110) { const q = overwatch(e, s, m, 62); return { x: q.x, z: q.z, speed: 5.4, hold: true, face: Math.atan2(m.x - q.x, m.z - q.z), crouch: dm2(e.p.x, e.p.z, q.x, q.z) < 3 }; }
+  if (c === 'apo' && dm < 95) { const q = overwatch(e, s, m, 38); return { x: q.x, z: q.z, speed: 5.4, hold: true, face: Math.atan2(m.x - q.x, m.z - q.z), crouch: dm2(e.p.x, e.p.z, q.x, q.z) < 3 }; }
+  if (c === 'asa' && s.mission.type === 'attack' && dm < 70) { const a = face + 3.14159 + ((e.slot || 0) % 3 - 1) * .7, r = 3 + ((e.slot || 0) % 2) * 3, q = MX.navAt(m.x + Math.sin(a) * r, m.z + Math.cos(a) * r) ? { x: m.x + Math.sin(a) * r, z: m.z + Math.cos(a) * r } : m; return { x: q.x, z: q.z, speed: 6.4, hold: true, face, crouch: false }; }
+  if (c === 'fla' && s.mission.type === 'attack' && dm > 24 && dm < 120) { const q = flank(e, s, m); if (dm2(e.p.x, e.p.z, q.x, q.z) > 6) return { x: q.x, z: q.z, speed: 6, hold: false }; }
+  return null;
+}
+
 /* ---------- objetivo de los bots: la chapa; el médico, el herido ---------- */
 const sqGoal = SQ.goalFor;
 SQ.goalFor = e => {
@@ -83,6 +114,7 @@ SQ.goalFor = e => {
     let best = null, bd = 1e9; for (const m of e.sqd.members) { if (m === e || m.dead || m.dwn || m.hp >= 70) continue; const d = dist(m.p, e.p); if (d < 32 && d < bd) { bd = d; best = m; } }
     if (best) { const a = Math.atan2(best.p.x - e.p.x, best.p.z - e.p.z); return { x: best.p.x - Math.sin(a) * 2.4, z: best.p.z - Math.cos(a) * 2.4, speed: 5.8, hold: true, face: a, crouch: false }; }
   }
+  const cg = classGoal(e); if (cg) return cg;
   return sqGoal(e);
 };
 

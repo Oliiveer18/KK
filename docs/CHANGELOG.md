@@ -1,5 +1,15 @@
 # Changelog
 
+## Bots profesionales: clases, mando de facción, formaciones y cruceta en dos tiempos (27-11)
+- **Clases** (`src/clases.js`, 6 con las armas que ya existen): Fusilero (fusil), Asalto (escopeta semiautomática + chaleco 3), Apoyo (ametralladora + más munición), Médico (subfusil, 4 botiquines, 3 kits de reanimación), Flanqueador (subfusil .45) y Francotirador (precisión). Reparto fijo por escuadra: 2 → Fusilero + Médico; 3 → + Asalto; 4 → + Apoyo; 5 → + Flanqueador; 6 → + Francotirador (cada facción: 12 F, 12 M, 10 A, 8 P, 6 L, 2 T). El líder de una escuadra es fusilero o de asalto.
+- **Puesto de clases**: 6 chapas con su nombre en cada refugio (delante del tabique interior). El jugador cambia de clase pisándolas (arma y equipo al instante, se conserva al reaparecer). Los bots que aparecen en el refugio caminan a su chapa, ~0,7 s, y salen con el arma y el kit de su clase.
+- **Médico**: cura a los aliados a < 7 m (8 puntos/s, hasta 100) y con él al lado el tope de regeneración natural sube de 60 a 75. Los bots médicos acuden al herido de su escuadra.
+- **Vida**: regeneración natural lenta (7 s sin daño; luego de 1,5 a 4,5 por segundo) y solo hasta 60 (75 con médico); el botiquín cura +35 de forma progresiva (~14/s).
+- **Mando de la facción**: roles por escuadra 4 atacan, 4 capturan/mantienen, 2 defienden el refugio, 2 exploran. Cada punto se puntúa por valor, distancia, escuadras ya asignadas y presencia enemiga; las escuadras de mantener/explorar acuden como refuerzo a un punto propio donde hay 2+ enemigos más que amigos.
+- **Táctica por clase**: apoyo y francotirador toman puestos de vigilancia a 38 y 62 m del punto (con línea al centro y cobertura cerca); el asalto entra el primero; el flanqueador se desvía 32 m del eje.
+- **Escuadra del jugador**: formaciones automáticas (cuña, columna por calles, círculo al parar, línea en contacto) con puestos que anticipan el movimiento; cruceta en dos tiempos (la 1.ª pulsación enseña qué hace cada flecha, la siguiente la ejecuta).
+- **Inventario** rediseñado (cabecera con capacidad, barras de vida y protección con la marca del tope de regeneración, equipo en tarjetas, mochila en chips, filas de recoger/depositar, foco claro para el mando).
+
 ## Mapa de 750 × 750 m (27-11)
 - **Escala única** `ESC` en el generador (`src/mapa_distrito.js`, `?escala=1` devuelve el mapa de 1 km): las posiciones del diseño (calles, refugios, zonas, objetivos) pasan por `P()`; los edificios y objetos conservan su tamaño. Dentro de la ronda exterior todo ×0,75; fuera de ella los primeros 60 m (portones, patios, recintos) no se tocan y el resto se comprime hasta el borde.
 - Refugio → Plaza: 618 → 481 m en línea recta (ruta 452 m); refugio → objetivo de borde vecino 445 → 346 m. Props 22.211 → 14.885, edificios 436 → 308 (menos memoria y menos mallas dormidas).
