@@ -46,7 +46,9 @@ MAPA.roadIndex = function (roads) {
 /* colocar cualquier objeto del proyecto por su nombre: los 68 tipos de objetos.js y edificios (placeObject) y los 8 de siempre (cajas, vallas de madera, barreras de plástico,
    barriles, sacos, bloques), que placeObject no conoce y se crean con addProp. Devuelve el prop/edificio o null. */
 const snapG = g => Math.round((g || 0) / (Math.PI / 2)) * (Math.PI / 2);
+const VARIANT = { car: 1, taxi: 1, police: 1, van: 1, pickup: 1, truck: 1, bush: 1, hedge: 1 };
 MAPA.put = function (t, x, z, g, o) {
+  if (VARIANT[t] && !(o && o.param && o.param.v !== undefined)) { const h = Math.abs(Math.floor(x * 7.13 + z * 3.71)); o = Object.assign({}, o || {}, { param: Object.assign({}, o && o.param, { v: h % 3, ci: (h >> 2) % 6 }) }); }   // variante determinista por posición: 3 × 6 variantes que comparten geometría
   if (typeof PSPEC !== 'undefined' && PSPEC[t] && !(OBJ.types.indexOf(t) >= 0)) return addProp(t, x, z, snapG(g));
   return placeObject(t, x, z, g || 0, o);
 };
@@ -163,15 +165,43 @@ MAPA.build = function (D) {
    del mapa. No cambia nada de lo que se ve: lo que está en pantalla se dibuja igual. scene.remove sigue funcionando para lo que cuelga de un sector. ---------- */
 /* bosques: árboles instanciados (3 mallas por lote) con caja de colisión sólo en el tronco */
 const TREE_GEO = {};
+/* Árboles instanciados por sector y especie: 0 conífera (tronco y dos conos), 1 frondoso (tronco y copa redonda), 2 seco (tronco y ramas, sin copa). Las copas se desvanecen
+   (tramado) cerca del jugador para que un bosque denso no tape la acción desde la cámara cenital: uniform MAPA.canopy = (x, z, radio) que actualiza MAPA.cull. */
+MAPA.canopy = { value: new V3(0, 0, -1) };
+function fadeCanopy(m) {
+  m.onBeforeCompile = sh => {
+    sh.uniforms.uCan = MAPA.canopy;
+    sh.vertexShader = 'varying vec3 vWP;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vec4 wp4 = vec4(transformed, 1.0);\n #ifdef USE_INSTANCING\n wp4 = instanceMatrix * wp4;\n #endif\n vWP = (modelMatrix * wp4).xyz;');
+    sh.fragmentShader = 'varying vec3 vWP;\nuniform vec3 uCan;\n' + sh.fragmentShader.replace('void main() {', 'void main() {\n if (uCan.z > 0.0 && vWP.y > 2.0) { float dd = length(vWP.xz - uCan.xy); float f = smoothstep(uCan.z * 0.55, uCan.z, dd); if (f < fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233))) * 43758.5453)) discard; }');
+  };
+  m.customProgramCacheKey = () => 'copa-tramada'; return m;
+}
 function treeMeshes(list, out) {
-  if (!TREE_GEO.t) { TREE_GEO.t = new THREE.CylinderGeometry(.22, .3, 2.4, 6); TREE_GEO.c1 = new THREE.ConeGeometry(1.7, 3.2, 7); TREE_GEO.c2 = new THREE.ConeGeometry(1.25, 2.6, 7);
-    TREE_GEO.mt = new THREE.MeshStandardMaterial({ color: 0x4e3b2a, roughness: 1, flatShading: true }); TREE_GEO.m1 = new THREE.MeshStandardMaterial({ color: 0x2f4a2a, roughness: 1, flatShading: true }); TREE_GEO.m2 = new THREE.MeshStandardMaterial({ color: 0x3a5a30, roughness: 1, flatShading: true }); }
-  const n = list.length, trunk = new THREE.InstancedMesh(TREE_GEO.t, TREE_GEO.mt, n), c1 = new THREE.InstancedMesh(TREE_GEO.c1, TREE_GEO.m1, n), c2 = new THREE.InstancedMesh(TREE_GEO.c2, TREE_GEO.m2, n), M4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new V3(), ps = new V3();
-  list.forEach((t, i) => { const k = t[2] || 1, ry = (t[0] * 7.3 + t[1] * 3.1) % 6.28; q.setFromAxisAngle(_Y, ry);
-    M4.compose(ps.set(t[0], 1.2 * k, t[1]), q, sc.set(k, k, k)); trunk.setMatrixAt(i, M4); M4.compose(ps.set(t[0], (2.4 + 1.3) * k, t[1]), q, sc.set(k, k, k)); c1.setMatrixAt(i, M4); M4.compose(ps.set(t[0], (2.4 + 2.9) * k, t[1]), q, sc.set(k, k, k)); c2.setMatrixAt(i, M4);
-    const bx = { x: t[0], z: t[1], hx: .32 * k, hz: .32 * k, h: 3, wall: true, tree: true }; boxes.push(bx); out.walls.push(bx); });
-  for (const m of [trunk, c1, c2]) { m.castShadow = true; m.receiveShadow = true; m.instanceMatrix.needsUpdate = true; m.frustumCulled = false; }
-  return [trunk, c1, c2];
+  const T = TREE_GEO;
+  if (!T.t) {
+    T.t = new THREE.CylinderGeometry(.22, .3, 2.4, 6); T.c1 = new THREE.ConeGeometry(1.7, 3.2, 7); T.c2 = new THREE.ConeGeometry(1.25, 2.6, 7);
+    T.mt = new THREE.MeshStandardMaterial({ color: 0x4e3b2a, roughness: 1, flatShading: true }); T.m1 = fadeCanopy(new THREE.MeshStandardMaterial({ color: 0x2f4a2a, roughness: 1, flatShading: true })); T.m2 = fadeCanopy(new THREE.MeshStandardMaterial({ color: 0x3a5a30, roughness: 1, flatShading: true }));
+    T.cb = new THREE.IcosahedronGeometry(1.75, 1); T.mb = fadeCanopy(new THREE.MeshStandardMaterial({ color: 0x5a8a3a, roughness: 1, flatShading: true })); T.tb = new THREE.CylinderGeometry(.2, .32, 3.0, 6);
+    const br = []; for (const [rx, rz, a] of [[.7, 0, .9], [-.6, .3, -.8], [.1, -.7, .7], [-.2, .6, -.6]]) { const c = new THREE.CylinderGeometry(.04, .1, 1.5, 4); c.rotateZ(a * (rx < 0 ? 1 : -1)); c.rotateY(Math.atan2(rz, rx)); c.translate(rx * .5, 3.1 + Math.abs(a) * .3, rz * .5); br.push(c); }
+    T.dead = (() => { const g = new THREE.BufferGeometry(); const pos = [], nor = []; for (const c of br) { const ng = c.toNonIndexed(), pa = ng.attributes.position, na = ng.attributes.normal; for (let i = 0; i < pa.count; i++) { pos.push(pa.getX(i), pa.getY(i), pa.getZ(i)); nor.push(na.getX(i), na.getY(i), na.getZ(i)); } }
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); return g; })();
+    T.td = new THREE.CylinderGeometry(.16, .3, 3.6, 5); T.md = new THREE.MeshStandardMaterial({ color: 0x6b5f52, roughness: 1, flatShading: true });
+  }
+  const M4 = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new V3(), ps = new V3(), res = [];
+  const by = [[], [], []]; for (const t of list) by[t[3] || 0].push(t);
+  const mk = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; res.push(m); return m; };
+  by.forEach((L, sp) => {
+    if (!L.length) return; const n = L.length;
+    const tr = mk(sp === 0 ? T.t : sp === 1 ? T.tb : T.td, T.mt, n), a = sp === 0 ? mk(T.c1, T.m1, n) : sp === 1 ? mk(T.cb, T.mb, n) : mk(T.dead, T.md, n), b = sp === 0 ? mk(T.c2, T.m2, n) : null;
+    L.forEach((t, i) => { const k = t[2] || 1, ry = (t[0] * 7.3 + t[1] * 3.1) % 6.28; q.setFromAxisAngle(_Y, ry);
+      M4.compose(ps.set(t[0], (sp === 0 ? 1.2 : sp === 1 ? 1.5 : 1.8) * k, t[1]), q, sc.set(k, k, k)); tr.setMatrixAt(i, M4);
+      if (sp === 0) { M4.compose(ps.set(t[0], 3.7 * k, t[1]), q, sc.set(k, k, k)); a.setMatrixAt(i, M4); M4.compose(ps.set(t[0], 5.3 * k, t[1]), q, sc.set(k, k, k)); b.setMatrixAt(i, M4); }
+      else if (sp === 1) { M4.compose(ps.set(t[0], 4.2 * k, t[1]), q, sc.set(k, k * .9, k)); a.setMatrixAt(i, M4); }
+      else { M4.compose(ps.set(t[0], 0, t[1]), q, sc.set(k, k, k)); a.setMatrixAt(i, M4); }
+      const bx = { x: t[0], z: t[1], hx: .32 * k, hz: .32 * k, h: 3, wall: true, tree: true }; boxes.push(bx); out.walls.push(bx); });
+    for (const m of [tr, a, b]) if (m) m.instanceMatrix.needsUpdate = true;
+  });
+  return res;
 }
 const SEC = 32, SEC_M = 12;
 function sectorize(out, D) {
@@ -373,6 +403,10 @@ function freezeSector(S) {
     if (p && p.lz && !p.lz.frozen && p.lz.merged.length) {
       const L = p.lz; L.mdesc = L.merged.map(m => ({ geo: m.geometry, mat: m.material, cs: m.castShadow, rs: m.receiveShadow, fc: m.frustumCulled }));
       for (const m of L.merged) g.remove(m); L.merged = []; L.frozen = true;
+      /* piezas no soldables sencillas (cristales de coches y ventanas…): también sólo su receta (geometría, material, banderas y transformación); lo complejo se queda vivo */
+      const simple = L.kept.filter(o => o.isMesh && !o.isInstancedMesh && !o.children.length && o.parent === g && !o.userData.noFreeze);
+      if (simple.length) { L.kdesc = simple.map(o => ({ geo: o.geometry, mat: o.material, cs: o.castShadow, rs: o.receiveShadow, fc: o.frustumCulled, vis: o.visible, ro: o.renderOrder, t: [o.position.x, o.position.y, o.position.z, o.quaternion.x, o.quaternion.y, o.quaternion.z, o.quaternion.w, o.scale.x, o.scale.y, o.scale.z] }));
+        for (const o of simple) g.remove(o); L.kept = L.kept.filter(o => simple.indexOf(o) < 0); }
     } else if (g.isInstancedMesh && g.userData.lzInst) { const bt = g.userData.b; bt.im = null; S.__batches.push(bt); S.remove(g); g.dispose(); }
   }
   S.__fz = true;
@@ -381,7 +415,8 @@ function thawSector(S) {
   if (!S.__fz) return;
   if (typeof PERF !== 'undefined') PERF.tag('sectores');
   for (const g of S.children) { const p = g.__prop;
-    if (p && p.lz && p.lz.frozen) { const L = p.lz; L.merged = L.mdesc.map(v => { const m = new THREE.Mesh(v.geo, v.mat); m.castShadow = v.cs; m.receiveShadow = v.rs; m.frustumCulled = v.fc; m.userData.lz = true; g.add(m); return m; }); L.frozen = false; L.mdesc = null; } }
+    if (p && p.lz && p.lz.frozen) { const L = p.lz; L.merged = L.mdesc.map(v => { const m = new THREE.Mesh(v.geo, v.mat); m.castShadow = v.cs; m.receiveShadow = v.rs; m.frustumCulled = v.fc; m.userData.lz = true; g.add(m); return m; }); L.frozen = false; L.mdesc = null;
+      if (L.kdesc) { for (const v of L.kdesc) { const m = new THREE.Mesh(v.geo, v.mat); m.castShadow = v.cs; m.receiveShadow = v.rs; m.frustumCulled = v.fc; m.visible = v.vis; m.renderOrder = v.ro; const t = v.t; m.position.set(t[0], t[1], t[2]); m.quaternion.set(t[3], t[4], t[5], t[6]); m.scale.set(t[7], t[8], t[9]); g.add(m); L.kept.push(m); } L.kdesc = null; } } }
   for (const bt of S.__batches) { const im = new THREE.InstancedMesh(bt.geo, bt.mat, bt.n); im.instanceMatrix.array.set(bt.arr); bt.arr = im.instanceMatrix.array; im.castShadow = bt.cs; im.receiveShadow = bt.rs; im.frustumCulled = false; im.userData.lzInst = true; im.userData.b = bt; bt.im = im; im.instanceMatrix.needsUpdate = true; S.add(im); }
   S.__batches = null; S.__fz = false;
 }
@@ -392,6 +427,7 @@ const _sr = new THREE.Ray(), _sd = new THREE.Vector3(), _st = new THREE.Vector3(
 MAPA.cull = function (cam) {
   const b = MAPA.built; if (!b || !b.sectors || MAPA.noCull) return;
   cam.updateMatrixWorld(); _pm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); _fr.setFromProjectionMatrix(_pm);
+  if (typeof P !== 'undefined') MAPA.canopy.value.set(P.pos.x, P.pos.z + 3.4, 6.5);                          // copas que se desvanecen cerca del jugador (y entre él y la cámara)
   let tx = cam.position.x, tz = cam.position.z;                                                              // punto del suelo hacia el que mira la cámara
   if (ST.on) { cam.getWorldDirection(_sd); if (_sd.y < -.05) { const t = -cam.position.y / _sd.y; tx += _sd.x * t; tz += _sd.z * t; } ST.ci = Math.floor(tx / SEC); ST.cj = Math.floor(tz / SEC); }
   const cand = ST.cand; cand.length = 0;

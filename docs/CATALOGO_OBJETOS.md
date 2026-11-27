@@ -283,3 +283,8 @@ Cuatro tipos nuevos (`cat: Plaza y objetivos`, total 75) para dar carácter de z
 - **Estaciones (D, E)**: andén con autobuses siniestrados, quioscos, marquesinas, bancos y barreras bajas.
 - **Puestos avanzados**: barreras y sacos en molinillo dentro del recinto, contenedores y cajas, un barril de combustible.
 - Test `tests/cobertura_objetivos.py`: por objetivo mide objetos de cobertura, parte de la zona con cobertura a ≤ 3 m, direcciones (de 8) con cobertura a ≤ 12 m, y ruta desde 4 puntos a 40 m con rodeo ≤ 1,8. Antes: plaza 0 objetos y 0 % de cobertura; fábricas 8 y 22 %; estaciones 3 y 14 %.
+
+## 17. Vehículos y naturaleza (Fase A2, 27-11)
+- **Vehículos** (`veh: true`): `car` (coche abandonado), `taxi`, `police`, `van`, `pickup`, `truck`. Masa 900 (no se empujan con un roce), vida 320–700, puerta del conductor que se abre (`leaves` + `openBoxes`), humo al 66 % de vida y, al 33 %, 60 % de probabilidades de arder y explotar (`explode` 3,4 m, `p.fireT`). Giro libre con `placeObject(..., { yaw })` o `COMP.put(..., { yaw })`: colisión de 3 cajas a lo largo, sin puertas. Variantes `param.v` (0–2) y `param.ci` (0–5, color) deterministas por posición (`MAPA.put`) para compartir geometría.
+- **Naturaleza y cobertura**: `rockS`, `rockM`, `rockL` (rocas, indestructibles, pen 0), `log` (tronco caído, 0,86 m), `bush` (arbusto 1,2 m, pen 0,85) y `hedge` (seto 1,25 m, pen 0,8). Los dos últimos ocultan pero casi no frenan las balas.
+- **Árboles**: especies 0 conífera, 1 frondoso, 2 seco (4.º valor de cada árbol en `D.trees`); copas con tramado cerca del jugador (`MAPA.canopy`).

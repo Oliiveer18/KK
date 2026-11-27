@@ -537,6 +537,8 @@
   def('supplyMed', { name: 'Caja médica', cat: 'Comercio y transporte', loot: [{ k: 'botiquín', n: [1, 2] }, { k: 'kit de reanimación', n: [0, 1] }] }, { mat: 'plastic', hp: 40, push: true, mass: 2.5, fric: 7, build: supplyBuild('med') });
 
   const CAR_COL = [0xb8412e, 0xd9a21f, 0x2a8f8a, 0x4f6b3a, 0xd8d0bc, 0x3a63a0];
+  /* azar determinista por variante (param.v, param.ci): los vehículos, arbustos y setos de la misma variante son idénticos y comparten geometría soldada (con rnd() cada uno ocupaba memoria propia) */
+  const vrand = (v, k) => { const x = Math.sin((v + 1) * 12.9898 + k * 78.233 + 1.7) * 43758.5453; return x - Math.floor(x); };
   /* ---- vehículos: una sola receta con varias carrocerías (coche, taxi, policía, furgoneta, pickup, camión). Pesados (no se empujan con un roce), con la puerta del conductor
      que se abre (cobertura lateral y botón «Abrir puerta»), y con daño por etapas: humo al 66 %, y al 33 % puede arder y explotar (reacción en cadena con los vecinos). ---- */
   const VKIND = {
@@ -550,12 +552,13 @@
   const VLOOT = [{ k: 'material', n: [0, 2] }, { k: 'munición', n: [0, 1] }];
   for (const [kind, K] of Object.entries(VKIND)) def(kind, { name: K.name, cat: 'Comercio y transporte', loot: VLOOT, note: 'pesado, puerta que se abre, humo y fuego al dañarlo' }, {
     mat: 'metal', hp: K.hp, push: false, mass: 900, fric: 14, veh: true, build: g => {
-      const out = [], L = K.L, W = K.W, col = PAR().c || K.col || pick(CAR_COL), body = sm(col, .5, .45), bd = body.clone(); bd.color.multiplyScalar(.7);
+      let kk = 0; const rv = () => vrand(PAR().v | 0, kk++);
+      const out = [], L = K.L, W = K.W, col = PAR().c || K.col || CAR_COL[(PAR().ci | 0) % CAR_COL.length], body = sm(col, .5, .45), bd = body.clone(); bd.color.multiplyScalar(.7);
       const top = K.white ? sm(0xe8e8ea, .5, .4) : body, lowH = K.tall || K.box ? .95 : .55;
       bx(g, out, bd, L - .1, .22, W - .06, 0, .3, 0, false); bx(g, out, OM.soil, L - .05, .12, W + .01, 0, .2, 0, false);
       if (K.box) {                                                                                                  // camión: cabina delante y caja de carga detrás
         bx(g, out, body, 2.0, 1.2, W - .1, L / 2 - 1.0, .95, 0, false); bx(g, out, body, 1.7, 1.0, W - .2, L / 2 - 1.1, 2.0, 0, true); bx(g, out, OM.glass, .04, .8, W - .5, L / 2 - .24, 1.95, 0, true);
-        bx(g, out, OM.white, 5.5, 2.5, W - .05, -L / 2 + 2.9, 2.15, 0, true); bx(g, out, OM.ironD, 5.5, .12, W - .05, -L / 2 + 2.9, .86, 0, false); bx(g, out, pick([OM.red, OM.teal, OM.navy, OM.orange]), 5.4, .5, W - .04, -L / 2 + 2.9, 2.6, 0, true);
+        bx(g, out, OM.white, 5.5, 2.5, W - .05, -L / 2 + 2.9, 2.15, 0, true); bx(g, out, OM.ironD, 5.5, .12, W - .05, -L / 2 + 2.9, .86, 0, false); bx(g, out, [OM.red, OM.teal, OM.navy, OM.orange][Math.floor(rv() * 4)], 5.4, .5, W - .04, -L / 2 + 2.9, 2.6, 0, true);
         bx(g, out, OM.steel, .06, 2.2, W - .4, -L / 2 + .12, 2.1, 0, true);
       } else if (K.tall) {                                                                                          // furgoneta: un solo volumen alto con parabrisas
         bx(g, out, body, L, K.H - .85, W, 0, .85 + (K.H - .85) / 2, 0, false); bx(g, out, OM.glass, .04, .7, W - .35, L / 2 - .02, 1.65, 0, true); bx(g, out, OM.ironD, L - .2, .1, W - .2, -.1, K.H + .02, 0, true);
@@ -564,7 +567,7 @@
         bx(g, out, body, L, .55, W, 0, .6, 0, false); bx(g, out, body, 1.9, .75, W - .2, L / 2 - 1.7, 1.28, 0, true); bx(g, out, OM.glass, .04, .55, W - .4, L / 2 - .78, 1.3, 0, true);
         for (const sg of [-1, 1]) { bx(g, out, body, 2.2, .35, .06, -L / 2 + 1.2, 1.0, sg * (W / 2 - .03), true); bx(g, out, OM.glass, 1.0, .42, .03, L / 2 - 1.75, 1.32, sg * (W / 2 - .09), true); }
         bx(g, out, body, .06, .35, W, -L / 2 + .06, 1.0, 0, true); bx(g, out, OM.dark, 2.0, .05, W - .2, -L / 2 + 1.2, .9, 0, false);
-        for (let k = 0; k < 2; k++) if (rnd() < .7) bx(g, out, OM.card, .7, .5, .7, -L / 2 + .9 + k * .9, 1.18, (rnd() - .5) * .6, true);
+        for (let k = 0; k < 2; k++) if (rv() < .7) bx(g, out, OM.card, .7, .5, .7, -L / 2 + .9 + k * .9, 1.18, (rv() - .5) * .6, true);
       } else {                                                                                                      // turismo: carrocería baja, capó, maletero y cabina de cristal
         bx(g, out, body, L, .55, W, 0, .6, 0, false); bx(g, out, top, 1.35, .13, W - .12, L / 2 - .9, .94, 0, true); bx(g, out, top, 1.0, .13, W - .12, -L / 2 + .55, .94, 0, true);
         bx(g, out, top, 1.9, .5, W - .2, -.2, 1.22, 0, true); for (const x of [.73, -1.0]) bx(g, out, OM.glass, .04, .38, W - .36, x, 1.2, 0, true);
@@ -575,12 +578,46 @@
       for (const a of [-1, 1]) for (const b of [-1, 1]) { cy(g, out, OM.rubber, K.box ? .46 : .31, .22, a * (L / 2 - (K.box ? 1.0 : .85)), K.box ? .46 : .31, b * (W / 2 - .07), true).rotation.x = Math.PI / 2; cy(g, out, OM.steelL, .16, .24, a * (L / 2 - (K.box ? 1.0 : .85)), K.box ? .46 : .31, b * (W / 2 - .07), true).rotation.x = Math.PI / 2; }
       for (const sg of [-1, 1]) { bx(g, out, OM.lampOff, .06, .12, .32, L / 2 - .02, .72, sg * (W / 2 - .3), true); bx(g, out, OM.red, .06, .1, .3, -L / 2 + .02, .72, sg * (W / 2 - .3), true); }
       bx(g, out, OM.ironD, .16, .12, W - .1, L / 2 - .02, .35, 0, true); bx(g, out, OM.ironD, .16, .12, W - .1, -L / 2 + .02, .35, 0, true);
-      for (let k = 0; k < 4; k++) bx(g, out, OM.rust, .25 + rnd() * .3, .015, .15 + rnd() * .2, k % 2 ? -.2 + (rnd() - .5) * 1.0 : 1.4 + (rnd() - .5) * .6, k % 2 ? 1.48 : 1.02, (rnd() - .5) * .8, true);
+      for (let k = 0; k < 4; k++) bx(g, out, OM.rust, .25 + rv() * .3, .015, .15 + rv() * .2, k % 2 ? -.2 + (rv() - .5) * 1.0 : 1.4 + (rv() - .5) * .6, k % 2 ? 1.48 : 1.02, (rv() - .5) * .8, true);
       // puerta del conductor (lado +z): panel y ventanilla giran juntos sobre la bisagra delantera; al abrirla deja un hueco y un panel de cobertura lateral
       const dl = K.door, xh = (K.box ? L / 2 - .6 : K.bed ? L / 2 - 1.0 : K.tall ? L / 2 - .9 : L / 2 - 1.15), xc = xh - dl / 2, i0 = out.length, dz = W / 2 + .035, base = K.box ? 1.0 : K.tall ? .95 : .62;
       bx(g, out, body, dl, K.box ? .9 : .55, .06, xc, base, dz, true); bx(g, out, OM.glass, dl - .1, K.box ? .7 : .34, .03, xc, base + (K.box ? .85 : .5), dz - .01, true); bx(g, out, OM.steelL, .12, .04, .05, xc - dl / 2 + .15, base + .12, dz + .04, true);
       const lf = leaf(out, i0, xh, W / 2, 1), ca = Math.cos(1.15), sa = Math.sin(1.15);
       return { out, hx: L / 2, hz: W / 2, h: K.H, leaves: [lf], swing: 1.15, openBoxes: [{ lx: 0, lz: 0, hx: L / 2, hz: W / 2 }, { lx: xh - dl / 2 * ca, lz: W / 2 + dl / 2 * sa, hx: dl / 2 * ca + .05, hz: dl / 2 * sa + .05 }] };
+    }
+  });
+  /* ---- naturaleza y cobertura de campo: rocas, tronco caído, arbusto y seto (bosques, campos y patios) ---- */
+  OM.rock = sm(0x7b7d80, .95); OM.rockD = sm(0x5f6164, .95); OM.rockM = sm(0x6c6e66, .95);
+  const rockDef = (id, name, hx, hz, h, blobs, hp) => def(id, { name, cat: 'Naturaleza y cobertura', note: 'roca: cobertura dura, indestructible' }, {
+    mat: 'block', hp: hp || 1e7, push: false, mass: 800, fric: 9, build: g => {
+      const out = [];
+      blobs.forEach((b, i) => mkPiece(g, out, geoBall, [OM.rock, OM.rockD, OM.rockM][i % 3], b[3], b[4], b[5], b[0], b[4] * .8, b[1], false, [b[3] * 2, b[4] * 2, b[5] * 2]));
+      return { out, hx, hz, h };
+    }
+  });
+  rockDef('rockS', 'Roca pequeña', .75, .65, .95, [[0, 0, 0, .7, .55, .6], [.35, .15, 0, .4, .4, .35], [-.3, -.2, 0, .38, .32, .3]]);
+  rockDef('rockM', 'Roca mediana', 1.25, 1.0, 1.55, [[0, 0, 0, 1.1, .9, .9], [.7, .3, 0, .6, .65, .55], [-.6, -.35, 0, .55, .5, .5], [.1, .4, 0, .6, .7, .5]]);
+  rockDef('rockL', 'Peñasco', 1.9, 1.5, 2.3, [[0, 0, 0, 1.7, 1.4, 1.3], [1.0, .5, 0, .9, 1.0, .8], [-.9, -.5, 0, .85, .8, .75], [.2, .7, 0, .9, 1.1, .8], [-.2, -.9, 0, .7, .6, .6]]);
+  def('log', { name: 'Tronco caído', cat: 'Naturaleza y cobertura', note: 'cobertura baja de madera' }, {
+    mat: 'wood', hp: 260, push: false, mass: 200, fric: 9, build: g => {
+      const out = [], L = 4.0;
+      rot(log(g, out, OM.woodD, .42, L, 0, .42, 0, false), 0, 0, Math.PI / 2); rot(log(g, out, OM.woodF, .36, .08, L / 2 + .02, .42, 0, false), 0, 0, Math.PI / 2);
+      for (const [x, z, a] of [[-1.0, .3, .5], [.9, -.35, -.6], [.2, .38, .3]]) rot(log(g, out, OM.woodD, .08, 1.0, x, .62, z, true), a, 0, 0);
+      return { out, hx: L / 2 + .05, hz: .5, h: .86 };
+    }
+  });
+  def('bush', { name: 'Arbusto', cat: 'Naturaleza y cobertura', note: 'oculta (las balas lo atraviesan casi sin frenarse) y apenas cubre' }, {
+    mat: 'wood', hp: 35, push: false, mass: 10, fric: 9, pen: .85, build: g => {
+      let kk = 0; const rv = () => vrand(PAR().v | 0, kk++);
+      const out = []; for (let k = 0; k < 6; k++) mkPiece(g, out, geoBall, k % 2 ? OM.leaf : OM.leafD, .5 + rv() * .25, .45 + rv() * .2, .5 + rv() * .25, (rv() - .5) * 1.2, .45 + rv() * .35, (rv() - .5) * 1.0, true, [.6, .5, .6]);
+      return { out, hx: .85, hz: .75, h: 1.2 };
+    }
+  });
+  def('hedge', { name: 'Seto', cat: 'Naturaleza y cobertura', note: 'oculta y cubre poco: las balas lo atraviesan' }, {
+    mat: 'wood', hp: 60, push: false, mass: 30, fric: 9, pen: .8, build: g => {
+      let kk = 0; const rv = () => vrand(PAR().v | 0, kk++);
+      const out = []; bx(g, out, OM.woodD, 3.0, .12, .5, 0, .06, 0, false); for (let k = 0; k < 5; k++) bx(g, out, k % 2 ? OM.leaf : OM.leafD, .62, .95 + rv() * .25, .62, -1.2 + k * .6, .55 + rv() * .1, (rv() - .5) * .12, true);
+      return { out, hx: 1.5, hz: .35, h: 1.25 };
     }
   });
   def('stall', { name: 'Puesto de mercado', cat: 'Comercio y transporte' }, {

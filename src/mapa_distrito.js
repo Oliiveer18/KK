@@ -334,19 +334,32 @@ MAPA.data.M2 = function () {
   const treeOk = (x, z) => D.RI.gap(x, z) > 10 && D.occ.every(o => Math.abs(o.x - x) > o.hx + 5 || Math.abs(o.z - z) > o.hz + 5);
   for (const [x0, z0, x1, z1, name] of FOR) { let n = 0; surf('forest', (x0 + x1) / 2, (z0 + z1) / 2, x1 - x0, z1 - z0); zone(name, x0, z0, x1, z1);
     for (const k of KS(4)) { const [a, b] = R(k, x0, z0), [c, d] = R(k, x1, z1); D.info.blocks.push({ name: name + ' · ' + FN[k], x0: Math.min(a, c), z0: Math.min(b, d), x1: Math.max(a, c), z1: Math.max(b, d) }); }
-    const mine = [];
-    for (let tr = 0; tr < 5000 && n < 110; tr++) { const x = x0 + 6 + rng() * (x1 - x0 - 12), z = z0 + 6 + rng() * (z1 - z0 - 12); if (!treeOk(x, z)) continue; if (mine.some(t => Math.hypot(t[0] - x, t[1] - z) < 7.5)) continue;
-      const sc = +(.9 + rng() * .5).toFixed(2); mine.push([x, z]); for (const k of KS(4)) { const [a, b] = R(k, x, z); D.trees.push([+a.toFixed(1), +b.toFixed(1), sc]); } n++; } }
-  /* ---------- 10. cobertura garantizada (cuarto Azul, tras los bosques): ninguna celda transitable de 10 m a más de ~9 m de algo tras lo que cubrirse ---------- */
+    /* bosque con estructura: 3 claros (anillo de rocas, troncos y arbustos) unidos por senderos sin árboles, ~260 árboles de tres especies (conífera, frondoso y seco) en rodales,
+       y sotobosque (arbustos, rocas y troncos caídos) por todo el bosque: casi ningún punto queda a más de ~6 m de algo que cubra u oculte */
+    const oc = D.occ.filter(o => o.x > x0 - 14 && o.x < x1 + 14 && o.z > z0 - 14 && o.z < z1 + 14);
+    const okT = (x, z) => D.RI.gap(x, z) > 10 && oc.every(o => Math.abs(o.x - x) > o.hx + 5 || Math.abs(o.z - z) > o.hz + 5);
+    const cl = []; for (let t = 0; t < 600 && cl.length < 3; t++) { const x = x0 + 16 + rng() * (x1 - x0 - 32), z = z0 + 16 + rng() * (z1 - z0 - 32); if (okT(x, z) && cl.every(c => Math.hypot(c[0] - x, c[1] - z) > 38)) cl.push([x, z]); }
+    const trail = (x, z) => { for (let q = 0; q + 1 < cl.length; q++) { const [ax, az] = cl[q], [bx, bz] = cl[q + 1], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1; const u = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)); if (Math.hypot(x - (ax + dx * u), z - (az + dz * u)) < 2.4) return true; } return false; };
+    const mine = [], sp = (x, z) => rng() < .05 ? 2 : (Math.sin(x * .045 + 1.3) + Math.cos(z * .06 + .7)) > .55 ? 1 : 0;
+    for (let tr = 0; tr < 12000 && n < 260; tr++) { const x = x0 + 6 + rng() * (x1 - x0 - 12), z = z0 + 6 + rng() * (z1 - z0 - 12); if (!okT(x, z) || cl.some(c => Math.hypot(c[0] - x, c[1] - z) < 10) || trail(x, z)) continue; if (mine.some(t => Math.hypot(t[0] - x, t[1] - z) < 5.2)) continue;
+      const sc = +(.9 + rng() * .5).toFixed(2), spc = sp(x, z); mine.push([x, z]); for (const k of KS(4)) { const [a, b] = R(k, x, z); D.trees.push([+a.toFixed(1), +b.toFixed(1), sc, spc]); } n++; }
+    for (const [cx, cz] of cl) ringPut(cx, cz, [['rockM', 6.4, 0.5, 0], ['rockS', -5.8, 2.8, 0], ['rockL', -1.5, -7.4, 0], ['log', 2.4, 6.0, 0], ['log', -6.4, -3.4, H], ['bush', 4.6, -4.8, 0], ['bush', -3.8, 5.0, 0], ['bush', 7.4, 4.2, 0], ['rockS', 1.6, -5.2, 0]]);
+    let u = 0; const UT = ['bush', 'bush', 'bush', 'rockS', 'log', 'bush', 'rockM', 'log', 'bush', 'rockS', 'rockL'];
+    for (let tr = 0; tr < 900 && u < 170; tr++) { const x = x0 + 5 + rng() * (x1 - x0 - 10), z = z0 + 5 + rng() * (z1 - z0 - 10); if (D.RI.gap(x, z) < 8 || cl.some(c => Math.hypot(c[0] - x, c[1] - z) < 4.5) || trail(x, z) || D.trees.some(t => Math.abs(t[0] - x) < 2.6 && Math.abs(t[1] - z) < 2.6)) continue;
+      if (COMP.put(D, UT[Math.floor(rng() * UT.length)], x, z, rng() < .5 ? 0 : H, null, .2)) u++; } }
+  /* ---------- 10. cobertura garantizada (cuarto Azul, tras los bosques): ninguna celda transitable de 8 m a más de ~6 m de algo tras lo que cubrirse u ocultarse; las piezas son propias de cada zona ---------- */
   { const COV = ['crate', 'barrier', 'sandbags', 'blocks', 'palletBoxes', 'crate', 'barrier', 'dumpster', 'car', 'crateS'];
+    const BYZ = { Bosque: ['bush', 'rockS', 'bush', 'log', 'rockM'], Granja: ['hedge', 'crateS', 'palletBoxes', 'hedge', 'barrel', 'rockS', 'bush'], Aldea: ['hedge', 'crateS', 'palletBoxes', 'bush', 'barrel', 'rockS'],
+      Residencial: ['hedge', 'planter', 'bush', 'dumpster', 'wheelie', 'hedge', 'barrier'], Casco: ['barrier', 'jersey', 'dumpster', 'planter', 'blocks', 'car', 'crate'], Comercios: ['jersey', 'dumpster', 'stall', 'barrier', 'crate', 'planter'] };
     const isCov = o => !/^(reserva|plaza|aparcamiento|refugio|recinto)$/.test(o.t) && (o.hx > .45 || o.hz > .45);
     const covNear = (x, z, r) => D.occ.some(o => isCov(o) && Math.max(Math.abs(o.x - x) - o.hx, 0) ** 2 + Math.max(Math.abs(o.z - z) - o.hz, 0) ** 2 < r * r) || D.trees.some(t => (t[0] - x) ** 2 + (t[1] - z) ** 2 < r * r);
-    const cells = []; for (let x = -495; x < 0; x += 10) for (let z = -495; z <= 0; z += 10) cells.push([x + 5, z + 5]);
+    const cells = []; for (let x = -495; x < 0; x += 8) for (let z = -495; z <= 0; z += 8) cells.push([x + 4, z + 4]);
     for (let i = cells.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [cells[i], cells[j]] = [cells[j], cells[i]]; }
     let added = 0;
-    for (const [x, z] of cells) { if (x > -1 || z > -1 || !free(x, z, .5) || Math.hypot(x - RX, z - RZ) < 30 || covNear(x, z, 9)) continue;
-      const q = (() => { for (let r = 0; r <= 6; r += 1.5) for (let a = rng() * 6.28, k = 0; k < 8; k++, a += .785) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (Math.abs(px) < half - 6 && Math.abs(pz) < half - 6 && free(px, pz, 1.2) && D.RI.gap(px, pz) > 1.5) return [px, pz]; } return null; })();
-      if (q && COMP.put(D, COV[Math.floor(rng() * COV.length)], q[0], q[1], rng() < .5 ? 0 : H, null, .1)) added++; }
+    for (const [x, z] of cells) { if (added >= 1100) break; if (x > -1 || z > -1 || !free(x, z, .5) || Math.hypot(x - RX, z - RZ) < 30 || covNear(x, z, 6)) continue;
+      const q = (() => { for (let r = 0; r <= 5; r += 1.25) for (let a = rng() * 6.28, k = 0; k < 8; k++, a += .785) { const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (Math.abs(px) < half - 6 && Math.abs(pz) < half - 6 && free(px, pz, 1.2) && D.RI.gap(px, pz) > 1.5) return [px, pz]; } return null; })();
+      const zn = zoneAt(x, z), L = BYZ[Object.keys(BYZ).find(k => zn.startsWith(k))] || COV;
+      if (q && COMP.put(D, L[Math.floor(rng() * L.length)], q[0], q[1], rng() < .5 ? 0 : H, null, .1)) added++; }
     D.info.coverAdded = added * 4; }
   delete D.sym;
   return D;
