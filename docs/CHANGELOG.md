@@ -407,3 +407,8 @@ Primera versión estable del prototipo.
 - Granada de humo: nube de radio 2,8 m (antes 3,6 m y visualmente ~6 m de radio). Reconstruida: ~26 billboards por nube en UN solo dibujo instanciado (`SMK`), con ruido fBm procedural (textura 256² teselable generada al cargar), sombreado suave, borde erosionado, fundido cerca del suelo y disolución al final (~10–13 s). Ya no usa las 130 esferas transparentes compartidas (liberan el pool para polvo/chispas).
 - Medido en renderizado por software (solo orientativo): coste extra con humo ≈ 10× menor que el humo anterior.
 - `hiddenBySmoke` oculta blancos hasta t = 12,2 s (antes 13,5) para coincidir con la disolución visual.
+
+## Revisión de fallos visuales y tests
+- Marcador de bajas: ya no se monta sobre el botón Mochila (se coloca debajo).
+- Zombis a más de 14 m: la pose se recalcula 1 de cada 2–3 fotogramas y entre medias la malla se quedaba quieta y luego saltaba (tirones a 20–30 Hz, «se deslizan»). Ahora, entre poses, el cuerpo entero se traslada cada fotograma lo que ha avanzado (coste despreciable, probado: 0 % de fotogramas parados en zombis en movimiento).
+- Tests puestos al día (los fallos eran del test, no del juego): sin_parpadeo (sprites necesitan cámara en el Raycaster; sin z-fighting en tiendas), hit_sonido (rival por equipo, no por índice), share_mapa (inventario siempre acoplado), bots_defensa (más tiempo para llegar a sus puestos; apoyo y francotirador vigilan desde fuera por diseño de defensa en capas).

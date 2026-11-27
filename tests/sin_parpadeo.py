@@ -12,7 +12,7 @@ with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])
     pg = b.new_page(viewport={'width': 900, 'height': 500}); errs = []; pg.on('pageerror', lambda e: errs.append(str(e))); ev = pg.evaluate
     pg.goto('file://' + os.path.abspath('index.html') + '?mapa=6&nolazy'); pg.wait_for_timeout(1000); ev('begin()'); ev('()=>{menuOpen=true}')
-    r = ev('''()=>{scene.updateMatrixWorld(true);const rc=new THREE.Raycaster(),floor={},box=new THREE.Box3();
+    r = ev('''()=>{scene.updateMatrixWorld(true);const rc=new THREE.Raycaster(),floor={},box=new THREE.Box3(); rc.camera=camera;
       const SH=['super','mini','pharm','clinic','warehouse','station','gasshop'];
       for(const bd of OBJ.buildings){if(!SH.includes(bd.kind))continue;let n=0;
         for(let i=-6;i<=6;i++)for(let j=-6;j<=6;j++){const sw=Math.abs(Math.sin(bd.rot))>.5,hx=(sw?bd.D:bd.W)/2-.4,hz=(sw?bd.W:bd.D)/2-.4;

@@ -12,7 +12,7 @@ with sync_playwright() as p:
     pg.goto('file://' + os.path.abspath('index.html') + '?mapa=6'); pg.wait_for_timeout(1000); ev('begin()'); pg.wait_for_timeout(300)
     ev('''()=>{MX.pl.inv=1e9;MX.pl.hp=1e9;const pad={connected:true,mapping:'standard',axes:[0,0,0,0],buttons:Array.from({length:18},()=>({pressed:false,value:0}))};Object.defineProperty(navigator,'getGamepads',{configurable:true,value:()=>[pad]});window.PAD=pad;
       window.tap=i=>{pad.buttons[i].pressed=true;INVENTARIO.input();pad.buttons[i].pressed=false;INVENTARIO.input()}}''')
-    ev('tap(8)'); r = ev('()=>{const d=document.querySelector("dialog[open]");return {map:MX.mapOpen,bag:!!d,dock:!!d&&d.classList.contains("dock"),range:RANGE.on,txt:d?d.textContent.slice(0,30):""}}')
+    ev('tap(8)'); r = ev('()=>{const d=document.querySelector("dialog[open]");return {map:MX.mapOpen,bag:!!d,dock:!!d&&d.classList.contains("inv"),range:RANGE.on,txt:d?d.textContent.slice(0,30):""}}')
     print(r)
     chk(r['map'] and r['bag'] and r['dock'], 'Share abre el mapa táctico con el inventario al lado («%s»)' % r['txt'])
     chk(not r['range'], 'en campaña Share no abre el polígono de tiro')

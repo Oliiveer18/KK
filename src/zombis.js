@@ -547,6 +547,7 @@ function pointsTick() {
 }
 let nearZ = 0, heatT = 0;
 const ZS = [], CAND = [], VIS = []; let gridGC = 0, ZF = 0;
+MX.zom.IM = IM; MX.zom.MUL = MUL;   /* para pruebas: matrices dibujadas */
 MX.zom.update = dt => {
   ZF++; PT.t -= dt; if (PT.t <= 0) { PT.t = 1; pointsTick(); }
   ZGDIRTY = true;                                                                    // la rejilla de balas se rehace solo cuando alguien la consulta (a lo sumo una vez por fotograma)
@@ -583,7 +584,9 @@ MX.zom.update = dt => {
     /* animación con frecuencia por distancia: a < 14 m cada fotograma; 14–28 m uno de cada 2; más lejos, uno de cada 3 (las matrices de instancia se conservan entre fotogramas; la marcha va anclada a la
        distancia, así que no se nota). Un zombi recién dibujado se posa en el acto. */
     const k3 = z.d2 < 196 ? 1 : z.d2 < 784 ? 2 : 3;
-    if (z.fresh || k3 === 1 || (ZF + z.k3) % k3 === 0) { pose(z, dt * (z.fresh ? 1 : k3)); z.fresh = false; } }
+    if (z.fresh || k3 === 1 || (ZF + z.k3) % k3 === 0) { pose(z, dt * (z.fresh ? 1 : k3)); z.px = z.p.x; z.pz = z.p.z; z.fresh = false; }
+    else { const dx = z.p.x - z.px, dz = z.p.z - z.pz;   /* sin recolocar la pose: sólo se desplaza el cuerpo entero lo que ha avanzado (traslación exacta de cada pieza); antes se quedaba quieto 1–2 fotogramas y luego saltaba (tirones a 20–30 Hz) */
+      if (dx * dx + dz * dz > 1e-10) { z.px = z.p.x; z.pz = z.p.z; for (let q = 0; q < KL.length; q++) { const k = KL[q], n = MUL[k], a = IM[k].instanceMatrix.array; for (let j = 0, o = z.ri * n * 16 + 12; j < n; j++, o += 16) { a[o] += dx; a[o + 2] += dz; } } } } }
   visiblePoses = vis; visN = vn;
   let mx = 0; for (let i = RMAX - 1; i >= 0; i--) if (SLOT.used[i]) { mx = i + 1; break; }
   slotMax = mx;
