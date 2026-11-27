@@ -1,3 +1,5 @@
+> **Escala (27-11):** el generador usa `ESC = 0,75` (mapa de 750 × 750 m, `?escala=1` = 1 km). Las coordenadas de este documento son las del diseño de 1 km; en el mapa real pasan por `P()` (×0,75 dentro de la ronda exterior; fuera, los primeros 60 m se conservan y el resto se comprime). Refugio Azul real: (−346, −334); Plaza (0,0); Fábrica (0, −331); Estación (−336, 0).
+
 # Distrito v3 (simétrico) — ubicaciones oficiales (generado por `tools/foto_distrito.py`; no editar a mano)
 
 Coordenadas del mundo en metros: **x** hacia la derecha (este), **z** hacia abajo (sur); norte arriba; el centro del mapa es (0, 0) y el mapa va de −500 a +500. La foto `docs/img/distrito_v3.png` es un dibujo del propio juego (cámara ortográfica sobre los datos reales) con una retícula cada 125 m (línea gruesa cada 250 m): lo que ves ahí es lo que hay en el juego, en ese sitio. Ampliaciones: `distrito_v3_azul_noroeste.png`, `_rojo_noreste`, `_violeta_sureste`, `_ambar_suroeste`, `_centro` (retícula cada 25 m). Los mismos datos están en `MAPA.data.M2` (`src/mapa_distrito.js`).

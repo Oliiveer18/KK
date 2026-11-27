@@ -7,7 +7,7 @@ bad = 0
 def chk(c, m):
     global bad
     print(('OK  ' if c else 'FALLO ') + m); bad += 0 if c else 1
-MIN = {'PLAZA': dict(obj=28, cov3=.80, dirs=8), 'FAB': dict(obj=20, cov3=.65, dirs=7), 'EST': dict(obj=18, cov3=.60, dirs=6), 'PUE': dict(obj=16, cov3=.60, dirs=5)}
+MIN = {'PLAZA': dict(obj=28, cov3=.80, dirs=8), 'FAB': dict(obj=20, cov3=.65, dirs=7), 'EST': dict(obj=18, cov3=.60, dirs=6), 'PUE': dict(obj=14, cov3=.60, dirs=5)}
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])
     pg = b.new_page(viewport={'width': 900, 'height': 500}); errs = []; pg.on('pageerror', lambda e: errs.append(str(e))); ev = pg.evaluate

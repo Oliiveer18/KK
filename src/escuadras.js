@@ -103,7 +103,8 @@ function assignMission(s) {
     const own = pl.own[t]; const pue = own.find(p => p.id === 'PUE'); tg = lost || ((s.n % 2 === 1 && pue) ? pue : own[(rnd() * own.length) | 0] || ref); }
   else if (type === 'attack') {                                                      // objetivos comunes que no son nuestros; si los tenemos todos, el puesto avanzado enemigo más cercano
     const ob = SQ.objs.length ? SQ.objs.filter(o => o.shared && o.owner !== t) : pl.shared, alt = SQ.objs.filter(o => o.id === 'PUE' && o.owner !== t);
-    const c = (ob.length ? ob : alt.length ? alt : pl.shared).map(p => ({ p, d: dist(p, ref) + rnd() * 120 + (p.id === 'PLAZA' ? 60 : 0) })).sort((a, b) => a.d - b.d); tg = c.length ? c[0].p : ref; }
+    const c = (ob.length ? ob : alt.length ? alt : pl.shared).map(p => ({ p, d: dist(p, ref) + rnd() * 120 + (p.id === 'PLAZA' ? 60 : 0) })).sort((a, b) => a.d - b.d); tg = c.length ? c[0].p : ref;
+    const lf = SQ.lastFoe && SQ.lastFoe[t]; if (lf && M.t - lf.t < 150 && rnd() < .6) { const q = navNear(lf.x, lf.z); if (q) tg = { x: q.x, z: q.z, name: 'último contacto' }; } }   // a menudo ataca hacia donde se vio al enemigo: los encuentros se buscan, no se esperan
   else if (type === 'recon') { const c = pl.all.filter(p => dist(p, ref) < 520 && dist(p, ref) > 40); tg = c.length ? c[(rnd() * c.length) | 0] : ref; }
   else tg = ref;
   s.mission = { type, x: tg.x, z: tg.z, name: tg.name || '' }; s.missionT = M.t; s.ap = null;
@@ -214,6 +215,7 @@ function bound(s, e, m) {
 SQ.contact = (e, seen) => {                                                          // un miembro ve a un enemigo: la escuadra lo sabe (radio de 60 m alrededor del líder)
   const s = e.sqd; if (!s || !seen || !seen.p || seen.team === undefined) return;
   s.contact = { x: seen.p.x, z: seen.p.z, t: M.t, by: e, foe: seen };
+  if (seen.team !== e.team) { SQ.lastFoe = SQ.lastFoe || []; SQ.lastFoe[e.team] = { x: seen.p.x, z: seen.p.z, t: M.t, name: 'contacto' }; }   // último enemigo de otra facción visto por cualquier escuadra de este equipo
 };
 MX.bulletPass = (b, x0, z0, x1, z1) => {                                             // supresión: balas que pasan a < 2,5 m de alguien de otra facción
   if (!MX.campaign) return; const own = b.own || MX.pl, team = own ? own.team : 0, dx = x1 - x0, dz = z1 - z0, L2 = dx * dx + dz * dz || 1;

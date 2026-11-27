@@ -1,5 +1,13 @@
 # Changelog
 
+## Mapa de 750 × 750 m (27-11)
+- **Escala única** `ESC` en el generador (`src/mapa_distrito.js`, `?escala=1` devuelve el mapa de 1 km): las posiciones del diseño (calles, refugios, zonas, objetivos) pasan por `P()`; los edificios y objetos conservan su tamaño. Dentro de la ronda exterior todo ×0,75; fuera de ella los primeros 60 m (portones, patios, recintos) no se tocan y el resto se comprime hasta el borde.
+- Refugio → Plaza: 618 → 481 m en línea recta (ruta 452 m); refugio → objetivo de borde vecino 445 → 346 m. Props 22.211 → 14.885, edificios 436 → 308 (menos memoria y menos mallas dormidas).
+- Escuadras de ataque: con 60 % de probabilidad van hacia el último contacto enemigo visto por su equipo (hasta 150 s) en vez de a un objetivo fijo.
+- Zombis: densidad por zona ×0,75, objetivo de población 1.250 (incluye guarniciones), 12 hordas (3 sitios × 4 giros) con posiciones según la escala.
+- Guarnición de puntos: 150 en la Plaza y 50 en los demás (60 % al empezar, 100 % con la meta cerca); la dificultad sube solo con los puntos de la mejor facción.
+- Pendiente: los 4 puntos de borde nuevos (no se han añadido: los objetivos de borde actuales ya son comunes a dos refugios vecinos) y medir FPS en iPhone.
+
 ## Fase B: 50 combatientes por facción (200 en total) (27-11)
 - **Por defecto 50 por facción** (antes 25; `?bots=N` de 4 a 50): 12 escuadras por facción con la misma composición (2,2,3,3,4,4,5,5,5,5,6,6).
 - **Bots dibujados por instanciación** (`BI`, `src/partida.js`): cada bot eran ~42 mallas (~100 llamadas de dibujo con su sombra). La figura se monta y se posa igual sobre un grupo suelto fuera de la escena y cada fotograma sus mallas visibles se copian a mallas instanciadas por (geometría, material). Con 40 bots a la vista: **3.824 → 676 llamadas de dibujo**, constantes. Imagen equivalente (0,08 % de píxeles distintos > 16, sólo bordes de sombra). El equipo de los bots con la misma facción comparte geometría (3.184 geometrías únicas → 0). `?noinstbot` lo desactiva.
