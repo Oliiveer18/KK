@@ -447,10 +447,10 @@ function zbMake() {
 }
 const _bp = new V3(), BAR_GAP = .5;                                                // misma separación sobre la coronilla que las barras de los combatientes: la barra sigue a la CABEZA real (que va adelantada al ir encorvados), no a los pies
 
-let barList = [];
+let barList = [], zbDsp = '';
 const BARZ = [];                                                                      // zombis heridos en los últimos 4 s (candidatos a barra de vida): antes updBars recorría los ~1.600 cada fotograma
 function updBars(dt) {
-  zbHold.style.display = MX.on && MX.campaign ? 'block' : 'none'; let n = 0; barList = [];
+  { const dsp = MX.on && MX.campaign ? 'block' : 'none'; if (dsp !== zbDsp) { zbDsp = dsp; zbHold.style.display = dsp; } } let n = 0; barList.length = 0;
   for (let i_z = BARZ.length - 1; i_z >= 0; i_z--) { const z = BARZ[i_z]; if (z.dead || M.t - z.brk > 4) { z.inBar = false; BARZ[i_z] = BARZ[BARZ.length - 1]; BARZ.pop(); } }
   for (let i_z = 0; i_z < BARZ.length; i_z++) { const z = BARZ[i_z];
     if (z.dead || n >= 14) continue; const age = M.t - z.brk; if (age > 4) continue;
@@ -503,7 +503,7 @@ MX.zom.perfHook = w => { restock = w(restock, 'z.restock'); updBars = w(updBars,
 const ZG = new Map(), ZGOFF = /[?&]nozgrid\b/.test(location.search), _zc = [];
 const zgk = (ix, iz) => ((ix + 160) << 10) | (iz + 160);
 let ZGDIRTY = true;
-function zgBuild() { ZGDIRTY = false; for (const a of ZG.values()) a.n = 0; for (let i = 0; i < Z.length; i++) { const z = Z[i]; if (z.dead) continue; const k = zgk(Math.floor(z.p.x / 4), Math.floor(z.p.z / 4)); let a = ZG.get(k); if (!a) { a = []; a.n = 0; ZG.set(k, a); } a[a.n++] = z; } }
+function zgBuild() { ZGDIRTY = false; for (const a of ZG.values()) a.n = 0; for (let i = 0; i < Z.length; i++) { const z = Z[i]; if (z.dead || !z.near) continue; const k = zgk(Math.floor(z.p.x / 4), Math.floor(z.p.z / 4)); let a = ZG.get(k); if (!a) { a = []; a.n = 0; ZG.set(k, a); } a[a.n++] = z; } }
 MX.zom.cand = (ox, oz, dx, dz, d0, d1) => {
   if (ZGOFF) return Z; if (ZGDIRTY) zgBuild(); const ax = ox + dx * d0, az = oz + dz * d0, bx = ox + dx * d1, bz = oz + dz * d1, out = _zc; out.length = 0;
   const x0 = Math.floor((Math.min(ax, bx) - 3) / 4), x1 = Math.floor((Math.max(ax, bx) + 3) / 4), z0 = Math.floor((Math.min(az, bz) - 3) / 4), z1 = Math.floor((Math.max(az, bz) + 3) / 4);

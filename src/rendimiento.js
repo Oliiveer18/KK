@@ -32,7 +32,7 @@ const PERF = (() => {
   function tag(nm) { if (off) return; const t = performance.now(); tags.push([t, nm]); if (tags.length > 40) tags.shift(); }
   /* RESOLUCIÓN DINÁMICA DE SEGURIDAD (solo si no se llega a 60 fps de forma sostenida): el 90 % de los últimos 90 fotogramas > 18,5 ms durante 2 s baja la resolución un 10 % (mínimo 80 %); con el 90 % < 15,5 ms
      durante 8 s sube otro 10 %. Un cambio como máximo cada 4 s (cada cambio recrea los búferes). No actúa a 30 Hz (ahorro de energía), con la pestaña oculta ni en los primeros 6 s. ?nodinres la desactiva. */
-  const DR = { on: !/[?&]nodinres\b/.test(location.search), base: 0, cur: 0, buf: new Float32Array(90), i: 0, n: 0, bad: 0, good: 0, t: 0, last: 0 };
+  const DR = { on: !/[?&]nodinres\b/.test(location.search) && !navigator.webdriver, /* desactivada en navegadores automatizados: las pruebas comparan imágenes píxel a píxel */ base: 0, cur: 0, buf: new Float32Array(90), i: 0, n: 0, bad: 0, good: 0, t: 0, last: 0 };
   function dinRes(now, d) {
     if (!DR.on || typeof renderer === 'undefined') return; if (!DR.base) DR.base = DR.cur = renderer.getPixelRatio();
     DR.buf[DR.i] = d; DR.i = (DR.i + 1) % 90; if (DR.n < 90) DR.n++; if (DR.n < 90 || now - started < 6000 || lowPower) return;

@@ -10,17 +10,17 @@ def chk(c, m):
     global bad
     print(('OK  ' if c else 'FALLO ') + m); bad += 0 if c else 1
 ARGS = ['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--js-flags=--expose-gc']
-PUNTOS = [(-445, -445), (-445, -400), (0, -312), (-30, -30), (0, 0), (-330, -440), (0, -430), (-430, 0), (250, 250), (-187, -187), (380, -200), (-495, 0)]
+PUNTOS = [(-340, -340), (-340, -300), (0, -234), (-30, -30), (0, 0), (-250, -330), (0, -331), (-336, 0), (190, 190), (-140, -140), (285, -150), (-365, 0)]   # mapa de 750 m (antes 1 km)
 def medir(p, q):
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=ARGS); pg = b.new_page(viewport={'width': 900, 'height': 500}); errs = []; pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.goto('file://' + os.path.abspath('index.html') + '?mapa=6' + q); pg.wait_for_timeout(1200); pg.evaluate('begin()'); pg.wait_for_timeout(2500)
+    pg.goto('file://' + os.path.abspath('index.html') + '?mapa=6&nodinres' + q); pg.wait_for_timeout(1200); pg.evaluate('begin()'); pg.wait_for_timeout(2500)
     r = pg.evaluate('''()=>{ window.__R=renderer.render.bind(renderer); renderer.render=()=>{}; let n=0; scene.traverse(()=>n++); gc(); gc(); return {nodos:n, heap:Math.round(performance.memory.usedJSHeapSize/1e6), congelados:MAPA.built.sectors.filter(s=>s.__fz).length} }''')
     return b, pg, r, errs
 with sync_playwright() as p:
     b0, pg0, ref, e0 = medir(p, '&nostream'); b0.close()
     b, pg, r, errs = medir(p, ''); ev = pg.evaluate
     print('sin streaming:', ref, '\ncon streaming:', r)
-    chk(r['congelados'] > 900, 'casi todos los sectores están congelados al empezar (%d de 1024)' % r['congelados'])
+    chk(r['congelados'] > 500, 'casi todos los sectores están congelados al empezar (%d de 576)' % r['congelados'])
     chk(r['nodos'] < ref['nodos'] * .6, 'muchos menos nodos de Three.js (%d → %d)' % (ref['nodos'], r['nodos']))
     chk(r['heap'] < ref['heap'] - 40, 'menos memoria JS tras recoger basura (%d → %d MB)' % (ref['heap'], r['heap']))
     ev('''()=>{ for(const el of [...document.body.children]){if(el!==renderer.domElement)el.style.visibility='hidden'}; menuOpen=true; window.__off=camera.position.clone().sub(P.pos) }''')
@@ -49,6 +49,6 @@ with sync_playwright() as p:
       return {viscong, maxCreadosPorFotograma:maxT, maxCongeladosPorFotograma:maxF, vivosAlFinal:cnt()} }''')
     print(r3)
     chk(r3['viscong'] == 0, 'recorriendo 600 m nunca queda un sector visible congelado')
-    chk(r3['vivosAlFinal'] < 150, 'sólo hay vivos los sectores cercanos a la cámara (%d de 1024)' % r3['vivosAlFinal'])
+    chk(r3['vivosAlFinal'] < 150, 'sólo hay vivos los sectores cercanos a la cámara (%d de 576)' % r3['vivosAlFinal'])
     chk(not errs and not e0, 'sin errores JS ' + str((errs + e0)[:2]))
 sys.exit(1 if bad else 0)

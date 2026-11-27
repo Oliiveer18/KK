@@ -307,7 +307,7 @@ function lzMerge(list) {                                                        
   out.setIndex(new THREE.BufferAttribute(idx, 1)); return out;
 }
 function lzIntact(p) {
-  return !p.dead && !p.lz && p.hp === p.maxHp && !p.stage && !(p.decals && p.decals.length) && !p.burning && !(p.burnT > 0) && !(p.holes && p.holes.length) && !p.charred
+  return !p.dead && !p.lz && !p.stage && !(p.decals && p.decals.length) && !p.burning && !(p.burnT > 0) && !(p.holes && p.holes.length) && !p.charred
     && p.wob < .001 && p.v.lengthSq() < 1e-8 && !p.alarmOn && p.g.scale.y === 1 && p.g.parent && (!p.o || !p.o.leaves || p.oT === 0 || p.oT === 1) && PSPEC[p.type] && p.seed !== undefined;
 }
 const lzPKey = v => v && typeof v === 'object' ? (v.uuid || Object.keys(v).sort().map(k => k + ':' + lzPKey(v[k])).join(';')) : String(v);
@@ -378,14 +378,24 @@ MAPA.post = function (step) {
   if ((all || step === 'instance') && !/nolazy|noinst/.test(q)) out.inst = MAPA.instance(out.sectors);
 };
 MAPA.wake = function (p) {                                                          // vuelve a poner las piezas reales (idénticas) de un objeto fusionado
-  const L = p && p.lz; if (!L) return; p.lz = null; AWAKE.add(p);
+  const L = p && p.lz; if (!L) return; p.lz = null; AWAKE.add(p); p._wk = performance.now();
   for (const it of L.inst || []) { _Z4.toArray(it.b.arr, it.i * 16); if (it.b.im) it.b.im.instanceMatrix.needsUpdate = true; }   // su copia en el lote se oculta (escala 0), con el sector vivo o congelado
   for (const m of L.merged) p.g.remove(m); for (const o of L.kept) if (o.parent) o.parent.remove(o);
   OBJ.rebuild(p); if (MAPA.canon) MAPA.canon(p.g); p.g.updateMatrixWorld(true);
 };
 /* ganchos: cualquier cosa que vaya a tocar las piezas de un objeto lo despierta antes (se instalan por fuera de los de objetos.js) */
 (function () {
-  const wrapP = name => { const f = window[name]; if (typeof f !== 'function') return; window[name] = function (p) { if (p && p.lz) MAPA.wake(p); return f.apply(this, arguments); }; };
+  /* OBJETOS LEJANOS: a más de 60 m del jugador (la niebla acaba a 58 m) nadie ve un decal, un empujón ni un hueco: un objeto dormido NO se despierta por eso. Los impactos de bala y los daños pequeños solo
+     restan vida (la bala se detiene en él); en cuanto le quede ≤ 50 % o sea explosivo/fluido/fuego, se despierta y se trata como siempre. Antes cada bala o explosión lejana despertaba su objeto para siempre. */
+  const far = p => { const dx = p.x - P.pos.x, dz = p.z - P.pos.z; return dx * dx + dz * dz > 3600; };
+  const safe = p => p && p.lz && !p.explosive && !(p.fluid > 0) && far(p);
+  const wrapP = name => { const f = window[name]; if (typeof f !== 'function') return; window[name] = function (p) {
+    if (p && p.lz) { if (safe(p)) {
+      if (name === 'holeDecal' || name === 'addDecal' || name === 'shedPieces' || name === 'launchPiece' || name === 'pushProp') return;
+      if (name === 'bulletHitProp' && p.hp - arguments[6] > p.maxHp * .5) { p.hp -= arguments[6]; return 0; }
+      if (name === 'damageProp' && arguments[6] !== 'fire' && p.hp - arguments[1] > p.maxHp * .5) { p.hp -= arguments[1]; return; } }
+      MAPA.wake(p); }
+    return f.apply(this, arguments); }; };
   for (const n of ['damageProp', 'destroyProp', 'bulletHitProp', 'holeDecal', 'addDecal', 'shedPieces', 'barrelBurst', 'launchPiece', 'pushProp']) wrapP(n);   /* empujar: la copia del lote no se movería */
   if (typeof OBJ !== 'undefined') { const so = OBJ.setOpen; OBJ.setOpen = function (p) { if (p && p.lz) MAPA.wake(p); return so.apply(this, arguments); };
     const ro = OBJ.removeObject; OBJ.removeObject = function (r) { if (r && r.lz) MAPA.wake(r); return ro.apply(this, arguments); }; }
@@ -424,8 +434,22 @@ MAPA.freezeAll = function () { const b = MAPA.built; if (!b || !b.sectors || ST.
 MAPA.thawAll = function () { const b = MAPA.built; if (!b || !b.sectors) return 0; let n = 0; for (const S of b.sectors) if (S.__fz) { thawSector(S); n++; } return n; };
 MAPA.stream = ST;
 const _sr = new THREE.Ray(), _sd = new THREE.Vector3(), _st = new THREE.Vector3();
+/* RE-DORMIR: cualquier toque despierta un objeto (sus piezas reales vuelven al grafo de escena y a AWAKE, que se recorre cada fotograma). En combate se despertaban ~6 por segundo y nunca volvían a dormir:
+   tras 3 min, 1.159 objetos y +17.000 nodos de escena (memoria, recolector y más trabajo por fotograma). Cada 1,5 s, los despiertos hace > 10 s que están quietos, sin estado visual propio (sin agujeros,
+   decals, etapa de daño, fuego, humo ni mecha) se sueldan otra vez (máx. 16 por pasada; la receta ya está en caché, así que es barato). */
+MAPA.resleep = function () {
+  const now = performance.now(); let n = 0, tmp = null;
+  for (const p of AWAKE) {
+    if (n >= 16) break; if (p.lz || p.dead || !p._wk || now - p._wk < 10000) continue;
+    if (p.stage || p.smk || p.fuse >= 0 || p.burning || p.burnT > 0 || p.charred || (p.decals && p.decals.length) || (p.holes && p.holes.length) || p.explosive && p.fuse !== undefined && p.fuse >= 0) continue;
+    if (!(p.wob < .001) || p.v.lengthSq() > 1e-8 || (p.o && (p.o.lamp || p.o.leaves))) continue;
+    (tmp || (tmp = [])).push(p); n++;
+  }
+  if (tmp) MAPA.lazify(tmp);
+};
 MAPA.cull = function (cam) {
   const b = MAPA.built; if (!b || !b.sectors || MAPA.noCull) return;
+  if ((ST.sw = (ST.sw || 0) + 1) >= 90) { ST.sw = 0; if (!/nolazy|noresleep/.test(location.search)) MAPA.resleep(); }
   cam.updateMatrixWorld(); _pm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); _fr.setFromProjectionMatrix(_pm);
   if (typeof P !== 'undefined') MAPA.canopy.value.set(P.pos.x, P.pos.z + 3.4, 6.5);                          // copas que se desvanecen cerca del jugador (y entre él y la cámara)
   let tx = cam.position.x, tz = cam.position.z;                                                              // punto del suelo hacia el que mira la cámara
