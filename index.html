@@ -188,9 +188,11 @@ boxes.push = function () { const r = Array.prototype.push.apply(this, arguments)
 boxes.splice = function () { const rem = Array.prototype.splice.apply(this, arguments); for (const b of rem) _bDel(b); for (let i = 2; i < arguments.length; i++) _bAdd(arguments[i]); _bSync(); return rem; };
 function boxMoved(b) { if (!b._g) return; const cs = BOXG.cs, g = b._g; if (Math.floor((b.x - b.hx) / cs) !== g[0] || Math.floor((b.x + b.hx) / cs) !== g[1] || Math.floor((b.z - b.hz) / cs) !== g[2] || Math.floor((b.z + b.hz) / cs) !== g[3]) { _bDel(b); _bAdd(b); } else BOXG.markNav?.(g); }
 function boxesIn(x0, z0, x1, z1) {
-  _bSync(); const cs = BOXG.cs, out = BOXG.pool[BOXG.pi = (BOXG.pi + 1) % BOXG.pool.length]; out.length = 0; const st = ++BOXG.st;
+  _bSync(); const cs = BOXG.cs;
   if (x1 < x0) { const t = x0; x0 = x1; x1 = t; } if (z1 < z0) { const t = z0; z0 = z1; z1 = t; }
   const i0 = Math.floor(x0 / cs), i1 = Math.floor(x1 / cs), j0 = Math.floor(z0 / cs), j1 = Math.floor(z1 / cs);
+  if (i0 === i1 && j0 === j1) return BOXG.m.get(_bk(i0, j0)) || _bEmpty;                               // rectángulo dentro de una sola celda (lo habitual): se devuelve la propia celda, sin copiar (solo lectura)
+  const out = BOXG.pool[BOXG.pi = (BOXG.pi + 1) % BOXG.pool.length]; out.length = 0; const st = ++BOXG.st;
   if ((i1 - i0 + 1) * (j1 - j0 + 1) > BOXG.m.size) { for (const b of boxes) out.push(b); return out; }          // rectángulo enorme: más barato recorrerlas todas
   for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const a = BOXG.m.get(_bk(i, j)); if (a) for (const b of a) if (b._s !== st) { b._s = st; out.push(b); } }
   return out;
@@ -892,18 +894,19 @@ function bulletEnd(b, t, red, quiet) {                                          
   if (!red && Math.random() < .15) later(.06, () => playAt('IMP_ricochet', hx, hz, { vol: .7 }));
   for (let i = 0; i < 6; i++) spawn(red ? 'red' : 'spark', tmp, tmp2.set((Math.random() - .5) * 5 - b.dx * 2, Math.random() * 4, (Math.random() - .5) * 5 - b.dz * 2), .35, .04, .04, .04, true, 8);
 }
+const _BL = [], _bE = [], _cmpT = (a, c) => a.t - c.t;                                  // buffers reutilizables de updateBullets (sin arrays ni cierres nuevos por bala y fotograma)
 function updateBullets(dt) {
   for (const b of BUL) {
     if (!b.on) continue;
     const bl = b.w.bal, sp = b.v * (1 - bl.drag * Math.min(1, b.d / bl.max)), d0 = b.d, d1 = Math.min(b.d + sp * dt, bl.max); b.age += dt;
     if (MX.on && MX.bulletPass) MX.bulletPass(b, b.ox + b.dx * d0, b.oz + b.dz * d0, b.ox + b.dx * d1, b.oz + b.dz * d1);   // supresión (escuadras.js)
-    const L = [];                                                                    // colisión continua: todo lo que cruza el tramo recorrido en este fotograma
+    const L = _BL; L.length = 0;                                                     // colisión continua: todo lo que cruza el tramo recorrido en este fotograma (array reutilizado)
     for (const bx of boxesIn(b.ox + b.dx * d0, b.oz + b.dz * d0, b.ox + b.dx * d1, b.oz + b.dz * d1)) { if (bx.prop && ((bx.prop === b.cover && coverPass(bx.prop, b.ox, b.oz, b.dx, b.dz, b.stand)) || b.passed.has(bx.prop))) continue;
       if (bx.prop && isParapet(bx.prop) && bx.prop !== b.cover && parapetExposed(bx.prop, b)) { b.passed.add(bx.prop); continue; }   /* alguien de pie justo detrás: expuesto de hombros arriba */ const r = rayBox2(b.ox, b.oz, b.dx, b.dz, bx); if (r && r[0] <= d1 && r[1] >= d0) L.push({ t: Math.max(r[0], d0), t2: r[1], bx }); }
     for (const tg of targets) { if (tg.hp <= 0) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, tg.g.position.x, tg.g.position.z, .42); if (tc >= d0 && tc <= d1) L.push({ t: tc, tg }); }
     if (MX.on && MX.zom) for (let i_zc = 0, ZC = MX.zom.cand ? MX.zom.cand(b.ox, b.oz, b.dx, b.dz, d0, d1) : MX.zom.list; i_zc < ZC.length; i_zc++) { const z = ZC[i_zc]; if (z.dead) continue; const tc = MX.dataId==='M2' ? MX.zom.hitDistance(z,b.ox,b.oz,b.dx,b.dz,d0,d1) : rayCircle(b.ox,b.oz,b.dx,b.dz,z.p.x,z.p.z,z.r); if (tc >= d0 && tc <= d1) L.push({ t: tc, zom: z }); }   // zombis (campaña)
-    if (MX.on) for (const e of MX.ents) { if (e.dead || e.inv > 0 || e.team === (b.own ? b.own.team : 0)) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, e.p.x, e.p.z, .36); if (tc >= d0 && tc <= d1) L.push({ t: tc, ent: e }); }   // jugadores y bots de la partida
-    L.sort((a, c) => a.t - c.t);
+    if (MX.on) for (let ie = 0, nE = MX.entRectN(Math.min(b.ox + b.dx * d0, b.ox + b.dx * d1) - .6, Math.min(b.oz + b.dz * d0, b.oz + b.dz * d1) - .6, Math.max(b.ox + b.dx * d0, b.ox + b.dx * d1) + .6, Math.max(b.oz + b.dz * d0, b.oz + b.dz * d1) + .6, _bE), EA = MX.gridArr(); ie < nE; ie++) { const e = EA[ie]; if (e.dead || e.inv > 0 || e.team === (b.own ? b.own.team : 0)) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, e.p.x, e.p.z, .36); if (tc >= d0 && tc <= d1) L.push({ t: tc, ent: e }); }   // jugadores y bots de la partida
+    if (L.length > 1) L.sort(_cmpT);
     let ended = false;
     for (const h of L) {
       const fall = bFall(b.w, h.t);
@@ -5917,6 +5920,7 @@ MX.perfHook = w => {                                                            
   const rs = respawn, kl = kill; respawn = function () { PERF.tag('reaparece'); return rs.apply(this, arguments); }; kill = function () { PERF.tag('baja'); return kl.apply(this, arguments); };
 };
 MX.poseBot = poseBot;
+MX.entRectN = (x0, z0, x1, z1, out) => gridRectN(GRID.E, M.ents, x0, z0, x1, z1, out); MX.gridArr = () => GRID.arr;   // combatientes junto a un tramo (balas): cuenta + MX.gridArr()
 MX.shootBot = e => shoot(e); MX.setWeapon = (e, i) => setWeapon(e, i); MX.WI = WI; MX.tryEquip = tryEquip; MX.P = P;
 function bake(e, dx, dz) {                                                           // al morir, el cuerpo cae como un bloque alrededor de los pies
   const r = e.root, px = e.p.x, pz = e.p.z; r.position.set(px, 0, pz);
@@ -6873,7 +6877,7 @@ MX.zom = { list: Z, count: () => nAlive || Z.filter(z => !z.dead).length, noise,
 /* ---- daño ---- */
 function hitZ(z, dmg, from, dx, dz, w, quiet) {
   if (z.dead) return;
-  z.hp -= dmg; z.stag = 1; z.brk = M.t; const l = Math.sqrt((dx) * (dx) + (dz) * (dz)) || 1; z.v.x += dx / l * 1.2; z.v.z += dz / l * 1.2;
+  z.hp -= dmg; z.stag = 1; z.brk = M.t; if (!z.inBar) { z.inBar = true; BARZ.push(z); } const l = Math.sqrt((dx) * (dx) + (dz) * (dz)) || 1; z.v.x += dx / l * 1.2; z.v.z += dz / l * 1.2;
   if (from && from.p && z.st !== 'chase' && z.st !== 'attack') { z.tgt = from; z.st = 'chase'; z.tgtT = M.t; alertNear(z, from); }
   const pl = from && from.isPlayer; if (pl && MX.popNum) MX.popNum(z, dmg);
   for (let i = 0; i < 3; i++) spawn('red', _gp.set(z.p.x, 1, z.p.z), _gv.set((Math.random() - .5) * 3 + dx / l, 1 + Math.random() * 2, (Math.random() - .5) * 3 + dz / l), .35, .035, .035, .035, true, 8);
@@ -7171,9 +7175,11 @@ function zbMake() {
 const _bp = new V3(), BAR_GAP = .5;                                                // misma separación sobre la coronilla que las barras de los combatientes: la barra sigue a la CABEZA real (que va adelantada al ir encorvados), no a los pies
 
 let barList = [];
+const BARZ = [];                                                                      // zombis heridos en los últimos 4 s (candidatos a barra de vida): antes updBars recorría los ~1.600 cada fotograma
 function updBars(dt) {
   zbHold.style.display = MX.on && MX.campaign ? 'block' : 'none'; let n = 0; barList = [];
-  for (let i_z = 0; i_z < Z.length; i_z++) { const z = Z[i_z];
+  for (let i_z = BARZ.length - 1; i_z >= 0; i_z--) { const z = BARZ[i_z]; if (z.dead || M.t - z.brk > 4) { z.inBar = false; BARZ[i_z] = BARZ[BARZ.length - 1]; BARZ.pop(); } }
+  for (let i_z = 0; i_z < BARZ.length; i_z++) { const z = BARZ[i_z];
     if (z.dead || n >= 14) continue; const age = M.t - z.brk; if (age > 4) continue;
     const ratio = clamp(z.hp / z.maxhp, 0, 1); if (ratio < z.bf - .004) z.bw = .55;
     z.bf = z.bf + (ratio - z.bf) * Math.min(1, dt * (ratio < z.bf ? 16 : 7)); if (z.bw > 0) z.bw -= dt; else z.bc = z.bc + (z.bf - z.bc) * Math.min(1, dt * 5); if (z.bc < z.bf) z.bc = z.bf;
@@ -7223,9 +7229,10 @@ MX.zom.perfHook = w => { restock = w(restock, 'z.restock'); updBars = w(updBars,
    updateBullets con la población nueva). ?nozgrid recorre todos como antes. */
 const ZG = new Map(), ZGOFF = /[?&]nozgrid\b/.test(location.search), _zc = [];
 const zgk = (ix, iz) => ((ix + 160) << 10) | (iz + 160);
-function zgBuild() { for (const a of ZG.values()) a.n = 0; for (let i = 0; i < Z.length; i++) { const z = Z[i]; if (z.dead) continue; const k = zgk(Math.floor(z.p.x / 4), Math.floor(z.p.z / 4)); let a = ZG.get(k); if (!a) { a = []; a.n = 0; ZG.set(k, a); } a[a.n++] = z; } }
+let ZGDIRTY = true;
+function zgBuild() { ZGDIRTY = false; for (const a of ZG.values()) a.n = 0; for (let i = 0; i < Z.length; i++) { const z = Z[i]; if (z.dead) continue; const k = zgk(Math.floor(z.p.x / 4), Math.floor(z.p.z / 4)); let a = ZG.get(k); if (!a) { a = []; a.n = 0; ZG.set(k, a); } a[a.n++] = z; } }
 MX.zom.cand = (ox, oz, dx, dz, d0, d1) => {
-  if (ZGOFF) return Z; const ax = ox + dx * d0, az = oz + dz * d0, bx = ox + dx * d1, bz = oz + dz * d1, out = _zc; out.length = 0;
+  if (ZGOFF) return Z; if (ZGDIRTY) zgBuild(); const ax = ox + dx * d0, az = oz + dz * d0, bx = ox + dx * d1, bz = oz + dz * d1, out = _zc; out.length = 0;
   const x0 = Math.floor((Math.min(ax, bx) - 3) / 4), x1 = Math.floor((Math.max(ax, bx) + 3) / 4), z0 = Math.floor((Math.min(az, bz) - 3) / 4), z1 = Math.floor((Math.max(az, bz) + 3) / 4);
   if ((x1 - x0 + 1) * (z1 - z0 + 1) > 900) return Z;
   for (let ix = x0; ix <= x1; ix++) for (let iz = z0; iz <= z1; iz++) { const a = ZG.get(zgk(ix, iz)); if (a) for (let i = 0; i < a.n; i++) out.push(a[i]); }
@@ -7269,7 +7276,7 @@ let nearZ = 0, heatT = 0;
 const ZS = [], CAND = [], VIS = []; let gridGC = 0, ZF = 0;
 MX.zom.update = dt => {
   ZF++; PT.t -= dt; if (PT.t <= 0) { PT.t = 1; pointsTick(); }
-  if (!ZGOFF) zgBuild();
+  ZGDIRTY = true;                                                                    // la rejilla de balas se rehace solo cuando alguien la consulta (a lo sumo una vez por fotograma)
   if (!MX.campaign || !M.built) return; dt = Math.min(dt, .05); zt += dt; astar = 3; extraA = 0;
   heatT -= dt; if (heatT <= 0) { heatT = .5; for (const [k, v] of HEAT) { const n = v * .95; if (n < .08) HEAT.delete(k); else HEAT.set(k, n); } }
   popT -= dt; if (popT <= 0) { popT = 2; if (!MX.zom.noRestock) restock(); }

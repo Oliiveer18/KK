@@ -150,7 +150,7 @@ MX.zom = { list: Z, count: () => nAlive || Z.filter(z => !z.dead).length, noise,
 /* ---- daño ---- */
 function hitZ(z, dmg, from, dx, dz, w, quiet) {
   if (z.dead) return;
-  z.hp -= dmg; z.stag = 1; z.brk = M.t; const l = Math.sqrt((dx) * (dx) + (dz) * (dz)) || 1; z.v.x += dx / l * 1.2; z.v.z += dz / l * 1.2;
+  z.hp -= dmg; z.stag = 1; z.brk = M.t; if (!z.inBar) { z.inBar = true; BARZ.push(z); } const l = Math.sqrt((dx) * (dx) + (dz) * (dz)) || 1; z.v.x += dx / l * 1.2; z.v.z += dz / l * 1.2;
   if (from && from.p && z.st !== 'chase' && z.st !== 'attack') { z.tgt = from; z.st = 'chase'; z.tgtT = M.t; alertNear(z, from); }
   const pl = from && from.isPlayer; if (pl && MX.popNum) MX.popNum(z, dmg);
   for (let i = 0; i < 3; i++) spawn('red', _gp.set(z.p.x, 1, z.p.z), _gv.set((Math.random() - .5) * 3 + dx / l, 1 + Math.random() * 2, (Math.random() - .5) * 3 + dz / l), .35, .035, .035, .035, true, 8);
@@ -448,9 +448,11 @@ function zbMake() {
 const _bp = new V3(), BAR_GAP = .5;                                                // misma separación sobre la coronilla que las barras de los combatientes: la barra sigue a la CABEZA real (que va adelantada al ir encorvados), no a los pies
 
 let barList = [];
+const BARZ = [];                                                                      // zombis heridos en los últimos 4 s (candidatos a barra de vida): antes updBars recorría los ~1.600 cada fotograma
 function updBars(dt) {
   zbHold.style.display = MX.on && MX.campaign ? 'block' : 'none'; let n = 0; barList = [];
-  for (let i_z = 0; i_z < Z.length; i_z++) { const z = Z[i_z];
+  for (let i_z = BARZ.length - 1; i_z >= 0; i_z--) { const z = BARZ[i_z]; if (z.dead || M.t - z.brk > 4) { z.inBar = false; BARZ[i_z] = BARZ[BARZ.length - 1]; BARZ.pop(); } }
+  for (let i_z = 0; i_z < BARZ.length; i_z++) { const z = BARZ[i_z];
     if (z.dead || n >= 14) continue; const age = M.t - z.brk; if (age > 4) continue;
     const ratio = clamp(z.hp / z.maxhp, 0, 1); if (ratio < z.bf - .004) z.bw = .55;
     z.bf = z.bf + (ratio - z.bf) * Math.min(1, dt * (ratio < z.bf ? 16 : 7)); if (z.bw > 0) z.bw -= dt; else z.bc = z.bc + (z.bf - z.bc) * Math.min(1, dt * 5); if (z.bc < z.bf) z.bc = z.bf;
@@ -500,9 +502,10 @@ MX.zom.perfHook = w => { restock = w(restock, 'z.restock'); updBars = w(updBars,
    updateBullets con la población nueva). ?nozgrid recorre todos como antes. */
 const ZG = new Map(), ZGOFF = /[?&]nozgrid\b/.test(location.search), _zc = [];
 const zgk = (ix, iz) => ((ix + 160) << 10) | (iz + 160);
-function zgBuild() { for (const a of ZG.values()) a.n = 0; for (let i = 0; i < Z.length; i++) { const z = Z[i]; if (z.dead) continue; const k = zgk(Math.floor(z.p.x / 4), Math.floor(z.p.z / 4)); let a = ZG.get(k); if (!a) { a = []; a.n = 0; ZG.set(k, a); } a[a.n++] = z; } }
+let ZGDIRTY = true;
+function zgBuild() { ZGDIRTY = false; for (const a of ZG.values()) a.n = 0; for (let i = 0; i < Z.length; i++) { const z = Z[i]; if (z.dead) continue; const k = zgk(Math.floor(z.p.x / 4), Math.floor(z.p.z / 4)); let a = ZG.get(k); if (!a) { a = []; a.n = 0; ZG.set(k, a); } a[a.n++] = z; } }
 MX.zom.cand = (ox, oz, dx, dz, d0, d1) => {
-  if (ZGOFF) return Z; const ax = ox + dx * d0, az = oz + dz * d0, bx = ox + dx * d1, bz = oz + dz * d1, out = _zc; out.length = 0;
+  if (ZGOFF) return Z; if (ZGDIRTY) zgBuild(); const ax = ox + dx * d0, az = oz + dz * d0, bx = ox + dx * d1, bz = oz + dz * d1, out = _zc; out.length = 0;
   const x0 = Math.floor((Math.min(ax, bx) - 3) / 4), x1 = Math.floor((Math.max(ax, bx) + 3) / 4), z0 = Math.floor((Math.min(az, bz) - 3) / 4), z1 = Math.floor((Math.max(az, bz) + 3) / 4);
   if ((x1 - x0 + 1) * (z1 - z0 + 1) > 900) return Z;
   for (let ix = x0; ix <= x1; ix++) for (let iz = z0; iz <= z1; iz++) { const a = ZG.get(zgk(ix, iz)); if (a) for (let i = 0; i < a.n; i++) out.push(a[i]); }
@@ -546,7 +549,7 @@ let nearZ = 0, heatT = 0;
 const ZS = [], CAND = [], VIS = []; let gridGC = 0, ZF = 0;
 MX.zom.update = dt => {
   ZF++; PT.t -= dt; if (PT.t <= 0) { PT.t = 1; pointsTick(); }
-  if (!ZGOFF) zgBuild();
+  ZGDIRTY = true;                                                                    // la rejilla de balas se rehace solo cuando alguien la consulta (a lo sumo una vez por fotograma)
   if (!MX.campaign || !M.built) return; dt = Math.min(dt, .05); zt += dt; astar = 3; extraA = 0;
   heatT -= dt; if (heatT <= 0) { heatT = .5; for (const [k, v] of HEAT) { const n = v * .95; if (n < .08) HEAT.delete(k); else HEAT.set(k, n); } }
   popT -= dt; if (popT <= 0) { popT = 2; if (!MX.zom.noRestock) restock(); }

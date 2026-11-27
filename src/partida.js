@@ -472,6 +472,7 @@ MX.perfHook = w => {                                                            
   const rs = respawn, kl = kill; respawn = function () { PERF.tag('reaparece'); return rs.apply(this, arguments); }; kill = function () { PERF.tag('baja'); return kl.apply(this, arguments); };
 };
 MX.poseBot = poseBot;
+MX.entRectN = (x0, z0, x1, z1, out) => gridRectN(GRID.E, M.ents, x0, z0, x1, z1, out); MX.gridArr = () => GRID.arr;   // combatientes junto a un tramo (balas): cuenta + MX.gridArr()
 MX.shootBot = e => shoot(e); MX.setWeapon = (e, i) => setWeapon(e, i); MX.WI = WI; MX.tryEquip = tryEquip; MX.P = P;
 function bake(e, dx, dz) {                                                           // al morir, el cuerpo cae como un bloque alrededor de los pies
   const r = e.root, px = e.p.x, pz = e.p.z; r.position.set(px, 0, pz);
