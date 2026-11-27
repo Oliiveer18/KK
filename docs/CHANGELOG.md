@@ -1,5 +1,8 @@
 # Changelog
 
+## Fuego de cobertura sobre el enemigo más cercano (27-11)
+- La orden busca el enemigo más cercano (soldado o infectado) a ≤ 50 m del jugador, en cualquier lugar; la escuadra se coloca con línea de tiro (a ≤ 90 % del alcance de su arma) y solo dispara si lo ve/tiene línea; si cae, pasa al siguiente más cercano; sin enemigos avisa y no da la orden. Medido en el distrito: 36 disparos en 9 s, 0 a ciegas.
+
 ## Cruceta: la tarjeta se cierra al ejecutar (27-11)
 - La tarjeta ya no vuelve a aparecer tras dar una orden: 1.ª pulsación = abre (3,5 s); pulsar una flecha con ella abierta ejecuta y la cierra al instante; durante 1,5 s después otra flecha ejecuta directamente (encadenar órdenes sin tarjeta).
 

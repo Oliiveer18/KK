@@ -7482,6 +7482,13 @@ SQ.goalFor = e => {                                                             
   }
   if (s.playerLead && L && L.isPlayer) {                                             // escuadra del jugador: sus órdenes
     const o = s.order || { type: 'follow' };
+    if (o.type === 'cover' && o.tgt && !o.tgt.dead) {                                  // fuego de cobertura: a un puesto con línea de tiro al objetivo (el propio de formación si ya la tiene)
+      const f = o.tgt, rg = Math.min(e.w.bal.max * .9, 55); let q = o.pts.get(e) || holdPoint(s, e, o, o.face); o.pts.set(e, q);
+      if (!(dist(q, f.p) <= rg && MX.lineFree(q, f.p))) {
+        const c = e._cvq; if (c && c.f === f && M.t - c.t < 1.5) q = c.q; else {
+          let bq = null, bd = 1e9; for (let r = 3; r <= 16; r += 3.4) for (let a = 0; a < 6.28; a += .7) { const px = P.pos.x + Math.sin(a) * r, pz = P.pos.z + Math.cos(a) * r; if (!navAt(px, pz)) continue; const cp = { x: px, z: pz }; if (dist(cp, f.p) > rg || !MX.lineFree(cp, f.p)) continue; const d = dist(cp, e.p); if (d < bd) { bd = d; bq = cp; } }
+          q = bq || q; e._cvq = { f, q, t: M.t }; } }
+      return { x: q.x, z: q.z, speed: 5.2, hold: true, face: Math.atan2(f.p.x - q.x, f.p.z - q.z), crouch: dist(e.p, q) < 2 }; }
     if (o.type === 'hold' || o.type === 'cover') { const q = o.pts && o.pts.get(e) || holdPoint(s, e, o, o.face); if (o.pts) o.pts.set(e, q); return { x: q.x, z: q.z, speed: 4.6, hold: true, face: o.face, crouch: true }; }
     if (o.type === 'move') { const q = o.pts.get(e) || holdPoint(s, e, o, o.face); o.pts.set(e, q); const dq = dist(e.p, q); return { x: q.x, z: q.z, speed: dq > 25 ? 8.4 : dq > 8 ? 6.2 : 4.4, hold: true, face: o.face, crouch: dq < 3, catchUp: dq > 30 }; }
     const q = formPoint(s, e, P.pos, facingOf(s), 1);
@@ -7535,6 +7542,13 @@ MX.bulletPass = (b, x0, z0, x1, z1) => {                                        
 
 /* ---------- órdenes del jugador ---------- */
 function aimPoint(d) { const a = P.aim; return navNear(P.pos.x + Math.sin(a) * d, P.pos.z + Math.cos(a) * d); }
+const COVER_R = 50;                                                                  // radio de búsqueda del fuego de cobertura (m)
+function nearestFoe(x, z, R, team, except) {
+  let best = null, bd = R * R; const test = o => { if (!o || o.dead || o === except) return; const dx = o.p.x - x, dz = o.p.z - z, d = dx * dx + dz * dz; if (d < bd) { bd = d; best = o; } };
+  for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.team !== team && !e.dwn) test(e); }
+  const Z = MX.zom && MX.zom.list; if (Z) for (let i = 0; i < Z.length; i++) test(Z[i]);
+  return best;
+}
 SQ.cmd = (k, long) => {
   const pl = MX.pl; if (!MX.campaign || !pl || pl.dead) return; let s = pl.sqd;
   if (long) {
@@ -7555,13 +7569,16 @@ SQ.cmd = (k, long) => {
   if (k === 'follow') s.order = { type: 'follow' };
   else if (k === 'hold') { const q = { x: P.pos.x, z: P.pos.z }; s.order = { type: 'hold', x: q.x, z: q.z, face: P.aim, pts: new Map() }; }
   else if (k === 'move') { const q = aimPoint(22); s.order = { type: 'move', x: q.x, z: q.z, face: P.aim, pts: new Map() }; }
-  else if (k === 'cover') { const q = { x: P.pos.x + Math.sin(P.aim) * 40, z: P.pos.z + Math.cos(P.aim) * 40 }; /* zona a batir: hacia donde apuntas, a 40 m */ s.order = { type: 'cover', x: P.pos.x, z: P.pos.z, face: P.aim, tx: q.x, tz: q.z, t: M.t, prev: s.order && s.order.type !== 'cover' ? s.order : { type: 'follow' }, pts: new Map() }; }
+  else if (k === 'cover') {                                                           // FUEGO DE COBERTURA: busca el enemigo más cercano (soldado o zombi) a ≤ 50 m del jugador y la escuadra lo bate buscando línea de tiro
+    const f = nearestFoe(P.pos.x, P.pos.z, COVER_R, pl.team); if (!f) return toast('Fuego de cobertura: no hay enemigos a menos de ' + COVER_R + ' m');
+    s.order = { type: 'cover', x: P.pos.x, z: P.pos.z, face: Math.atan2(f.p.x - P.pos.x, f.p.z - P.pos.z), tgt: f, tx: f.p.x, tz: f.p.z, t: M.t, prev: s.order && s.order.type !== 'cover' ? s.order : { type: 'follow' }, pts: new Map() }; toast('Fuego de cobertura sobre ' + (f.team >= 0 ? 'el enemigo más cercano' : 'los infectados más cercanos') + ' · ' + Math.round(dist(f.p, P.pos)) + ' m'); return; }
   for (const m of s.members) if (m.bot) { m.goal = null; m.path = null; if (m.st === 'search') m.st = 'push'; }
   toast('Orden: ' + ORDER_N[s.order.type]);
 };
 SQ.supPoint = e => {                                                                 // a dónde hace fuego de supresión este bot (o null)
   const s = e.sqd; if (!s) return null;
-  if (s.order && s.order.type === 'cover' && M.t - s.order.t < 10) return { x: s.order.tx, z: s.order.tz };
+  if (s.order && s.order.type === 'cover' && M.t - s.order.t < 10 && s.order.tgt && !s.order.tgt.dead) {          // solo dispara al objetivo si tiene línea de tiro y alcance (no a ciegas)
+    const f = s.order.tgt, d = dist(e.p, f.p); if (d <= Math.min(e.w.bal.max * .9, 55) && MX.lineFree(e.p, f.p)) return { x: f.p.x, z: f.p.z }; return null; }
   if (s.contact && s.contact.foe && s.contact.foe.dead) s.contact = null;          // el enemigo ha caído: se deja de batir la zona
   /* los bots NUNCA disparan a algo que no ven: ya no hay fuego de supresión automático sobre un contacto (solo la orden explícita de «fuego de cobertura» del jugador, arriba). El contacto
      sigue sirviendo para que la escuadra tome posiciones de apoyo y mire hacia la amenaza, pero apuntar y disparar exige ver al enemigo. */
@@ -7621,7 +7638,8 @@ SQ.update = dt => {
   for (let t = 0; t < 4; t++) { SQ.cmdT[t] -= dt; if (SQ.cmdT[t] <= 0) { SQ.cmdT[t] = 12; for (const s of SQ.list) if (s.team === t) assignMission(s); } }
   SQ.balT -= dt; if (SQ.balT <= 0) { SQ.balT = SQ_BAL; for (let t = 0; t < 4; t++) rebalance(t); }
   const s = MX.pl && MX.pl.sqd;
-  if (s && s.order) { if (s.order.type === 'cover' && M.t - s.order.t > 10) s.order = s.order.prev; if (s.order.type === 'regroup' && M.t - s.order.t > 12) s.order = { type: 'follow' }; }
+  if (s && s.order) { if (s.order.type === 'cover') { const o = s.order; if (M.t - o.t > 10) s.order = o.prev;
+      else { if (!o.tgt || o.tgt.dead || dist(o.tgt.p, P.pos) > COVER_R + 20) { const f = nearestFoe(P.pos.x, P.pos.z, COVER_R, MX.pl.team); if (f) o.tgt = f; else s.order = o.prev; } if (s.order === o && o.tgt) { o.tx = o.tgt.p.x; o.tz = o.tgt.p.z; o.face = Math.atan2(o.tx - P.pos.x, o.tz - P.pos.z); } } } if (s.order.type === 'regroup' && M.t - s.order.t > 12) s.order = { type: 'follow' }; }
   SQ.mapTick(); miniTick(dt);
   if (SQ.objs.length) { SQ.objT = (SQ.objT || 0) - dt; if (SQ.objT <= 0) { objTick(.5 - SQ.objT); SQ.objT = .5; } }
   hudTick(dt);
