@@ -9,6 +9,8 @@
    - Táctica: viajan en formación con separación real (4–10 m); al acercarse a un objetivo de ataque avanzan por saltos (un equipo cubre, el otro avanza);
      en contacto buscan posición de tiro con cobertura en vez de cargar, se apoyan, hacen fuego de supresión y no persiguen más allá de su escuadra.
      Supresión: las balas que pasan cerca hacen agacharse y empeoran la puntería.
+   - Formaciones automáticas (cuña, columna por calles, círculo al parar, línea en contacto) con puestos que se anticipan al líder.
+   - Cruceta en dos tiempos: la 1.ª pulsación enseña la tarjeta de órdenes; pulsar otra vez la flecha (6 s) la ejecuta.
    - Órdenes del jugador cuando lidera (cruceta del mando PS5; teclado 1–8):
        ← toque: SEGUIRME · ↓ toque: MANTENER posición · ↑ toque: AVANZAR al punto al que apuntas · → toque: FUEGO DE COBERTURA hacia donde apuntas (10 s)
        ← mantener: UNIRSE a la escuadra amiga más cercana · → mantener: TOMAR / CEDER el mando · ↓ mantener: IR POR LIBRE · ↑ mantener: REAGRUPAR (a mí, ya)
@@ -139,10 +141,43 @@ function facingOf(s) {
   if (L.goal) return Math.atan2(L.goal.x - L.p.x, L.goal.z - L.p.z); return L.yaw;
 }
 function slotOf(s, e) { let i = 0; for (let i_m = 0; i_m < s.members.length; i_m++) { const m = s.members[i_m]; if (m === e) return i; if (m !== s.leader) i++; } return 0; }
+/* FORMACIONES (la escuadra de quien lidera: tú o un bot). Se elige sola según lo que hace el líder, con histéresis (no cambia a cada paso):
+   · cuña (campo abierto en marcha: dos alas escalonadas detrás y a los lados, nunca en fila)  · columna escalonada (por calle o pasillo: alternando lados de la calzada, cada uno vigila un lado)
+   · círculo (líder parado más de 1,5 s: perímetro a 6–8 m, cada uno mirando hacia fuera y con cobertura cercana si la hay)  · línea (en contacto sin orden: frente abierto de 4 m entre cada uno).
+   Los puestos se anticipan: apuntan donde estará el líder en ~1 s (velocidad × 0,9, máx. 5 m), no donde estaba, y la velocidad de cada uno se ajusta a la del líder y a su distancia al puesto. */
+const FORMS = {
+  wedge: [[-3.5, -2.5], [3.5, -2.5], [-7, -6.5], [7, -6.5], [0, -9.5], [-10.5, -10], [10.5, -10], [0, -14]],
+  line: [[-4, -1], [4, -1], [-8, -1.5], [8, -1.5], [-12, -2], [12, -2], [0, -5], [0, -8]],
+  column: [[-1.8, -4], [1.8, -8], [-1.8, -12], [1.8, -16], [-1.8, -20], [1.8, -24], [0, -28], [0, -32]]
+};
+const FORM_N = { wedge: 'cuña', line: 'línea', column: 'columna', ring: 'círculo' };
+let ROADSEG = null;
+function onRoad(x, z) {
+  if (!ROADSEG) { ROADSEG = []; const r = MAPA.built && MAPA.built.info && MAPA.built.info.roads; if (r) for (const q of r) if (q.pts && q.pts.length >= 2) ROADSEG.push([q.pts[0][0], q.pts[0][1], q.pts[1][0], q.pts[1][1], q.w / 2 + 6]); }
+  for (let i = 0; i < ROADSEG.length; i++) { const r = ROADSEG[i], dx = r[2] - r[0], dz = r[3] - r[1], l2 = dx * dx + dz * dz || 1, u = Math.max(0, Math.min(1, ((x - r[0]) * dx + (z - r[1]) * dz) / l2)), px = r[0] + dx * u - x, pz = r[1] + dz * u - z; if (px * px + pz * pz < r[4] * r[4]) return true; }
+  return false;
+}
+function leaderSpeed(s) { const L = s.leader; if (!L) return 0; return L.isPlayer ? Math.sqrt(P.vel.x * P.vel.x + P.vel.z * P.vel.z) : Math.sqrt(L.v.x * L.v.x + L.v.z * L.v.z); }
+function formKind(s) {
+  if (s._fkT !== undefined && M.t - s._fkT < .5) return s._fk; s._fkT = M.t;
+  const L = s.leader; if (!L) return s._fk = 'wedge';
+  const sp = leaderSpeed(s), lp = L.isPlayer ? P.pos : L.p; s.stillT = sp < .6 ? (s.stillT || 0) + .5 : 0;
+  const want = s.stillT > 1.5 ? 'ring' : (s.contact && M.t - s.contact.t < 8) ? 'line' : onRoad(lp.x, lp.z) ? 'column' : 'wedge';
+  if (want !== s._fk && (s._fkC === undefined || M.t - s._fkC > 1.5 || !s._fk)) { s._fk = want; s._fkC = M.t; if (s.playerLead) toast('Formación: ' + FORM_N[want]); }
+  return s._fk || want;
+}
+function leadBase(s, base) { const L = s.leader; if (!L || !L.isPlayer || base !== P.pos) return base; const k = .9, mx = 5; let dx = P.vel.x * k, dz = P.vel.z * k, d = Math.sqrt(dx * dx + dz * dz); if (d > mx) { dx *= mx / d; dz *= mx / d; } return { x: base.x + dx, z: base.z + dz }; }
 function formPoint(s, e, base, face, spread) {
-  const o = FORM[slotOf(s, e) % FORM.length], k = spread || 1, ca = Math.cos(face), sa = Math.sin(face);
+  const kind = formKind(s), i = slotOf(s, e); base = leadBase(s, base);
+  if (kind === 'ring') {                                                             // círculo: cada uno a su sector, mirando hacia fuera
+    const n = Math.max(2, s.members.length - 1), a = face + Math.PI + (i + .5) / n * Math.PI * 2, r = 6 + (i % 2) * 2, key = Math.round(base.x / 2) + ',' + Math.round(base.z / 2) + ',' + i + ',' + n;
+    if (e._rgK === key) return e._rg;
+    let q = navNear(base.x + Math.sin(a) * r, base.z + Math.cos(a) * r); const cp = coverPoint({ p: q }, base.x + Math.sin(a) * 30, base.z + Math.cos(a) * 30); if (cp && dist(cp, q) < 4) q = cp;
+    e._rgK = key; e._rg = q; e._ringFace = a; return q; }
+  const o = (FORMS[kind] || FORMS.wedge)[i % FORMS.wedge.length], k = spread || 1, ca = Math.cos(face), sa = Math.sin(face);
   return navNear(base.x + (o[0] * ca + o[1] * sa) * k, base.z + (-o[0] * sa + o[1] * ca) * k);
 }
+function followSpeed(s, e, q) { const d = dist(e.p, q), ls = leaderSpeed(s); return Math.max(2.6, Math.min(6.6, ls * 1.08 + d * .55)); }
 function holdPoint(s, e, c, face) {                                                  // posiciones en arco mirando a `face`, con cobertura cercana si la hay (se recuerda mientras no cambie)
   const key = Math.round(c.x) + ',' + Math.round(c.z) + ',' + Math.round(face * 10) + ',' + s.members.length + ',' + (s.leader === e); if (e._hpK === key) return e._hp;
   const q = holdPoint0(s, e, c, face); e._hpK = key; e._hp = q; return q;
@@ -181,7 +216,9 @@ SQ.goalFor = e => {                                                             
     const o = s.order || { type: 'follow' };
     if (o.type === 'hold' || o.type === 'cover') { const q = o.pts && o.pts.get(e) || holdPoint(s, e, o, o.face); if (o.pts) o.pts.set(e, q); return { x: q.x, z: q.z, speed: 4.6, hold: true, face: o.face, crouch: true }; }
     if (o.type === 'move') { const q = o.pts.get(e) || holdPoint(s, e, o, o.face); o.pts.set(e, q); return { x: q.x, z: q.z, speed: dist(e.p, q) > 25 ? 5.6 : 4.4, hold: true, face: o.face, crouch: dist(e.p, q) < 3 }; }
-    const q = formPoint(s, e, P.pos, facingOf(s), 1); return { x: q.x, z: q.z, speed: o.type === 'regroup' || dist(e.p, P.pos) > 16 ? 6.4 : 4.8, hold: false, face: facingOf(s) };
+    const q = formPoint(s, e, P.pos, facingOf(s), 1);
+    if (formKind(s) === 'ring' && o.type !== 'regroup') return { x: q.x, z: q.z, speed: followSpeed(s, e, q), hold: true, face: e._ringFace !== undefined ? e._ringFace : facingOf(s), crouch: false };
+    return { x: q.x, z: q.z, speed: o.type === 'regroup' || dist(e.p, P.pos) > 16 ? 6.4 : followSpeed(s, e, q), hold: false, face: facingOf(s) };
   }
   if (!L) return null;
   if (e === L) {                                                                     // líder de bots: hacia la misión; espera a los rezagados; salto por equipos al atacar
@@ -197,7 +234,8 @@ SQ.goalFor = e => {                                                             
   if (m && m.x !== undefined && dist(L.p, m) < 12) { const q = holdPoint(s, e, m, s.holdFace); return { x: q.x, z: q.z, speed: 3.6, hold: true, face: e._hpFace !== undefined ? e._hpFace : s.holdFace, crouch: true }; }
   if (m && m.type === 'attack' && s.ap && dist(L.p, m) < 80) return bound(s, e, m);
   const q = formPoint(s, e, L.goal && !L.isPlayer ? { x: L.p.x, z: L.p.z } : L.p, facingOf(s), m && m.type === 'recon' ? 1.3 : 1);
-  return { x: q.x, z: q.z, speed: dist(e.p, q) > 12 ? 6.2 : 5, hold: false, face: facingOf(s) };
+  if (formKind(s) === 'ring') return { x: q.x, z: q.z, speed: followSpeed(s, e, q), hold: true, face: e._ringFace !== undefined ? e._ringFace : facingOf(s), crouch: false };
+  return { x: q.x, z: q.z, speed: dist(e.p, q) > 12 ? 6.2 : Math.max(3, followSpeed(s, e, q)), hold: false, face: facingOf(s) };
 };
 /* avance por saltos: dos equipos; uno avanza 15 m hasta el punto de avance mientras el otro cubre agachado; luego al revés */
 function bound(s, e, m) {
@@ -264,11 +302,39 @@ SQ.supPoint = e => {                                                            
 /* ---------- actualización ---------- */
 let padPrev = [false, false, false, false], padT = [0, 0, 0, 0];
 const PADK = [['move', 'regroup'], ['hold', 'leave'], ['follow', 'join'], ['cover', 'lead']];   // ↑ ↓ ← → (botones 12–15): toque / mantener
+/* CRUCETA EN DOS TIEMPOS: la primera pulsación NO da la orden: abre una tarjeta que enseña qué hace cada flecha (toque y mantener) con la pulsada resaltada; mientras la tarjeta está visible
+   (6 s, y 3 s más tras cada orden), volver a pulsar una flecha ejecuta su orden (toque = la principal, mantener = la secundaria). Así no hay órdenes por error y, aunque se olvide qué hace cada
+   flecha, la primera pulsación lo recuerda. El teclado (1–8) sigue siendo directo. */
+const PAD_INFO = [['▲', 'Avanzar', 'Reagrupar'], ['▼', 'Mantener', 'Por libre'], ['◀', 'Seguirme', 'Unirse'], ['▶', 'Cobertura', 'Mando']];
+const PAD_DESC = ['a donde apuntas', 'aquí', 'en formación', 'fuego a donde apuntas', ];
+const padCard = document.createElement('div'); padCard.id = 'sqPad'; document.body.appendChild(padCard);
+{ const st = document.createElement('style'); st.textContent = `
+#sqPad{position:fixed;left:50%;bottom:max(86px,calc(70px + env(safe-area-inset-bottom)));transform:translate(-50%,10px);z-index:14;display:none;opacity:0;pointer-events:none;transition:opacity .14s,transform .14s;font:600 12px system-ui,-apple-system,'Segoe UI',sans-serif;color:#e9eef7}
+#sqPad.on{opacity:1;transform:translate(-50%,0)}
+#sqPad .box{display:grid;grid-template-columns:repeat(3,112px);grid-template-rows:repeat(3,auto);gap:6px;padding:10px;border-radius:16px;background:linear-gradient(180deg,#171f2cf2,#10161fee);border:1px solid #33425c;box-shadow:0 14px 40px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.06);backdrop-filter:blur(6px)}
+#sqPad .k{display:flex;flex-direction:column;align-items:center;gap:1px;padding:7px 6px 6px;border-radius:10px;background:#141b27;border:1px solid #2a3750;text-align:center;transition:background .1s,border-color .1s,transform .1s}
+#sqPad .k b{font-size:15px;color:#7cc4ff;line-height:1}#sqPad .k span{font-weight:800;font-size:12.5px;letter-spacing:.02em}#sqPad .k small{font-size:10.5px;color:#8ea0bf;font-weight:600}#sqPad .k small i{font-style:normal;color:#ffb020}
+#sqPad .k.hl{background:linear-gradient(180deg,#1f3a5c,#173050);border-color:#7cc4ff;transform:scale(1.05);box-shadow:0 0 0 3px rgba(124,196,255,.2)}
+#sqPad .u{grid-column:2;grid-row:1}#sqPad .l{grid-column:1;grid-row:2}#sqPad .r{grid-column:3;grid-row:2}#sqPad .d{grid-column:2;grid-row:3}
+#sqPad .c{grid-column:2;grid-row:2;display:flex;align-items:center;justify-content:center;text-align:center;font-size:10.5px;line-height:1.3;color:#9fb0cc;padding:0 4px}
+#sqPad .c em{display:block;font-style:normal;color:#fff;font-weight:800;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+#sqPad .ft{grid-column:1/4;grid-row:4;text-align:center;font-size:11px;color:#ffb020;font-weight:700;min-height:0}
+@media (max-width:700px){#sqPad .box{grid-template-columns:repeat(3,98px)}}`; document.head.appendChild(st); }
+const PAD_POS = ['u', 'd', 'l', 'r'];
+function padShow(i) {
+  const lead = MX.pl && MX.pl.sqd && MX.pl.sqd.playerLead;
+  padCard.innerHTML = '<div class="box">' + PAD_INFO.map((q, k) => '<div class="k ' + PAD_POS[k] + (k === i ? ' hl' : '') + '"><b>' + q[0] + '</b><span>' + q[1] + '</span><small>mantener: <i>' + q[2] + '</i></small></div>').join('')
+    + '<div class="c"><div><em>Cruceta</em>Pulsa otra vez la flecha para dar la orden</div></div>' + (lead ? '' : '<div class="ft">No tienes el mando: mantén ▶ para tomarlo</div>') + '</div>';
+  padCard.style.display = 'block'; void padCard.offsetWidth; padCard.classList.add('on');
+}
+function padHide() { padCard.classList.remove('on'); setTimeout(() => { if (!padCard.classList.contains('on')) padCard.style.display = 'none'; }, 180); }
+SQ.padOpenT = -99;
 function padTick(dt) {
-  const g = typeof getPad === 'function' ? getPad() : null; if (!g || MX.dpadLock) { padPrev = [false, false, false, false]; return; }
+  const g = typeof getPad === 'function' ? getPad() : null; if (!g || MX.dpadLock) { padPrev = [false, false, false, false]; if (padCard.classList.contains('on')) padHide(); return; }
+  const open = M.t < SQ.padOpenT; if (!open && padCard.classList.contains('on')) padHide();
   for (let i = 0; i < 4; i++) { const b = g.buttons[12 + i], d = !!(b && (b.pressed || b.value > .5));
-    if (d) { padT[i] += dt; if (padT[i] >= .55 && padT[i] - dt < .55) SQ.cmd(PADK[i][1], true); }
-    else if (padPrev[i]) { if (padT[i] < .55) SQ.cmd(PADK[i][0], false); padT[i] = 0; }
+    if (d) { padT[i] += dt; if (padT[i] >= .55 && padT[i] - dt < .55) { if (open) { SQ.cmd(PADK[i][1], true); SQ.padOpenT = M.t + 3; } else { SQ.padOpenT = M.t + 6; padShow(i); } } }
+    else if (padPrev[i]) { if (padT[i] < .55) { if (open) { SQ.cmd(PADK[i][0], false); SQ.padOpenT = M.t + 3; padShow(i); } else { SQ.padOpenT = M.t + 6; padShow(i); } } padT[i] = 0; }
     padPrev[i] = d; }
 }
 addEventListener('keydown', ev => {
