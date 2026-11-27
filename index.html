@@ -7845,6 +7845,36 @@ function mapBase(g) {                                                           
   x.strokeStyle = '#ffffff14'; x.lineWidth = 1; for (let v = -g.half; v <= g.half; v += 125) { x.beginPath(); x.moveTo(P2(v), 0); x.lineTo(P2(v), g.sz); x.stroke(); x.beginPath(); x.moveTo(0, P2(v)); x.lineTo(g.sz, P2(v)); x.stroke(); }
   TM.base = c; TM.baseKey = key; return c;
 }
+/* ---- ALIADOS EN LOS MAPAS (minimapa y mapa táctico): tu escuadra siempre suelta (color de su clase y su inicial en el mapa grande); el resto de tu facción AGRUPADO en celdas (10 m en el
+   minimapa, 14 m en el mapa grande): un punto si es uno solo, un círculo con el número si son varios, así nunca se amontonan; aro ámbar si hay abatidos y estrella si lleva un líder.
+   En el minimapa, los grupos fuera del radio salen como flechas en el borde con su número (por sectores de 22,5°). En el mapa grande, cada escuadra dibuja una línea suave a su objetivo. ---- */
+function friendClusters(team, cell, mineSq) {
+  const cells = new Map(), mine = []; let n = 0;
+  for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.dead || e.team !== team || e.isPlayer) continue; n++;
+    if (mineSq && e.sqd === mineSq) { mine.push(e); continue; }
+    const k = Math.floor(e.p.x / cell) * 4096 + Math.floor(e.p.z / cell); let c = cells.get(k); if (!c) cells.set(k, c = { x: 0, z: 0, n: 0, dwn: 0, lead: 0 }); c.x += e.p.x; c.z += e.p.z; c.n++; if (e.dwn) c.dwn++; if (e.sqd && e.sqd.leader === e) c.lead++; }
+  const groups = []; for (const c of cells.values()) { c.x /= c.n; c.z /= c.n; groups.push(c); } return { mine, groups, total: n };
+}
+function drawFriends(x, toPx, size, team, mineSq, big, rEdge) {
+  const col = '#' + TEAM_COL[team].toString(16).padStart(6, '0'), F = friendClusters(team, big ? 14 : 10, mineSq), bins = new Array(16).fill(0), cx0 = size / 2;
+  for (const c of F.groups) { const [px, pz] = toPx(c.x, c.z);
+    if (rEdge ? Math.hypot(px - cx0, pz - cx0) > cx0 - 4 : (px < 0 || pz < 0 || px > size || pz > size)) { if (rEdge) { const a = Math.atan2(pz - cx0, px - cx0); bins[((Math.round(a / (Math.PI / 8)) % 16) + 16) % 16] += c.n; } continue; }
+    if (c.n === 1) { x.globalAlpha = .62; x.fillStyle = c.dwn ? '#ffb020' : col; x.beginPath(); x.arc(px, pz, big ? 2.6 : 2.1, 0, 6.283); x.fill(); x.globalAlpha = 1; }
+    else { const r = Math.min(big ? 13 : 9, (big ? 5 : 3.6) + Math.sqrt(c.n) * (big ? 1.7 : 1.2));
+      x.globalAlpha = .28; x.fillStyle = col; x.beginPath(); x.arc(px, pz, r + 2.5, 0, 6.283); x.fill(); x.globalAlpha = .92; x.beginPath(); x.arc(px, pz, r, 0, 6.283); x.fill(); x.globalAlpha = 1;
+      x.strokeStyle = c.dwn ? '#ffb020' : '#ffffffcc'; x.lineWidth = c.dwn ? 2 : 1.1; x.beginPath(); x.arc(px, pz, r, 0, 6.283); x.stroke();
+      x.fillStyle = '#0b0f18'; x.font = '800 ' + Math.round(r * 1.05) + 'px system-ui,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(String(c.n), px, pz + .5);
+      if (c.lead && big) { x.fillStyle = '#fff'; x.font = '700 9px system-ui'; x.fillText('★', px, pz - r - 5); } } }
+  for (const e of F.mine) { const [px, pz] = toPx(e.p.x, e.p.z), cl = MX.classOf ? MX.classOf(e) : null, cc = cl ? '#' + cl.col.toString(16).padStart(6, '0') : col;
+    if (px < -4 || pz < -4 || px > size + 4 || pz > size + 4) continue;
+    x.fillStyle = e.dwn ? '#ffb020' : cc; x.strokeStyle = '#0b0f18'; x.lineWidth = 1.2; x.beginPath(); x.arc(px, pz, big ? 4.4 : 3.3, 0, 6.283); x.fill(); x.stroke();
+    if (big && cl) { x.fillStyle = '#0b0f18'; x.font = '800 7px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(cl.tag, px, pz + .4); }
+    if (e.sqd && e.sqd.leader === e) { x.fillStyle = '#fff'; x.font = '700 9px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('★', px, pz - (big ? 9 : 7)); } }
+  if (rEdge) for (let b = 0; b < 16; b++) { const n = bins[b]; if (!n) continue; const a = b * Math.PI / 8, ex = cx0 + Math.cos(a) * (cx0 - 8), ez = cx0 + Math.sin(a) * (cx0 - 8);
+    x.save(); x.translate(ex, ez); x.rotate(a); x.fillStyle = col; x.globalAlpha = .9; x.beginPath(); x.moveTo(6, 0); x.lineTo(-3.5, -4.6); x.lineTo(-3.5, 4.6); x.closePath(); x.fill(); x.restore();
+    x.globalAlpha = 1; x.fillStyle = '#fff'; x.strokeStyle = '#000b'; x.lineWidth = 2.4; x.font = '800 9px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; const tx = cx0 + Math.cos(a) * (cx0 - 19), tz = cx0 + Math.sin(a) * (cx0 - 19); x.strokeText(String(n), tx, tz); x.fillText(String(n), tx, tz); }
+  return F;
+}
 function mapDraw() {
   if (!TM.open) return;
   const g = mapGeom(), dpr = Math.min(2, devicePixelRatio || 1); if (mapCv.width !== Math.round(g.sz * dpr)) { mapCv.width = mapCv.height = Math.round(g.sz * dpr); mapCv.style.width = mapCv.style.height = g.sz + 'px'; }
@@ -7863,16 +7893,18 @@ function mapDraw() {
   for (const o of SQ.objs) { const cx = P2(o.x), cz = P2(o.z), r = Math.max(4, o.r * g.k); x.lineWidth = 2.2; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.globalAlpha = o.contested ? .5 + .5 * pulse : 1; x.beginPath(); x.arc(cx, cz, r, 0, 6.283); x.stroke(); x.globalAlpha = 1;
     if (o.capBy >= 0 && o.cap > 0) { x.strokeStyle = col(o.capBy); x.lineWidth = 3; x.beginPath(); x.arc(cx, cz, r + 3, -1.571, -1.571 + 6.283 * o.cap); x.stroke(); }
     if (o.code) { x.globalAlpha = 1; x.fillStyle = o.owner >= 0 ? col(o.owner) : '#0c1018'; x.font = '800 ' + Math.max(11, Math.round(r * 1.1)) + 'px system-ui,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(o.code, cx, cz); } }
-  /* aliados (los enemigos no se ven): tu escuadra más grande; líderes con estrella */
+  /* aliados (los enemigos no se ven): tu escuadra suelta con la clase de cada uno; el resto agrupado por zonas con su número; cada escuadra dibuja una línea suave a su objetivo */
   const ps = pl && pl.sqd;
-  for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; if (e.dead || e.team !== team || e.isPlayer) continue; const mine = ps && e.sqd === ps, cx = P2(e.p.x), cz = P2(e.p.z);
-    x.fillStyle = e.dwn ? '#ffb020' : col(team); x.globalAlpha = mine ? 1 : .55; x.beginPath(); x.arc(cx, cz, mine ? 3.2 : 2.2, 0, 6.283); x.fill(); x.globalAlpha = 1;
-    if (e.sqd && e.sqd.leader === e) { x.fillStyle = '#fff'; x.font = '700 10px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('★', cx, cz - 7); } }
+  x.lineWidth = 1.2; x.setLineDash([3, 4]); for (const q of SQ.list) { if (q.team !== team || q === ps || !q.mission || q.mission.x === undefined) continue; let ax = 0, az = 0, an = 0; for (const m of q.members) if (!m.dead) { ax += m.p.x; az += m.p.z; an++; } if (!an) continue;
+    x.strokeStyle = col(team); x.globalAlpha = .32; x.beginPath(); x.moveTo(P2(ax / an), P2(az / an)); x.lineTo(P2(q.mission.x), P2(q.mission.z)); x.stroke(); }
+  x.setLineDash([]); x.globalAlpha = 1;
+  const FR = drawFriends(x, (wx, wz) => [P2(wx), P2(wz)], g.sz, team, ps, true, false);
   if (ps && ps.playerLead && ps.order && ps.order.x !== undefined) { const ox = P2(ps.order.type === 'cover' ? ps.order.tx : ps.order.x), oz = P2(ps.order.type === 'cover' ? ps.order.tz : ps.order.z); x.strokeStyle = ps.order.type === 'cover' ? '#ff7a3a' : ps.order.type === 'move' ? '#4aa0ff' : '#6dff9a'; x.lineWidth = 2; x.setLineDash([4, 3]); x.beginPath(); x.moveTo(P2(P.pos.x), P2(P.pos.z)); x.lineTo(ox, oz); x.stroke(); x.setLineDash([]); x.beginPath(); x.arc(ox, oz, 5, 0, 6.283); x.stroke(); }
   if (pl && !pl.dead) { const cx = P2(P.pos.x), cz = P2(P.pos.z), a = P.aim; x.save(); x.translate(cx, cz); x.rotate(-a + Math.PI); x.fillStyle = '#fff'; x.strokeStyle = '#000'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(0, -9); x.lineTo(6, 6); x.lineTo(0, 3); x.lineTo(-6, 6); x.closePath(); x.fill(); x.stroke(); x.restore(); }
   /* encabezado: facción, objetivos por facción y combate activo */
   const live = cells.filter(h => !h.ally && h.young < 5).length, allyF = cells.filter(h => h.ally && h.young < 8).length, own = [0, 0, 0, 0]; for (const o of SQ.objs) if (o.owner >= 0) own[o.owner]++;
   let h = '<span style="color:' + col(team) + '">MAPA TÁCTICO · ' + TN[team].toUpperCase() + '</span>' + (live ? ' · <span style="color:#ff9a4a">' + live + (live === 1 ? ' zona con disparos cerca' : ' zonas con disparos cerca') + '</span>' : ' · sin disparos cerca') + (allyF ? ' · <span style="color:#ff6a6a">' + allyF + (allyF === 1 ? ' grupo aliado bajo fuego' : ' grupos aliados bajo fuego') + '</span>' : '');
+  h += ' · <span style="color:' + col(team) + '">' + (FR.total + (pl && !pl.dead ? 1 : 0)) + ' en pie</span>';
   if (SQ.objs.length) h += ' &nbsp;·&nbsp; ' + [0, 1, 2, 3].map(t => '<span style="color:' + col(t) + '">' + SQ.score[t] + ' (' + own[t] + '⚑)</span>').join(' ') + ' /' + META;
   if (mapHead.innerHTML !== h) mapHead.innerHTML = h;
 }
@@ -7897,7 +7929,7 @@ function miniTick(dt) {
     gr.addColorStop(0, 'rgba(' + rgb + ',' + Math.min(.9, .3 + h.w * .06) + ')'); gr.addColorStop(1, 'rgba(' + rgb + ',0)'); x.fillStyle = gr; x.beginPath(); x.arc(px, pz, r, 0, 6.283); x.fill();
     if (h.young < 2.5) { x.strokeStyle = 'rgba(' + rgb + ',' + (.5 + .5 * pulse) + ')'; x.lineWidth = 1.4; x.beginPath(); x.arc(px, pz, r * .5 + pulse * 2, 0, 6.283); x.stroke(); } }
   for (const o of SQ.objs) { const [px, pz] = W2(o.x, o.z); if (px < -10 || pz < -10 || px > size + 10 || pz > size + 10) continue; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.lineWidth = 1.6; x.beginPath(); x.arc(px, pz, Math.max(3, o.r * k), 0, 6.283); x.stroke(); if (o.code) { x.fillStyle = o.owner >= 0 ? col(o.owner) : '#0c1018'; x.font = '800 9px system-ui,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(o.code, px, pz); } }
-  const ps = pl && pl.sqd; for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; if (e.dead || e.team !== team || e.isPlayer) continue; const [px, pz] = W2(e.p.x, e.p.z); if (px < 0 || pz < 0 || px > size || pz > size) continue; x.fillStyle = e.dwn ? '#ffb020' : col(team); x.globalAlpha = ps && e.sqd === ps ? 1 : .55; x.beginPath(); x.arc(px, pz, ps && e.sqd === ps ? 2.6 : 1.8, 0, 6.283); x.fill(); x.globalAlpha = 1; }
+  drawFriends(x, W2, size, team, pl && pl.sqd, false, true);
   x.save(); x.translate(size / 2, size / 2); x.rotate(-P.aim + Math.PI); x.fillStyle = '#fff'; x.strokeStyle = '#000'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(0, -7); x.lineTo(5, 5); x.lineTo(0, 2.5); x.lineTo(-5, 5); x.closePath(); x.fill(); x.stroke(); x.restore();
   x.fillStyle = '#ffffffaa'; x.font = '700 9px system-ui'; x.textAlign = 'center'; x.textBaseline = 'top'; x.fillText('N', size / 2, 3);
 }

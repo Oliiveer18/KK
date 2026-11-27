@@ -1,5 +1,9 @@
 # Changelog
 
+## Mapas con toda tu facción y zombis con marcha anclada al suelo (27-11)
+- **Aliados en el minimapa y el mapa táctico**: tu escuadra siempre suelta (en el mapa grande con el color y la inicial de su clase); el resto de tu facción agrupado en celdas (10 m en el minimapa, 14 m en el grande) con un círculo y su número, sin solaparse; aro ámbar si hay abatidos, estrella si lleva líder. En el minimapa los grupos fuera de radio salen como flechas en el borde con su número (16 sectores). En el mapa grande, cada escuadra dibuja una línea suave a su objetivo y la cabecera dice cuántos de tu facción siguen en pie.
+- **Zombis**: la fase de la marcha avanza con la distancia recorrida (una zancada por tipo: caminante 1,9 m, corredor 3,4 m, pesado 2,3 m) con la amplitud de pierna que corresponde a esa zancada, de modo que el pie apoyado no patina; giro visual con velocidad angular limitada (5,5 rad/s; 9 corredor; 3,2 pesado) y miran hacia donde caminan.
+
 ## Fuego de cobertura sobre el enemigo más cercano (27-11)
 - La orden busca el enemigo más cercano (soldado o infectado) a ≤ 50 m del jugador, en cualquier lugar; la escuadra se coloca con línea de tiro (a ≤ 90 % del alcance de su arma) y solo dispara si lo ve/tiene línea; si cae, pasa al siguiente más cercano; sin enemigos avisa y no da la orden. Medido en el distrito: 36 disparos en 9 s, 0 a ciegas.
 
