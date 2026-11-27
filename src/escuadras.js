@@ -653,7 +653,7 @@ function hudTick(dt) {
   const pl = MX.pl, s = pl && pl.sqd; hudAcc += dt;
   const live = SQ.toasts.filter(q => M.t - q.at < 3.2); SQ.toasts = live;
   toastEl.style.display = live.length ? 'block' : 'none'; if (live.length) toastEl.textContent = live[live.length - 1].t;
-  if (!SQ.marker) { SQ.marker = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.35, 32), new THREE.MeshBasicMaterial({ color: 0x6dff9a, transparent: true, opacity: .55, depthWrite: false, side: THREE.DoubleSide })); SQ.marker.rotation.x = -Math.PI / 2; SQ.marker.position.y = .06; scene.add(SQ.marker); }
+  if (!SQ.marker) { SQ.marker = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.35, 32), new THREE.MeshBasicMaterial({ color: 0x6dff9a, transparent: true, opacity: .55, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })); SQ.marker.rotation.x = -Math.PI / 2; SQ.marker.position.y = .06; scene.add(SQ.marker); }
   const o = s && s.playerLead && s.order; SQ.marker.visible = !!(o && (o.type === 'hold' || o.type === 'move' || o.type === 'cover'));
   if (SQ.marker.visible) { const tx = o.type === 'cover' ? o.tx : o.x, tz = o.type === 'cover' ? o.tz : o.z; SQ.marker.position.x = tx; SQ.marker.position.z = tz; SQ.marker.material.color.setHex(o.type === 'cover' ? 0xff7a3a : o.type === 'move' ? 0x4aa0ff : 0x6dff9a); }
   if (hudAcc < .25) return; hudAcc = 0;

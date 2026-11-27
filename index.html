@@ -6195,7 +6195,7 @@ function aimFire(e, dt) {
     const sp = MX.SQ.supPoint(e);
     if (sp) { const d = Math.sqrt((sp.x - e.p.x) * (sp.x - e.p.x) + (sp.z - e.p.z) * (sp.z - e.p.z)), ux = (sp.x - e.p.x) / (d || 1), uz = (sp.z - e.p.z) / (d || 1), aim = Math.atan2(sp.x - e.p.x, sp.z - e.p.z) + Math.sin(M.t * 1.7 + e.phase * 9) * .12;
       e.yaw += clamp(angDiff(e.yaw, aim), -df.turn * dt, df.turn * dt);
-      if (d > 4 && Math.abs(angDiff(e.yaw, aim)) < .25 && e.fireCd <= 0 && e.pause <= 0 && !(e.cover && isParapet(e.cover) && e.crouch > .5) && segClear(e.p.x, e.p.z, e.p.x + ux * Math.min(d - 2, 18), e.p.z + uz * Math.min(d - 2, 18), e.cover, null, true)) { shoot(e); e.pause = Math.max(e.pause, rr(.6, 1.6)); }
+      if (d > 4 && Math.abs(angDiff(e.yaw, aim)) < .25 && e.fireCd <= 0 && e.pause <= 0 && !(e.cover && isParapet(e.cover) && e.crouch > .5) && segClear(e.p.x, e.p.z, e.p.x + ux * Math.min(d - 2, 18), e.p.z + uz * Math.min(d - 2, 18), e.cover, null, true)) { shoot(e); e._supN = (e._supN || 0) + 1; e.pause = Math.max(e.pause, rr(.6, 1.6)); }
       return; }
   }
   if (!(e.vis && e.tgt && !e.tgt.dead) && Math.sqrt((e.v.x) * (e.v.x) + (e.v.z) * (e.v.z)) > .8) {
@@ -7560,8 +7560,12 @@ SQ.supPoint = e => {                                                            
   const s = e.sqd; if (!s) return null;
   if (s.order && s.order.type === 'cover' && M.t - s.order.t < 10) return { x: s.order.tx, z: s.order.tz };
   if (s.contact && s.contact.foe && s.contact.foe.dead) s.contact = null;          // el enemigo ha caído: se deja de batir la zona
-  if (s.contact && M.t - s.contact.t < 6 && !e.vis) return { x: s.contact.x, z: s.contact.z };
-  return null;
+  /* fuego de supresión SOLO con motivo: contacto reciente (< 4 s), a distancia de tiro de quien dispara (≤ 32 m; 50 m el de apoyo con ametralladora), que no lo vea ya otro enemigo, y con un
+     presupuesto por contacto (6 disparos; 16 el de apoyo). Antes bastaba un contacto a < 6 s en cualquier punto de la escuadra para que todos dispararan al aire. */
+  const c = s.contact; if (!c || M.t - c.t >= 4 || e.vis) return null;
+  const d = dist(e.p, c), apo = e.cls === 'apo'; if (d > (apo ? 50 : 32) || d < 5) return null;
+  if (e._supK !== c.t) { e._supK = c.t; e._supN = 0; } if (e._supN >= (apo ? 16 : 6)) return null;
+  return { x: c.x, z: c.z };
 };
 
 /* ---------- actualización ---------- */
@@ -7717,11 +7721,16 @@ function objHud() {
       const g = new THREE.Group(); g.position.set(o.x, 0, o.z); const pole = new THREE.Mesh(new THREE.CylinderGeometry(.05, .06, 4.2, 6), new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: .6, roughness: .4 }));
       pole.position.y = 2.1; pole.castShadow = true; g.add(pole); o.flagM = new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: .8, side: THREE.DoubleSide, flatShading: true });
       o.flag = new THREE.Mesh(new THREE.PlaneGeometry(1.2, .75), o.flagM); o.flag.position.set(.62, 3.7, 0); o.flag.castShadow = true; g.add(o.flag); scene.add(g); o.pole = g;
-      o.fill = new THREE.Mesh(new THREE.RingGeometry(o.r - .9, o.r - .35, 64, 1, 0, .001), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .7, depthWrite: false, side: THREE.DoubleSide })); o.fill.rotation.x = -Math.PI / 2; o.fill.position.set(o.x, .055, o.z); scene.add(o.fill); }
+      /* anillo de progreso: UNA geometría fija de 128 sectores; el progreso solo cambia cuántos se dibujan (setDrawRange): sin recrear mallas ni parpadeos. polygonOffset evita el cruce con el suelo y el anillo exterior */
+      o.fill = new THREE.Mesh(new THREE.RingGeometry(o.r - .9, o.r - .35, 128, 1, Math.PI / 2, -Math.PI * 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .7, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })); o.fill.rotation.x = -Math.PI / 2; o.fill.position.set(o.x, .075, o.z); o.fill.renderOrder = 3; o.fill.geometry.setDrawRange(0, 0); o.fillS = 0; scene.add(o.fill);
+      o.ring.material.polygonOffset = true; o.ring.material.polygonOffsetFactor = -1; o.ring.material.polygonOffsetUnits = -1; o.ring.renderOrder = 2; }
     const col = o.owner >= 0 ? TEAM_COL[o.owner] : 0xe8e8e8; o.ring.material.color.setHex(col); o.flagM.color.setHex(col);
-    o.ring.material.opacity = o.contested ? .35 + .3 * Math.sin(M.t * 8) : .45; o.flag.position.y = 3.7 - (o.capBy >= 0 && o.owner >= 0 ? o.cap * 1.6 : 0); o.flag.rotation.y = Math.sin(M.t * 2.1 + o.x) * .25;
-    const prog = o.capBy >= 0 ? o.cap : 0; o.fill.visible = prog > .005;
-    if (o.fill.visible && Math.abs((o.fillP || 0) - prog) > .01) { o.fill.geometry.dispose(); o.fill.geometry = new THREE.RingGeometry(o.r - .9, o.r - .35, 64, 1, Math.PI / 2, -prog * Math.PI * 2); o.fillP = prog; }
+    const dt = Math.min(.1, M.t - (o.hudT === undefined ? M.t : o.hudT)), k = 1 - Math.exp(-dt * 7); o.hudT = M.t;                                     // todo lo que se ve se suaviza: sin saltos aunque la captura suba y baje
+    o.ring.material.opacity = o.contested ? .4 + .1 * Math.sin(M.t * 3) : .45;
+    const fy = 3.7 - (o.capBy >= 0 && o.owner >= 0 ? o.cap * 1.6 : 0); o.flagY = o.flagY === undefined ? fy : o.flagY + (fy - o.flagY) * k; o.flag.position.y = o.flagY; o.flag.rotation.y = Math.sin(M.t * 2.1 + o.x) * .25;
+    const prog = o.capBy >= 0 ? o.cap : 0; o.fillS += (prog - o.fillS) * k; if (Math.abs(prog - o.fillS) < .004) o.fillS = prog;
+    const vis = o.fill.visible ? o.fillS > .004 : o.fillS > .02; o.fill.visible = vis;
+    if (vis) { const seg = Math.max(1, Math.min(128, Math.round(o.fillS * 128))); if (seg !== o.fillSeg) { o.fillSeg = seg; o.fill.geometry.setDrawRange(0, seg * 6); } }
     if (o.fill.visible) o.fill.material.color.setHex(TEAM_COL[o.capBy]);
   }
 }
@@ -7890,7 +7899,7 @@ function hudTick(dt) {
   const pl = MX.pl, s = pl && pl.sqd; hudAcc += dt;
   const live = SQ.toasts.filter(q => M.t - q.at < 3.2); SQ.toasts = live;
   toastEl.style.display = live.length ? 'block' : 'none'; if (live.length) toastEl.textContent = live[live.length - 1].t;
-  if (!SQ.marker) { SQ.marker = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.35, 32), new THREE.MeshBasicMaterial({ color: 0x6dff9a, transparent: true, opacity: .55, depthWrite: false, side: THREE.DoubleSide })); SQ.marker.rotation.x = -Math.PI / 2; SQ.marker.position.y = .06; scene.add(SQ.marker); }
+  if (!SQ.marker) { SQ.marker = new THREE.Mesh(new THREE.RingGeometry(1.1, 1.35, 32), new THREE.MeshBasicMaterial({ color: 0x6dff9a, transparent: true, opacity: .55, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })); SQ.marker.rotation.x = -Math.PI / 2; SQ.marker.position.y = .06; scene.add(SQ.marker); }
   const o = s && s.playerLead && s.order; SQ.marker.visible = !!(o && (o.type === 'hold' || o.type === 'move' || o.type === 'cover'));
   if (SQ.marker.visible) { const tx = o.type === 'cover' ? o.tx : o.x, tz = o.type === 'cover' ? o.tz : o.z; SQ.marker.position.x = tx; SQ.marker.position.z = tz; SQ.marker.material.color.setHex(o.type === 'cover' ? 0xff7a3a : o.type === 'move' ? 0x4aa0ff : 0x6dff9a); }
   if (hudAcc < .25) return; hudAcc = 0;
@@ -7953,7 +7962,7 @@ function build() {
   if (grp) { scene.remove(grp); grp.traverse(o => { if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); }
   grp = new THREE.Group(); pads = []; const cp = MAPA.built && MAPA.built.info && MAPA.built.info.classPads; if (!cp) return;
   const GD = build.GD || (build.GD = new THREE.CircleGeometry(.85, 28)), GR = build.GR || (build.GR = new THREE.RingGeometry(.86, 1.0, 36));
-  const mats = {}, texs = {}; for (const k in CLS) { mats[k] = [new THREE.MeshBasicMaterial({ color: CLS[k].col, transparent: true, opacity: .28, depthWrite: false }), new THREE.MeshBasicMaterial({ color: CLS[k].col, transparent: true, opacity: .9, depthWrite: false })]; texs[k] = new THREE.SpriteMaterial({ map: label(CLS[k].name, CLS[k].col), transparent: true, depthWrite: false, fog: false }); }
+  const mats = {}, texs = {}; for (const k in CLS) { mats[k] = [new THREE.MeshBasicMaterial({ color: CLS[k].col, transparent: true, opacity: .28, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), new THREE.MeshBasicMaterial({ color: CLS[k].col, transparent: true, opacity: .9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })]; texs[k] = new THREE.SpriteMaterial({ map: label(CLS[k].name, CLS[k].col), transparent: true, depthWrite: false, fog: false }); }
   for (const t of cp) t.pts.forEach(([x, z], i) => {
     const key = PAD_CLS[i], d = new THREE.Mesh(GD, mats[key][0]), r = new THREE.Mesh(GR, mats[key][1]); for (const m of [d, r]) { m.rotation.x = -Math.PI / 2; m.position.set(x, .06, z); m.renderOrder = 2; grp.add(m); }
     const sp = new THREE.Sprite(texs[key]); sp.position.set(x, 2.05, z); sp.scale.set(3.1, .78, 1); grp.add(sp);

@@ -1,5 +1,11 @@
 # Changelog
 
+## Correcciones: inventario, mapa táctico, disparos sin motivo y vibraciones (27-11)
+- **Inventario** compacto (≈ la mitad de alto), anclado a la derecha y sin velo ni desenfoque: el minimapa y el mundo se ven siempre; la capacidad va en la cabecera y el equipo en una sola fila.
+- **Mapa táctico**: la leyenda y la cabecera ya no tapan el mapa; el tamaño del mapa descuenta su altura real.
+- **Bots disparando sin enemigo**: el fuego de supresión exige contacto de menos de 4 s, a ≤ 32 m de quien dispara (50 m el de apoyo), que no vea ya a nadie, y un presupuesto de 6 disparos por contacto (16 el de apoyo). Antes bastaba un contacto en cualquier punto de la escuadra durante 6 s. Medido: 0 de ~1.500–1.800 disparos sin enemigo ni zombi a menos de 45 m.
+- **Vibraciones**: el anillo de progreso de captura usa una sola geometría (128 sectores, `setDrawRange`) y su progreso, la bandera y el parpadeo de disputa están suavizados; anillos y marcadores con `polygonOffset` para que no se crucen con el suelo.
+
 ## Bots profesionales: clases, mando de facción, formaciones y cruceta en dos tiempos (27-11)
 - **Clases** (`src/clases.js`, 6 con las armas que ya existen): Fusilero (fusil), Asalto (escopeta semiautomática + chaleco 3), Apoyo (ametralladora + más munición), Médico (subfusil, 4 botiquines, 3 kits de reanimación), Flanqueador (subfusil .45) y Francotirador (precisión). Reparto fijo por escuadra: 2 → Fusilero + Médico; 3 → + Asalto; 4 → + Apoyo; 5 → + Flanqueador; 6 → + Francotirador (cada facción: 12 F, 12 M, 10 A, 8 P, 6 L, 2 T). El líder de una escuadra es fusilero o de asalto.
 - **Puesto de clases**: 6 chapas con su nombre en cada refugio (delante del tabique interior). El jugador cambia de clase pisándolas (arma y equipo al instante, se conserva al reaparecer). Los bots que aparecen en el refugio caminan a su chapa, ~0,7 s, y salen con el arma y el kit de su clase.

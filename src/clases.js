@@ -45,7 +45,7 @@ function build() {
   if (grp) { scene.remove(grp); grp.traverse(o => { if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); }
   grp = new THREE.Group(); pads = []; const cp = MAPA.built && MAPA.built.info && MAPA.built.info.classPads; if (!cp) return;
   const GD = build.GD || (build.GD = new THREE.CircleGeometry(.85, 28)), GR = build.GR || (build.GR = new THREE.RingGeometry(.86, 1.0, 36));
-  const mats = {}, texs = {}; for (const k in CLS) { mats[k] = [new THREE.MeshBasicMaterial({ color: CLS[k].col, transparent: true, opacity: .28, depthWrite: false }), new THREE.MeshBasicMaterial({ color: CLS[k].col, transparent: true, opacity: .9, depthWrite: false })]; texs[k] = new THREE.SpriteMaterial({ map: label(CLS[k].name, CLS[k].col), transparent: true, depthWrite: false, fog: false }); }
+  const mats = {}, texs = {}; for (const k in CLS) { mats[k] = [new THREE.MeshBasicMaterial({ color: CLS[k].col, transparent: true, opacity: .28, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), new THREE.MeshBasicMaterial({ color: CLS[k].col, transparent: true, opacity: .9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 })]; texs[k] = new THREE.SpriteMaterial({ map: label(CLS[k].name, CLS[k].col), transparent: true, depthWrite: false, fog: false }); }
   for (const t of cp) t.pts.forEach(([x, z], i) => {
     const key = PAD_CLS[i], d = new THREE.Mesh(GD, mats[key][0]), r = new THREE.Mesh(GR, mats[key][1]); for (const m of [d, r]) { m.rotation.x = -Math.PI / 2; m.position.set(x, .06, z); m.renderOrder = 2; grp.add(m); }
     const sp = new THREE.Sprite(texs[key]); sp.position.set(x, 2.05, z); sp.scale.set(3.1, .78, 1); grp.add(sp);
