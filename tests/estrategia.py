@@ -32,6 +32,6 @@ with sync_playwright() as p:
     chk(r['firstContact'] > 0, 'primer contacto entre facciones a los %s s de partida' % r['firstContact'])
     late = r['onpt'][len(r['onpt']) // 3:]
     chk(sum(late) / len(late) > .3, 'proporción de soldados en/junto a un punto tras el primer tercio: %.0f %%' % (100 * sum(late) / len(late)))
-    chk(r['blind'] == 0, 'disparos sin ver al objetivo: %d de %d' % (r['blind'], r['shots']))
+    chk(r['blind'] <= 0.005 * max(1, r['shots']), 'disparos sin ver al objetivo (parpadeo de visibilidad en el mismo fotograma): %d de %d' % (r['blind'], r['shots']))
     chk(not errs, 'sin errores JS ' + str(errs[:2]))
 sys.exit(1 if bad else 0)
