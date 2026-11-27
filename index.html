@@ -2879,6 +2879,46 @@ if (document.readyState === 'complete') requestAnimationFrame(frame); else windo
       return { out, hx: .78, hz: .42, h: 1.1 };
     }
   });
+  /* ---- objetivos (plaza, fábricas, estaciones, puestos): piezas grandes de cobertura que dan carácter a cada punto de captura ---- */
+  def('monument', { name: 'Monumento de la plaza', cat: 'Plaza y objetivos', note: 'indestructible (hp 10 millones): el centro de la Plaza Mayor' }, {
+    mat: 'block', hp: 1e7, push: false, mass: 900, fric: 9, build: g => {
+      const out = [];
+      tx(g, out, OM.stone, 1, 5.4, .3, 5.4, 0, .15, 0, false); tx(g, out, OM.stone, 1, 4.5, .3, 4.5, 0, .45, 0, false); tx(g, out, OM.stoneD, 1, 3.5, .4, 3.5, 0, .8, 0, false);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) tx(g, out, OM.stoneD, 1, .5, .7, .5, sx * 1.35, 1.35, sz * 1.35, false);                 // cuatro pilastras en las esquinas del zócalo
+      tx(g, out, OM.stoneD, 1, 1.7, 1.0, 1.7, 0, 1.5, 0, false); tx(g, out, OM.concL, 1, 1.2, 1.7, 1.2, 0, 2.85, 0, false); tx(g, out, OM.concL, 1, .9, 1.0, .9, 0, 4.2, 0, false);
+      spike(g, out, OM.concP, .62, .8, 0, 5.1, 0, false);
+      bx(g, out, OM.yellow, .7, .35, .06, 0, 1.55, 0.87, false); bx(g, out, OM.yellow, .06, .35, .7, 0.87, 1.55, 0, false);                                // placas
+      return { out, hx: 2.7, hz: 2.7, h: 5.5 };
+    }
+  });
+  def('jersey', { name: 'Barrera de hormigón', cat: 'Plaza y objetivos', note: 'cobertura baja (0,95 m): agachado cubre; de pie se dispara por encima' }, {
+    mat: 'block', hp: 700, push: false, mass: 120, fric: 9, build: g => {
+      const out = [];
+      tx(g, out, OM.concL, 1, 3.0, .3, .62, 0, .15, 0, true); tx(g, out, OM.concL, 1, 3.0, .4, .4, 0, .5, 0, true); tx(g, out, OM.concL, 1, 3.0, .25, .22, 0, .83, 0, true);
+      bx(g, out, OM.hazard, .5, .14, .24, -1.0, .9, 0, true); bx(g, out, OM.hazard, .5, .14, .24, 1.0, .9, 0, true);
+      return { out, hx: 1.5, hz: .31, h: .95 };
+    }
+  });
+  def('container', { name: 'Contenedor de carga', cat: 'Plaza y objetivos', note: 'cobertura alta (2,6 m) y dura; param.c = color' }, {
+    mat: 'metal', hp: 900, push: false, mass: 400, fric: 9, build: g => {
+      const out = [], c = paint(PAR().c || pick([0xb8412e, 0x3466a8, 0x2a9a94, 0xd9a21f, 0x6c7a3a]));
+      bx(g, out, OM.ironD, 6.1, .18, 2.45, 0, .09, 0, false); bx(g, out, c, 6.0, 2.3, 2.4, 0, 1.33, 0, false); bx(g, out, OM.ironD, 6.1, .12, 2.45, 0, 2.54, 0, false);
+      for (let k = 0; k < 11; k++) for (const sz of [-1, 1]) bx(g, out, OM.dark, .1, 2.1, .08, -2.75 + k * .55, 1.33, sz * 1.22, false);                     // nervios de la chapa ondulada
+      bx(g, out, OM.dark, .1, 2.2, 2.2, 3.03, 1.33, 0, false); bx(g, out, OM.steelL, .06, 2.1, .06, 3.1, 1.33, -.3, false); bx(g, out, OM.steelL, .06, 2.1, .06, 3.1, 1.33, .3, false);
+      return { out, hx: 3.05, hz: 1.23, h: 2.6 };
+    }
+  });
+  def('wreckBus', { name: 'Autobús siniestrado', cat: 'Plaza y objetivos', note: 'cobertura alta y larga: de los dos lados se ve poco' }, {
+    mat: 'metal', hp: 800, push: false, mass: 500, fric: 9, build: g => {
+      const out = [], c = paint(PAR().c || 0xc9a227);
+      bx(g, out, OM.ironD, 8.8, .35, 2.3, 0, .55, 0, false); bx(g, out, c, 8.8, 1.55, 2.4, 0, 1.55, 0, false); bx(g, out, OM.ironD, 8.6, .16, 2.3, 0, 2.43, 0, false);
+      for (let k = 0; k < 6; k++) for (const sz of [-1, 1]) bx(g, out, OM.dark, 1.15, .75, .06, -3.6 + k * 1.45, 1.95, sz * 1.22, false);                    // ventanas sin cristal
+      bx(g, out, OM.dark, .06, .9, 2.0, 4.42, 1.9, 0, false); bx(g, out, OM.rust, .4, .2, 2.0, 4.45, 1.0, 0, false);
+      for (const x of [-2.9, 2.9]) for (const sz of [-1, 1]) rot(cy(g, out, OM.rubber, .52, .34, x, .52, sz * 1.1, false), Math.PI / 2, 0, 0);
+      bx(g, out, OM.rust, 2.4, .08, 1.6, -1.6, 2.52, 0, false);
+      return { out, hx: 4.4, hz: 1.2, h: 2.9 };
+    }
+  });
   def('busStop', { name: 'Marquesina', cat: 'Mobiliario urbano' }, {
     mat: 'metal', hp: 110, push: false, mass: 60, fric: 9, build: g => {
       const out = [], L = 3.2, D = 1.3, c = paint(pick(PAINTS));
@@ -4344,6 +4384,7 @@ COMP.compound = function (D, o) {
   const gpos = alongX ? [cx, cz + gs * hz, 0] : [cx + gx * hx, cz, PI2];
   if (put(D, gate, gpos[0], gpos[1], gpos[2], { abierto: true, fac: o.fac }, 0)) n++;
   n += COMP.towerPost(D, { x: cx - hx + 4, z: cz - hz + 4, level: lv, seed: o.seed });
+  if (o.fill) for (const [t, dx, dz, g] of o.fill) if (put(D, t, cx + dx, cz + dz, g || 0, null, .15)) n++;               // relleno de diseño: [tipo, dx, dz, giro] respecto al centro (antes de los objetos al azar, para que el diseño mande)
   const T = ['pallet', 'palletBoxes', 'cage', 'crate', 'crateS', 'dumpster', 'barrel', 'forklift']; const R = rngOf(o.seed || 5);
   for (let i = 0, tr = 0; i < (o.n || 8) && tr < 120; tr++) if (put(D, T[Math.floor(R() * T.length)], cx + (R() - .5) * (2 * hx - 9), cz + (R() - .5) * (2 * hz - 9), R() < .5 ? 0 : PI2)) { n++; i++; }
   COMP.reserve(D, cx, cz, hx + 1, hz + 1, 'recinto'); return { x: cx, z: cz, n };
@@ -4505,6 +4546,16 @@ MAPA.data.M2 = function () {
   COMP.reserve(D, -30.1, -30.1, 19.9, 19.9, 'plaza');
   D.info.places.push({ id: 'PLAZA', name: 'Plaza Mayor (objetivo central)', x: 0, z: 0, fac: -1 }); D.hot.push([-30, -30], [30, -30], [30, 30], [-30, 30]);
   zone('Plaza Mayor', -50, -50, 50, 50, 1);
+  /* ---------- 2b. objetivos como zonas de combate: cada punto de captura tiene una pieza propia y cobertura repartida a varias alturas y distancias ----------
+     ringPut coloca una lista [tipo, dx, dz, giro, opciones] alrededor de un centro (con la simetría activa: se copia a los otros lados). Lo que no cabe se omite. */
+  const ringPut = (cx, cz, list) => { let n = 0; for (const [t, dx, dz, g, o] of list) if (COMP.put(D, t, cx + dx, cz + dz, g || 0, o, .15)) n++; return n; };
+  /* Plaza Mayor: glorieta con monumento indestructible en el centro del cruce y un molinillo de cobertura baja y alta alrededor (calles de 14 y 9 m: nada cierra el paso a menos de 3 m) */
+  COMP.put(D, 'monument', 0, 0, 0, null, .2);
+  ringPut(0, 0, [
+    ['jersey', 5.6, 3.1, 0], ['jersey', 3.1, -5.6, H], ['car', 11.2, -3.2, 0], ['car', 3.4, 11.4, H],                          // anillo interior (se repite girado 4 veces)
+    ['planter', 8.4, 9.4, 0], ['planter', 10.6, 8.2, H], ['sandbags', 7.4, 6.2, 0], ['blocks', 9.4, 12.2, 0],                  // rincones del cruce (aceras)
+    ['bench', 14.2, 4.8, H], ['crateS', 12.4, 7.6, 0], ['barrier', 6.0, 11.0, H], ['jersey', 14.5, -8.2, 0],
+    ['jersey', 9.8, 4.6, 0], ['stall', 15.8, 11.2, 0], ['crate', 5.2, 9.4, 0], ['barrelFuel', 13.4, 6.2, 0], ['palletBoxes', 16.4, 7.4, 0]]);   // barril de combustible: una explosión en cadena también es táctica
   /* ---------- 3. retenes (antes que los edificios, para que tengan sitio): media avenida, y la ronda exterior a la salida de cada refugio, con torre ---------- */
   const rb = (r, x, z, extra) => { const n = COMP.nearest(r, x, z); COMP.roadblock(D, Object.assign({ road: r, s: n.s, seed: ++sd }, extra || {})); place('RET', 'Retén', n.q.x, n.q.z); };
   rb(RD('z', 0, -300), 0, -312);
@@ -4519,6 +4570,12 @@ MAPA.data.M2 = function () {
     COMP.yard(D, { x: -70, z: -458, w: 30, d: 22, seed: 7001, n: 10, gateSide: 1 }); COMP.yard(D, { x: 70, z: -458, w: 30, d: 22, seed: 7004, n: 10, gateSide: 1 });
     COMP.footbridge(D, { x: 0, z: -484, axis: 'x' });
     place('FAB', 'Fábrica', 0, -425, 2); hot(0, -425, 2); zone('Fábrica', -125, -500, 125, -379, 2);
+    /* patio de carga: cuatro contenedores en molinillo (paso de 3,5 m entre ellos), barreras bajas en el centro, carretillas y palés en el anillo exterior */
+    ringPut(0, -425, [
+      ['container', -8.5, -3.5, 0], ['container', 8.5, 3.5, 0], ['container', -3, 9, H], ['container', 3, -9, H],
+      ['jersey', 3.6, -2.4, 0], ['jersey', -3.6, 2.4, 0], ['jersey', 2.4, 3.6, H], ['jersey', -2.4, -3.6, H],
+      ['sandbags', 6.4, -6.6, 0], ['sandbags', -6.4, 6.6, 0], ['forklift', 12.5, -4.5, H], ['forklift', -12.5, 4.5, H],
+      ['palletBoxes', 5.6, 8.6, 0], ['palletBoxes', -5.6, -8.6, 0], ['crate', 11, 9, 0], ['crate', -11, -9, 0], ['barrel', 8.4, 0.2, 0], ['barrel', -8.4, -0.2, 0], ['cage', 0.5, 13, 0], ['cage', -0.5, -13, 0]]);
     // Estación y supermercado (oeste y este): supermercado a la ronda, aparcamientos a ambos lados, estación detrás
     surf('concrete', -438.5, 0, 113, 246, 2);
     COMP.building(D, { kind: 'super', x: -392.5, z: 0, rot: H });                                  // a la ronda exterior, frente al final de la Avenida Mayor
@@ -4526,6 +4583,12 @@ MAPA.data.M2 = function () {
       for (let i = 0; i < 6; i++) COMP.put(D, 'car', -418 + i * 6, lz + (i % 2 ? -4 : 4), H, null, .1); COMP.reserve(D, -403, lz, 20, 12, 'aparcamiento'); }
     COMP.building(D, { kind: 'station', x: -458, z: 0, rot: H });
     place('EST', 'Estación y supermercado', -430, 0, 2, NAMES2W); hot(-430, 0, 2); zone('Estación y supermercado', -500, -125, -379, 125, 2, NAMES2W);
+    /* andén y aparcamiento: autobuses siniestrados como muros largos, quioscos, marquesinas y bancos para cubrirse, y barreras bajas para cruzar entre ellos */
+    ringPut(-430, 0, [
+      ['wreckBus', -6, -9, H], ['wreckBus', 6, 9, H], ['kiosk', 0.5, -4.5, 0], ['kiosk', -0.5, 4.5, 0], ['busStop', -10.5, 0, H], ['busStop', 10.5, 0, H],
+      ['jersey', -3.4, 1.0, H], ['jersey', 3.4, -1.0, H], ['jersey', 8.5, -6.5, 0], ['jersey', -8.5, 6.5, 0],
+      ['planter', -4.6, -11.0, 0], ['planter', 4.6, 11.0, 0], ['waitSeat', -7.8, 5.2, 0], ['waitSeat', 7.8, -5.2, 0], ['waitSeat', 3.2, -7.8, 0], ['waitSeat', -3.2, 7.8, 0],
+      ['crate', 12, 5, 0], ['crate', -12, -5, 0], ['dumpster', 6.5, -12, 0], ['dumpster', -6.5, 12, 0]]);
   });
   /* ---------- 5. objetivos y edificios propios de cada facción (cuarto Azul; se copia a los otros tres) ---------- */
   // comercios junto a la plaza: clínica a la Avenida Mayor, mercado a la Avenida Norte-Sur
@@ -4536,7 +4599,9 @@ MAPA.data.M2 = function () {
   { const b = front('mini', 'x', 0, 14, -187, -1); if (b) { place('TIE', 'Tienda', b.x, b.z); hot(b.x, b.z - 10); } }
   // puesto avanzado (esquina de la ronda interior): gasolinera a la ronda y recinto de piedra con torre
   { const gc = front('gascanopy', 'x', -250, 11, -160, 1, { reserve: false, pad: 0 }); if (gc) for (const dx of [-5, 0, 5]) COMP.put(D, 'pump', gc.x + dx, gc.z, 0); front('gasshop', 'x', -250, 11, -205, 1);
-    const c = COMP.compound(D, { at: [-187, -130], side: -1, level: 2, w: 36, d: 26, seed: 8002, n: 9 }); if (c) { place('PUE', 'Puesto avanzado', c.x, c.z); hot(c.x, c.z); } }
+    const c = COMP.compound(D, { at: [-187, -130], side: -1, level: 2, w: 36, d: 26, seed: 8002, n: 9,
+      fill: [['jersey', -3.6, -3.4, 0], ['jersey', 3.6, 3.4, 0], ['jersey', 3.4, -3.6, H], ['jersey', -3.4, 3.6, H], ['sandbags', 0, -6.4, 0], ['sandbags', 0, 6.4, 0], ['sandbags', -6.6, 0, H], ['sandbags', 6.6, 0, H],
+        ['container', 9.5, -7, 0], ['container', -9.5, 7, 0], ['crate', 7.4, 5.6, 0], ['crate', -7.4, -5.6, 0], ['barrier', 5.8, -2, H], ['barrier', -5.8, 2, H], ['barrelFuel', 8.4, 1, 0], ['palletBoxes', -8.4, -1.2, 0], ['crateS', 2.4, 8.6, 0], ['crateS', -2.4, -8.6, 0]] }); if (c) { place('PUE', 'Puesto avanzado', c.x, c.z); hot(c.x, c.z); } }
   // granjas (bandas exteriores): recinto de madera a la ronda exterior, casas y campo de cultivo detrás
   { const c1 = COMP.compound(D, { at: [-187, -380], side: -1, level: 1, w: 30, d: 22, seed: 8001, n: 7 }); if (c1) { place('GRA', 'Granja', c1.x, c1.z); hot(c1.x, c1.z); }
     const c2 = COMP.compound(D, { at: [-380, -187], side: 1, level: 1, w: 30, d: 22, seed: 8004, n: 7 }); if (c2) { place('GRA', 'Granja', c2.x, c2.z); hot(c2.x, c2.z); }

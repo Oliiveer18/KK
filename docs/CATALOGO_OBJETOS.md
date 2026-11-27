@@ -267,3 +267,19 @@ El usuario señaló que los locales eran demasiado pequeños para interactuar de
 - Devuelve el prop (`p.type`, `p.x`, `p.z`, `p.hx`, `p.hz`, `p.h`) o, para un edificio, `{ isBuilding: true, kind, props, doors, group }`. No rechaza solapes.
 - `OBJ.footprint(tipo, giro, opciones)` → `{ hx, hz, h }` sin colocar nada (para que el generador reparta sin solapar). `OBJ.removeObject(resultado)` quita un objeto o un edificio.
 - Tras colocar o quitar objetos, las listas `props` y `boxes` del juego se actualizan solas; la navegación de los bots del mapa 3 es estática y hay que reconstruirla (`navBuild`) al terminar de colocar. `OBJ.on.push(f)` avisa de cada alta, rotura, apertura y alarma.
+
+## 16. Piezas de objetivo (Fase A, 27-11)
+Cuatro tipos nuevos (`cat: Plaza y objetivos`, total 75) para dar carácter de zona de combate a los puntos de captura:
+| Objeto | Medidas (m) | Material / vida | Notas |
+|---|---|---|---|
+| Monumento de la plaza (`monument`) | 5,4 × 5,4 × 5,5 | bloque / **10.000.000 (indestructible)** | centro de la Plaza Mayor: zócalo escalonado, pilastras y obelisco |
+| Barrera de hormigón (`jersey`) | 3,0 × 0,62 × 0,95 | bloque / 700 | cobertura baja: agachado cubre, de pie se dispara por encima |
+| Contenedor de carga (`container`) | 6,1 × 2,45 × 2,6 | metal / 900 | cobertura alta y dura; `param.c` = color |
+| Autobús siniestrado (`wreckBus`) | 8,8 × 2,4 × 2,9 | metal / 800 | muro largo; `param.c` = color |
+
+**Diseño por objetivo** (`src/mapa_distrito.js`, sección 2b y las de Fábrica, Estación y Puesto avanzado; `ringPut(cx, cz, lista)` coloca `[tipo, dx, dz, giro]` respecto al centro y, con la simetría activa, lo copia a los demás lados; `COMP.compound(..., { fill })` hace lo mismo dentro de un recinto):
+- **Plaza Mayor (A)**: glorieta con el monumento en el cruce y un molinillo de barreras, coches siniestrados, jardineras, sacos, puestos y un barril de combustible por cuadrante. Las calles miden 14 y 9 m: nada deja menos de ~3 m de paso.
+- **Fábricas (B, C)**: patio de carga con contenedores en molinillo, barreras bajas en el centro, carretillas, palés y jaulas.
+- **Estaciones (D, E)**: andén con autobuses siniestrados, quioscos, marquesinas, bancos y barreras bajas.
+- **Puestos avanzados**: barreras y sacos en molinillo dentro del recinto, contenedores y cajas, un barril de combustible.
+- Test `tests/cobertura_objetivos.py`: por objetivo mide objetos de cobertura, parte de la zona con cobertura a ≤ 3 m, direcciones (de 8) con cobertura a ≤ 12 m, y ruta desde 4 puntos a 40 m con rodeo ≤ 1,8. Antes: plaza 0 objetos y 0 % de cobertura; fábricas 8 y 22 %; estaciones 3 y 14 %.

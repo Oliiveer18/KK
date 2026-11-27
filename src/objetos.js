@@ -368,6 +368,46 @@
       return { out, hx: .78, hz: .42, h: 1.1 };
     }
   });
+  /* ---- objetivos (plaza, fábricas, estaciones, puestos): piezas grandes de cobertura que dan carácter a cada punto de captura ---- */
+  def('monument', { name: 'Monumento de la plaza', cat: 'Plaza y objetivos', note: 'indestructible (hp 10 millones): el centro de la Plaza Mayor' }, {
+    mat: 'block', hp: 1e7, push: false, mass: 900, fric: 9, build: g => {
+      const out = [];
+      tx(g, out, OM.stone, 1, 5.4, .3, 5.4, 0, .15, 0, false); tx(g, out, OM.stone, 1, 4.5, .3, 4.5, 0, .45, 0, false); tx(g, out, OM.stoneD, 1, 3.5, .4, 3.5, 0, .8, 0, false);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) tx(g, out, OM.stoneD, 1, .5, .7, .5, sx * 1.35, 1.35, sz * 1.35, false);                 // cuatro pilastras en las esquinas del zócalo
+      tx(g, out, OM.stoneD, 1, 1.7, 1.0, 1.7, 0, 1.5, 0, false); tx(g, out, OM.concL, 1, 1.2, 1.7, 1.2, 0, 2.85, 0, false); tx(g, out, OM.concL, 1, .9, 1.0, .9, 0, 4.2, 0, false);
+      spike(g, out, OM.concP, .62, .8, 0, 5.1, 0, false);
+      bx(g, out, OM.yellow, .7, .35, .06, 0, 1.55, 0.87, false); bx(g, out, OM.yellow, .06, .35, .7, 0.87, 1.55, 0, false);                                // placas
+      return { out, hx: 2.7, hz: 2.7, h: 5.5 };
+    }
+  });
+  def('jersey', { name: 'Barrera de hormigón', cat: 'Plaza y objetivos', note: 'cobertura baja (0,95 m): agachado cubre; de pie se dispara por encima' }, {
+    mat: 'block', hp: 700, push: false, mass: 120, fric: 9, build: g => {
+      const out = [];
+      tx(g, out, OM.concL, 1, 3.0, .3, .62, 0, .15, 0, true); tx(g, out, OM.concL, 1, 3.0, .4, .4, 0, .5, 0, true); tx(g, out, OM.concL, 1, 3.0, .25, .22, 0, .83, 0, true);
+      bx(g, out, OM.hazard, .5, .14, .24, -1.0, .9, 0, true); bx(g, out, OM.hazard, .5, .14, .24, 1.0, .9, 0, true);
+      return { out, hx: 1.5, hz: .31, h: .95 };
+    }
+  });
+  def('container', { name: 'Contenedor de carga', cat: 'Plaza y objetivos', note: 'cobertura alta (2,6 m) y dura; param.c = color' }, {
+    mat: 'metal', hp: 900, push: false, mass: 400, fric: 9, build: g => {
+      const out = [], c = paint(PAR().c || pick([0xb8412e, 0x3466a8, 0x2a9a94, 0xd9a21f, 0x6c7a3a]));
+      bx(g, out, OM.ironD, 6.1, .18, 2.45, 0, .09, 0, false); bx(g, out, c, 6.0, 2.3, 2.4, 0, 1.33, 0, false); bx(g, out, OM.ironD, 6.1, .12, 2.45, 0, 2.54, 0, false);
+      for (let k = 0; k < 11; k++) for (const sz of [-1, 1]) bx(g, out, OM.dark, .1, 2.1, .08, -2.75 + k * .55, 1.33, sz * 1.22, false);                     // nervios de la chapa ondulada
+      bx(g, out, OM.dark, .1, 2.2, 2.2, 3.03, 1.33, 0, false); bx(g, out, OM.steelL, .06, 2.1, .06, 3.1, 1.33, -.3, false); bx(g, out, OM.steelL, .06, 2.1, .06, 3.1, 1.33, .3, false);
+      return { out, hx: 3.05, hz: 1.23, h: 2.6 };
+    }
+  });
+  def('wreckBus', { name: 'Autobús siniestrado', cat: 'Plaza y objetivos', note: 'cobertura alta y larga: de los dos lados se ve poco' }, {
+    mat: 'metal', hp: 800, push: false, mass: 500, fric: 9, build: g => {
+      const out = [], c = paint(PAR().c || 0xc9a227);
+      bx(g, out, OM.ironD, 8.8, .35, 2.3, 0, .55, 0, false); bx(g, out, c, 8.8, 1.55, 2.4, 0, 1.55, 0, false); bx(g, out, OM.ironD, 8.6, .16, 2.3, 0, 2.43, 0, false);
+      for (let k = 0; k < 6; k++) for (const sz of [-1, 1]) bx(g, out, OM.dark, 1.15, .75, .06, -3.6 + k * 1.45, 1.95, sz * 1.22, false);                    // ventanas sin cristal
+      bx(g, out, OM.dark, .06, .9, 2.0, 4.42, 1.9, 0, false); bx(g, out, OM.rust, .4, .2, 2.0, 4.45, 1.0, 0, false);
+      for (const x of [-2.9, 2.9]) for (const sz of [-1, 1]) rot(cy(g, out, OM.rubber, .52, .34, x, .52, sz * 1.1, false), Math.PI / 2, 0, 0);
+      bx(g, out, OM.rust, 2.4, .08, 1.6, -1.6, 2.52, 0, false);
+      return { out, hx: 4.4, hz: 1.2, h: 2.9 };
+    }
+  });
   def('busStop', { name: 'Marquesina', cat: 'Mobiliario urbano' }, {
     mat: 'metal', hp: 110, push: false, mass: 60, fric: 9, build: g => {
       const out = [], L = 3.2, D = 1.3, c = paint(pick(PAINTS));

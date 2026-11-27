@@ -1,5 +1,13 @@
 # Changelog
 
+## Fase A: objetivos como zonas de combate (27-11)
+- **Antes**: la Plaza Mayor (el punto central y más disputado) era un cruce de calles vacío (0 objetos, 0 % de cobertura); Fábricas 8 objetos y 22 %; Estaciones 3 y 14 %; Puestos avanzados 7 y ~70 %.
+- **Piezas nuevas** (4 tipos, ahora 75): monumento de la plaza (indestructible), barrera de hormigón, contenedor de carga y autobús siniestrado (`docs/CATALOGO_OBJETOS.md` §16).
+- **Diseño por objetivo** en `src/mapa_distrito.js` (`ringPut`; `COMP.compound` admite `fill`): glorieta con monumento y molinillo de cobertura en la Plaza, patio de contenedores en las Fábricas, andén con autobuses y quioscos en las Estaciones, barreras y sacos en los Puestos. Simétrico para las 4 facciones.
+- **Después** (`tests/cobertura_objetivos.py`): Plaza 33 objetos y 97 % de la zona con cobertura a ≤ 3 m, 8/8 direcciones, accesible desde los 4 lados (rodeo ×1,65); Fábricas 21 y ~89 %; Estaciones 18 y 93 %; Puestos 16 y ~96 %.
+- **Los bots lo usan** (4 min de juego simulado, bots dentro de la zona del objetivo + 3 m, % a ≤ 1,6 m de una cobertura): Fábrica B 14 → 49 %, Fábrica C 8 → 65 %, Estación D 17 → 84 %, Estación E 9 → 56 %. La Plaza no llegó a ocuparse en esos 4 min (está a ~620 m de cada refugio).
+- Sin cambio en las reglas de captura ni en los zombis (decisión del usuario: se quedan como están).
+
 ## Rendimiento en móvil, efecto del dash y NPCs corriendo (26-11)
 - **Medición**: tocar el cuadro de FPS muestra p50/p95/p99, % de fotogramas lentos, reparto lógica/dibujo, partes de la lógica y los últimos tirones con su causa (`src/rendimiento.js`).
 - **Optimizaciones sin cambio visual** (detalle y cifras en `docs/RENDIMIENTO.md`): lista de objetos despiertos (`AWAKE`), sombras en fotogramas alternos con anclaje a texels (`?nosombra2`), HUD sin escrituras repetidas (`?nodomcache`).

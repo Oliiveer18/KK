@@ -12,14 +12,14 @@ with sync_playwright() as p:
     pg.goto('file://' + os.path.abspath('index.html')); pg.wait_for_timeout(1500); ev = pg.evaluate
     ev('begin()'); pg.wait_for_timeout(300)
     run = lambda n: ev('for(let i=0;i<%d;i++) update(1/60)' % n)
-    n = ev('OBJ.types.length'); chk(n == 71, 'hay 71 tipos de objeto: los 68 del catálogo y los 3 parapetos de los refugios (%d)' % n)
+    n = ev('OBJ.types.length'); chk(n == 75, 'hay 75 tipos de objeto: los 68 del catálogo, los 3 parapetos de los refugios y los 4 de objetivos (%d)' % n)
 
     rows = ev('OBJ.measure()')
     bad = [r['type'] for r in rows if not (r['w'] > .2 and r['d'] > .1 and r['h'] > .1 and r['pieces'] >= 3)]
     chk(not bad, 'todos tienen huella, altura y piezas coherentes ' + str(bad))
     big = [r['type'] for r in rows if r['pieces'] > 90]
     chk(not big, 'ninguno pasa de 90 piezas (coste de dibujo) ' + str(big))
-    print('  piezas totales de los 71 tipos:', sum(r['pieces'] for r in rows), '· máximo', max(r['pieces'] for r in rows))
+    print('  piezas totales de los 75 tipos:', sum(r['pieces'] for r in rows), '· máximo', max(r['pieces'] for r in rows))
 
     r = ev("""(() => {
       const out = {};
@@ -34,8 +34,10 @@ with sync_playwright() as p:
       return out;
     })()""")
     chk(all(v['ok'] for v in r.values()), 'cada tipo se crea con su caja de colisión y vida: ' + str([k for k, v in r.items() if not v['ok']]))
-    chk(all(v['dead'] and v['boxesLeft'] == 0 for v in r.values()), 'al destruirse todos liberan su colisión: ' + str([k for k, v in r.items() if not (v['dead'] and v['boxesLeft'] == 0)]))
-    chk(all(v['deb'] > 0 for v in r.values()), 'todos sueltan restos al romperse: ' + str([k for k, v in r.items() if v['deb'] == 0]))
+    IND = {'monument'}   # indestructible a propósito (centro de la Plaza Mayor)
+    chk(all(v['dead'] and v['boxesLeft'] == 0 for k, v in r.items() if k not in IND), 'al destruirse todos liberan su colisión: ' + str([k for k, v in r.items() if k not in IND and not (v['dead'] and v['boxesLeft'] == 0)]))
+    chk(not r['monument']['dead'], 'el monumento de la plaza resiste 99.999 de daño (indestructible)')
+    chk(all(v['deb'] > 0 for k, v in r.items() if k not in IND), 'todos sueltan restos al romperse: ' + str([k for k, v in r.items() if k not in IND and v['deb'] == 0]))
     hp = ev('["wall1","wall2","wall3"].map(t=>PSPEC[t].hp).concat(["gate1","gate2","gate3"].map(t=>PSPEC[t].hp))')
     chk(hp[0] < hp[1] < hp[2] if False else (hp[0] < hp[1] < hp[2] and hp[3] < hp[4] < hp[5]), 'la vida sube con el nivel de muro y portón ' + str(hp))
 
@@ -129,7 +131,7 @@ with sync_playwright() as p:
     chk(r['removed'] == [False, True] and r['bldGone'] == 0, 'removeObject: quita objetos y edificios')
     # no rompe el resto: galería completa y partida del mapa 3
     ev('OBJ.gallery()'); run(120)
-    chk(ev('props.length') == 71, 'la galería completa coloca los 71 tipos')
+    chk(ev('props.length') == 75, 'la galería completa coloca los 75 tipos')
     if len(sys.argv) > 1:
         pg.screenshot(path=os.path.join(sys.argv[1], 'galeria.png'))
     b.close()

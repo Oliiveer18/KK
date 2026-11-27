@@ -214,6 +214,7 @@ COMP.compound = function (D, o) {
   const gpos = alongX ? [cx, cz + gs * hz, 0] : [cx + gx * hx, cz, PI2];
   if (put(D, gate, gpos[0], gpos[1], gpos[2], { abierto: true, fac: o.fac }, 0)) n++;
   n += COMP.towerPost(D, { x: cx - hx + 4, z: cz - hz + 4, level: lv, seed: o.seed });
+  if (o.fill) for (const [t, dx, dz, g] of o.fill) if (put(D, t, cx + dx, cz + dz, g || 0, null, .15)) n++;               // relleno de diseño: [tipo, dx, dz, giro] respecto al centro (antes de los objetos al azar, para que el diseño mande)
   const T = ['pallet', 'palletBoxes', 'cage', 'crate', 'crateS', 'dumpster', 'barrel', 'forklift']; const R = rngOf(o.seed || 5);
   for (let i = 0, tr = 0; i < (o.n || 8) && tr < 120; tr++) if (put(D, T[Math.floor(R() * T.length)], cx + (R() - .5) * (2 * hx - 9), cz + (R() - .5) * (2 * hz - 9), R() < .5 ? 0 : PI2)) { n++; i++; }
   COMP.reserve(D, cx, cz, hx + 1, hz + 1, 'recinto'); return { x: cx, z: cz, n };
