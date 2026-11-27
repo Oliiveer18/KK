@@ -897,7 +897,17 @@ function playerCorpse(dx, dz) {
   for (let i_m = 0; i_m < playerBodyMeshes.length; i_m++) { const m = playerBodyMeshes[i_m]; const c = m.clone(true); c.position.sub(grp.position); c.castShadow = true; grp.add(c); }
   const l = Math.sqrt((dx) * (dx) + (dz) * (dz)) || 1; grp.userData.ax = new V3(dz / l, 0, -dx / l); grp.userData.t = 0; corpseP = grp;
 }
+/* campaña: la vida se recupera sola SOLO hasta REGEN_CAP (60; 75 junto a un médico) y de forma muy gradual: 7 s sin recibir daño, y luego el ritmo va subiendo de 1,5 a 4,5 puntos por segundo
+   a lo largo de 10 s (un tramo de 20 puntos tarda ~10–12 s). Por encima del tope solo curan los médicos, los botiquines y los puestos de curación: la ayuda del médico se nota. */
+const REGEN_CAP = 60, REGEN_CAP_MED = 75, REGEN_WAIT = 7;
+MX.regenCap = e => e.medNear && M.t - e.medNear < 1.2 ? REGEN_CAP_MED : REGEN_CAP;
+function regenCamp(e, dt) {
+  if (M.t - e.lastHurt <= REGEN_WAIT) { e.regT = 0; return; }
+  const cap = MX.regenCap(e); if (e.hp >= cap) { e.regT = 0; return; }
+  e.regT = Math.min(10, (e.regT || 0) + dt); e.hp = Math.min(cap, e.hp + (1.5 + 3 * e.regT / 10) * dt); e.tgp.hp = e.hp;
+}
 function regen(e, dt) {                                                              // tras 5 s sin daño: primero se recarga el escudo y después la vida
+  if (MX.campaign) { if (e.hot > 0 && e.hp < HP) { const h = Math.min(e.hot, 14 * dt, HP - e.hp); e.hp += h; e.hot -= h; e.tgp.hp = e.hp; } else e.hot = 0; regenCamp(e, dt); return; }   // e.hot: curación pendiente (botiquín y médicos: ~14 puntos por segundo, no de golpe)
   if (M.t - e.lastHurt <= SH_DELAY) return;
   if (!MX.campaign && e.sh < SH) e.sh = Math.min(SH, e.sh + SH_RATE * dt); else if (e.hp < HP) { e.hp = Math.min(HP, e.hp + HP_RATE * dt); e.tgp.hp = e.hp; }
 }
