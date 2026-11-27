@@ -52,3 +52,12 @@ Equilibrio (vida, daño, velocidades, cuántos zombis, la horda), infestación d
 
 ## Más población (27-11)
 ~950 en el distrito al empezar (densidades ×1,6), 4 de cada 10 edificios con zombis dentro, 8 hordas (dos por cuarto) y reposición hasta 880 vivos; límite de 1.100 simulados. Coste medido: ~4 ms por actualización con 100 combatientes (headless).
+
+
+## Más y más peligrosos (27-11, sin tipos nuevos)
+- **Población**: ~1.700 al empezar (densidades ×1,7; 65 % de los edificios con zombis dentro), reposición hasta 1.700 cada 2 s, **16 hordas** de ~25 (15 caminantes, 6 corredores, 2 pesados, 2 gritones) que migran; mezcla suelta con más corredores y pesados (corredor 17–20 %, pesado 9 %). Límite 2.200 simulados, 240 dibujados.
+- **Más peligrosos**: caminante 2,4 → 2,8 m/s, vista 14 → 17 m, daño 12 → 15; corredor 5,0 → 5,6 m/s, vista 22 m; pesado 380 de vida y 44 de daño; disparos y explosiones se oyen un 25 % más lejos; los dormidos despiertan a 9 m (antes 5,5); correr se oye (+1,3 m por m/s) y agacharse menos; persiguen 8 s sin ver (antes 5) y hasta 42 m; al perder al objetivo rondan en vez de volver a dormir (85 %).
+- **Táctica de grupo**: cuando varios persiguen, cada uno elige su lado y **rodean** en vez de hacer cola; **embestida** (+55 % de velocidad durante 0,9 s a menos de 7 m, cada 3,5–6,5 s) para que no se pueda ir siempre justo por delante; alerta en cadena a 28 m.
+- **Calor de combate**: cada disparo, explosión o grito calienta su zona (celdas de 32 m, se enfría solo) y las hordas que migran tiran hacia las zonas calientes (60 %): acuden a los tiroteos y a los puntos de captura disputados. Sin cebos ni alarmas.
+- **Medido** (jugador quieto, un ruido de fusil cada 1,5 s, 60 s, sin defenderse): cae a los 56 → 28 s (casco), 21 → 10 s (residencial), 17 → 4 s (comercios); en la plaza de aguantar 60 s a caer a los 19 s con hasta 55 perseguidores. `?zdif=0.7` multiplica el daño de los zombis para ajustar sin tocar el código.
+- **Rendimiento**: mapa de cercanía de 16 m en vez de preguntar a cada combatiente por cada zombi; rejilla de zombis para balas y rayos (`?nozgrid`); huecos de dibujo estables (antes se reasignaban por distancia cada fotograma y se recoloreaban hasta 240 zombis); `toDebris` buscaba el objeto de cada trozo recorriendo los ~22.000 (10–20 ms al romper un vehículo) y `updateFires` recorría todos los objetos por cada fuego: ahora por enlace e índice espacial.

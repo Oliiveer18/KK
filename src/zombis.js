@@ -5,15 +5,16 @@
    Ruido: disparos, explosiones y gritos despiertan a los cercanos y desvían la horda. Atacan igual a las 4 facciones. Dibujo instanciado (una malla por pieza).
    Sin sonidos inventados: los eventos llaman a playAt('ZOM_*'), que callan hasta que exista la muestra. */
 (function () {
-const M = MX.M, MAXZ = 1100, RMAX = 180, VIEW_R = 46, NEAR_R = 75;        // MAXZ: simulados; RMAX: dibujados a la vez (los más cercanos a la cámara, dentro de VIEW_R); NEAR_R: simulación completa cerca de un combatiente
+const M = MX.M, MAXZ = 2200, RMAX = 240, VIEW_R = 46, NEAR_R = 75;        // MAXZ: simulados; RMAX: dibujados a la vez (los más cercanos a la cámara, dentro de VIEW_R); NEAR_R: simulación completa cerca de un combatiente
 const TY = {
-  walker:   { hp: 70,  sc: 1,    dmg: 12, atkCd: 1.1, roam: .9,  chase: 2.4, sight: 14, lean: .5,  arm: -1.15, hs: 1,    tw: 1,   r: .42 },
-  runner:   { hp: 45,  sc: .96,  dmg: 8,  atkCd: .7,  roam: 1.2, chase: 5.0, sight: 18, lean: .62, arm: -.5,   hs: .95,  tw: .9,  r: .38 },
-  brute:    { hp: 320, sc: 1.32, dmg: 38, atkCd: 1.6, roam: 1.0, chase: 2.0, sight: 14, lean: .2,  arm: -.95,  hs: 1.3,  tw: 1.35, r: .62 },
+  walker:   { hp: 70,  sc: 1,    dmg: 15, atkCd: .95, roam: .9,  chase: 2.8, sight: 17, lean: .5,  arm: -1.15, hs: 1,    tw: 1,   r: .42 },
+  runner:   { hp: 45,  sc: .96,  dmg: 10, atkCd: .6,  roam: 1.2, chase: 5.6, sight: 22, lean: .62, arm: -.5,   hs: .95,  tw: .9,  r: .38 },
+  brute:    { hp: 380, sc: 1.32, dmg: 44, atkCd: 1.5, roam: 1.0, chase: 2.3, sight: 16, lean: .2,  arm: -.95,  hs: 1.3,  tw: 1.35, r: .62 },
   screamer: { hp: 60,  sc: 1,    dmg: 6,  atkCd: 1.0, roam: 1.0, chase: 2.3, sight: 15, lean: .08, arm: -.9,   hs: 1.25, tw: .92, r: .4 }
 };
-const NOISE_R = { P1: 24, P2: 32, S1: 28, S2: 30, F1: 36, F2: 48, E1: 40, E2: 40, H1: 42, H2: 55 };
+const NOISE_R = { P1: 30, P2: 40, S1: 35, S2: 38, F1: 45, F2: 60, E1: 50, E2: 50, H1: 52, H2: 68 };   // ×1,25: los disparos se oyen más lejos
 const rnd = Math.random, rr = (a, b) => a + (b - a) * rnd();
+const ZDIF = +new URLSearchParams(location.search).get('zdif') || 1;                  // ?zdif=0.7: multiplica el daño de los zombis (ajuste de dificultad sin tocar el código)
 const GEO = { box: new THREE.BoxGeometry(1, 1, 1), ball: new THREE.SphereGeometry(1, 8, 6), ballL: new THREE.SphereGeometry(1, 6, 5),
   limb: (() => { const g = new THREE.CylinderGeometry(1, .78, 1, 6); g.translate(0, -.5, 0); return g; })(), hang: (() => { const g = new THREE.BoxGeometry(1, 1, 1); g.translate(0, -.5, 0); return g; })(),
   spike: (() => { const g = new THREE.CylinderGeometry(.15, 1, 1, 5); g.translate(0, .5, 0); return g; })() };
@@ -30,6 +31,12 @@ for (const k in PARTS) {
   if (k !== 'ey') m.setColorAt(0, new THREE.Color(1, 1, 1));                       // crea el búfer de color con la capacidad completa (r128 usa count al crearlo)
   m.count = 0; m.visible = false; scene.add(m); IM[k] = m;
 }
+const SLOT = { used: new Uint8Array(RMAX), free: [], sortT: 0 }; for (let i = RMAX - 1; i >= 0; i--) SLOT.free.push(i);         // huecos de dibujo instanciado (el 0 se asigna primero)
+const _ZM = new THREE.Matrix4().makeScale(0, 0, 0);
+function slotFree(z) {                                                              // libera el hueco de un zombi y oculta sus piezas (matriz de escala 0)
+  const i = z.ri; z.ri = -1; if (i < 0) return; SLOT.used[i] = 0; SLOT.free.push(i);
+  for (const k in IM) { const m = IM[k], n = MUL[k]; for (let j = 0; j < n; j++) m.setMatrixAt(i * n + j, _ZM); }
+}
 const Z = [], FREE = [], HORDES = [];                                    // zombis (vivos y cuerpos), huecos libres y hordas
 let slotMax = 0, nextId = 1, nAlive = 0, astar = 3, zt = 0, hudT = 0, lastShot = -9, lastShotSid = '';
 const _m1 = new THREE.Matrix4(), _m2 = new THREE.Matrix4(), _m3 = new THREE.Matrix4(), _m4 = new THREE.Matrix4(), _m5 = new THREE.Matrix4(), _gp = new V3(), _gv = new V3(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new V3(), _s = new V3(), _c = new THREE.Color();
@@ -44,7 +51,7 @@ function newZ(type, x, z, o) {
   const sc = T.sc * rr(.94, 1.06), zb = {
     id: 'Z' + (nextId++), type, slot, p: new V3(x, 0, z), v: new V3(), team: -1, crouch: 0, dead: false, hp: T.hp, maxhp: T.hp, sc, r: T.r * sc,
     st: o.st || 'dorm', yaw: o.yaw === undefined ? rr(-Math.PI, Math.PI) : o.yaw, ph: rr(0, 6.28), seed: rnd(), limp: rnd() < .5, atk: -1, atkCd: rr(.2, 1), tgt: null, tgtT: 0, thinkT: rr(0, .25),
-    path: null, pj: 0, pjx: 0, pjz: 0, pi: 0, pathT: -9, stuckT: 0, sx: x, sz: z, home: { x, z }, horde: null, lie: o.lie === undefined ? 0 : o.lie, deadT: 0, stag: 0, scream: -1, screamCd: rr(3, 8), hx: x, hz: z, wait: 0, lastNoise: -9, noiseDelay: 0,
+    lungeCd: rr(0, 4), lunge: 0, path: null, pj: 0, pjx: 0, pjz: 0, pi: 0, pathT: -9, stuckT: 0, sx: x, sz: z, home: { x, z }, horde: null, lie: o.lie === undefined ? 0 : o.lie, deadT: 0, stag: 0, scream: -1, screamCd: rr(3, 8), hx: x, hz: z, wait: 0, lastNoise: -9, noiseDelay: 0,
     ri: -1, cols: null, near: true, lodT: rnd() * .5, farDt: 0, rag: rnd() < .55, bare: rnd() < .4, gaitSpd: 0, brk: -99, bf: 1, bc: 1, bw: 0, hdx: x, hdy: 1.5, hdz: z, hdr: .13 };
   // rasgos: cada zombi es distinto (complexión, postura, heridas, pelo, ropa rota)
   zb.build = rr(.88, 1.14); zb.slouch = rr(-.1, .12); zb.shR = rr(-.14, .14); zb.hs0 = rr(.92, 1.08); zb.hair = rnd() < .65; zb.bone = rnd() < .3; zb.bare = rnd() < .45; zb.twT = rr(2, 6); zb.tw0 = 0;
@@ -76,6 +83,7 @@ function newZ(type, x, z, o) {
   Z.push(zb); return zb;
 }
 function freeZ(z) {
+  if (z.ri >= 0) slotFree(z);
   const i = Z.indexOf(z); if (i >= 0) Z.splice(i, 1);
   if (z.horde) { const h = z.horde; h.members = h.members.filter(m => m !== z); }
 }
@@ -120,6 +128,7 @@ function aimAtPose(pointer, point) {
 }
 /* ---- ruido ---- */
 function noise(x, z, R, scream) {
+  heatAdd(x, z, R);
   for (let i_zb = 0; i_zb < Z.length; i_zb++) { const zb = Z[i_zb];
     if (zb.dead) continue;
     const d = Math.sqrt((zb.p.x - x) * (zb.p.x - x) + (zb.p.z - z) * (zb.p.z - z)), lim = R * (zb.st === 'dorm' && !scream ? .65 : 1);
@@ -151,7 +160,7 @@ function hitZ(z, dmg, from, dx, dz, w, quiet) {
   } else { playAt('ZOM_hurt', z.p.x, z.p.z, { gap: 90 }); if (pl && !quiet) playSnd('HIT_marker', { vol: 1 }); }
 }
 function alertNear(z, tgt) {
-  for (let i_o = 0; i_o < Z.length; i_o++) { const o = Z[i_o]; if (o === z || o.dead || o.st === 'chase' || o.st === 'attack') continue; if (Math.sqrt((o.p.x - z.p.x) * (o.p.x - z.p.x) + (o.p.z - z.p.z) * (o.p.z - z.p.z)) < 20 && (o.horde === z.horde || Math.sqrt((o.p.x - z.p.x) * (o.p.x - z.p.x) + (o.p.z - z.p.z) * (o.p.z - z.p.z)) < 9)) { o.tgt = tgt; o.st = 'chase'; o.tgtT = M.t; o.noiseDelay = rr(.2, 1.2); } }
+  for (let i_o = 0; i_o < Z.length; i_o++) { const o = Z[i_o]; if (o === z || o.dead || o.st === 'chase' || o.st === 'attack') continue; if (Math.sqrt((o.p.x - z.p.x) * (o.p.x - z.p.x) + (o.p.z - z.p.z) * (o.p.z - z.p.z)) < 28 && (o.horde === z.horde || Math.sqrt((o.p.x - z.p.x) * (o.p.x - z.p.x) + (o.p.z - z.p.z) * (o.p.z - z.p.z)) < 14)) { o.tgt = tgt; o.st = 'chase'; o.tgtT = M.t; o.noiseDelay = rr(.2, 1.2); } }
 }
 
 
@@ -181,9 +190,12 @@ function steer(z, tx, tz, spd, dt) {                                            
   z.v.x += (dx * spd - z.v.x) * Math.min(1, dt * 5); z.v.z += (dz * spd - z.v.z) * Math.min(1, dt * 5);
   return Math.sqrt((tx - z.p.x) * (tx - z.p.x) + (tz - z.p.z) * (tz - z.p.z));
 }
+const _zq = [];
 function pickTarget(z) {
-  const T = TY[z.type], R = z.st === 'dorm' ? 5.5 : T.sight; let best = null, bd = R;
-  for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; if (e.dead) continue; const d = Math.sqrt((e.p.x - z.p.x) * (e.p.x - z.p.x) + (e.p.z - z.p.z) * (e.p.z - z.p.z)); if (d < bd) { bd = d; best = e; } }   // ataca a quien sea, de cualquier facción (incluidos los abatidos)
+  const T = TY[z.type], R0 = z.st === 'dorm' ? 9 : T.sight; let best = null, bd = 1e9;                           // dormido: 9 m (antes 5,5); despierto: su vista (17–22 m)
+  const L = MX.entRect ? MX.entRect(z.p.x - R0 - 12, z.p.z - R0 - 12, z.p.x + R0 + 12, z.p.z + R0 + 12, _zq) : M.ents;
+  for (let i_e = 0; i_e < L.length; i_e++) { const e = L[i_e]; if (e.dead) continue; const dx = e.p.x - z.p.x, dz = e.p.z - z.p.z, d = Math.sqrt(dx * dx + dz * dz), sp = Math.sqrt(e.v.x * e.v.x + e.v.z * e.v.z), R = R0 + sp * 1.3 - (e.crouch > .5 ? 2.5 : 0);   // correr se oye (+1,3 m por m/s), agacharse se oye menos
+    if (d < R && d < bd) { bd = d; best = e; } }   // ataca a quien sea, de cualquier facción (incluidos los abatidos)
   return best;
 }
 function stepZ(z, dt) {
@@ -199,20 +211,22 @@ function stepZ(z, dt) {
   }
   let spd = 0;
   if (z.st === 'chase' || z.st === 'attack') {
-    const t = z.tgt; if (!t || t.dead && !t.dwn || M.t - z.tgtT > 5 || Math.sqrt((t.p.x - z.p.x) * (t.p.x - z.p.x) + (t.p.z - z.p.z) * (t.p.z - z.p.z)) > 30) { z.st = 'invest'; z.hx = t ? t.p.x + (t.v ? clamp(t.v.x, -6, 6) * 1.5 : 0) : z.p.x; z.hz = t ? t.p.z + (t.v ? clamp(t.v.z, -6, 6) * 1.5 : 0) : z.p.z; z.tgt = null; z.path = null; z.wait = 0; return; }
+    const t = z.tgt; if (!t || t.dead && !t.dwn || M.t - z.tgtT > 8 || Math.sqrt((t.p.x - z.p.x) * (t.p.x - z.p.x) + (t.p.z - z.p.z) * (t.p.z - z.p.z)) > 42) { z.st = 'invest'; z.hx = t ? t.p.x + (t.v ? clamp(t.v.x, -6, 6) * 1.5 : 0) : z.p.x; z.hz = t ? t.p.z + (t.v ? clamp(t.v.z, -6, 6) * 1.5 : 0) : z.p.z; z.tgt = null; z.path = null; z.wait = 0; return; }
     const dx = t.p.x - z.p.x, dz = t.p.z - z.p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)); z.yaw = Math.atan2(dx, dz);
     z.atkCd -= dt;
     if (d < z.r + .75) {                                                            // a distancia de golpe
       z.st = 'attack'; z.v.x *= .8; z.v.z *= .8;
       if (z.atk < 0 && z.atkCd <= 0) { z.atk = 0; z.atkCd = T.atkCd; }
-      if (z.atk >= 0) { z.atk += dt / .6; if (z.atk >= .5 && !z.hitDone) { z.hitDone = true; if (d < z.r + 1.0) { MX.hit(t, T.dmg, null, dx, dz, null, 'ZOM'); playAt('ZOM_attack', z.p.x, z.p.z, { gap: 150 }); } } if (z.atk >= 1) { z.atk = -1; z.hitDone = false; } }
+      if (z.atk >= 0) { z.atk += dt / .6; if (z.atk >= .5 && !z.hitDone) { z.hitDone = true; if (d < z.r + 1.0) { MX.hit(t, T.dmg * ZDIF, null, dx, dz, null, 'ZOM'); playAt('ZOM_attack', z.p.x, z.p.z, { gap: 150 }); } } if (z.atk >= 1) { z.atk = -1; z.hitDone = false; } }
       if (z.type === 'brute') bruteSmash(z);
     } else {
       if (z.noPath !== undefined && M.t - z.noPath < 6 && (z.stk || 0) >= 2) bruteSmash(z, 14);                 // sin ruta y pegado a algo: lo golpea hasta abrir paso
       z.st = 'chase'; z.atk = -1; z.hitDone = false;
       if (z.needPath && d > 1.5 && pathTo(z, t.p.x, t.p.z)) z.needPath = false;
       let gx = t.p.x, gz = t.p.z, sp = T.chase;
+      if (z.type !== 'brute' && z.type !== 'screamer' && d > 3.2 && d < 18 && (z.horde || nearZ > 1)) { const a = z.seed * 6.283 + (t.yaw || 0) * .3, k = Math.min(1, (d - 3) / 7); gx += Math.cos(a) * 2.6 * k; gz += Math.sin(a) * 2.6 * k; }   // en grupo, cada uno elige su lado: rodean en vez de hacer cola
       if (z.type === 'runner' && d > 3 && d < 11) { const k = (z.seed > .5 ? 1 : -1) * Math.min(2.2, d * .3); gx += dz / d * k; gz -= dx / d * k; }                 // el corredor flanquea
+      z.lungeCd -= dt; if (z.lunge > 0) { z.lunge -= dt; sp *= 1.55; } else if (d < 7 && d > 1.9 && z.lungeCd <= 0 && z.type !== 'screamer' && z.type !== 'brute') { z.lunge = .9; z.lungeCd = rr(3.5, 6.5); }   // embestida: cerca, +55 % de velocidad durante 0,9 s (no se puede ir siempre justo por delante)
       if (z.type === 'screamer' && d < 9 && d > 3) sp = T.chase * .25;                                                                               // el gritón no se lanza: se queda atrás gritando
       steer(z, gx, gz, sp, dt); spd = sp;
       if (z.type === 'screamer' && d > 4 && d < 20) { z.screamCd -= dt; if (z.screamCd <= 0 && z.scream < 0) { z.scream = 0; z.screamCd = rr(7, 12); } }
@@ -220,7 +234,7 @@ function stepZ(z, dt) {
   } else if (z.st === 'invest') {
     const d = steer(z, z.hx, z.hz, T.chase * .55, dt); spd = T.chase * .55;
     if (z.needPath && d > 2 && pathTo(z, z.hx, z.hz)) z.needPath = false;
-    if (d < 1.6) { z.wait += dt; z.v.x *= .8; z.v.z *= .8; spd = 0; if (z.wait > 3) { z.st = z.horde ? 'wander' : (rnd() < .5 ? 'wander' : 'dorm'); z.wait = 0; z.path = null; } }
+    if (d < 1.6) { z.wait += dt; z.v.x *= .8; z.v.z *= .8; spd = 0; if (z.wait > 4) { z.st = z.horde ? 'wander' : (rnd() < .85 ? 'wander' : 'dorm'); z.wait = 0; z.path = null; } }
   } else if (z.st === 'wander') {
     if (z.horde) { const h = z.horde, lead = h.members[0] === z ? 0 : 2.8, gx = (h.curX === undefined ? h.tx : h.curX) + Math.sin(z.seed * 40) * lead, gz = (h.curZ === undefined ? h.tz : h.curZ) + Math.cos(z.seed * 40) * lead, far = d0(z, gx, gz) > 7;
       const d = steer(z, gx, gz, T.roam * (h.st === 'invest' ? 1.9 : far ? 2.2 : 1.3), dt); spd = T.roam; if (z.needPath && d > 3 && pathTo(z, gx, gz)) z.needPath = false; }
@@ -332,9 +346,9 @@ const MS = new THREE.Matrix4(), MC = new THREE.Matrix4(), MH = new THREE.Matrix4
 /* ---- ciclo ---- */
 /* ---- población del distrito (?mapa=6): por zonas, como vivía la gente (casco y comercios llenos, bosques casi vacíos), dormidos dentro de casas y tiendas,
    y 4 hordas que migran entre barrios. Igual para las 4 facciones: se reparte en el cuarto Azul y se copia girado (y los objetivos comunes, a 180°). ---- */
-const ZDENS = { 'Residencial': 22, 'Casco': 21, 'Comercios': 19, 'Aldea': 17, 'Puesto avanzado': 9, 'Granja': 6, 'Bosque': 4, 'Plaza Mayor': 6, 'Fábrica': 19, 'Estación y supermercado': 19 };
+const ZDENS = { 'Residencial': 38, 'Casco': 36, 'Comercios': 32, 'Aldea': 29, 'Puesto avanzado': 15, 'Granja': 11, 'Bosque': 8, 'Plaza Mayor': 11, 'Fábrica': 32, 'Estación y supermercado': 32 };   // ~×1,7
 const ROT = (k, x, z) => k === 0 ? [x, z] : k === 1 ? [-z, x] : k === 2 ? [-x, -z] : [z, -x];
-const mixPick = (dense) => { const r = rnd(); return r < (dense ? .1 : .14) ? 'runner' : r < (dense ? .17 : .2) ? 'brute' : r < (dense ? .25 : .24) ? 'screamer' : 'walker'; };
+const mixPick = (dense) => { const r = rnd(); return r < (dense ? .17 : .2) ? 'runner' : r < (dense ? .26 : .29) ? 'brute' : r < (dense ? .34 : .35) ? 'screamer' : 'walker'; };
 let ZPTS = null;                                                                   // puntos de reposición (con su peso)
 function navFree(x, z) { return MX.navAt ? MX.navAt(x, z) : true; }
 function initDistrict() {
@@ -355,10 +369,10 @@ function initDistrict() {
     }
   }
   /* dentro de los edificios del cuarto Azul (casas, tiendas, clínica…): 1 de cada 4, dormidos tras la puerta */
-  for (const b of OBJ.buildings) { if (!(b.x < -5 && b.z < -5) || rnd() > .4) continue; const f = b.fp || { hx: 4, hz: 4 };
+  for (const b of OBJ.buildings) { if (!(b.x < -5 && b.z < -5) || rnd() > .65) continue; const f = b.fp || { hx: 4, hz: 4 };
     for (let t = 0; t < 12; t++) { const x = b.x + rr(-f.hx * .6, f.hx * .6), z = b.z + rr(-f.hz * .6, f.hz * .6); if (put4(x, z, rnd() < .12 ? 'screamer' : 'walker', 'dorm', [0, 1, 2, 3])) { n += 0; break; } } }
   /* 8 hordas que migran entre barrios (dos por cuarto, giradas) */
-  for (const hp of [[-190, -312], [-312, -60]]) for (const k of [0, 1, 2, 3]) { const [x, z] = ROT(k, hp[0], hp[1]); const h = newHorde(x, z, ['walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'runner', 'runner', 'runner', 'brute', 'screamer']); h.migrate = true; }
+  for (const hp of [[-190, -312], [-312, -60], [-120, -200], [-260, -150]]) for (const k of [0, 1, 2, 3]) { const [x, z] = ROT(k, hp[0], hp[1]); const h = newHorde(x, z, ['walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','runner','runner','runner','runner','runner','runner','brute','brute','screamer','screamer']); h.migrate = true; }
   ZPTS = pts;
   const roam = []; for (const q of pts) for (const k of q[3]) roam.push(ROT(k, q[0], q[1]));
   for (const h of HORDES) h.roamPts = roam;
@@ -377,7 +391,7 @@ function stepHorde(h, dt) {
   if (!h.members.length) return;
   const l = h.members[0];
   if (h.st === 'roam' || h.st === 'invest') {
-    if (h.st === 'roam' && h.wait <= 0 && (!h.path || h.pi >= h.path.length)) { const c = (h.roamPts || []).filter(q => { const d = Math.hypot(q[0] - l.p.x, q[1] - l.p.z); return h.migrate ? d > 120 && d < 320 : d > 12; }); /* las hordas del distrito migran de barrio en barrio */ const q = c.length ? c[(rnd() * c.length) | 0] : [0, 0]; h.tx = q[0]; h.tz = q[1]; h.path = null; h.wait = rr(6, 14); }
+    if (h.st === 'roam' && h.wait <= 0 && (!h.path || h.pi >= h.path.length)) { const c = (h.roamPts || []).filter(q => { const d = Math.hypot(q[0] - l.p.x, q[1] - l.p.z); return h.migrate ? d > 120 && d < 320 : d > 12; }); /* las hordas del distrito migran de barrio en barrio */ let q = c.length ? c[(rnd() * c.length) | 0] : [0, 0]; if (h.migrate && rnd() < .6) { const hot = heatHottest(l.p.x, l.p.z); if (hot) q = hot; } h.tx = q[0]; h.tz = q[1]; h.path = null; h.wait = rr(6, 14); }
     h.wait -= dt;
     if (!h.path && !h.pj && astar > 0) { astar--; const tx = h.tx, tz = h.tz; h.pj = MX.pathAsync(l.p.x, l.p.z, tx, tz, path => { h.pj = false; if (path !== undefined && h.tx === tx && h.tz === tz && !h.path) { h.path = path || [{ x: tx, z: tz }]; h.pi = 0; } }); }
     if (h.path) { const w = h.path[Math.min(h.pi, h.path.length - 1)], d = Math.sqrt((w.x - l.p.x) * (w.x - l.p.x) + (w.z - l.p.z) * (w.z - l.p.z)); if (d < 2.2 && h.pi < h.path.length - 1) h.pi++; else if (d < 2.2) { if (h.st === 'invest') { h.wait = 3; if (h.divertT < M.t - 3) { h.st = 'roam'; h.path = null; h.wait = 0; } } else h.wait = Math.max(0, h.wait - dt * 2); } h.curX = w.x; h.curZ = w.z; }
@@ -386,17 +400,17 @@ function stepHorde(h, dt) {
 /* población: la región se repuebla poco a poco con grupos dormidos y, si la horda cae, aparece otra desde lejos (nunca a la vista de un combatiente) */
 let popT = 20, hordeGone = 0;
 const farFromAll = (x, z, R) => M.ents.every(e => e.dead || Math.sqrt((e.p.x - x) * (e.p.x - x) + (e.p.z - z) * (e.p.z - z)) > R) && M.spawn.every(a => a.every(s => Math.sqrt((s.x - x) * (s.x - x) + (s.z - z) * (s.z - z)) > 16));
-const ZTARGET = 880;
+const ZTARGET = 1700;
 function restockDistrict() {
   const alive = MX.zom.count(); if (!ZPTS || !ZPTS.length) return;
-  if (alive < ZTARGET) for (let tries = 0; tries < 6; tries++) {                    // repone en grupos, siempre lejos de todos (nunca a la vista) y con el peso de cada zona
+  if (alive < ZTARGET) for (let tries = 0; tries < 10; tries++) {                   // repone en grupos, siempre lejos de todos (nunca a la vista) y con el peso de cada zona
     const q = ZPTS[(rnd() * ZPTS.length) | 0], k = q[3][(rnd() * q[3].length) | 0], [x, z] = ROT(k, q[0], q[1]);
     if (!farFromAll(x, z, 70) || rnd() * 16 > q[2]) continue;
     const c = 2 + ((rnd() * 3) | 0); for (let i = 0; i < c; i++) { const px = x + rr(-4, 4), pz = z + rr(-4, 4); if (navFree(px, pz)) newZ(mixPick(q[2] >= 13), px, pz, { st: rnd() < .5 ? 'dorm' : 'wander' }); }
     break;
   }
   const liveH = HORDES.filter(h => h.members.some(m => !m.dead)).length;
-  if (liveH < 8 && alive < ZTARGET + 60 && rnd() < .08) { const q = ZPTS[(rnd() * ZPTS.length) | 0], [x, z] = ROT(q[3][0], q[0], q[1]); if (farFromAll(x, z, 90)) { const h = newHorde(x, z, ['walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'walker', 'runner', 'runner', 'brute', 'screamer']); h.migrate = true; h.roamPts = HORDES[0] && HORDES[0].roamPts; } }
+  if (liveH < 16 && alive < ZTARGET + 100 && rnd() < .12) { const q = ZPTS[(rnd() * ZPTS.length) | 0], [x, z] = ROT(q[3][0], q[0], q[1]); if (farFromAll(x, z, 90)) { const h = newHorde(x, z, ['walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','runner','runner','runner','runner','runner','runner','brute','brute','screamer','screamer']); h.migrate = true; h.roamPts = HORDES[0] && HORDES[0].roamPts; } }
   for (let i = HORDES.length - 1; i >= 0; i--) if (!HORDES[i].members.length) HORDES.splice(i, 1);
 }
 function restock() {
@@ -439,6 +453,21 @@ MX.zom.place = () => {                                                          
   camera.updateMatrixWorld();
   for (const { z, b, w } of barList) { _bp.set(z.hdx, z.hdy + z.hdr + BAR_GAP, z.hdz).project(camera); b.el.style.display = _bp.z > 1 ? 'none' : 'block'; b.el.style.transform = 'translate(' + ((_bp.x * .5 + .5) * innerWidth - w / 2) + 'px,' + ((-_bp.y * .5 + .5) * innerHeight) + 'px) translateY(-100%)'; }
 };
+/* mapa de cercanía (celdas de 16 m, rehecho cada 0,5 s): una celda está «cerca» si algún combatiente vivo queda a menos de NEAR_R. Con 200 combatientes y ~1.700 zombis, preguntarlo a cada
+   combatiente por cada zombi era O(n·m); así es una consulta por zombi. */
+const NM = { w: 0, a: null, t: -9 };
+function nearBuild() {
+  const N = MAPA && MAPA.built ? 70 : 0; if (!N) return; NM.w = N; if (!NM.a) NM.a = new Uint8Array(N * N); NM.a.fill(0); const r = Math.ceil(NEAR_R / 16);
+  for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; if (e.dead) continue; const cx = Math.floor(e.p.x / 16) + 35, cz = Math.floor(e.p.z / 16) + 35;
+    for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) { const x = cx + dx, y = cz + dz; if (x >= 0 && y >= 0 && x < N && y < N && dx * dx + dz * dz <= r * r + 1) NM.a[y * N + x] = 1; } }
+  NM.t = M.t;
+}
+const nearCell = (x, z) => { if (M.t - NM.t > .5 || !NM.a) nearBuild(); if (!NM.a) return true; const cx = Math.floor(x / 16) + 35, cz = Math.floor(z / 16) + 35; return cx < 0 || cz < 0 || cx >= NM.w || cz >= NM.w ? false : NM.a[cz * NM.w + cx] === 1; };
+/* calor de combate: cada ruido (disparo, explosión, grito) calienta su celda de 32 m; se enfría solo. Las hordas que migran tiran hacia las zonas calientes: acuden a los tiroteos y a los
+   puntos de captura disputados, sin cebos ni alarmas. */
+const HEAT = new Map(), hkey = (x, z) => ((Math.floor(x / 32) + 40) << 8) | (Math.floor(z / 32) + 40);
+function heatAdd(x, z, R) { const k = hkey(x, z); HEAT.set(k, (HEAT.get(k) || 0) + R / 40); }
+function heatHottest(x, z) { let best = null, bs = 1.4; for (const [k, v] of HEAT) { const cx = ((k >> 8) - 40) * 32 + 16, cz = ((k & 255) - 40) * 32 + 16, d = Math.sqrt((cx - x) * (cx - x) + (cz - z) * (cz - z)); if (d > 420 || d < 40) continue; const sc = v / (1 + d / 140); if (sc > bs) { bs = sc; best = [cx, cz]; } } return best; }
 function nearAnyone(x, z, R) { const R2 = R * R; for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; if (e.dead) continue; const dx = e.p.x - x, dz = e.p.z - z; if (dx * dx + dz * dz < R2) return true; } return false; }
 /* paso barato para los lejanos: los dormidos y los que vagan por su casa se quedan; los de una horda la siguen sin colisiones finas (sólo la malla de navegación) */
 function farStep(z, dt) {
@@ -454,27 +483,48 @@ function farStep(z, dt) {
   z.yaw = Math.atan2(dx, dz);
 }
 MX.zom.perfHook = w => { restock = w(restock, 'z.restock'); updBars = w(updBars, 'z.barras'); stepHorde = w(stepHorde, 'z.horda'); };      // medición (src/rendimiento.js)
+/* rejilla de zombis para balas y rayos (celdas de 4 m, rehecha una vez por fotograma): cada bala/rayo sólo prueba los zombis cercanos a su tramo, no los ~1.500 (era el pico de 7–21 ms de
+   updateBullets con la población nueva). ?nozgrid recorre todos como antes. */
+const ZG = new Map(), ZGOFF = /[?&]nozgrid\b/.test(location.search), _zc = [];
+const zgk = (ix, iz) => ((ix + 160) << 10) | (iz + 160);
+function zgBuild() { for (const a of ZG.values()) a.length = 0; for (let i = 0; i < Z.length; i++) { const z = Z[i]; if (z.dead) continue; const k = zgk(Math.floor(z.p.x / 4), Math.floor(z.p.z / 4)); let a = ZG.get(k); if (!a) ZG.set(k, a = []); a.push(z); } }
+MX.zom.cand = (ox, oz, dx, dz, d0, d1) => {
+  if (ZGOFF) return Z; const ax = ox + dx * d0, az = oz + dz * d0, bx = ox + dx * d1, bz = oz + dz * d1, out = _zc; out.length = 0;
+  const x0 = Math.floor((Math.min(ax, bx) - 3) / 4), x1 = Math.floor((Math.max(ax, bx) + 3) / 4), z0 = Math.floor((Math.min(az, bz) - 3) / 4), z1 = Math.floor((Math.max(az, bz) + 3) / 4);
+  if ((x1 - x0 + 1) * (z1 - z0 + 1) > 900) return Z;
+  for (let ix = x0; ix <= x1; ix++) for (let iz = z0; iz <= z1; iz++) { const a = ZG.get(zgk(ix, iz)); if (a) for (let i = 0; i < a.length; i++) out.push(a[i]); }
+  return out;
+};
+let nearZ = 0, heatT = 0;
 MX.zom.update = dt => {
+  if (!ZGOFF) zgBuild();
   if (!MX.campaign || !M.built) return; dt = Math.min(dt, .05); zt += dt; astar = 3; extraA = 0;
-  popT -= dt; if (popT <= 0) { popT = 3; if (!MX.zom.noRestock) restock(); }
+  heatT -= dt; if (heatT <= 0) { heatT = .5; for (const [k, v] of HEAT) { const n = v * .95; if (n < .08) HEAT.delete(k); else HEAT.set(k, n); } }
+  popT -= dt; if (popT <= 0) { popT = 2; if (!MX.zom.noRestock) restock(); }
   for (const h of HORDES) stepHorde(h, dt);
   grid.clear(); for (let i_z = 0; i_z < Z.length; i_z++) { const z = Z[i_z]; if (z.dead) continue; const k = gk(z.p.x, z.p.z); let a = grid.get(k); if (!a) { a = []; grid.set(k, a); } a.push(z); }
   /* simulación por cercanía: completa cerca de cualquier combatiente (o si ya persigue, investiga o la empujan); lejos, barata y cada 0,5 s */
   for (let i_z = 0, A_z = Z.slice(); i_z < A_z.length; i_z++) { const z = A_z[i_z];
-    z.lodT -= dt; if (z.lodT <= 0) { z.lodT = .5; z.near = z.st === 'chase' || z.st === 'attack' || z.st === 'invest' || z.st === 'dead' || z.noiseDelay > 0 || nearAnyone(z.p.x, z.p.z, NEAR_R); }
+    z.lodT -= dt; if (z.lodT <= 0) { z.lodT = .5; z.near = z.st === 'chase' || z.st === 'attack' || z.st === 'invest' || z.st === 'dead' || z.noiseDelay > 0 || nearCell(z.p.x, z.p.z); }
     if (z.near) { if (z.farDt) { z.farDt = 0; z.sx = z.p.x; z.sz = z.p.z; } stepZ(z, dt); moveZ(z, dt); }
     else { z.farDt += dt; if (z.farDt >= .5) { farStep(z, z.farDt); z.farDt = 0; } }
   }
-  /* dibujo: sólo los cercanos a la cámara (hasta RMAX), en huecos compactos; al cambiar de hueco se copian sus colores */
-  const cx = P.pos.x, cz = P.pos.z, vis = [];
-  for (let i_z = 0; i_z < Z.length; i_z++) { const z = Z[i_z]; const dx = z.p.x - cx, dz = z.p.z - cz, d2 = dx * dx + dz * dz; if (d2 < VIEW_R * VIEW_R) { z.d2 = d2; vis.push(z); } else z.ri = -1; }
-  if (vis.length > RMAX) { vis.sort((a, b) => a.d2 - b.d2); for (let i = RMAX; i < vis.length; i++) vis[i].ri = -1; vis.length = RMAX; }
-  let recol = false;
-  vis.forEach((z, i) => { if (z.ri !== i) { z.ri = i; recol = true; const C = z.cols; for (let q = 0; q < C.length; q += 5) { const k = KL[C[q]]; if (IM[k].instanceColor) IM[k].setColorAt(i * MUL[k] + C[q + 1], _c.setRGB(C[q + 2], C[q + 3], C[q + 4])); } } pose(z, dt); });
-  visiblePoses=vis;
-  slotMax = vis.length;
+  /* dibujo: sólo los cercanos a la cámara (hasta RMAX). Cada zombi conserva su hueco mientras se ve (antes los huecos se reasignaban por orden de distancia cada fotograma: recolorear
+     240 zombis × ~30 piezas y picos de 15–20 ms); al entrar toma un hueco libre y se copian sus colores, al salir lo libera y se oculta. Con más de RMAX a la vista se ordena por
+     distancia cada 0,25 s (los de fuera de la selección ceden su hueco a los cercanos). */
+  const cx = P.pos.x, cz = P.pos.z, cand = []; let over = false;
+  for (let i_z = 0; i_z < Z.length; i_z++) { const z = Z[i_z]; const dx = z.p.x - cx, dz = z.p.z - cz, d2 = dx * dx + dz * dz; if (d2 < VIEW_R * VIEW_R) { z.d2 = d2; cand.push(z); } else if (z.ri >= 0) slotFree(z); }
+  if (cand.length > RMAX) { over = true; SLOT.sortT -= dt; if (SLOT.sortT <= 0) { SLOT.sortT = .25; cand.sort((a, b) => a.d2 - b.d2); for (let i = 0; i < cand.length; i++) cand[i].want = i < RMAX; } }
+  let recol = false; const vis = [];
+  for (let i_z = 0; i_z < cand.length; i_z++) { const z = cand[i_z];
+    if (z.ri >= 0) { if (over && z.want === false) { slotFree(z); continue; } }
+    else { if ((over && z.want === false) || !SLOT.free.length) continue; z.ri = SLOT.free.pop(); SLOT.used[z.ri] = 1; recol = true; const C = z.cols, i = z.ri; for (let q = 0; q < C.length; q += 5) { const k = KL[C[q]]; if (IM[k].instanceColor) IM[k].setColorAt(i * MUL[k] + C[q + 1], _c.setRGB(C[q + 2], C[q + 3], C[q + 4])); } }
+    vis.push(z); pose(z, dt); }
+  visiblePoses = vis;
+  let mx = 0; for (let i = RMAX - 1; i >= 0; i--) if (SLOT.used[i]) { mx = i + 1; break; }
+  slotMax = mx;
   for (const k in IM) { const m = IM[k]; m.count = slotMax * MUL[k]; m.visible = slotMax > 0; m.instanceMatrix.needsUpdate = true; if (recol && m.instanceColor) m.instanceColor.needsUpdate = true; }
-  nAlive = 0; for (const z of Z) if (!z.dead) nAlive++;
+  nAlive = 0; nearZ = 0; for (const z of Z) if (!z.dead) { nAlive++; if (z.st === 'chase' || z.st === 'attack') nearZ++; }   // nearZ: cuántos persiguen ahora (si hay varios, rodean)
   updBars(dt);
   hudT -= dt; if (hudT <= 0) { hudT = .5; $('mxScore').textContent = 'Campaña · Facción azul · ☣ ' + MX.zom.count(); }
 };

@@ -400,6 +400,7 @@ function biBegin() { for (let i = 0; i < BI.list.length; i++) BI.list[i].n = 0; 
 function biBot(e) { e.root.updateMatrixWorld(true); e.root.traverseVisible(biAddMesh); }
 function biEnd() { for (let i = 0; i < BI.list.length; i++) { const b = BI.list[i], im = b.im; im.count = b.n; im.visible = b.n > 0; if (b.n) im.instanceMatrix.needsUpdate = true; } }
 MX.BI = BI;
+MX.entRect = (x0, z0, x1, z1, out) => gridRect(GRID.E, M.ents, x0, z0, x1, z1, out);          // combatientes cercanos a un rectángulo (rejilla espacial); sin rejilla, todos
 function initBot(e) {
   const T = TM[e.team], root = new THREE.Group(); if (!BI.on) scene.add(root); e.root = root;
   const mkm = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.scale.set(x, y, z); m.castShadow = true; root.add(m); return m; };
@@ -534,7 +535,7 @@ const inSight = (e, dx, dz) => Math.abs(dx) < SIGHT.hw && Math.abs(dz) < SIGHT.h
 const GRID = { E: new Map(), Z: new Map(), off: /[?&]nogrid\b/.test(location.search), any: false }, _gE = [], _gZ = [], _gS = [];
 const gcell = (ix, iz) => ((ix + 256) << 10) | (iz + 256);
 function gridFill(map, list, ents) { for (const a of map.values()) a.length = 0; if (ents) GRID.any = false;
-  for (let i = 0; i < list.length; i++) { const o = list[i]; if (o.dead) continue; if (ents && o.dwn) GRID.any = true; const k = gcell(Math.floor(o.p.x / 8), Math.floor(o.p.z / 8)); let a = map.get(k); if (!a) map.set(k, a = []); a.push(o); } }
+  for (let i = 0; i < list.length; i++) { const o = list[i]; if (o.dead || (!ents && o.near === false)) continue; if (ents && o.dwn) GRID.any = true; const k = gcell(Math.floor(o.p.x / 8), Math.floor(o.p.z / 8)); let a = map.get(k); if (!a) map.set(k, a = []); a.push(o); } }
 function gridRect(map, list, x0, z0, x1, z1, out) {
   if (GRID.off) return list;
   out.length = 0; const ix1 = Math.floor(x1 / 8), iz1 = Math.floor(z1 / 8);

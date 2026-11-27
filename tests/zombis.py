@@ -99,9 +99,9 @@ with sync_playwright() as p:
     chk(ev('()=>z2.hp<z2.maxhp')=='True' or ev('()=>z2.hp<z2.maxhp'), 'un bot detecta y dispara a un zombi que se acerca')
     # límite de población
     ev(SETUP); run(2)
-    c = ev('()=>{let n=0;for(let i=0;i<1300;i++){if(Zs("walker",Math.random()*60-30,Math.random()*40-20,"dorm"))n++};return n}')
-    chk(ev('MX.zom.list.length') <= 1100, 'límite de 1100 zombis simulados respetado (%d creados de 1300 pedidos)' % c)
-    chk(ev('()=>{update(1/60);return MX.zom.list.filter(z=>z.ri>=0).length}') <= 180, 'como mucho 180 dibujados a la vez (los más cercanos a la cámara)')
+    c = ev('()=>{let n=0;for(let i=0;i<2500;i++){if(Zs("walker",Math.random()*60-30,Math.random()*40-20,"dorm"))n++};return n}')
+    chk(ev('MX.zom.list.length') <= 2200, 'límite de 2200 zombis simulados respetado (%d creados de 2500 pedidos)' % c)
+    chk(ev('()=>{update(1/60);return MX.zom.list.filter(z=>z.ri>=0).length}') <= 240, 'como mucho 240 dibujados a la vez (los más cercanos a la cámara)')
     ev('()=>{for(let i=0;i<60;i++)update(1/60)}')
     calls = ev('renderer.info.render.calls'); print('llamadas de dibujo con ~240 zombis:', calls)
     print('ERRORES JS:', errs or 'ninguno'); bad += len(errs)

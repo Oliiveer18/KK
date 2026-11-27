@@ -83,6 +83,7 @@ const PERF = (() => {
   try {
     PERF.wrap(MX, 'update', 'MX.update');
     if (MX.zom) PERF.wrap(MX.zom, 'update', 'zombis');
+    if (MX.zom) PERF.wrap(MX.zom, 'hit', 'zom.hit');
     if (MX.SQ) PERF.wrap(MX.SQ, 'update', 'escuadras');
     if (MX.zom) PERF.wrap(MX.zom, 'place', 'barras');
     if (typeof INVENTARIO !== 'undefined') PERF.wrap(INVENTARIO, 'tick', 'inventario');
@@ -138,7 +139,7 @@ const SOMBRA = (() => {
   if (!PERF.activo) return;
   try { if (MX.perfHook) MX.perfHook(PERF.fn); if (MX.zom && MX.zom.perfHook) MX.zom.perfHook(PERF.fn); } catch (e) { }
   for (const n of ['explode', 'popSmoke', 'destroyProp']) { try { const f = window[n]; if (typeof f === 'function') window[n] = function () { PERF.tag(n); return f.apply(this, arguments); }; } catch (e) { } }
-  for (const n of ['updateBullets', 'updateParts', 'updateCasings', 'updateMags', 'updateGrenades', 'updateSmoke', 'updateFlames', 'updateFires', 'updatePuddles', 'updateDebris', 'updateScorch', 'updatePicks', 'updateProps', 'popTick', 'loopTick', 'lightsSync']) {
+  for (const n of ['updateBullets', 'updateParts', 'updateCasings', 'updateMags', 'updateGrenades', 'updateSmoke', 'updateFlames', 'updateFires', 'updatePuddles', 'updateDebris', 'updateScorch', 'updatePicks', 'updateProps', 'popTick', 'loopTick', 'lightsSync', 'bulletEnd', 'damageProp', 'bulletHitProp', 'holeDecal', 'impactFx', 'spawnBullet', 'muzzleFx']) {
     try { if (typeof window[n] === 'function') window[n] = PERF.fn(window[n], n); } catch (e) { }
   }
 })();

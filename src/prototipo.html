@@ -893,7 +893,7 @@ function updateBullets(dt) {
     for (const bx of boxesIn(b.ox + b.dx * d0, b.oz + b.dz * d0, b.ox + b.dx * d1, b.oz + b.dz * d1)) { if (bx.prop && ((bx.prop === b.cover && coverPass(bx.prop, b.ox, b.oz, b.dx, b.dz, b.stand)) || b.passed.has(bx.prop))) continue;
       if (bx.prop && isParapet(bx.prop) && bx.prop !== b.cover && parapetExposed(bx.prop, b)) { b.passed.add(bx.prop); continue; }   /* alguien de pie justo detrás: expuesto de hombros arriba */ const r = rayBox2(b.ox, b.oz, b.dx, b.dz, bx); if (r && r[0] <= d1 && r[1] >= d0) L.push({ t: Math.max(r[0], d0), t2: r[1], bx }); }
     for (const tg of targets) { if (tg.hp <= 0) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, tg.g.position.x, tg.g.position.z, .42); if (tc >= d0 && tc <= d1) L.push({ t: tc, tg }); }
-    if (MX.on && MX.zom) for (const z of MX.zom.list) { if (z.dead) continue; const tc = MX.dataId==='M2' ? MX.zom.hitDistance(z,b.ox,b.oz,b.dx,b.dz,d0,d1) : rayCircle(b.ox,b.oz,b.dx,b.dz,z.p.x,z.p.z,z.r); if (tc >= d0 && tc <= d1) L.push({ t: tc, zom: z }); }   // zombis (campaña)
+    if (MX.on && MX.zom) for (let i_zc = 0, ZC = MX.zom.cand ? MX.zom.cand(b.ox, b.oz, b.dx, b.dz, d0, d1) : MX.zom.list; i_zc < ZC.length; i_zc++) { const z = ZC[i_zc]; if (z.dead) continue; const tc = MX.dataId==='M2' ? MX.zom.hitDistance(z,b.ox,b.oz,b.dx,b.dz,d0,d1) : rayCircle(b.ox,b.oz,b.dx,b.dz,z.p.x,z.p.z,z.r); if (tc >= d0 && tc <= d1) L.push({ t: tc, zom: z }); }   // zombis (campaña)
     if (MX.on) for (const e of MX.ents) { if (e.dead || e.inv > 0 || e.team === (b.own ? b.own.team : 0)) continue; const tc = rayCircle(b.ox, b.oz, b.dx, b.dz, e.p.x, e.p.z, .36); if (tc >= d0 && tc <= d1) L.push({ t: tc, ent: e }); }   // jugadores y bots de la partida
     L.sort((a, c) => a.t - c.t);
     let ended = false;
@@ -1342,8 +1342,8 @@ function castRay(ox, oz, dx, dz, max) {
     const tc = rayCircle(ox, oz, dx, dz, tg.g.position.x, tg.g.position.z, .42); if (tc < t) { t = tc; hit = tg; }
   }
   if (MX.on) for (const e of MX.ents) { if (e.dead || e.team === 0) continue; const tc = rayCircle(ox, oz, dx, dz, e.p.x, e.p.z, .36); if (tc < t) { t = tc; hit = e.tgp; } }   // solo el equipo contrario enciende la mira roja
-  if (MX.on && MX.dataId==='M2') for (const z of MX.zom.list) {
-    if (z.dead) continue;
+  if (MX.on && MX.dataId==='M2') for (let i_zc = 0, ZC = MX.zom.cand ? MX.zom.cand(ox, oz, dx, dz, 0, t) : MX.zom.list; i_zc < ZC.length; i_zc++) {
+    const z = ZC[i_zc]; if (z.dead) continue;
     const distance=MX.zom.hitDistance(z,ox,oz,dx,dz,0,t);
     if (distance<t) {t=distance;hit=z;}
   }
@@ -1421,6 +1421,7 @@ function igniteZone(x, z, r, life) {
   for (const f of FIRES) if (Math.hypot(f.x - x, f.z - z) < r * .6) { f.life = Math.max(f.life, life); f.r = Math.max(f.r, r); return; }
   FIRES.push({ id: ++FID, x, z, r, life, t: 0 }); playAt('FIRE_ignite', x, z, { vol: .8, gap: 150 });
 }
+const _fpS = new Set();
 function updateFires(dt) {
   for (let i = FIRES.length - 1; i >= 0; i--) {
     const f = FIRES[i]; f.life -= dt; f.t -= dt;
@@ -1432,8 +1433,11 @@ function updateFires(dt) {
     }
     if (MX.on) MX.fireDmg(f, dt);
     for (const tg of targets) if (tg.hp > 0 && Math.hypot(tg.g.position.x - f.x, tg.g.position.z - f.z) < f.r) { tg.hp -= 16 * dt; tg.flash = Math.max(tg.flash, .4); if (tg.hp <= 0) tg.dead = 0; }
-    for (const p of props) if (!p.dead && Math.hypot(p.x - f.x, p.z - f.z) < f.r + Math.max(p.hx, p.hz)) {
-      if (p.mat === 'wood') { p.burnT = 5; AWAKE.add(p); } else if (p.explosive) damageProp(p, 20 * dt, p.x, p.z, 0, 0, 'fire'); else if (p.mat === 'plastic') damageProp(p, 7 * dt, p.x, p.z, 0, 0, 'fire');
+    _fpS.clear();                                                                    // sólo los objetos junto al fuego (índice espacial); antes se recorrían los ~22.000 por cada fuego y fotograma
+    for (const bx of boxesIn(f.x - f.r - 10, f.z - f.r - 10, f.x + f.r + 10, f.z + f.r + 10)) { const p = bx.prop; if (!p || _fpS.has(p)) continue; _fpS.add(p);
+      if (!p.dead && Math.hypot(p.x - f.x, p.z - f.z) < f.r + Math.max(p.hx, p.hz)) {
+        if (p.mat === 'wood') { p.burnT = 5; AWAKE.add(p); } else if (p.explosive) damageProp(p, 20 * dt, p.x, p.z, 0, 0, 'fire'); else if (p.mat === 'plastic') damageProp(p, 7 * dt, p.x, p.z, 0, 0, 'fire');
+      }
     }
     for (const q of PUDDLES) if (q.fuel && !q.lit && Math.hypot(q.x - f.x, q.z - f.z) < f.r + q.r) { q.lit = true; igniteZone(q.x, q.z, Math.max(.7, q.r), 5); }
   }
@@ -1484,7 +1488,7 @@ function solveContact(d, rx, ry, rz, nx, ny, nz, e, mu) {                       
   return imp;
 }
 function toDebris(pc, vx, vy, vz, wx, wy, wz, life) {
-  const o = pc.obj, src = props.find(q => q.g === o.parent) || null; scene.attach(o); pc.gone = true;
+  const o = pc.obj, src = (o.parent && o.parent.__prop) || null; scene.attach(o); pc.gone = true;   // el objeto al que pertenecía la pieza: por el enlace del grupo (antes props.find recorría los ~22.000 objetos POR PIEZA: 10–20 ms al romper un vehículo)
   const g = o.geometry; if (!g.boundingBox) g.computeBoundingBox(); const bb = g.boundingBox, sc = o.scale;
   const c = new V3((bb.min.x + bb.max.x) / 2 * sc.x, (bb.min.y + bb.max.y) / 2 * sc.y, (bb.min.z + bb.max.z) / 2 * sc.z);   // centro de la caja del trozo (el origen de la malla puede estar desplazado)
   const h = [Math.max((bb.max.x - bb.min.x) / 2 * sc.x, .012), Math.max((bb.max.y - bb.min.y) / 2 * sc.y, .012), Math.max((bb.max.z - bb.min.z) / 2 * sc.z, .012)];
@@ -1683,7 +1687,7 @@ function addProp(type, x, z, rot) {
   const b = sp.build(g), sw = Math.abs(Math.sin(rot || 0)) > .5; noCoplanar(b.out, g);
   const p = { uid: ++PUID, type, mat: sp.mat, g, x, z, hx: sw ? b.hz : b.hx, hz: sw ? b.hx : b.hz, h: b.h, hp: sp.hp, maxHp: sp.hp, stage: 0, pieces: b.out, pushable: sp.push, mass: sp.mass, fric: sp.fric, v: new V3(), dead: false,
     pen: sp.pen === undefined ? MT[sp.mat].pen : sp.pen, explosive: !!sp.explosive, fluid: sp.fluid ? 1 : 0, fluidKind: sp.fluid || null, holes: [], fuse: -1, burnT: 0, wob: 0, wobS: 1, dashT: -9, burning: false };
-  p.box = { x, z, hx: p.hx, hz: p.hz, prop: p }; boxes.push(p.box); props.push(p); AWAKE.add(p); g.updateMatrixWorld(true); return p;
+  p.box = { x, z, hx: p.hx, hz: p.hz, prop: p }; g.__prop = p; boxes.push(p.box); props.push(p); AWAKE.add(p); g.updateMatrixWorld(true); return p;
 }
 function tryPlace(type, x, z, rot) {
   const sp = PSPEC[type]; if (Math.hypot(x, z) < 5 || Math.abs(x) > WORLD.x - 2 || Math.abs(z) > WORLD.z - 2) return null;
