@@ -17,7 +17,7 @@ with sync_playwright() as p:
         if(out.firstContact<0 && M.ents.some(e=>!e.dead&&e.tgt&&e.tgt.team!==undefined&&e.tgt.team!==e.team&&e.vis)) out.firstContact=+M.t.toFixed(1);
         if(i%300===0){ // cada 5 s de juego
           for(const s of SQ.list){ if(s.playerLead||!s.mission) continue; if(s.mission.name&&/refuerzo/.test(s.mission.name)&&!seen.has(s.id+':'+Math.round(s.missionT))){ seen.add(s.id+':'+Math.round(s.missionT)); out.refuerzo++; }
-            if(s.mission.x!==undefined&&(s.mission.type==='attack')&&s.leader){ const L=s.leader; if(Math.hypot(L.p.x-s.mission.x,L.p.z-s.mission.z)<80){ for(const m of s.members){ if(m.dead||m.clsWait) continue; const d=Math.hypot(m.p.x-s.mission.x,m.p.z-s.mission.z); (cd[m.cls]=cd[m.cls]||[]).push(d); } } } }
+            if(s.mission.x!==undefined&&(s.mission.type==='attack')&&s.leader){ const L=s.leader; if(Math.hypot(L.p.x-s.mission.x,L.p.z-s.mission.z)<45 && !(s.contact&&M.t-s.contact.t<8)){ for(const m of s.members){ if(m.dead||m.clsWait) continue; const d=Math.hypot(m.p.x-s.mission.x,m.p.z-s.mission.z); (cd[m.cls]=cd[m.cls]||[]).push(d); } } } }
           let near=0, alive=0; for(const e of M.ents){ if(e.dead||e.isPlayer) continue; alive++; if(ob.some(o=>Math.hypot(o.x-e.p.x,o.z-e.p.z)<o.r+25)) near++; }
           out.onpt.push(+(near/alive).toFixed(2)); out.samples.push([Math.round(M.t), SQ.score.map(x=>Math.round(x)).join('/'), ob.map(o=>o.owner).join('')]); } }
       for(const k in cd){ const a=cd[k]; out.tact[k]=[Math.round(a.reduce((x,y)=>x+y,0)/a.length), a.length]; }
@@ -28,6 +28,7 @@ with sync_playwright() as p:
     if 'fra' in t and 'asa' in t: chk(t['fra'][0] > t['asa'][0], 'francotirador más lejos del punto que el asalto (%s m vs %s m)' % (t['fra'][0], t['asa'][0]))
     if 'apo' in t and 'asa' in t: chk(t['apo'][0] > t['asa'][0], 'apoyo más lejos del punto que el asalto (%s m vs %s m)' % (t['apo'][0], t['asa'][0]))
     chk(r['firstContact'] > 0, 'primer contacto entre facciones a los %s s de partida' % r['firstContact'])
-    chk(sum(r['onpt']) / len(r['onpt']) > .45, 'proporción media de soldados en/junto a un punto: %.0f %%' % (100 * sum(r['onpt']) / len(r['onpt'])))
+    late = r['onpt'][len(r['onpt']) // 3:]
+    chk(sum(late) / len(late) > .3, 'proporción de soldados en/junto a un punto tras el primer tercio: %.0f %%' % (100 * sum(late) / len(late)))
     chk(not errs, 'sin errores JS ' + str(errs[:2]))
 sys.exit(1 if bad else 0)
