@@ -265,6 +265,15 @@ function moveZ(z, dt) {
 function pose(z, dt) {
   const T = TY[z.type], s = z.sc, sp = Math.min(Math.sqrt((z.v.x) * (z.v.x) + (z.v.z) * (z.v.z)), (z.mv === undefined ? 9 : z.mv) * 1.15 + .15), lerp = (a, b, k) => a + (b - a) * k;
   z.gaitSpd += (sp - z.gaitSpd) * Math.min(1, dt * 6); z.ph += dt * (2.2 + z.gaitSpd * (z.type === 'runner' ? 2.4 : 1.9));
+  /* MARCHA ANCLADA AL SUELO: la fase de las piernas y los brazos avanza con la DISTANCIA recorrida (un ciclo = una zancada de STR metros), no con el tiempo, y la amplitud de la pierna es la que
+     corresponde a esa zancada (θ = STR / 2πL): el pie apoyado se mueve con el suelo y no patina. ph (tiempo) queda solo para los vaivenes del cuerpo. Giro visual con velocidad angular limitada. */
+  const STR = z.type === 'runner' ? 3.4 : z.type === 'brute' ? 2.3 : 1.9, thMax = STR / (2 * Math.PI * .86) * 1.12;
+  z.gp = (z.gp || 0) + Math.min(z.mv === undefined ? 0 : z.mv, 9) * dt / STR * 6.2832;
+  const gp = z.gp, gamp = clamp(z.gaitSpd / .7, 0, 1), gA = clamp(.35 + .65 * z.gaitSpd / T.chase, 0, 1) * gamp;
+  { const vs = Math.sqrt(z.v.x * z.v.x + z.v.z * z.v.z); let want = z.yaw;
+    if (z.st !== 'dead' && z.st !== 'dorm' && !(z.atk >= 0) && z.scream < 0 && vs > .7 && !(z.st === 'chase' && z.tgt && Math.hypot(z.tgt.p.x - z.p.x, z.tgt.p.z - z.p.z) < 3.5)) want = Math.atan2(z.v.x, z.v.z);   // mira hacia donde camina (no se desliza de lado)
+    if (z.vy === undefined || z.st === 'dead' || z.lie > 0 || zt - (z.vyT || -9) > .6) z.vy = want;   // al entrar en pantalla (o tras un rato sin dibujarse) arranca ya orientado
+    else { const rate = z.type === 'runner' ? 9 : z.type === 'brute' ? 3.2 : 5.5, da = ((want - z.vy + Math.PI * 3) % (Math.PI * 2)) - Math.PI; z.vy += Math.max(-rate * dt, Math.min(rate * dt, da)); } z.vyT = zt; }
   const alive = z.st !== 'dead', dorm = z.st === 'dorm', amp = clamp(z.gaitSpd / (T.chase * .8), 0, 1), ph = z.ph, atk = z.atk >= 0, scr = z.scream >= 0;
   z.twT -= dt; if (z.twT <= 0 && alive) { z.twT = rr(2.5, 7); z.tw0 = .35; } z.tw0 = Math.max(0, z.tw0 - dt);          // espasmo ocasional
   const tw = z.tw0 > 0 ? Math.sin(z.tw0 * 60) * z.tw0 * .5 : 0, br = Math.sin(zt * (dorm ? 1.4 : 2.4) + z.seed * 9) * .02;
@@ -276,8 +285,8 @@ function pose(z, dt) {
       + z.stag*.14 - (scr ? .26:0) + (atk ? .17*Math.sin(Math.min(1,z.atk*1.6)*Math.PI):0);
   }
   const sink = z.st === 'dead' && z.deadT > 11 ? -(z.deadT - 11) * .3 : 0, twist = Math.sin(ph * .5 + z.seed) * .22 * amp + tw * .4, roll = Math.sin(ph * .5) * .06 * amp * (z.type === 'brute' ? 2.4 : 1);
-  _e.set(z.lie * 1.5, z.yaw, roll, 'YXZ'); _q.setFromEuler(_e);
-  const B = _m1.compose(_p.set(z.p.x, sink + (alive ? Math.abs(Math.sin(ph)) * .03 * amp : 0), z.p.z), _q, _s.set(s, s, s));
+  _e.set(z.lie * 1.5, z.vy, roll, 'YXZ'); _q.setFromEuler(_e);
+  const B = _m1.compose(_p.set(z.p.x, sink + (alive ? Math.abs(Math.sin(gp)) * .035 * gamp : 0), z.p.z), _q, _s.set(s, s, s));
   const fr = (dst, parent, lx, ly, lz, rx, ry, rz) => { _e.set(rx, ry, rz, 'XYZ'); _q.setFromEuler(_e); _m4.compose(_p.set(lx, ly, lz), _q, _s.set(1, 1, 1)); return dst.multiplyMatrices(parent, _m4); };     // marco hijo (sin escala)
   const put = (k, j, parent, lx, ly, lz, rx, ry, rz, sx, sy, sz) => { _e.set(rx, ry, rz, 'XYZ'); _q.setFromEuler(_e); _m3.compose(_p.set(lx, ly, lz), _q, _s.set(sx, sy, sz)); _m4.multiplyMatrices(parent, _m3); IM[k].setMatrixAt(z.ri * MUL[k] + j, _m4); };
   const i = z.ri, wd = T.tw * z.build, big = T.tw > 1;
@@ -300,7 +309,7 @@ function pose(z, dt) {
   const ey = alive && !dorm ? 1 : 0;
   for (let q = 0; q < 2; q++) { const sg = q ? 1 : -1; put('sk', q, Hd, sg * .045 * hs, .12 * hs, .11 * hs, 0, 0, 0, .05 * hs, .038 * hs, .02); put('ey', q, Hd, sg * .045 * hs, .12 * hs, .118 * hs, 0, 0, 0, .036 * ey, .024 * ey, .018); }
   /* brazos: hombro, codo y mano; en reposo cuelgan, al perseguir se estiran hacia delante con el antebrazo caído */
-  const swing = Math.sin(ph) * amp;
+  const swing = Math.sin(gp) * gA;
   const reaching = z.st==='chase' || atk;
   const armB = dorm ? -.1 : scr ? -2.6 : district && !reaching ? -.22 : T.arm;
   for (let q = 0; q < 2; q++) {
@@ -320,8 +329,8 @@ function pose(z, dt) {
   }
   /* piernas: muslo, rodilla y pie; arrastran el pie (cojera) y flexionan la rodilla al andar */
   for (let q = 0; q < 2; q++) {
-    const sg = q ? 1 : -1, drag = z.limp && q === 1, sw = Math.sin(ph + (q ? Math.PI : 0)) * amp * (drag ? .45 : .85) * (z.type === 'runner' ? 1.3 : 1);
-    const th = dorm ? .05 : sw, kn = dorm ? .1 : Math.max(0, -Math.cos(ph + (q ? Math.PI : 0))) * amp * 1.1 + (drag ? .25 * amp : .1), ft = dorm ? 0 : (drag ? .55 * amp : -sw * .3);
+    const sg = q ? 1 : -1, drag = z.limp && q === 1, sw = Math.sin(gp + (q ? Math.PI : 0)) * gamp * thMax * (drag ? .5 : 1);
+    const th = dorm ? .05 : sw, kn = dorm ? .1 : Math.max(0, -Math.cos(gp + (q ? Math.PI : 0))) * gamp * thMax * 1.6 + (drag ? .25 * gamp : .1), ft = dorm ? 0 : (drag ? .55 * gamp : -sw * .3);
     const Hp = fr(MB2, B, sg * .1 * wd, .86, 0, th, 0, 0);
     put('ul', q, Hp, 0, 0, 0, 0, 0, 0, .115 * (big ? 1.25 : 1) * wd, .43, .115 * (big ? 1.25 : 1) * wd);
     const Kn = fr(MC2, Hp, 0, -.43, 0, kn, 0, 0);
