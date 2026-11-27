@@ -754,7 +754,7 @@ function aimFire(e, dt) {
     const sp = MX.SQ.supPoint(e);
     if (sp) { const d = Math.sqrt((sp.x - e.p.x) * (sp.x - e.p.x) + (sp.z - e.p.z) * (sp.z - e.p.z)), ux = (sp.x - e.p.x) / (d || 1), uz = (sp.z - e.p.z) / (d || 1), aim = Math.atan2(sp.x - e.p.x, sp.z - e.p.z) + Math.sin(M.t * 1.7 + e.phase * 9) * .12;
       e.yaw += clamp(angDiff(e.yaw, aim), -df.turn * dt, df.turn * dt);
-      if (d > 4 && Math.abs(angDiff(e.yaw, aim)) < .25 && e.fireCd <= 0 && e.pause <= 0 && !(e.cover && isParapet(e.cover) && e.crouch > .5) && segClear(e.p.x, e.p.z, e.p.x + ux * Math.min(d - 2, 18), e.p.z + uz * Math.min(d - 2, 18), e.cover, null, true)) { shoot(e); e.pause = Math.max(e.pause, rr(.6, 1.6)); }
+      if (d > 4 && Math.abs(angDiff(e.yaw, aim)) < .25 && e.fireCd <= 0 && e.pause <= 0 && !(e.cover && isParapet(e.cover) && e.crouch > .5) && segClear(e.p.x, e.p.z, e.p.x + ux * Math.min(d - 2, 18), e.p.z + uz * Math.min(d - 2, 18), e.cover, null, true)) { shoot(e); e._supN = (e._supN || 0) + 1; e.pause = Math.max(e.pause, rr(.6, 1.6)); }
       return; }
   }
   if (!(e.vis && e.tgt && !e.tgt.dead) && Math.sqrt((e.v.x) * (e.v.x) + (e.v.z) * (e.v.z)) > .8) {

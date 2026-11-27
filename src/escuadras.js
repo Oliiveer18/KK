@@ -314,8 +314,12 @@ SQ.supPoint = e => {                                                            
   const s = e.sqd; if (!s) return null;
   if (s.order && s.order.type === 'cover' && M.t - s.order.t < 10) return { x: s.order.tx, z: s.order.tz };
   if (s.contact && s.contact.foe && s.contact.foe.dead) s.contact = null;          // el enemigo ha caído: se deja de batir la zona
-  if (s.contact && M.t - s.contact.t < 6 && !e.vis) return { x: s.contact.x, z: s.contact.z };
-  return null;
+  /* fuego de supresión SOLO con motivo: contacto reciente (< 4 s), a distancia de tiro de quien dispara (≤ 32 m; 50 m el de apoyo con ametralladora), que no lo vea ya otro enemigo, y con un
+     presupuesto por contacto (6 disparos; 16 el de apoyo). Antes bastaba un contacto a < 6 s en cualquier punto de la escuadra para que todos dispararan al aire. */
+  const c = s.contact; if (!c || M.t - c.t >= 4 || e.vis) return null;
+  const d = dist(e.p, c), apo = e.cls === 'apo'; if (d > (apo ? 50 : 32) || d < 5) return null;
+  if (e._supK !== c.t) { e._supK = c.t; e._supN = 0; } if (e._supN >= (apo ? 16 : 6)) return null;
+  return { x: c.x, z: c.z };
 };
 
 /* ---------- actualización ---------- */
@@ -471,11 +475,16 @@ function objHud() {
       const g = new THREE.Group(); g.position.set(o.x, 0, o.z); const pole = new THREE.Mesh(new THREE.CylinderGeometry(.05, .06, 4.2, 6), new THREE.MeshStandardMaterial({ color: 0x9aa3ad, metalness: .6, roughness: .4 }));
       pole.position.y = 2.1; pole.castShadow = true; g.add(pole); o.flagM = new THREE.MeshStandardMaterial({ color: 0xe8e8e8, roughness: .8, side: THREE.DoubleSide, flatShading: true });
       o.flag = new THREE.Mesh(new THREE.PlaneGeometry(1.2, .75), o.flagM); o.flag.position.set(.62, 3.7, 0); o.flag.castShadow = true; g.add(o.flag); scene.add(g); o.pole = g;
-      o.fill = new THREE.Mesh(new THREE.RingGeometry(o.r - .9, o.r - .35, 64, 1, 0, .001), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .7, depthWrite: false, side: THREE.DoubleSide })); o.fill.rotation.x = -Math.PI / 2; o.fill.position.set(o.x, .055, o.z); scene.add(o.fill); }
+      /* anillo de progreso: UNA geometría fija de 128 sectores; el progreso solo cambia cuántos se dibujan (setDrawRange): sin recrear mallas ni parpadeos. polygonOffset evita el cruce con el suelo y el anillo exterior */
+      o.fill = new THREE.Mesh(new THREE.RingGeometry(o.r - .9, o.r - .35, 128, 1, Math.PI / 2, -Math.PI * 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .7, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })); o.fill.rotation.x = -Math.PI / 2; o.fill.position.set(o.x, .075, o.z); o.fill.renderOrder = 3; o.fill.geometry.setDrawRange(0, 0); o.fillS = 0; scene.add(o.fill);
+      o.ring.material.polygonOffset = true; o.ring.material.polygonOffsetFactor = -1; o.ring.material.polygonOffsetUnits = -1; o.ring.renderOrder = 2; }
     const col = o.owner >= 0 ? TEAM_COL[o.owner] : 0xe8e8e8; o.ring.material.color.setHex(col); o.flagM.color.setHex(col);
-    o.ring.material.opacity = o.contested ? .35 + .3 * Math.sin(M.t * 8) : .45; o.flag.position.y = 3.7 - (o.capBy >= 0 && o.owner >= 0 ? o.cap * 1.6 : 0); o.flag.rotation.y = Math.sin(M.t * 2.1 + o.x) * .25;
-    const prog = o.capBy >= 0 ? o.cap : 0; o.fill.visible = prog > .005;
-    if (o.fill.visible && Math.abs((o.fillP || 0) - prog) > .01) { o.fill.geometry.dispose(); o.fill.geometry = new THREE.RingGeometry(o.r - .9, o.r - .35, 64, 1, Math.PI / 2, -prog * Math.PI * 2); o.fillP = prog; }
+    const dt = Math.min(.1, M.t - (o.hudT === undefined ? M.t : o.hudT)), k = 1 - Math.exp(-dt * 7); o.hudT = M.t;                                     // todo lo que se ve se suaviza: sin saltos aunque la captura suba y baje
+    o.ring.material.opacity = o.contested ? .4 + .1 * Math.sin(M.t * 3) : .45;
+    const fy = 3.7 - (o.capBy >= 0 && o.owner >= 0 ? o.cap * 1.6 : 0); o.flagY = o.flagY === undefined ? fy : o.flagY + (fy - o.flagY) * k; o.flag.position.y = o.flagY; o.flag.rotation.y = Math.sin(M.t * 2.1 + o.x) * .25;
+    const prog = o.capBy >= 0 ? o.cap : 0; o.fillS += (prog - o.fillS) * k; if (Math.abs(prog - o.fillS) < .004) o.fillS = prog;
+    const vis = o.fill.visible ? o.fillS > .004 : o.fillS > .02; o.fill.visible = vis;
+    if (vis) { const seg = Math.max(1, Math.min(128, Math.round(o.fillS * 128))); if (seg !== o.fillSeg) { o.fillSeg = seg; o.fill.geometry.setDrawRange(0, seg * 6); } }
     if (o.fill.visible) o.fill.material.color.setHex(TEAM_COL[o.capBy]);
   }
 }
@@ -526,7 +535,7 @@ const TM = { open: false, cv: null, ctx: null, base: null, baseKey: '', t0: 0 };
 const mapEl = document.createElement('div');
 mapEl.style.cssText = 'position:fixed;inset:0;z-index:12;display:none;flex-direction:column;gap:6px;align-items:center;justify-content:center;background:#05070bcc;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)';
 const mapCv = document.createElement('canvas'); mapCv.style.cssText = 'border-radius:10px;box-shadow:0 10px 40px #000c,0 0 0 1px #ffffff22';
-const mapLeg = document.createElement('div'); mapLeg.style.cssText = 'position:absolute;left:50%;bottom:calc(10px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:94vw;text-align:center;line-height:1.5;font:600 clamp(9px,1.6vw,12px) system-ui,-apple-system,sans-serif;color:#dfe6f2;background:#0b0f18d0;border:1px solid #ffffff1c;border-radius:8px;padding:4px 10px;white-space:normal;text-shadow:0 1px 2px #000';
+const mapLeg = document.createElement('div'); mapLeg.style.cssText = 'position:static;max-width:94vw;text-align:center;line-height:1.5;font:600 clamp(9px,1.6vw,12px) system-ui,-apple-system,sans-serif;color:#dfe6f2;background:#0b0f18d0;border:1px solid #ffffff1c;border-radius:8px;padding:4px 10px;white-space:normal;text-shadow:0 1px 2px #000';
 mapLeg.innerHTML = '<span style="color:#ff7a2a">●</span> disparos que oyes (150 m) &nbsp; <span style="color:#ff4a4a">●</span> aliados bajo fuego &nbsp; <span style="color:#ffd24a">✸</span> explosión &nbsp; <span style="color:#ff4a2a">▲</span> incendio &nbsp; <span style="color:#fff">➤</span> tú &nbsp; ★ líder &nbsp; ◯ objetivo (color del dueño) &nbsp; · Share / M para cerrar';
 const mapHead = document.createElement('div'); mapHead.style.cssText = 'font:700 clamp(10px,1.8vw,13px) system-ui,-apple-system,sans-serif;color:#dfe6f2;text-shadow:0 1px 2px #000;max-width:94vw;white-space:normal;text-align:center';
 mapEl.append(mapHead, mapCv, mapLeg); document.body.appendChild(mapEl);
@@ -539,7 +548,9 @@ Object.defineProperty(MX, 'mapOpen', { get: () => TM.open });
 addEventListener('keydown', ev => { if (ev.code === 'KeyM' && !ev.repeat && MX.on && MX.campaign && !menuOpen) { ev.preventDefault(); MX.mapToggle(); } });
 function mapOpen() { if (!MX.on || !MX.campaign || menuOpen) return; TM.open = true; mapEl.style.display = 'flex'; TM.t0 = M.t; mapDraw(); }
 function mapGeom() {                                                                   // tamaño del lienzo (cabe en pantalla) y escala mundo → píxeles
-  const half = (MAPA.built && MAPA.built.half) || (typeof WORLD !== 'undefined' ? Math.max(WORLD.x, WORLD.z) : 50), sz = Math.floor(Math.min(TM.dock ? innerWidth - Math.min(380, innerWidth * .44) - 44 : innerWidth * .94, (innerHeight - 110) * .97));
+  const half = (MAPA.built && MAPA.built.half) || (typeof WORLD !== 'undefined' ? Math.max(WORLD.x, WORLD.z) : 50), sz0 = Math.floor(Math.min(TM.dock ? innerWidth - Math.min(340, innerWidth * .46) - 44 : innerWidth * .94, innerHeight * .97));
+  mapHead.style.maxWidth = mapLeg.style.maxWidth = Math.max(260, sz0) + 'px';                                   // cabecera y leyenda del ancho del mapa (se parten en líneas) y su altura real se descuenta: nada tapa el mapa
+  const sz = Math.max(120, Math.min(sz0, Math.floor(innerHeight - Math.max(mapHead.offsetHeight, 34) - mapLeg.offsetHeight - 6 * 2 - 24 - 8)));
   return { half, sz, k: sz / (2 * half) };
 }
 function mapBase(g) {                                                                  // capa fija: suelo, zonas, calles, edificios, refugios
