@@ -8114,11 +8114,25 @@ function mapBase(g0) {                                                          
   if (!info) { x.fillStyle = '#5b6272'; for (const w of M.walls) x.fillRect(P2(w.x - w.hx), P2(w.z - w.hz), 2 * w.hx * g.k, 2 * w.hz * g.k); }
   if (info && info.refugeRects) for (const r of info.refugeRects) { x.fillStyle = '#' + TEAM_COL[r.fac].toString(16).padStart(6, '0') + '55'; x.strokeStyle = '#' + TEAM_COL[r.fac].toString(16).padStart(6, '0'); x.lineWidth = 2; x.fillRect(P2(r.x - r.hx), P2(r.z - r.hz), 2 * r.hx * g.k, 2 * r.hz * g.k); x.strokeRect(P2(r.x - r.hx), P2(r.z - r.hz), 2 * r.hx * g.k, 2 * r.hz * g.k); }
   x.strokeStyle = '#ffffff14'; x.lineWidth = 1; for (let v = -g.half; v <= g.half; v += 125) { x.beginPath(); x.moveTo(P2(v), 0); x.lineTo(P2(v), g.sz); x.stroke(); x.beginPath(); x.moveTo(0, P2(v)); x.lineTo(g.sz, P2(v)); x.stroke(); }
-  TM.base = c; TM.baseKey = key; return c;
+  TM.base = c; TM.baseKey = key; TM.bmp = null; if (typeof createImageBitmap === 'function') createImageBitmap(c).then(bm => { if (TM.base === c) TM.bmp = bm; }).catch(() => { });   // copia inmutable para el minimapa (dibujar desde un lienzo obliga a refrescar su instantánea)
+  return c;
 }
 /* ---- ALIADOS EN LOS MAPAS (minimapa y mapa táctico): tu escuadra siempre suelta (color de su clase y su inicial en el mapa grande); el resto de tu facción AGRUPADO en celdas (10 m en el
    minimapa, 14 m en el mapa grande): un punto si es uno solo, un círculo con el número si son varios, así nunca se amontonan; aro ámbar si hay abatidos y estrella si lleva un líder.
    En el minimapa, los grupos fuera del radio salen como flechas en el borde con su número (por sectores de 22,5°). En el mapa grande, cada escuadra dibuja una línea suave a su objetivo. ---- */
+/* TEXTO Y DEGRADADOS DEL MINIMAPA EN CACHÉ: dibujar texto (fillText/strokeText) y crear degradados radiales 10 veces por segundo provocaba paradas de 40–60 ms en el lienzo 2D (medido: sin el minimapa
+   el peor fotograma pasaba de 88 a 27 ms). Cada número/etiqueta se pinta una vez en un lienzo pequeño (a 2× de resolución) y después solo se copia con drawImage; igual con las manchas de fuego. */
+const TXC = new Map(), BLC = new Map();
+function drawTxt(x, text, cx, cy, size, weight, fill, stroke) {
+  const key = text + '|' + size + '|' + weight + '|' + fill + '|' + (stroke || ''); let c = TXC.get(key);
+  if (!c) { const w = Math.ceil(size * .75 * text.length + 8), h = Math.ceil(size * 1.6) + 4; c = document.createElement('canvas'); c.width = w * 2; c.height = h * 2; const g = c.getContext('2d'); g.scale(2, 2);
+    g.font = weight + ' ' + size + 'px system-ui,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; if (stroke) { g.strokeStyle = stroke; g.lineWidth = 2.4; g.strokeText(text, w / 2, h / 2); } g.fillStyle = fill; g.fillText(text, w / 2, h / 2); c.__w = w; c.__h = h; TXC.set(key, c); }
+  x.drawImage(c, cx - c.__w / 2, cy - c.__h / 2, c.__w, c.__h);
+}
+function drawBlob(x, px, pz, r, rgb, alpha) {
+  let c = BLC.get(rgb); if (!c) { c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(' + rgb + ',1)'); gr.addColorStop(1, 'rgba(' + rgb + ',0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); BLC.set(rgb, c); }
+  const ga = x.globalAlpha; x.globalAlpha = ga * alpha; x.drawImage(c, px - r, pz - r, 2 * r, 2 * r); x.globalAlpha = ga;
+}
 function friendClusters(team, cell, mineSq) {
   const cells = new Map(), mine = []; let n = 0;
   for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.dead || e.team !== team || e.isPlayer) continue; n++;
@@ -8134,16 +8148,16 @@ function drawFriends(x, toPx, size, team, mineSq, big, rEdge) {
     else { const r = Math.min(big ? 13 : 9, (big ? 5 : 3.6) + Math.sqrt(c.n) * (big ? 1.7 : 1.2));
       x.globalAlpha = .28; x.fillStyle = col; x.beginPath(); x.arc(px, pz, r + 2.5, 0, 6.283); x.fill(); x.globalAlpha = .92; x.beginPath(); x.arc(px, pz, r, 0, 6.283); x.fill(); x.globalAlpha = 1;
       x.strokeStyle = c.dwn ? '#ffb020' : '#ffffffcc'; x.lineWidth = c.dwn ? 2 : 1.1; x.beginPath(); x.arc(px, pz, r, 0, 6.283); x.stroke();
-      x.fillStyle = '#0b0f18'; x.font = '800 ' + Math.round(r * 1.05) + 'px system-ui,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(String(c.n), px, pz + .5);
-      if (c.lead && big) { x.fillStyle = '#fff'; x.font = '700 9px system-ui'; x.fillText('★', px, pz - r - 5); } } }
+      drawTxt(x, String(c.n), px, pz + .5, Math.round(r * 1.05), 800, '#0b0f18');
+      if (c.lead && big) drawTxt(x, '★', px, pz - r - 5, 9, 700, '#fff'); } }
   for (const e of F.mine) { const [px, pz] = toPx(e.p.x, e.p.z), cl = MX.classOf ? MX.classOf(e) : null, cc = cl ? '#' + cl.col.toString(16).padStart(6, '0') : col;
     if (px < -4 || pz < -4 || px > size + 4 || pz > size + 4) continue;
     x.fillStyle = e.dwn ? '#ffb020' : cc; x.strokeStyle = '#0b0f18'; x.lineWidth = 1.2; x.beginPath(); x.arc(px, pz, big ? 4.4 : 3.3, 0, 6.283); x.fill(); x.stroke();
-    if (big && cl) { x.fillStyle = '#0b0f18'; x.font = '800 7px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(cl.tag, px, pz + .4); }
-    if (e.sqd && e.sqd.leader === e) { x.fillStyle = '#fff'; x.font = '700 9px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('★', px, pz - (big ? 9 : 7)); } }
+    if (big && cl) drawTxt(x, cl.tag, px, pz + .4, 7, 800, '#0b0f18');
+    if (e.sqd && e.sqd.leader === e) drawTxt(x, '★', px, pz - (big ? 9 : 7), 9, 700, '#fff'); }
   if (rEdge) for (let b = 0; b < 16; b++) { const n = bins[b]; if (!n) continue; const a = b * Math.PI / 8, ex = cx0 + Math.cos(a) * (cx0 - 8), ez = cx0 + Math.sin(a) * (cx0 - 8);
     x.save(); x.translate(ex, ez); x.rotate(a); x.fillStyle = col; x.globalAlpha = .9; x.beginPath(); x.moveTo(6, 0); x.lineTo(-3.5, -4.6); x.lineTo(-3.5, 4.6); x.closePath(); x.fill(); x.restore();
-    x.globalAlpha = 1; x.fillStyle = '#fff'; x.strokeStyle = '#000b'; x.lineWidth = 2.4; x.font = '800 9px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; const tx = cx0 + Math.cos(a) * (cx0 - 19), tz = cx0 + Math.sin(a) * (cx0 - 19); x.strokeText(String(n), tx, tz); x.fillText(String(n), tx, tz); }
+    x.globalAlpha = 1; drawTxt(x, String(n), cx0 + Math.cos(a) * (cx0 - 19), cx0 + Math.sin(a) * (cx0 - 19), 9, 800, '#fff', '#000b'); }
   return F;
 }
 function mapDraw() {
@@ -8189,22 +8203,21 @@ function miniTick(dt) {
   const size = Math.round(Math.min(140, Math.max(84, Math.min(innerWidth, innerHeight) * .26))), dpr = Math.min(2, devicePixelRatio || 1); MM.size = size;
   if (MM.cv.width !== size * dpr) { MM.cv.width = MM.cv.height = size * dpr; MM.cv.style.width = MM.cv.style.height = size + 'px'; }
   const x = MM.cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const tb0 = performance.now(); const G = mapG0(), base = mapBase(G); SQ.pm.mbase = Math.max(SQ.pm.mbase || 0, performance.now() - tb0); const k = size / (2 * MM.R), cx = P.pos.x, cz = P.pos.z, pl = MX.pl, team = pl ? pl.team : 0, col = t => '#' + TEAM_COL[t].toString(16).padStart(6, '0');
+  const tb0 = performance.now(); const G = mapG0(), base0 = mapBase(G), base = TM.bmp || base0; SQ.pm.mbase = Math.max(SQ.pm.mbase || 0, performance.now() - tb0); const k = size / (2 * MM.R), cx = P.pos.x, cz = P.pos.z, pl = MX.pl, team = pl ? pl.team : 0, col = t => '#' + TEAM_COL[t].toString(16).padStart(6, '0');
   const m0 = performance.now(); x.fillStyle = '#1d2619'; x.fillRect(0, 0, size, size);
-  const bs = base.width / G.sz; x.drawImage(base, (cx - MM.R + G.half) * G.k * bs, (cz - MM.R + G.half) * G.k * bs, 2 * MM.R * G.k * bs, 2 * MM.R * G.k * bs, 0, 0, size, size);
+  const bs = base0.width / G.sz; x.drawImage(base, (cx - MM.R + G.half) * G.k * bs, (cz - MM.R + G.half) * G.k * bs, 2 * MM.R * G.k * bs, 2 * MM.R * G.k * bs, 0, 0, size, size);
   const m1 = performance.now(); SQ.pm.m_base = Math.max(SQ.pm.m_base || 0, m1 - m0);
   const W2 = (wx, wz) => [(wx - cx + MM.R) * k, (wz - cz + MM.R) * k], pulse = .5 + .5 * Math.sin(M.t * 6);
   for (const h of combatCells(team, cx, cz, FADE)) { let [px, pz] = W2(h.x / h.w, h.z / h.w); const out = px < 6 || pz < 6 || px > size - 6 || pz > size - 6;
     if (out) { if (!h.ally) continue; const dx = px - size / 2, dz = pz - size / 2, l = Math.sqrt((dx) * (dx) + (dz) * (dz)) || 1; px = size / 2 + dx / l * (size / 2 - 9); pz = size / 2 + dz / l * (size / 2 - 9);   // aliados bajo fuego fuera del minimapa: flecha en el borde
       x.save(); x.translate(px, pz); x.rotate(Math.atan2(dz, dx)); x.fillStyle = 'rgba(255,80,80,' + (.6 + .4 * pulse) + ')'; x.beginPath(); x.moveTo(7, 0); x.lineTo(-4, -5); x.lineTo(-4, 5); x.closePath(); x.fill(); x.restore(); continue; }
-    const r = Math.min(14, 4 + Math.sqrt(h.w) * 2), rgb = h.ally ? '255,60,60' : '255,140,40', gr = x.createRadialGradient(px, pz, 0, px, pz, r);
-    gr.addColorStop(0, 'rgba(' + rgb + ',' + Math.min(.9, .3 + h.w * .06) + ')'); gr.addColorStop(1, 'rgba(' + rgb + ',0)'); x.fillStyle = gr; x.beginPath(); x.arc(px, pz, r, 0, 6.283); x.fill();
+    const r = Math.min(14, 4 + Math.sqrt(h.w) * 2), rgb = h.ally ? '255,60,60' : '255,140,40'; drawBlob(x, px, pz, r, rgb, Math.min(.9, .3 + h.w * .06));
     if (h.young < 2.5) { x.strokeStyle = 'rgba(' + rgb + ',' + (.5 + .5 * pulse) + ')'; x.lineWidth = 1.4; x.beginPath(); x.arc(px, pz, r * .5 + pulse * 2, 0, 6.283); x.stroke(); } }
   const m2 = performance.now(); SQ.pm.m_cells = Math.max(SQ.pm.m_cells || 0, m2 - m1);
-  for (const o of SQ.objs) { const [px, pz] = W2(o.x, o.z); if (px < -10 || pz < -10 || px > size + 10 || pz > size + 10) continue; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.lineWidth = 1.6; x.beginPath(); x.arc(px, pz, Math.max(3, o.r * k), 0, 6.283); x.stroke(); if (o.code) { x.fillStyle = o.owner >= 0 ? col(o.owner) : '#0c1018'; x.font = '800 9px system-ui,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(o.code, px, pz); } }
+  for (const o of SQ.objs) { const [px, pz] = W2(o.x, o.z); if (px < -10 || pz < -10 || px > size + 10 || pz > size + 10) continue; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.lineWidth = 1.6; x.beginPath(); x.arc(px, pz, Math.max(3, o.r * k), 0, 6.283); x.stroke(); if (o.code) drawTxt(x, o.code, px, pz, 9, 800, o.owner >= 0 ? col(o.owner) : '#0c1018'); }
   const m3 = performance.now(); SQ.pm.m_objs = Math.max(SQ.pm.m_objs || 0, m3 - m2); drawFriends(x, W2, size, team, pl && pl.sqd, false, true); SQ.pm.m_friends = Math.max(SQ.pm.m_friends || 0, performance.now() - m3);
   x.save(); x.translate(size / 2, size / 2); x.rotate(-P.aim + Math.PI); x.fillStyle = '#fff'; x.strokeStyle = '#000'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(0, -7); x.lineTo(5, 5); x.lineTo(0, 2.5); x.lineTo(-5, 5); x.closePath(); x.fill(); x.stroke(); x.restore();
-  x.fillStyle = '#ffffffaa'; x.font = '700 9px system-ui'; x.textAlign = 'center'; x.textBaseline = 'top'; x.fillText('N', size / 2, 3);
+  drawTxt(x, 'N', size / 2, 3 + 7, 9, 700, '#ffffffaa');
 }
 SQ.mapTick = () => { if (TM.open) { if (!MX.on || menuOpen || (MX.pl && (MX.pl.dead || MX.pl.dwn))) { if (!MX.on || menuOpen) MX.mapClose(); } mapDraw(); } };
 
