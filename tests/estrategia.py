@@ -14,7 +14,7 @@ with sync_playwright() as p:
     r = ev('''(MIN)=>{ renderer.render=()=>{}; const N=Math.round(MIN*3600), fr=[], out={samples:[], refuerzo:0, firstContact:-1, tact:{}, onpt:[]}; const M=MX.M, SQ=MX.SQ; const seen=new Set();
       const cd={}; const ob=SQ.objs.filter(o=>o.id!=='REF');
       for(let i=0;i<N;i++){ time+=1/60; const t0=performance.now(); update(1/60); fr.push(performance.now()-t0);
-        if(out.firstContact<0 && M.ents.some(e=>!e.dead&&e.tgt&&e.tgt.team!==undefined&&e.tgt.team!==e.team&&e.vis)) out.firstContact=+M.t.toFixed(1);
+        if(out.firstContact<0 && M.ents.some(e=>!e.dead&&e.tgt&&e.tgt.team>=0&&e.tgt.team!==e.team&&e.vis)) out.firstContact=+M.t.toFixed(1);
         if(i%300===0){ // cada 5 s de juego
           for(const s of SQ.list){ if(s.playerLead||!s.mission) continue; if(s.mission.name&&/refuerzo/.test(s.mission.name)&&!seen.has(s.id+':'+Math.round(s.missionT))){ seen.add(s.id+':'+Math.round(s.missionT)); out.refuerzo++; }
             if(s.mission.x!==undefined&&(s.mission.type==='attack')&&s.leader){ const L=s.leader; if(Math.hypot(L.p.x-s.mission.x,L.p.z-s.mission.z)<45 && !(s.contact&&M.t-s.contact.t<8)){ for(const m of s.members){ if(m.dead||m.clsWait) continue; const d=Math.hypot(m.p.x-s.mission.x,m.p.z-s.mission.z); (cd[m.cls]=cd[m.cls]||[]).push(d); } } } }

@@ -8003,6 +8003,7 @@ function flank(e, s, m) {
   let q = { x: L.p.x + dx * .72 + (-dz / d) * side, z: L.p.z + dz * .72 + (dx / d) * side }; if (!MX.navAt(q.x, q.z)) { for (let r = 2; r < 14 && !MX.navAt(q.x, q.z); r += 2) q = { x: q.x + (L.p.x - q.x) * .15, z: q.z + (L.p.z - q.z) * .15 }; }
   e._fl = { k: key, q }; return q;
 }
+MX.classGoal = classGoal;
 function classGoal(e) {
   const s = e.sqd, c = e.cls; if (!s || s.playerLead || !s.leader || !s.mission || s.mission.x === undefined || (c !== 'apo' && c !== 'fra' && c !== 'asa' && c !== 'fla')) return null;
   if (s.mission.type !== 'attack' && s.mission.type !== 'hold') return null; if (s.contact && M.t - s.contact.t < 8) return null;
