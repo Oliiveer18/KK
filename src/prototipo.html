@@ -1075,7 +1075,7 @@ function warmAll() {
   muzzleLight.visible = true; boomLight.visible = true; renderer.render(scene, camera);                 // sube buffers y compila los shaders de sombra
   st.forEach(v => { v[0].visible = v[1]; v[0].frustumCulled = v[2]; }); muzzleLight.visible = mv; boomLight.visible = bv;
   for (const g of extra) scene.remove(g);
-  if (secs) { for (const q of prox) scene.remove(q); for (const g of secs) scene.add(g); }
+  if (secs) { for (const q of prox) scene.remove(q); for (const g of secs) scene.add(g); if (MAPA.freezeAll) MAPA.freezeAll(); }   // al terminar: los sectores lejos de la cámara se congelan (MAPA.cull los vuelve a crear al acercarse)
 }
 const LIGHTS = { warm: false };
 function lightsSync() { muzzleLight.visible = muzzleLight.intensity > 0; boomLight.visible = boomLight.intensity > 0; }

@@ -179,7 +179,7 @@ function sectorize(out, D) {
     scene.remove = function () { for (const o of arguments) { if (o && o.parent && o.parent !== scene && o.parent.__sector) o.parent.remove(o); else rm.call(scene, o); } return scene; }; }
   const S = new Map(), list = [];
   const sec = (x, z) => { const i = Math.floor(x / SEC), j = Math.floor(z / SEC), k = i * 1000 + j; let g = S.get(k);
-    if (!g) { g = new THREE.Group(); g.__sector = true; g.matrixAutoUpdate = false; g.box = new THREE.Box3(new V3(i * SEC - SEC_M, -1, j * SEC - SEC_M), new V3((i + 1) * SEC + SEC_M, 16, (j + 1) * SEC + SEC_M));
+    if (!g) { g = new THREE.Group(); g.__sector = true; g.__i = i; g.__j = j; g.matrixAutoUpdate = false; g.box = new THREE.Box3(new V3(i * SEC - SEC_M, -1, j * SEC - SEC_M), new V3((i + 1) * SEC + SEC_M, 16, (j + 1) * SEC + SEC_M));
       g.updateMatrixWorld = function (f) { if (this.visible) THREE.Object3D.prototype.updateMatrixWorld.call(this, f); }; S.set(k, g); list.push(g); scene.add(g); }
     return g; };
   const move = o => { if (o && o.parent === scene) sec(o.position.x, o.position.z).add(o); };
@@ -333,7 +333,8 @@ MAPA.instance = function (sectors) {
     for (const [, L] of by) {
       if (L.length < 2) continue; const m0 = L[0].m, im = new THREE.InstancedMesh(m0.geometry, m0.material, L.length);
       im.castShadow = m0.castShadow; im.receiveShadow = m0.receiveShadow; im.frustumCulled = false; im.userData.lzInst = true;   // el sector ya recorta por cámara
-      L.forEach((it, i) => { it.p.g.updateMatrixWorld(true); im.setMatrixAt(i, it.p.g.matrixWorld); it.p.g.remove(it.m); it.p.lz.merged.splice(it.p.lz.merged.indexOf(it.m), 1); (it.p.lz.inst || (it.p.lz.inst = [])).push({ im, i }); });
+      const bt = { im, arr: im.instanceMatrix.array, geo: m0.geometry, mat: m0.material, cs: m0.castShadow, rs: m0.receiveShadow, n: L.length }; im.userData.b = bt;   // registro del lote (sobrevive a congelar el sector)
+      L.forEach((it, i) => { it.p.g.updateMatrixWorld(true); im.setMatrixAt(i, it.p.g.matrixWorld); it.p.g.remove(it.m); it.p.lz.merged.splice(it.p.lz.merged.indexOf(it.m), 1); (it.p.lz.inst || (it.p.lz.inst = [])).push({ b: bt, i }); });
       im.instanceMatrix.needsUpdate = true; S.add(im); lotes++; copias += L.length;
     }
   }
@@ -348,7 +349,7 @@ MAPA.post = function (step) {
 };
 MAPA.wake = function (p) {                                                          // vuelve a poner las piezas reales (idénticas) de un objeto fusionado
   const L = p && p.lz; if (!L) return; p.lz = null; AWAKE.add(p);
-  for (const it of L.inst || []) { it.im.setMatrixAt(it.i, _Z4); it.im.instanceMatrix.needsUpdate = true; }
+  for (const it of L.inst || []) { _Z4.toArray(it.b.arr, it.i * 16); if (it.b.im) it.b.im.instanceMatrix.needsUpdate = true; }   // su copia en el lote se oculta (escala 0), con el sector vivo o congelado
   for (const m of L.merged) p.g.remove(m); for (const o of L.kept) if (o.parent) o.parent.remove(o);
   OBJ.rebuild(p); if (MAPA.canon) MAPA.canon(p.g); p.g.updateMatrixWorld(true);
 };
@@ -360,10 +361,52 @@ MAPA.wake = function (p) {                                                      
     const ro = OBJ.removeObject; OBJ.removeObject = function (r) { if (r && r.lz) MAPA.wake(r); return ro.apply(this, arguments); }; }
 })();
 const _fr = new THREE.Frustum(), _pm = new THREE.Matrix4();
+/* ---- sectores congelados (streaming de mallas): el 99,9 % de los objetos del distrito está dormido (soldado) y lejos de la cámara, pero cada malla es un nodo de Three.js
+   (~1,5 KB de memoria, y trabajo para el recolector de basura): ~58.000 nodos de objetos. Un sector lejos de la cámara guarda sólo la RECETA de sus mallas (geometría, material, banderas;
+   las geometrías y materiales ya se compartían) y de sus lotes instanciados (la matriz de cada copia); al acercarse la cámara se recrean idénticos. Los grupos de cada objeto se quedan
+   (otros sistemas leen su posición), y despertar un objeto de un sector congelado funciona igual (su copia en el lote se oculta en los datos). ?nostream lo desactiva. ---- */
+const ST = { R_THAW: 3, R_FREEZE: 5, budget: 2, ci: 0, cj: 0, cand: [], off: /[?&]nostream\b/.test(location.search), on: false };
+function freezeSector(S) {
+  if (S.__fz) return; S.__batches = [];
+  for (const g of S.children.slice()) {
+    const p = g.__prop;
+    if (p && p.lz && !p.lz.frozen && p.lz.merged.length) {
+      const L = p.lz; L.mdesc = L.merged.map(m => ({ geo: m.geometry, mat: m.material, cs: m.castShadow, rs: m.receiveShadow, fc: m.frustumCulled }));
+      for (const m of L.merged) g.remove(m); L.merged = []; L.frozen = true;
+    } else if (g.isInstancedMesh && g.userData.lzInst) { const bt = g.userData.b; bt.im = null; S.__batches.push(bt); S.remove(g); g.dispose(); }
+  }
+  S.__fz = true;
+}
+function thawSector(S) {
+  if (!S.__fz) return;
+  if (typeof PERF !== 'undefined') PERF.tag('sectores');
+  for (const g of S.children) { const p = g.__prop;
+    if (p && p.lz && p.lz.frozen) { const L = p.lz; L.merged = L.mdesc.map(v => { const m = new THREE.Mesh(v.geo, v.mat); m.castShadow = v.cs; m.receiveShadow = v.rs; m.frustumCulled = v.fc; m.userData.lz = true; g.add(m); return m; }); L.frozen = false; L.mdesc = null; } }
+  for (const bt of S.__batches) { const im = new THREE.InstancedMesh(bt.geo, bt.mat, bt.n); im.instanceMatrix.array.set(bt.arr); bt.arr = im.instanceMatrix.array; im.castShadow = bt.cs; im.receiveShadow = bt.rs; im.frustumCulled = false; im.userData.lzInst = true; im.userData.b = bt; bt.im = im; im.instanceMatrix.needsUpdate = true; S.add(im); }
+  S.__batches = null; S.__fz = false;
+}
+MAPA.freezeAll = function () { const b = MAPA.built; if (!b || !b.sectors || ST.off) return 0; let n = 0; for (const S of b.sectors) if (!S.__fz) { freezeSector(S); n++; } ST.on = true; return n; };
+MAPA.thawAll = function () { const b = MAPA.built; if (!b || !b.sectors) return 0; let n = 0; for (const S of b.sectors) if (S.__fz) { thawSector(S); n++; } return n; };
+MAPA.stream = ST;
+const _sr = new THREE.Ray(), _sd = new THREE.Vector3(), _st = new THREE.Vector3();
 MAPA.cull = function (cam) {
   const b = MAPA.built; if (!b || !b.sectors || MAPA.noCull) return;
   cam.updateMatrixWorld(); _pm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); _fr.setFromProjectionMatrix(_pm);
-  for (const g of b.sectors) g.visible = _fr.intersectsBox(g.box);
+  let tx = cam.position.x, tz = cam.position.z;                                                              // punto del suelo hacia el que mira la cámara
+  if (ST.on) { cam.getWorldDirection(_sd); if (_sd.y < -.05) { const t = -cam.position.y / _sd.y; tx += _sd.x * t; tz += _sd.z * t; } ST.ci = Math.floor(tx / SEC); ST.cj = Math.floor(tz / SEC); }
+  const cand = ST.cand; cand.length = 0;
+  for (const g of b.sectors) {
+    const v = _fr.intersectsBox(g.box); g.visible = v;
+    if (!ST.on) continue;
+    if (v) { if (g.__fz) thawSector(g); continue; }                                                           // un sector a la vista nunca se dibuja congelado
+    const d = Math.max(Math.abs(g.__i - ST.ci), Math.abs(g.__j - ST.cj));
+    if (g.__fz) { if (d <= ST.R_THAW) cand.push(g, d); } else if (d >= ST.R_FREEZE) cand.push(g, -1);
+  }
+  if (cand.length) {                                                                                           // anticipar: se descongelan los más cercanos y se congelan los lejanos, pocos por fotograma
+    let nt = 0, nf = 0;
+    for (let r = 0; r <= ST.R_THAW && nt < ST.budget; r++) for (let i = 0; i < cand.length; i += 2) if (cand[i + 1] === r && nt < ST.budget) { thawSector(cand[i]); nt++; }
+    for (let i = 0; i < cand.length && nf < ST.budget; i += 2) if (cand[i + 1] === -1) { freezeSector(cand[i]); nf++; }
+  }
 };
 MAPA.clear = function () {
   const b = MAPA.built; if (!b) return; scene.remove(b.group); for (const g of b.sectors || []) { for (const o of g.children.slice()) if (!o.isInstancedMesh) scene.add(o); THREE.Object3D.prototype.remove.call(scene, g); } b.group.traverse(o => { if (o.geometry && o.isMesh) o.geometry.dispose(); });
