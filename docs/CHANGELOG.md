@@ -1,5 +1,8 @@
 # Changelog
 
+## Remate de abatidos (27-11)
+- Un enemigo abatido (esperando reanimación) se puede rematar: las balas del jugador y de cualquier rival lo alcanzan (40 de vida extra) y los bots lo tienen como objetivo, pero **después** de los enemigos en pie. El kill feed marca «· remate». `tests/remate.py`.
+
 ## Escuadras por tipo y mando con maniobras (27-11)
 - **12 escuadras por facción, 6 tipos** (50 soldados, mismos tamaños en las 4 facciones): asalto 5 (2 asalto, fusilero, médico, flanqueador), línea 5 (3 fusileros, médico, apoyo), apoyo 4 (2 apoyo, francotirador, médico), flanco 3 (2 flanqueadores, francotirador), reserva 4 (2 fusileros, asalto, médico) y guarnición 3. Cada partida varía al azar, a igual tamaño, línea↔asalto, reserva↔apoyo y flanco↔guarnición. Tu escuadra es una línea.
 - **Rasgos suaves por facción** (±15 % al azar por partida, no una personalidad): agresividad (aumenta si va por detrás), atracción por el centro y rivalidad con la facción que va primera. Además, recuperar un punto perdido pesa más durante 2 minutos.
