@@ -501,7 +501,7 @@ MX.zom.cand = (ox, oz, dx, dz, d0, d1) => {
    que aparecen fuera de la vista y llegan por ruta. Intensidad SUAVE al empezar y creciente hasta el final: sube con el tiempo (25 min) y con el marcador (la meta). ?zpunto=N la multiplica. */
 const ZPUNTO = +new URLSearchParams(location.search).get('zpunto') || 1;
 const PT = { t: 0, waves: [] };
-function matchProg() { const SQ = MX.SQ; let sc = 0; if (SQ && SQ.score && SQ.meta) sc = Math.max.apply(null, SQ.score) / SQ.meta; return Math.max(0, Math.min(1, Math.max(M.t / 1500, sc))); }   // 0 al empezar, 1 a los 25 min o con la meta cerca
+function matchProg() { const SQ = MX.SQ; let sc = 0; if (SQ && SQ.score && SQ.meta) sc = Math.max.apply(null, SQ.score) / SQ.meta; return Math.max(0, Math.min(1, sc)); }   // 0 al empezar, 1 con la meta cerca: solo cuentan los puntos de la mejor facción, no el tiempo
 const offScreen = (x, z) => { const S = MX.SIGHT || { hw: 13, hd: 8 }, dx = x - P.pos.x, dz = z - P.pos.z; return (Math.abs(dx) > S.hw + 9 || Math.abs(dz) > S.hd + 9) && dx * dx + dz * dz > 900; };   // fuera de la pantalla y a > 30 m del jugador
 function pointSpawnPos(o, rMin, rMax, needOff) { for (let t = 0; t < 30; t++) { const a = rnd() * 6.283, r = rMin + rnd() * (rMax - rMin), x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r; if (navFree(x, z) && (!needOff || offScreen(x, z))) return [x, z]; } return null; }
 function pointsTick() {
@@ -511,7 +511,7 @@ function pointsTick() {
   if (alive > MAXZ - 60) return;
   for (const o of SQ.objs) {
     if (o.id === 'REF') continue;
-    const want = Math.round((o.id === 'PLAZA' ? 12 : 8) * k), have = ngar.get(o) || 0;
+    const want = Math.round((o.id === 'PLAZA' ? 26 : 18) * k), have = ngar.get(o) || 0;
     if (o._zInit === undefined) { o._zInit = true; o._zNext = 0; o._wNext = M.t + rr(40, 70); }
     if (have < want && M.t >= o._zNext) {                                                                                                         // guarnición: se rellena (la primera vez de golpe, luego en grupos de 2–3 cada 20–40 s) y sólo fuera de la vista
       const first = o._zFirst === undefined; if (first) o._zFirst = true;
