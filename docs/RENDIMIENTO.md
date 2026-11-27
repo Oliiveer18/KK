@@ -91,3 +91,10 @@ Lógica 4–5 ms/fotograma; dibujo CPU 4–9 ms; 80–611 llamadas de dibujo seg
 - Kill feed (v0.3.14): 5 filas reutilizadas y animadas con la Web Animations API (sólo opacity/transform en capa propia) en vez de crear/destruir DOM y escribir estilos cada fotograma; las sombras difuminadas ya no se repintan por fotograma.
 
 - Precalentado (v0.3.17): también se compilan los materiales que aún no cuelgan de la escena (agujeros de bala `HOLE_MAT`, casquillos, charcos, ropa, piel…) con malla de prueba, y los de color de vértice en RGB y RGBA (son shaders distintos). Era la causa del shader nuevo al primer disparo contra un objeto (test `rendimiento.py` intermitente; 8 ejecuciones seguidas ya sin fallo).
+
+
+## Fase 1 del plan de FPS estables: picos y basura (27-11)
+Medido en simulación de escritorio (sin dibujar, 2 min, 200 bots + ~1.600 zombis):
+- **Causa de los picos**: las recolecciones de basura (scavenge de 16–20 ms cada ~0,5 s y marcado mayor), que caían sobre cualquier función. La tasa de asignación era de ~34 MB/s (474 KB por fotograma).
+- **Arreglos**: (1) poner `length = 0` en un array **libera su almacén** y se reserva de nuevo al rellenarlo: las rejillas de zombis (`grid`, `ZG`) y de combatientes (`GRID`), las copias `ZS`, `cand`, `vis` y la salida de `gridRect` ahora son arrays reutilizados con **contador** (`a.n`, `gridRectN`); (2) la animación de los zombis se hace cada fotograma a < 14 m, uno de cada 2 a 14–28 m y uno de cada 3 más lejos; (3) argumentos numéricos de `put`/`fr` por `Float64Array` (sin encajar decimales); (4) la capa fija del mapa y minimapa se dibuja una sola vez a 1024 px (antes se rehacía ~90 ms al cambiar el tamaño); (5) aparición escalonada de guarniciones (10 → 3 por paso, antes 45) y presupuesto de cálculos de puestos de vigilancia (1 por fotograma) y de cobertura de puestos (2).
+- **Resultado**: 474 → 204 KB/fotograma; lógica p95 8,5–9,1 → 6,9 ms, p99 11–12,4 → 8,8 ms; fotogramas > 16 ms en 2 min: 14–26 → 3; > 30 ms: 5–6 → 1.

@@ -535,13 +535,17 @@ const inSight = (e, dx, dz) => Math.abs(dx) < SIGHT.hw && Math.abs(dz) < SIGHT.h
    (con 50 por facción + ~800 zombis eran O(n²) por fotograma). ?nogrid la desactiva (recorrido completo, como antes). */
 const GRID = { E: new Map(), Z: new Map(), off: /[?&]nogrid\b/.test(location.search), any: false }, _gE = [], _gZ = [], _gS = [];
 const gcell = (ix, iz) => ((ix + 256) << 10) | (iz + 256);
-function gridFill(map, list, ents) { for (const a of map.values()) a.length = 0; if (ents) GRID.any = false;
-  for (let i = 0; i < list.length; i++) { const o = list[i]; if (o.dead || (!ents && o.near === false)) continue; if (ents && o.dwn) GRID.any = true; const k = gcell(Math.floor(o.p.x / 8), Math.floor(o.p.z / 8)); let a = map.get(k); if (!a) map.set(k, a = []); a.push(o); } }
-function gridRect(map, list, x0, z0, x1, z1, out) {
-  if (GRID.off) return list;
-  out.length = 0; const ix1 = Math.floor(x1 / 8), iz1 = Math.floor(z1 / 8);
-  for (let ix = Math.floor(x0 / 8); ix <= ix1; ix++) for (let iz = Math.floor(z0 / 8); iz <= iz1; iz++) { const a = map.get(gcell(ix, iz)); if (a) for (let i = 0; i < a.length; i++) out.push(a[i]); }
-  return out;
+/* rejillas con arrays REUTILIZADOS y contador a.n (poner length = 0 libera el almacén y se vuelve a reservar en cada llamada: decenas de KB de basura por fotograma) */
+function gridFill(map, list, ents) { for (const a of map.values()) a.n = 0; if (ents) GRID.any = false;
+  for (let i = 0; i < list.length; i++) { const o = list[i]; if (o.dead || (!ents && o.near === false)) continue; if (ents && o.dwn) GRID.any = true; const k = gcell(Math.floor(o.p.x / 8), Math.floor(o.p.z / 8)); let a = map.get(k); if (!a) { a = []; a.n = 0; map.set(k, a); } a[a.n++] = o; } }
+function gridRectN(map, list, x0, z0, x1, z1, out) {                                  // → nº de elementos; se leen en GRID.arr[0..n) (sin truncar el array de salida)
+  if (GRID.off) { GRID.arr = list; return list.length; }
+  let n = 0; const ix1 = Math.floor(x1 / 8), iz1 = Math.floor(z1 / 8);
+  for (let ix = Math.floor(x0 / 8); ix <= ix1; ix++) for (let iz = Math.floor(z0 / 8); iz <= iz1; iz++) { const a = map.get(gcell(ix, iz)); if (a) for (let i = 0, na = a.n; i < na; i++) out[n++] = a[i]; }
+  GRID.arr = out; return n;
+}
+function gridRect(map, list, x0, z0, x1, z1, out) {                                   // versión con array exacto (uso externo, poco frecuente)
+  if (GRID.off) return list; const n = gridRectN(map, list, x0, z0, x1, z1, out); out.length = n; return out;
 }
 function hiddenBehind(o, vx, vz) {                                                  // agachado tras un parapeto (1,2 m), visto desde el otro lado: oculto
   const c = o.isPlayer ? P.cover : o.cover, cr = o.isPlayer ? P.crouch : o.crouch; if (!c || !isParapet(c) || cr < .5) return false;
@@ -560,7 +564,7 @@ function noteThreat(e, x, z, kind, dur, delay) {
 }
 function heardShot(shooter) {
   const w = shooter.w, R = w.sid === 'F2' ? 60 : w.sid === 'H1' ? 48 : w.kind === 'shot' ? 32 : w.sid === 'S1' || w.sid === 'S2' ? 28 : w.launch ? 50 : 38, x = shooter.p.x, z = shooter.p.z;
-  for (let i = 0, EL = gridRect(GRID.E, M.ents, x - R, z - R, x + R, z + R, _gE); i < EL.length; i++) { const o = EL[i]; if (o.dead || o.dwn || o.isPlayer || o.team === shooter.team || o.vis) continue;
+  for (let i = 0, nEL = gridRectN(GRID.E, M.ents, x - R, z - R, x + R, z + R, _gE), EL = GRID.arr; i < nEL; i++) { const o = EL[i]; if (o.dead || o.dwn || o.isPlayer || o.team === shooter.team || o.vis) continue;
     const d = Math.sqrt((o.p.x - x) * (o.p.x - x) + (o.p.z - z) * (o.p.z - z)); if (d > R || d < 3) continue; if (d > R * .65 && !segClear(o.p.x, o.p.z, x, z, null, null, true)) continue; const u = d * .18; /* tras muros se oye menos: a partir del 65 % del alcance, sin línea libre no llega */ noteThreat(o, x + rr(-u, u), z + rr(-u, u), 'sound', 4 + rnd() * 2); }
 }
 function gazeBearing(e) {                                                            // hacia dónde mira un bot que no combate: la amenaza conocida, el contacto de su escuadra o nada (null)
@@ -578,13 +582,13 @@ function aimedAtCheck(e) {                                                      
 }
 function perceive(e) {
   let best = null, bs = 1e9; e.foesNear = 0;
-  if (MX.zom) for (let i_z = 0, ZL = gridRect(GRID.Z, MX.zom.list, e.p.x - SIGHT.hw - 1, e.p.z - SIGHT.hd - 1, e.p.x + SIGHT.hw + 1, e.p.z + SIGHT.hd + 1, _gZ); i_z < ZL.length; i_z++) { const o = ZL[i_z];   // los zombis también son amenaza para los bots
+  if (MX.zom) for (let i_z = 0, nZL = gridRectN(GRID.Z, MX.zom.list, e.p.x - SIGHT.hw - 1, e.p.z - SIGHT.hd - 1, e.p.x + SIGHT.hw + 1, e.p.z + SIGHT.hd + 1, _gZ), ZL = GRID.arr; i_z < nZL; i_z++) { const o = ZL[i_z];   // los zombis también son amenaza para los bots
     if (o.dead) continue;
     const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)); if (!inSight(e, dx, dz)) continue;
     if (!segClear(e.p.x, e.p.z, o.p.x, o.p.z, null, null, true) || smokeBlock(e.p.x, e.p.z, o.p.x, o.p.z)) continue;
     if (d + 2 < bs) { bs = d + 2; best = o; }
   }
-  for (let i_o = 0, EL = gridRect(GRID.E, M.ents, e.p.x - SIGHT.hw - 1, e.p.z - SIGHT.hd - 1, e.p.x + SIGHT.hw + 1, e.p.z + SIGHT.hd + 1, _gE); i_o < EL.length; i_o++) { const o = EL[i_o];
+  for (let i_o = 0, nEL = gridRectN(GRID.E, M.ents, e.p.x - SIGHT.hw - 1, e.p.z - SIGHT.hd - 1, e.p.x + SIGHT.hw + 1, e.p.z + SIGHT.hd + 1, _gE), EL = GRID.arr; i_o < nEL; i_o++) { const o = EL[i_o];
     if (o.dead || o.team === e.team || o.inv > 0) continue;
     const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)); if (!inSight(e, dx, dz)) continue;
     if (!segClear(e.p.x, e.p.z, o.p.x, o.p.z, null, null, true) || smokeBlock(e.p.x, e.p.z, o.p.x, o.p.z) || hiddenBehind(o, e.p.x, e.p.z)) continue;
@@ -866,7 +870,7 @@ function moveBot(e, dt) {
   else if (l <= step) { e.v.x = tx; e.v.z = tz; } else { e.v.x += ax / l * step; e.v.z += az / l * step; }
   e.p.x += e.v.x * dt; e.p.z += e.v.z * dt; collide(e.p, .38, 2.6);
   const SEP = MX.campaign ? 1.7 : .85;                                               // espacio personal: en campaña nadie se pega a un compañero (no ir en piña)
-  for (let i_o = 0, SL = gridRect(GRID.E, M.ents, e.p.x - 1.9, e.p.z - 1.9, e.p.x + 1.9, e.p.z + 1.9, _gS); i_o < SL.length; i_o++) { const o = SL[i_o];                                                          // separación blanda entre personajes
+  for (let i_o = 0, nSL = gridRectN(GRID.E, M.ents, e.p.x - 1.9, e.p.z - 1.9, e.p.x + 1.9, e.p.z + 1.9, _gS), SL = GRID.arr; i_o < nSL; i_o++) { const o = SL[i_o];                                                          // separación blanda entre personajes
     if (o === e || o.dead) continue; const ox = e.p.x - o.p.x, oz = e.p.z - o.p.z, od = Math.sqrt((ox) * (ox) + (oz) * (oz));
     if (od < .85 && od > 1e-3) { const k = (.85 - od) * .5; e.p.x += ox / od * k; e.p.z += oz / od * k; }
     else if (od < SEP && od > 1e-3 && o.team === e.team && !e.rt) { const k = (SEP - od) * 1.2 * dt; if (navAt(e.p.x + ox / od * .5, e.p.z + oz / od * .5)) { e.p.x += ox / od * k; e.p.z += oz / od * k; } }

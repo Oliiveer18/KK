@@ -82,13 +82,15 @@ MX.classBias = e => { const k = e.cls; return k === 'fra' ? -60 : k === 'med' ? 
    Apoyo y francotirador: puesto de vigilancia a 38 y 62 m del punto, con cobertura y línea de tiro al centro (se elige una vez por misión). Asalto: entra en el punto el primero y no espera.
    Flanqueador: se desvía 32 m a un lado del eje y entra por el flanco. */
 const dm2 = (x, z, a, b) => Math.sqrt((x - a) * (x - a) + (z - b) * (z - b));
+let owN = 0;                                                                         // evaluaciones de puesto de vigilancia permitidas en este fotograma (cada una prueba ~10 puntos con cobertura: ~5 ms)
 function overwatch(e, s, m, range) {
   const key = Math.round(m.x) + ',' + Math.round(m.z) + ',' + s.mission.type; if (e._ow && e._ow.k === key) return e._ow.q;
+  if (owN >= 1) return e._ow ? e._ow.q : null; owN++;
   /* defensa en capas: manteniendo un punto, los de largo alcance se colocan hacia donde viene la amenaza (último contacto o el centro del mapa), no hacia su propio lado */
   const L = s.leader, lf = SQ.lastFoe && SQ.lastFoe[s.team], hold = s.mission.type === 'hold', base = hold ? (lf && M.t - lf.t < 150 && dm2(lf.x, lf.z, m.x, m.z) < 160 ? Math.atan2(lf.x - m.x, lf.z - m.z) : Math.atan2(-m.x, -m.z)) : Math.atan2(L.p.x - m.x, L.p.z - m.z); let best = null, bs = -1e9;
-  for (let i = 0; i < 16; i++) { const a = base + (i - 7.5) * .2 + ((e.slot || 0) % 3 - 1) * .3, r = range * (.88 + ((i * 7) % 5) * .04), x = m.x + Math.sin(a) * r, z = m.z + Math.cos(a) * r; if (!MX.navAt(x, z)) continue;
+  for (let i = 0; i < 10; i++) { const a = base + (i - 4.5) * .3 + ((e.slot || 0) % 3 - 1) * .3, r = range * (.88 + ((i * 7) % 5) * .04), x = m.x + Math.sin(a) * r, z = m.z + Math.cos(a) * r; if (!MX.navAt(x, z)) continue;
     const cp = MX.coverPoint({ p: { x, z } }, m.x, m.z), near = cp && dm2(cp.x, cp.z, x, z) < 5, px = x, pz = z, los = MX.lineFree({ x, z }, { x: m.x, z: m.z });   // se elige un sitio con línea al punto y cobertura a ≤ 5 m (la cobertura la usa su IA al recibir fuego)
-    const sc = (los ? 30 : 0) + (near ? 14 : 0) - Math.abs(i - 7.5) * .9 + rnd(); if (sc > bs) { bs = sc; best = { x: px, z: pz }; } }
+    const sc = (los ? 30 : 0) + (near ? 14 : 0) - Math.abs(i - 4.5) * 1.4 + rnd(); if (sc > bs) { bs = sc; best = { x: px, z: pz }; } }
   e._ow = { k: key, q: best || { x: m.x + Math.sin(base) * range, z: m.z + Math.cos(base) * range } }; return e._ow.q;
 }
 function flank(e, s, m) {
@@ -106,7 +108,7 @@ function flankPoint(s, m) {
 }
 function roleGoal(e) {
   const s = e.sqd; if (!s || s.playerLead || !s.leader || !s.mission || s.mission.x === undefined || !s.mission.role) return null; const m = s.mission, L = s.leader;
-  if (m.role === 'fix') { if (dm2(L.p.x, L.p.z, m.x, m.z) > 130) return null; const rg = e.cls === 'fra' ? 62 : e.cls === 'apo' ? 42 : 36, q = overwatch(e, s, m, rg); return { x: q.x, z: q.z, speed: 5.6, hold: true, face: Math.atan2(m.x - q.x, m.z - q.z), crouch: dm2(e.p.x, e.p.z, q.x, q.z) < 3 }; }
+  if (m.role === 'fix') { if (dm2(L.p.x, L.p.z, m.x, m.z) > 130) return null; const rg = e.cls === 'fra' ? 62 : e.cls === 'apo' ? 42 : 36, q = overwatch(e, s, m, rg); if (!q) return null; return { x: q.x, z: q.z, speed: 5.6, hold: true, face: Math.atan2(m.x - q.x, m.z - q.z), crouch: dm2(e.p.x, e.p.z, q.x, q.z) < 3 }; }
   if (m.role === 'flank' && e === L) { const q = flankPoint(s, m), f = s._fp; if (s.contact && M.t - s.contact.t < 6) return null;
     if (f.ph === 'go' && dm2(L.p.x, L.p.z, q.x, q.z) < 10) { f.ph = 'wait'; f.t = M.t; }
     if (f.ph === 'wait') { const pq = SQ.list.find(z => z.id === m.partner), pl = pq && pq.leader, near = !pl || dm2(pl.p.x, pl.p.z, m.x, m.z) < 60; if (near || M.t - f.t > 35) f.ph = 'strike'; }
@@ -119,8 +121,8 @@ function classGoal(e) {
   const s = e.sqd, c = e.cls; if (!s || s.playerLead || !s.leader || !s.mission || s.mission.x === undefined || (c !== 'apo' && c !== 'fra' && c !== 'asa' && c !== 'fla')) return null;
   if (s.mission.type !== 'attack' && s.mission.type !== 'hold') return null; if (s.contact && M.t - s.contact.t < 8) return null;
   const m = s.mission, L = s.leader, dm = dm2(L.p.x, L.p.z, m.x, m.z), face = Math.atan2(m.x - e.p.x, m.z - e.p.z);
-  if (c === 'fra' && dm < 110) { const q = overwatch(e, s, m, 62); return { x: q.x, z: q.z, speed: 5.4, hold: true, face: Math.atan2(m.x - q.x, m.z - q.z), crouch: dm2(e.p.x, e.p.z, q.x, q.z) < 3 }; }
-  if (c === 'apo' && dm < 95) { const q = overwatch(e, s, m, 38); return { x: q.x, z: q.z, speed: 5.4, hold: true, face: Math.atan2(m.x - q.x, m.z - q.z), crouch: dm2(e.p.x, e.p.z, q.x, q.z) < 3 }; }
+  if (c === 'fra' && dm < 110) { const q = overwatch(e, s, m, 62); if (!q) return null; return { x: q.x, z: q.z, speed: 5.4, hold: true, face: Math.atan2(m.x - q.x, m.z - q.z), crouch: dm2(e.p.x, e.p.z, q.x, q.z) < 3 }; }
+  if (c === 'apo' && dm < 95) { const q = overwatch(e, s, m, 38); if (!q) return null; return { x: q.x, z: q.z, speed: 5.4, hold: true, face: Math.atan2(m.x - q.x, m.z - q.z), crouch: dm2(e.p.x, e.p.z, q.x, q.z) < 3 }; }
   if (c === 'asa' && s.mission.type === 'attack' && dm < 70) { const a = face + 3.14159 + ((e.slot || 0) % 3 - 1) * .7, r = 3 + ((e.slot || 0) % 2) * 3, q = MX.navAt(m.x + Math.sin(a) * r, m.z + Math.cos(a) * r) ? { x: m.x + Math.sin(a) * r, z: m.z + Math.cos(a) * r } : m; return { x: q.x, z: q.z, speed: 6.4, hold: true, face, crouch: false }; }
   if (c === 'fla' && s.mission.type === 'attack' && dm > 24 && dm < 120) { const q = flank(e, s, m); if (dm2(e.p.x, e.p.z, q.x, q.z) > 6) return { x: q.x, z: q.z, speed: 6, hold: false }; }
   return null;
@@ -142,7 +144,7 @@ SQ.goalFor = e => {
 let healT = 0, tpl = 0;
 const sqUpdate = SQ.update;
 SQ.update = dt => {
-  sqUpdate(dt); if (!MX.campaign || !pads.length) return;
+  owN = 0; sqUpdate(dt); if (!MX.campaign || !pads.length) return;
   const pl = MX.pl;
   for (const q of pads) {                                                             // jugador: pisar la chapa de su facción cambia la clase
     const d = pl && !pl.dead ? dist(q, P.pos) : 99;

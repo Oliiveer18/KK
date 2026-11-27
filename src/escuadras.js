@@ -87,7 +87,7 @@ SQ.init = () => {
   for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; e.vet = e.isPlayer ? 0 : rr(0, 4); e.lifeStart = 0; e.supp = 0; }
   const ps = MX.pl && MX.pl.sqd; if (ps) { ps.playerLead = true; ps.order = { type: 'follow' }; ps.mission = { type: 'free' }; }
   for (const s of SQ.list) electLeader(s, true);
-  objInit();
+  objInit(); try { mapBase(); } catch (e) { }                                           // precalienta la capa fija de los mapas (pantalla de carga)
 };
 
 /* ---------- liderazgo: el mejor vivo y en pie ---------- */
@@ -321,8 +321,10 @@ function fpTick() {
   for (let i = 0; i < g.n; i++) { const o = g.offs[i], m = g.pool[i]; m.position.set(P.pos.x + o[0] * ca + o[1] * sa, .09, P.pos.z - o[0] * sa + o[1] * ca); m.material.opacity = .85 * a; const k = 1 + .08 * Math.sin(M.t * 9 + i); m.scale.set(k, k, 1); }
 }
 function followSpeed(s, e, q) { const d = dist(e.p, q), ls = leaderSpeed(s); return Math.max(2.6, Math.min(9.4, ls * 1.08 + d * .55)); }
+let HPN = 0;
 function holdPoint(s, e, c, face) {                                                  // posiciones en arco mirando a `face`, con cobertura cercana si la hay (se recuerda mientras no cambie)
   const key = Math.round(c.x) + ',' + Math.round(c.z) + ',' + Math.round(face * 10) + ',' + s.members.length + ',' + (s.leader === e); if (e._hpK === key) return e._hp;
+  if (HPN >= 2 && e._hp) return e._hp; HPN++;                                         // presupuesto: 2 cálculos de puesto (con búsqueda de cobertura) por fotograma; el resto sigue con el anterior y se recalcula en el siguiente
   const q = holdPoint0(s, e, c, face); e._hpK = key; e._hp = q; return q;
 }
 function holdPoint0(s, e, c, face) {
@@ -551,13 +553,14 @@ addEventListener('keydown', ev => {
   if (ev.repeat || !MX.on || !MX.campaign || (typeof RANGE !== 'undefined' && RANGE.on)) return; const m = /^Digit([1-8])$/.exec(ev.code); if (!m) return;
   const k = +m[1]; if (k <= 4) SQ.cmd(['follow', 'hold', 'move', 'cover'][k - 1], false); else SQ.cmd(['join', 'lead', 'leave', 'regroup'][k - 5], true);
 });
+SQ.pm = {};                                                                           // diagnóstico: máximo (ms) de cada sección de SQ.update
 SQ.update = dt => {
-  if (!MX.campaign || !SQ.list.length) return;
-  padTick(dt); fpTick();
+  HPN = 0; if (!MX.campaign || !SQ.list.length) return;
+  const t0 = performance.now(); padTick(dt); fpTick(); SQ.pm.pad = Math.max(SQ.pm.pad || 0, performance.now() - t0);
   for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; if (e.supp) e.supp = Math.max(0, e.supp - dt * (M.t - (e.suppT || 0) > 1.2 ? .35 : .08)); }
-  SQ.eT = (SQ.eT || 0) - dt; if (SQ.eT <= 0) { SQ.eT = .5; for (const s of SQ.list) electLeader(s); }
+  let tA = performance.now(); SQ.eT = (SQ.eT || 0) - dt; if (SQ.eT <= 0) { SQ.eT = .5; for (const s of SQ.list) electLeader(s); } let tB = performance.now(); SQ.pm.elect = Math.max(SQ.pm.elect || 0, tB - tA); tA = tB;
   for (let t = 0; t < 4; t++) { SQ.cmdT[t] -= dt; if (SQ.cmdT[t] <= 0) { SQ.cmdT[t] = 12; for (const s of SQ.list) if (s.team === t) assignMission(s); } }
-  SQ.balT -= dt; if (SQ.balT <= 0) { SQ.balT = SQ_BAL; for (let t = 0; t < 4; t++) rebalance(t); }
+  tB = performance.now(); SQ.pm.assign = Math.max(SQ.pm.assign || 0, tB - tA); tA = tB; SQ.balT -= dt; if (SQ.balT <= 0) { SQ.balT = SQ_BAL; for (let t = 0; t < 4; t++) rebalance(t); } tB = performance.now(); SQ.pm.rebal = Math.max(SQ.pm.rebal || 0, tB - tA); tA = tB;
   const s = MX.pl && MX.pl.sqd;
   if (s && s.order) { if (s.order.type === 'cover') { const o = s.order; if (M.t - o.t > (o.dur || 10)) s.order = o.prev;
       else { const f = orderFoe(o); if (f && !o.known && knownFoe(f)) o.known = true;
@@ -567,9 +570,9 @@ SQ.update = dt => {
         if (need) { const T = newOrderTarget(o.assault ? ATK_R : COVER_R, MX.pl.team, o.area, Math.max(2, (o.unc || 8) * .5)); if (T) { o.tgt = T.tgt; o.known = T.known; o.area = T.area; o.unc = T.unc;      // cada vez que se llega y no se ve, el área se estrecha (rastros): ±8 → ±4 → ±2 m
           o.t = Math.max(o.t, M.t - (o.dur || 10) + 4); } else { toast('Zona despejada'); s.order = o.prev; } }
         if (s.order === o && o.tgt) { const pt = orderPt(o); o.tx = pt.x; o.tz = pt.z; o.face = Math.atan2(o.tx - P.pos.x, o.tz - P.pos.z); } } } if (s.order.type === 'regroup' && M.t - s.order.t > 12) s.order = { type: 'follow' }; }
-  SQ.mapTick(); miniTick(dt);
+  tB = performance.now(); SQ.pm.order = Math.max(SQ.pm.order || 0, tB - tA); tA = tB; SQ.mapTick(); tB = performance.now(); SQ.pm.mapTick = Math.max(SQ.pm.mapTick || 0, tB - tA); tA = tB; miniTick(dt); tB = performance.now(); SQ.pm.mini = Math.max(SQ.pm.mini || 0, tB - tA); tA = tB;
   if (SQ.objs.length) { SQ.objT = (SQ.objT || 0) - dt; if (SQ.objT <= 0) { objTick(.5 - SQ.objT); SQ.objT = .5; } }
-  hudTick(dt);
+  tB = performance.now(); SQ.pm.obj = Math.max(SQ.pm.obj || 0, tB - tA); tA = tB; hudTick(dt); SQ.pm.hud = Math.max(SQ.pm.hud || 0, performance.now() - tA);
 };
 SQ.onDeath = e => { const s = e.sqd; if (s && s.leader === e) electLeader(s); };
 SQ.onRespawn = e => { e.lifeStart = M.t; e.supp = 0; };
@@ -747,9 +750,12 @@ function mapGeom() {                                                            
   const sz = Math.max(120, Math.min(sz0, Math.floor(innerHeight - Math.max(mapHead.offsetHeight, 34) - mapLeg.offsetHeight - 6 * 2 - 24 - 8)));
   return { half, sz, k: sz / (2 * half) };
 }
-function mapBase(g) {                                                                  // capa fija: suelo, zonas, calles, edificios, refugios
-  const key = g.sz + '|' + g.half + '|' + (MAPA.built ? MAPA.built.half : 0) + '|' + OBJ.buildings.length; if (TM.baseKey === key && TM.base) return TM.base;
-  const c = document.createElement('canvas'), dpr = Math.min(2, devicePixelRatio || 1); c.width = c.height = Math.round(g.sz * dpr); const x = c.getContext('2d'); x.scale(dpr, dpr);
+/* La capa fija del mapa (suelo, zonas, calles, edificios, refugios) se dibuja UNA vez a 1024 px, independiente del tamaño de la pantalla y de la interfaz: el mapa grande y el minimapa solo la escalan
+   (antes se rehacía —~90 ms— cada vez que cambiaba el tamaño del lienzo o se destruía un edificio, y el minimapa leía medidas del DOM 10 veces por segundo). Se precalienta al empezar la partida. */
+function mapG0() { const half = (MAPA.built && MAPA.built.half) || (typeof WORLD !== 'undefined' ? Math.max(WORLD.x, WORLD.z) : 50); return { half, sz: 1024, k: 1024 / (2 * half) }; }
+function mapBase(g0) {                                                                 // capa fija: suelo, zonas, calles, edificios, refugios
+  const g = mapG0(), key = g.half + '|' + (MAPA.built ? MAPA.built.half : 0) + '|' + (MAPA.built && MAPA.built.info ? MAPA.built.info.zones.length : 0); if (TM.baseKey === key && TM.base) return TM.base;
+  const c = document.createElement('canvas'), dpr = 1; c.width = c.height = 1024; const x = c.getContext('2d'); x.scale(dpr, dpr);
   const P2 = v => (v + g.half) * g.k; x.fillStyle = '#2d3a28'; x.fillRect(0, 0, g.sz, g.sz);
   const info = MAPA.built && MAPA.built.info;
   if (info && info.zones) for (const z of info.zones) { const n = z.name; x.fillStyle = /^Bosque/.test(n) ? '#203a1f' : /^Granja/.test(n) ? '#4a4530' : /^(Fábrica|Estación)/.test(n) ? '#3c4048' : /^Plaza/.test(n) ? '#5a5248' : /^Refugio/.test(n) ? '#4a4a52' : '#38432f'; x.fillRect(P2(z.x0), P2(z.z0), (z.x1 - z.x0) * g.k, (z.z1 - z.z0) * g.k); }
@@ -836,9 +842,10 @@ function miniTick(dt) {
   const size = Math.round(Math.min(140, Math.max(84, Math.min(innerWidth, innerHeight) * .26))), dpr = Math.min(2, devicePixelRatio || 1); MM.size = size;
   if (MM.cv.width !== size * dpr) { MM.cv.width = MM.cv.height = size * dpr; MM.cv.style.width = MM.cv.style.height = size + 'px'; }
   const x = MM.cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const G = mapGeom(), base = mapBase(G), k = size / (2 * MM.R), cx = P.pos.x, cz = P.pos.z, pl = MX.pl, team = pl ? pl.team : 0, col = t => '#' + TEAM_COL[t].toString(16).padStart(6, '0');
-  x.fillStyle = '#1d2619'; x.fillRect(0, 0, size, size);
+  const tb0 = performance.now(); const G = mapG0(), base = mapBase(G); SQ.pm.mbase = Math.max(SQ.pm.mbase || 0, performance.now() - tb0); const k = size / (2 * MM.R), cx = P.pos.x, cz = P.pos.z, pl = MX.pl, team = pl ? pl.team : 0, col = t => '#' + TEAM_COL[t].toString(16).padStart(6, '0');
+  const m0 = performance.now(); x.fillStyle = '#1d2619'; x.fillRect(0, 0, size, size);
   const bs = base.width / G.sz; x.drawImage(base, (cx - MM.R + G.half) * G.k * bs, (cz - MM.R + G.half) * G.k * bs, 2 * MM.R * G.k * bs, 2 * MM.R * G.k * bs, 0, 0, size, size);
+  const m1 = performance.now(); SQ.pm.m_base = Math.max(SQ.pm.m_base || 0, m1 - m0);
   const W2 = (wx, wz) => [(wx - cx + MM.R) * k, (wz - cz + MM.R) * k], pulse = .5 + .5 * Math.sin(M.t * 6);
   for (const h of combatCells(team, cx, cz, FADE)) { let [px, pz] = W2(h.x / h.w, h.z / h.w); const out = px < 6 || pz < 6 || px > size - 6 || pz > size - 6;
     if (out) { if (!h.ally) continue; const dx = px - size / 2, dz = pz - size / 2, l = Math.sqrt((dx) * (dx) + (dz) * (dz)) || 1; px = size / 2 + dx / l * (size / 2 - 9); pz = size / 2 + dz / l * (size / 2 - 9);   // aliados bajo fuego fuera del minimapa: flecha en el borde
@@ -846,8 +853,9 @@ function miniTick(dt) {
     const r = Math.min(14, 4 + Math.sqrt(h.w) * 2), rgb = h.ally ? '255,60,60' : '255,140,40', gr = x.createRadialGradient(px, pz, 0, px, pz, r);
     gr.addColorStop(0, 'rgba(' + rgb + ',' + Math.min(.9, .3 + h.w * .06) + ')'); gr.addColorStop(1, 'rgba(' + rgb + ',0)'); x.fillStyle = gr; x.beginPath(); x.arc(px, pz, r, 0, 6.283); x.fill();
     if (h.young < 2.5) { x.strokeStyle = 'rgba(' + rgb + ',' + (.5 + .5 * pulse) + ')'; x.lineWidth = 1.4; x.beginPath(); x.arc(px, pz, r * .5 + pulse * 2, 0, 6.283); x.stroke(); } }
+  const m2 = performance.now(); SQ.pm.m_cells = Math.max(SQ.pm.m_cells || 0, m2 - m1);
   for (const o of SQ.objs) { const [px, pz] = W2(o.x, o.z); if (px < -10 || pz < -10 || px > size + 10 || pz > size + 10) continue; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.lineWidth = 1.6; x.beginPath(); x.arc(px, pz, Math.max(3, o.r * k), 0, 6.283); x.stroke(); if (o.code) { x.fillStyle = o.owner >= 0 ? col(o.owner) : '#0c1018'; x.font = '800 9px system-ui,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(o.code, px, pz); } }
-  drawFriends(x, W2, size, team, pl && pl.sqd, false, true);
+  const m3 = performance.now(); SQ.pm.m_objs = Math.max(SQ.pm.m_objs || 0, m3 - m2); drawFriends(x, W2, size, team, pl && pl.sqd, false, true); SQ.pm.m_friends = Math.max(SQ.pm.m_friends || 0, performance.now() - m3);
   x.save(); x.translate(size / 2, size / 2); x.rotate(-P.aim + Math.PI); x.fillStyle = '#fff'; x.strokeStyle = '#000'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(0, -7); x.lineTo(5, 5); x.lineTo(0, 2.5); x.lineTo(-5, 5); x.closePath(); x.fill(); x.stroke(); x.restore();
   x.fillStyle = '#ffffffaa'; x.font = '700 9px system-ui'; x.textAlign = 'center'; x.textBaseline = 'top'; x.fillText('N', size / 2, 3);
 }

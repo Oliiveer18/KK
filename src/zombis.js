@@ -52,7 +52,7 @@ function newZ(type, x, z, o) {
     id: 'Z' + (nextId++), type, slot, p: new V3(x, 0, z), v: new V3(), team: -1, crouch: 0, dead: false, hp: T.hp, maxhp: T.hp, sc, r: T.r * sc,
     st: o.st || 'dorm', yaw: o.yaw === undefined ? rr(-Math.PI, Math.PI) : o.yaw, ph: rr(0, 6.28), seed: rnd(), limp: rnd() < .5, atk: -1, atkCd: rr(.2, 1), tgt: null, tgtT: 0, thinkT: rr(0, .25),
     lungeCd: rr(0, 4), lunge: 0, path: null, pj: 0, pjx: 0, pjz: 0, pi: 0, pathT: -9, stuckT: 0, sx: x, sz: z, home: { x, z }, horde: null, lie: o.lie === undefined ? 0 : o.lie, deadT: 0, stag: 0, scream: -1, screamCd: rr(3, 8), hx: x, hz: z, wait: 0, lastNoise: -9, noiseDelay: 0,
-    ri: -1, cols: null, near: true, lodT: rnd() * .5, farDt: 0, rag: rnd() < .55, bare: rnd() < .4, gaitSpd: 0, brk: -99, bf: 1, bc: 1, bw: 0, hdx: x, hdy: 1.5, hdz: z, hdr: .13 };
+    ri: -1, cols: null, near: true, lodT: rnd() * .5, farDt: 0, rag: rnd() < .55, bare: rnd() < .4, gaitSpd: 0, k3: (rnd() * 3) | 0, fresh: true, brk: -99, bf: 1, bc: 1, bw: 0, hdx: x, hdy: 1.5, hdz: z, hdr: .13 };
   // rasgos: cada zombi es distinto (complexión, postura, heridas, pelo, ropa rota)
   zb.build = rr(.88, 1.14); zb.slouch = rr(-.1, .12); zb.shR = rr(-.14, .14); zb.hs0 = rr(.92, 1.08); zb.hair = rnd() < .65; zb.bone = rnd() < .3; zb.bare = rnd() < .45; zb.twT = rr(2, 6); zb.tw0 = 0;
   zb.wnd = [0, 1, 2].map(i => rnd() < (i === 0 ? .95 : i === 1 ? .7 : .45) ? { x: rr(-.16, .16), y: rr(-.08, .13), z: rnd() < .75 ? 1 : -1, w: rr(.07, .14), h: rr(.06, .12) } : null);
@@ -95,7 +95,7 @@ function newHorde(x, z, mix) {
 
 // La balística del juego se resuelve en XZ. Conservamos el volumen corporal
 // y añadimos el pecho y la cabeza en las coordenadas de la pose dibujada.
-let visiblePoses = [];
+let visiblePoses = [], visN = 0;
 function circleEntry(ox,oz,dx,dz,x,z,r,start) {
   const fx=ox+dx*start-x, fz=oz+dz*start-z;
   const outside=fx*fx+fz*fz-r*r;
@@ -115,7 +115,7 @@ function hitDistance(z,ox,oz,dx,dz,start,end) {
 const pointerVolume=new THREE.Sphere(), pointerHit=new V3();
 function aimAtPose(pointer, point) {
   let nearest=Infinity;
-  for (const z of visiblePoses) {
+  for (let iv = 0; iv < visN; iv++) { const z = visiblePoses[iv];
     if (z.dead) continue;
     for (let head=0;head<2;head++) {
       pointerVolume.center.set(head?z.hdx:z.chx,head?z.hdy:z.chy,head?z.hdz:z.chz);
@@ -256,12 +256,16 @@ function bruteSmash(z, dmg) {                                                   
 function moveZ(z, dt) {
   if (z.st === 'dead') return;
   const k = gk(z.p.x, z.p.z); let sx = 0, sz = 0;
-  for (let ox = -1; ox <= 1; ox++) for (let oz = -1; oz <= 1; oz++) { const a = grid.get(gk(z.p.x + ox * 1.6, z.p.z + oz * 1.6)); if (!a) continue; for (const o of a) { if (o === z) continue; const dx = z.p.x - o.p.x, dz = z.p.z - o.p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)), m = (z.r + o.r) * .9; if (d < m && d > 1e-3) { sx += dx / d * (m - d); sz += dz / d * (m - d); } } }
+  for (let ox = -1; ox <= 1; ox++) for (let oz = -1; oz <= 1; oz++) { const a = grid.get(gk(z.p.x + ox * 1.6, z.p.z + oz * 1.6)); if (!a) continue; for (let ia = 0, na = a.n; ia < na; ia++) { const o = a[ia]; if (o === z) continue; const dx = z.p.x - o.p.x, dz = z.p.z - o.p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)), m = (z.r + o.r) * .9; if (d < m && d > 1e-3) { sx += dx / d * (m - d); sz += dz / d * (m - d); } } }
   const ox0 = z.p.x, oz0 = z.p.z;
   z.p.x += (z.v.x + sx * 2.5) * dt; z.p.z += (z.v.z + sz * 2.5) * dt; collide(z.p, z.r * .85, 2.6);
   z.mv = Math.sqrt((z.p.x - ox0) * (z.p.x - ox0) + (z.p.z - oz0) * (z.p.z - oz0)) / Math.max(dt, 1e-3);
   z.stuckT += dt; if (z.stuckT > .3) { const mv = Math.sqrt((z.p.x - z.sx) * (z.p.x - z.sx) + (z.p.z - z.sz) * (z.p.z - z.sz)); z.stk = Math.sqrt((z.v.x) * (z.v.x) + (z.v.z) * (z.v.z)) > .5 && mv < .08 ? (z.stk || 0) + 1 : 0; z.sx = z.p.x; z.sz = z.p.z; z.stuckT = 0; if (z.stk >= 2 && z.st !== 'dorm') { z.needPath = true; z.path = null; } }
 }
+/* marco hijo y colocación de pieza: funciones de módulo (antes eran cierres creados en CADA llamada a pose, por cada zombi visible y fotograma: ~60 KB/s de basura que forzaba recolecciones) */
+let CUR_RI = 0; const PV = new Float64Array(12);                                     // argumentos numéricos por un Float64Array: pasar ~9 decimales a una función no inlinada los «encaja» en objetos HeapNumber (basura por cada pieza de cada zombi y fotograma)
+function fr(dst, parent) { _e.set(PV[3], PV[4], PV[5], 'XYZ'); _q.setFromEuler(_e); _m4.compose(_p.set(PV[0], PV[1], PV[2]), _q, _s.set(1, 1, 1)); return dst.multiplyMatrices(parent, _m4); }     // marco hijo (sin escala): PV = lx, ly, lz, rx, ry, rz
+function put(k, j, parent) { _e.set(PV[3], PV[4], PV[5], 'XYZ'); _q.setFromEuler(_e); _m3.compose(_p.set(PV[0], PV[1], PV[2]), _q, _s.set(PV[6], PV[7], PV[8])); _m4.multiplyMatrices(parent, _m3); IM[k].setMatrixAt(CUR_RI * MUL[k] + j, _m4); }   // PV = lx, ly, lz, rx, ry, rz, sx, sy, sz
 function pose(z, dt) {
   const T = TY[z.type], s = z.sc, sp = Math.min(Math.sqrt((z.v.x) * (z.v.x) + (z.v.z) * (z.v.z)), (z.mv === undefined ? 9 : z.mv) * 1.15 + .15), lerp = (a, b, k) => a + (b - a) * k;
   z.gaitSpd += (sp - z.gaitSpd) * Math.min(1, dt * 6); z.ph += dt * (2.2 + z.gaitSpd * (z.type === 'runner' ? 2.4 : 1.9));
@@ -287,33 +291,32 @@ function pose(z, dt) {
   const sink = z.st === 'dead' && z.deadT > 11 ? -(z.deadT - 11) * .3 : 0, twist = Math.sin(ph * .5 + z.seed) * .22 * amp + tw * .4, roll = Math.sin(ph * .5) * .06 * amp * (z.type === 'brute' ? 2.4 : 1);
   _e.set(z.lie * 1.5, z.vy, roll, 'YXZ'); _q.setFromEuler(_e);
   const B = _m1.compose(_p.set(z.p.x, sink + (alive ? Math.abs(Math.sin(gp)) * .035 * gamp : 0), z.p.z), _q, _s.set(s, s, s));
-  const fr = (dst, parent, lx, ly, lz, rx, ry, rz) => { _e.set(rx, ry, rz, 'XYZ'); _q.setFromEuler(_e); _m4.compose(_p.set(lx, ly, lz), _q, _s.set(1, 1, 1)); return dst.multiplyMatrices(parent, _m4); };     // marco hijo (sin escala)
-  const put = (k, j, parent, lx, ly, lz, rx, ry, rz, sx, sy, sz) => { _e.set(rx, ry, rz, 'XYZ'); _q.setFromEuler(_e); _m3.compose(_p.set(lx, ly, lz), _q, _s.set(sx, sy, sz)); _m4.multiplyMatrices(parent, _m3); IM[k].setMatrixAt(z.ri * MUL[k] + j, _m4); };
+  CUR_RI = z.ri;
   const i = z.ri, wd = T.tw * z.build, big = T.tw > 1;
-  const S = fr(MS, B, 0, .87, 0, lean, twist * .4, 0);                                // columna lumbar (pivote en la cadera)
-  const C = fr(MC, S, 0, .36, 0, -.05 + tw * .3, twist, z.shR * .5);                     // pecho, con giro y hombros desiguales
-  put('pel', 0, B, 0, .8, 0, 0, 0, 0, .3 * wd, .17, .2 * (big ? 1.1 : 1));
-  put('abd', 0, S, 0, .14, 0, 0, 0, 0, (.28 + (z.type === 'brute' ? .1 : 0)) * wd, .24, .19 * (big ? 1.2 : 1));
-  put('che', 0, C, 0, .02, 0, 0, 0, 0, .39 * wd, .31, .23 * (big ? 1.15 : 1));
-  put('sho', 0, C, 0, .15, 0, 0, 0, z.shR, .46 * wd, .08, .18);
+  const S = (PV[0]=0,PV[1]=.87,PV[2]=0,PV[3]=lean,PV[4]=twist * .4,PV[5]=0,fr(MS,B));                                // columna lumbar (pivote en la cadera)
+  const C = (PV[0]=0,PV[1]=.36,PV[2]=0,PV[3]=-.05 + tw * .3,PV[4]=twist,PV[5]=z.shR * .5,fr(MC,S));                     // pecho, con giro y hombros desiguales
+  (PV[0]=0,PV[1]=.8,PV[2]=0,PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=.3 * wd,PV[7]=.17,PV[8]=.2 * (big ? 1.1 : 1),put('pel',0,B));
+  (PV[0]=0,PV[1]=.14,PV[2]=0,PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=(.28 + (z.type === 'brute' ? .1 : 0)) * wd,PV[7]=.24,PV[8]=.19 * (big ? 1.2 : 1),put('abd',0,S));
+  (PV[0]=0,PV[1]=.02,PV[2]=0,PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=.39 * wd,PV[7]=.31,PV[8]=.23 * (big ? 1.15 : 1),put('che',0,C));
+  (PV[0]=0,PV[1]=.15,PV[2]=0,PV[3]=0,PV[4]=0,PV[5]=z.shR,PV[6]=.46 * wd,PV[7]=.08,PV[8]=.18,put('sho',0,C));
   _p.set(0,.02,0).applyMatrix4(C);
   z.chx=_p.x; z.chy=_p.y; z.chz=_p.z; z.chr=.21*wd*s;
   const hp = district ? (scr ? -.40 : (dorm ? .24 : .13)+Math.sin(ph*.5+1)*.06) : dorm ? .6 : (scr ? -.75 : .24 + Math.sin(ph * .5 + 1) * .09 + z.slouch * .5), hy = Math.sin(ph * .25 + z.seed * 9) * .14 + tw * .6, hr = Math.sin(ph * .33 + z.seed * 4) * .12 + (dorm ? .08 : .1);
-  const Hd = fr(MH, C, 0, .2, .02, hp, hy, hr);                                         // cabeza (cae hacia delante, bambolea)
-  put('nek', 0, C, 0, .15, .01, hp * .5, hy * .5, 0, .075 * (z.type === 'screamer' ? 1.35 : big ? 1.5 : 1), .12, .075 * (z.type === 'screamer' ? 1.35 : big ? 1.5 : 1));
+  const Hd = (PV[0]=0,PV[1]=.2,PV[2]=.02,PV[3]=hp,PV[4]=hy,PV[5]=hr,fr(MH,C));                                         // cabeza (cae hacia delante, bambolea)
+  (PV[0]=0,PV[1]=.15,PV[2]=.01,PV[3]=hp * .5,PV[4]=hy * .5,PV[5]=0,PV[6]=.075 * (z.type === 'screamer' ? 1.35 : big ? 1.5 : 1),PV[7]=.12,PV[8]=.075 * (z.type === 'screamer' ? 1.35 : big ? 1.5 : 1),put('nek',0,C));
   const hs = T.hs * z.hs0, jawOpen = scr ? .85 : atk ? .55 + .2 * Math.sin(z.atk * 20) : dorm ? .06 : .16 + .07 * Math.sin(ph * 2 + z.seed * 3) + (z.stag > 0 ? .3 : 0);
-  put('hd', 0, Hd, 0, .09 * hs, .03, 0, 0, 0, .112 * hs, .125 * hs, .118 * hs);
+  (PV[0]=0,PV[1]=.09 * hs,PV[2]=.03,PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=.112 * hs,PV[7]=.125 * hs,PV[8]=.118 * hs,put('hd',0,Hd));
   _p.set(0, .09 * hs, .03).applyMatrix4(Hd); z.hdx = _p.x; z.hdy = _p.y; z.hdz = _p.z; z.hdr = .125 * hs * s;                    // centro y radio reales de la cabeza (para colocar la barra de vida justo encima)
-  put('jaw', 0, Hd, 0, .015 * hs, .075 * hs, jawOpen, 0, 0, .085 * hs, .045 * hs, .095 * hs);       // mandíbula que se abre
-  put('hair', 0, Hd, 0, .15 * hs, -.01, 0, 0, 0, z.hair ? .12 * hs : 0, .065 * hs, .125 * hs);
+  (PV[0]=0,PV[1]=.015 * hs,PV[2]=.075 * hs,PV[3]=jawOpen,PV[4]=0,PV[5]=0,PV[6]=.085 * hs,PV[7]=.045 * hs,PV[8]=.095 * hs,put('jaw',0,Hd));       // mandíbula que se abre
+  (PV[0]=0,PV[1]=.15 * hs,PV[2]=-.01,PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=z.hair ? .12 * hs : 0,PV[7]=.065 * hs,PV[8]=.125 * hs,put('hair',0,Hd));
   const ey = alive && !dorm ? 1 : 0;
-  for (let q = 0; q < 2; q++) { const sg = q ? 1 : -1; put('sk', q, Hd, sg * .045 * hs, .12 * hs, .11 * hs, 0, 0, 0, .05 * hs, .038 * hs, .02); put('ey', q, Hd, sg * .045 * hs, .12 * hs, .118 * hs, 0, 0, 0, .036 * ey, .024 * ey, .018); }
+  for (let q = 0; q < 2; q++) { const sg = q ? 1 : -1; (PV[0]=sg * .045 * hs,PV[1]=.12 * hs,PV[2]=.11 * hs,PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=.05 * hs,PV[7]=.038 * hs,PV[8]=.02,put('sk',q,Hd)); (PV[0]=sg * .045 * hs,PV[1]=.12 * hs,PV[2]=.118 * hs,PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=.036 * ey,PV[7]=.024 * ey,PV[8]=.018,put('ey',q,Hd)); }
   /* brazos: hombro, codo y mano; en reposo cuelgan, al perseguir se estiran hacia delante con el antebrazo caído */
   const swing = Math.sin(gp) * gA;
   const reaching = z.st==='chase' || atk;
   const armB = dorm ? -.1 : scr ? -2.6 : district && !reaching ? -.22 : T.arm;
   for (let q = 0; q < 2; q++) {
-    const sg = q ? 1 : -1, Sh = fr(MA, C, sg * (.24 * wd + (big ? .05 : 0)), .13, 0, 0, 0, 0);
+    const sg = q ? 1 : -1, Sh = (PV[0]=sg * (.24 * wd + (big ? .05 : 0)),PV[1]=.13,PV[2]=0,PV[3]=0,PV[4]=0,PV[5]=0,fr(MA,C));
     let ua, fa, hd; const side = (q ? 1 : -1);
     if (atk && q === 0) { const k = z.atk; ua = k < .5 ? lerp(armB, -2.4, smoothS(k / .5)) : k < .7 ? lerp(-2.4, -.3, smoothS((k - .5) / .2)) : lerp(-.3, armB, smoothS((k - .7) / .3)); fa = k < .5 ? -.2 : -.1; hd = -.3; }
     else if (atk) { ua = lerp(armB, -1.5, Math.sin(Math.min(1, z.atk * 1.6) * Math.PI)); fa = -.5; hd = -.4; }
@@ -321,34 +324,34 @@ function pose(z, dt) {
     else if (dorm) { ua = -.12 + br * 4; fa = -.1; hd = .1; }
     else { ua = armB + (q ? -swing : swing) * .3 + Math.sin(ph * .5 + z.seed * 5 + q) * .1 + (z.limp && q ? .15 : 0); fa = -.55 - Math.sin(ph * .5 + q * 2) * .12; hd = .35; }
     const splay = side * (dorm ? .1 : .07 + (big ? .25 : 0)) - (scr ? side * .5 : 0);
-    const UA = fr(MB, Sh, 0, 0, 0, ua, 0, splay);
-    put('ua', q, UA, 0, 0, 0, 0, 0, 0, .085 * (big ? 1.35 : 1) * wd, .3, .085 * (big ? 1.35 : 1) * wd);
-    const El = fr(MD, UA, 0, -.3, 0, fa, 0, 0);
-    put('fa', q, El, 0, 0, 0, 0, 0, 0, .068 * (big ? 1.4 : 1), .28, .068 * (big ? 1.4 : 1));
-    put('hn', q, El, 0, -.28, 0, hd, 0, 0, .085 * (big ? 1.4 : 1), .1, .045 * (big ? 1.2 : 1));
+    const UA = (PV[0]=0,PV[1]=0,PV[2]=0,PV[3]=ua,PV[4]=0,PV[5]=splay,fr(MB,Sh));
+    (PV[0]=0,PV[1]=0,PV[2]=0,PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=.085 * (big ? 1.35 : 1) * wd,PV[7]=.3,PV[8]=.085 * (big ? 1.35 : 1) * wd,put('ua',q,UA));
+    const El = (PV[0]=0,PV[1]=-.3,PV[2]=0,PV[3]=fa,PV[4]=0,PV[5]=0,fr(MD,UA));
+    (PV[0]=0,PV[1]=0,PV[2]=0,PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=.068 * (big ? 1.4 : 1),PV[7]=.28,PV[8]=.068 * (big ? 1.4 : 1),put('fa',q,El));
+    (PV[0]=0,PV[1]=-.28,PV[2]=0,PV[3]=hd,PV[4]=0,PV[5]=0,PV[6]=.085 * (big ? 1.4 : 1),PV[7]=.1,PV[8]=.045 * (big ? 1.2 : 1),put('hn',q,El));
   }
   /* piernas: muslo, rodilla y pie; arrastran el pie (cojera) y flexionan la rodilla al andar */
   for (let q = 0; q < 2; q++) {
     const sg = q ? 1 : -1, drag = z.limp && q === 1, sw = Math.sin(gp + (q ? Math.PI : 0)) * gamp * thMax * (drag ? .5 : 1);
     const th = dorm ? .05 : sw, kn = dorm ? .1 : Math.max(0, -Math.cos(gp + (q ? Math.PI : 0))) * gamp * thMax * 1.6 + (drag ? .25 * gamp : .1), ft = dorm ? 0 : (drag ? .55 * gamp : -sw * .3);
-    const Hp = fr(MB2, B, sg * .1 * wd, .86, 0, th, 0, 0);
-    put('ul', q, Hp, 0, 0, 0, 0, 0, 0, .115 * (big ? 1.25 : 1) * wd, .43, .115 * (big ? 1.25 : 1) * wd);
-    const Kn = fr(MC2, Hp, 0, -.43, 0, kn, 0, 0);
-    put('ll', q, Kn, 0, 0, 0, 0, 0, 0, .09 * (big ? 1.25 : 1) * wd, .43, .09 * (big ? 1.25 : 1) * wd);
-    const An = fr(MD2, Kn, 0, -.43, 0, ft, 0, 0);
-    put('ft', q, An, 0, .02, .05, 0, 0, 0, .105 * (big ? 1.3 : 1), .065, .25 * (big ? 1.2 : 1));
+    const Hp = (PV[0]=sg * .1 * wd,PV[1]=.86,PV[2]=0,PV[3]=th,PV[4]=0,PV[5]=0,fr(MB2,B));
+    (PV[0]=0,PV[1]=0,PV[2]=0,PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=.115 * (big ? 1.25 : 1) * wd,PV[7]=.43,PV[8]=.115 * (big ? 1.25 : 1) * wd,put('ul',q,Hp));
+    const Kn = (PV[0]=0,PV[1]=-.43,PV[2]=0,PV[3]=kn,PV[4]=0,PV[5]=0,fr(MC2,Hp));
+    (PV[0]=0,PV[1]=0,PV[2]=0,PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=.09 * (big ? 1.25 : 1) * wd,PV[7]=.43,PV[8]=.09 * (big ? 1.25 : 1) * wd,put('ll',q,Kn));
+    const An = (PV[0]=0,PV[1]=-.43,PV[2]=0,PV[3]=ft,PV[4]=0,PV[5]=0,fr(MD2,Kn));
+    (PV[0]=0,PV[1]=.02,PV[2]=.05,PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=.105 * (big ? 1.3 : 1),PV[7]=.065,PV[8]=.25 * (big ? 1.2 : 1),put('ft',q,An));
   }
   /* harapos, heridas, hueso al aire y bultos según el tipo */
-  put('rg', 0, S, 0, .0, .1, .12 + roll, 0, 0, z.rgF ? .27 * wd : 0, z.coat ? .62 : .28, .02); put('rg', 1, S, 0, .0, -.1, -.1, 0, 0, z.rgB ? .27 * wd : 0, z.coat ? .66 : .3, .02);   // bata: faldones hasta las rodillas
-  put('col', 0, C, 0, .17, .0, hp * .3, hy * .3, 0, z.col ? .19 * wd : 0, .045, .15 * (big ? 1.1 : 1));                                  // cuello de camisa / solapas
-  put('hood', 0, C, 0, .21, -.07, hp * .3, hy * .2, 0, z.hood ? .125 * hs : 0, .1 * hs, .1 * hs);                                      // capucha caída por detrás
-  put('tie', 0, C, 0, .06, .122 * (big ? 1.15 : 1), 0, 0, 0, z.tie ? .04 : 0, .2, .012);                                               // corbata
-  put('blt', 0, B, 0, .87 - .8 + .08, 0, 0, 0, 0, z.blt ? .31 * wd : 0, .035, .21 * (big ? 1.1 : 1));                                    // cinturón
-  for (let q = 0; q < 2; q++) { const sg = q ? 1 : -1; put('pk', q, B, sg * .12 * wd, .0, .105 * (big ? 1.2 : 1), 0, 0, 0, z.pock ? .07 : 0, .09, .025); put('st', q, C, 0, q ? .03 : -.04, .122 * (big ? 1.15 : 1), 0, 0, 0, z.str ? .38 * wd : 0, .035, .012); }   // bolsillos, rayas del mono
-  for (let w = 0; w < 3; w++) { const d = z.wnd[w]; if (d) put('wn', w, C, d.x * wd, d.y, d.z * .125 * (big ? 1.15 : 1), 0, 0, 0, d.w, d.h, .02); else put('wn', w, C, 0, 0, 0, 0, 0, 0, 0, 0, 0); }
-  put('bn', 0, C, .18 * wd, .06, .02, 0, 0, -1.25, z.bone ? .03 : 0, .16, .03);
+  (PV[0]=0,PV[1]=.0,PV[2]=.1,PV[3]=.12 + roll,PV[4]=0,PV[5]=0,PV[6]=z.rgF ? .27 * wd : 0,PV[7]=z.coat ? .62 : .28,PV[8]=.02,put('rg',0,S)); (PV[0]=0,PV[1]=.0,PV[2]=-.1,PV[3]=-.1,PV[4]=0,PV[5]=0,PV[6]=z.rgB ? .27 * wd : 0,PV[7]=z.coat ? .66 : .3,PV[8]=.02,put('rg',1,S));   // bata: faldones hasta las rodillas
+  (PV[0]=0,PV[1]=.17,PV[2]=.0,PV[3]=hp * .3,PV[4]=hy * .3,PV[5]=0,PV[6]=z.col ? .19 * wd : 0,PV[7]=.045,PV[8]=.15 * (big ? 1.1 : 1),put('col',0,C));                                  // cuello de camisa / solapas
+  (PV[0]=0,PV[1]=.21,PV[2]=-.07,PV[3]=hp * .3,PV[4]=hy * .2,PV[5]=0,PV[6]=z.hood ? .125 * hs : 0,PV[7]=.1 * hs,PV[8]=.1 * hs,put('hood',0,C));                                      // capucha caída por detrás
+  (PV[0]=0,PV[1]=.06,PV[2]=.122 * (big ? 1.15 : 1),PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=z.tie ? .04 : 0,PV[7]=.2,PV[8]=.012,put('tie',0,C));                                               // corbata
+  (PV[0]=0,PV[1]=.87 - .8 + .08,PV[2]=0,PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=z.blt ? .31 * wd : 0,PV[7]=.035,PV[8]=.21 * (big ? 1.1 : 1),put('blt',0,B));                                    // cinturón
+  for (let q = 0; q < 2; q++) { const sg = q ? 1 : -1; (PV[0]=sg * .12 * wd,PV[1]=.0,PV[2]=.105 * (big ? 1.2 : 1),PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=z.pock ? .07 : 0,PV[7]=.09,PV[8]=.025,put('pk',q,B)); (PV[0]=0,PV[1]=q ? .03 : -.04,PV[2]=.122 * (big ? 1.15 : 1),PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=z.str ? .38 * wd : 0,PV[7]=.035,PV[8]=.012,put('st',q,C)); }   // bolsillos, rayas del mono
+  for (let w = 0; w < 3; w++) { const d = z.wnd[w]; if (d) (PV[0]=d.x * wd,PV[1]=d.y,PV[2]=d.z * .125 * (big ? 1.15 : 1),PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=d.w,PV[7]=d.h,PV[8]=.02,put('wn',w,C)); else (PV[0]=0,PV[1]=0,PV[2]=0,PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=0,PV[7]=0,PV[8]=0,put('wn',w,C)); }
+  (PV[0]=.18 * wd,PV[1]=.06,PV[2]=.02,PV[3]=0,PV[4]=0,PV[5]=-1.25,PV[6]=z.bone ? .03 : 0,PV[7]=.16,PV[8]=.03,put('bn',0,C));
   const tumor = z.type === 'brute' ? [S, 0, .13, .1, .2, .17, .15] : z.type === 'screamer' ? [C, 0, .16, .06, .1, .09, .09] : null;
-  if (tumor) put('tm', 0, tumor[0], tumor[1], tumor[2], tumor[3], 0, 0, 0, tumor[4], tumor[5], tumor[6]); else put('tm', 0, C, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+  if (tumor) (PV[0]=tumor[1],PV[1]=tumor[2],PV[2]=tumor[3],PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=tumor[4],PV[7]=tumor[5],PV[8]=tumor[6],put('tm',0,tumor[0])); else (PV[0]=0,PV[1]=0,PV[2]=0,PV[3]=0,PV[4]=0,PV[5]=0,PV[6]=0,PV[7]=0,PV[8]=0,put('tm',0,C));
 }
 const MS = new THREE.Matrix4(), MC = new THREE.Matrix4(), MH = new THREE.Matrix4(), MA = new THREE.Matrix4(), MB = new THREE.Matrix4(), MD = new THREE.Matrix4(), MB2 = new THREE.Matrix4(), MC2 = new THREE.Matrix4(), MD2 = new THREE.Matrix4();
 
@@ -497,12 +500,12 @@ MX.zom.perfHook = w => { restock = w(restock, 'z.restock'); updBars = w(updBars,
    updateBullets con la población nueva). ?nozgrid recorre todos como antes. */
 const ZG = new Map(), ZGOFF = /[?&]nozgrid\b/.test(location.search), _zc = [];
 const zgk = (ix, iz) => ((ix + 160) << 10) | (iz + 160);
-function zgBuild() { for (const a of ZG.values()) a.length = 0; for (let i = 0; i < Z.length; i++) { const z = Z[i]; if (z.dead) continue; const k = zgk(Math.floor(z.p.x / 4), Math.floor(z.p.z / 4)); let a = ZG.get(k); if (!a) ZG.set(k, a = []); a.push(z); } }
+function zgBuild() { for (const a of ZG.values()) a.n = 0; for (let i = 0; i < Z.length; i++) { const z = Z[i]; if (z.dead) continue; const k = zgk(Math.floor(z.p.x / 4), Math.floor(z.p.z / 4)); let a = ZG.get(k); if (!a) { a = []; a.n = 0; ZG.set(k, a); } a[a.n++] = z; } }
 MX.zom.cand = (ox, oz, dx, dz, d0, d1) => {
   if (ZGOFF) return Z; const ax = ox + dx * d0, az = oz + dz * d0, bx = ox + dx * d1, bz = oz + dz * d1, out = _zc; out.length = 0;
   const x0 = Math.floor((Math.min(ax, bx) - 3) / 4), x1 = Math.floor((Math.max(ax, bx) + 3) / 4), z0 = Math.floor((Math.min(az, bz) - 3) / 4), z1 = Math.floor((Math.max(az, bz) + 3) / 4);
   if ((x1 - x0 + 1) * (z1 - z0 + 1) > 900) return Z;
-  for (let ix = x0; ix <= x1; ix++) for (let iz = z0; iz <= z1; iz++) { const a = ZG.get(zgk(ix, iz)); if (a) for (let i = 0; i < a.length; i++) out.push(a[i]); }
+  for (let ix = x0; ix <= x1; ix++) for (let iz = z0; iz <= z1; iz++) { const a = ZG.get(zgk(ix, iz)); if (a) for (let i = 0; i < a.n; i++) out.push(a[i]); }
   return out;
 };
 /* ---- PRESIÓN EN LOS PUNTOS DE CAPTURA ----
@@ -524,11 +527,11 @@ function pointsTick() {
     const want = Math.round((o.id === 'PLAZA' ? 150 : 50) * (.6 + .4 * prog) * Math.min(2, ZPUNTO)), have = ngar.get(o) || 0, rOut = o.id === 'PLAZA' ? 70 : 45;   // guarnición: 60 % al empezar, 100 % con la meta cerca
     if (o._zInit === undefined) { o._zInit = true; o._zNext = 0; o._wNext = M.t + rr(40, 70); }
     if (have < want && M.t >= o._zNext) {                                                                                                         // guarnición: se rellena (la primera vez de golpe, luego en grupos de 2–3 cada 20–40 s) y sólo fuera de la vista
-      const first = o._zFirst === undefined || o._zFirst < 3; o._zFirst = (o._zFirst || 0) + 1;
-      const n = Math.min(first ? 45 : 8, want - have); let made = 0;
+      const first = o._zFirst === undefined || o._zFirst < 14; o._zFirst = (o._zFirst || 0) + 1;
+      /* aparición escalonada (antes 45 de golpe: pico de varios ms) */ const n = Math.min(first ? 10 : 3, want - have); let made = 0;
       /* el 40 % dentro de la zona del punto, el resto en su entorno */
       for (let i = 0; i < n; i++) { const inner = rnd() < .4, p = inner ? pointSpawnPos(o, 2, o.r, !first) : pointSpawnPos(o, o.r, rOut, !first); if (!p) continue; const zb = newZ(mixPick(true), p[0], p[1], { st: rnd() < .5 ? 'dorm' : 'wander' }); if (zb) { zb.gar = o; made++; } }
-      o._zNext = M.t + (first ? 1 : rr(6, 12) / Math.min(2, k)); if (!made && !first) o._zNext = M.t + 5;
+      o._zNext = M.t + (first ? .3 : rr(4, 9) / Math.min(2, k)); if (!made && !first) o._zNext = M.t + 5;
     }
     if (M.t >= o._wNext && PT.waves.length < 3 && !(o._wave && o._wave.members.some(m => !m.dead))) {                                              // oleada dirigida al punto
       o._wNext = M.t + rr(110, 170) / k;
@@ -540,16 +543,20 @@ function pointsTick() {
   }
 }
 let nearZ = 0, heatT = 0;
+const ZS = [], CAND = [], VIS = []; let gridGC = 0, ZF = 0;
 MX.zom.update = dt => {
-  PT.t -= dt; if (PT.t <= 0) { PT.t = 1; pointsTick(); }
+  ZF++; PT.t -= dt; if (PT.t <= 0) { PT.t = 1; pointsTick(); }
   if (!ZGOFF) zgBuild();
   if (!MX.campaign || !M.built) return; dt = Math.min(dt, .05); zt += dt; astar = 3; extraA = 0;
   heatT -= dt; if (heatT <= 0) { heatT = .5; for (const [k, v] of HEAT) { const n = v * .95; if (n < .08) HEAT.delete(k); else HEAT.set(k, n); } }
   popT -= dt; if (popT <= 0) { popT = 2; if (!MX.zom.noRestock) restock(); }
   for (const h of HORDES) stepHorde(h, dt);
-  grid.clear(); for (let i_z = 0; i_z < Z.length; i_z++) { const z = Z[i_z]; if (z.dead) continue; const k = gk(z.p.x, z.p.z); let a = grid.get(k); if (!a) { a = []; grid.set(k, a); } a.push(z); }
+  for (const a of grid.values()) a.n = 0;                                            // rejilla: arrays reutilizados y CONTADOR (poner length = 0 libera el almacén del array y vuelve a reservarlo cada fotograma)
+  for (let i_z = 0; i_z < Z.length; i_z++) { const z = Z[i_z]; if (z.dead) continue; const k = gk(z.p.x, z.p.z); let a = grid.get(k); if (!a) { a = []; a.n = 0; grid.set(k, a); } a[a.n++] = z; }
+  if (++gridGC > 600) { gridGC = 0; for (const [k, a] of grid) if (!a.n) grid.delete(k); }
   /* simulación por cercanía: completa cerca de cualquier combatiente (o si ya persigue, investiga o la empujan); lejos, barata y cada 0,5 s */
-  for (let i_z = 0, A_z = Z.slice(); i_z < A_z.length; i_z++) { const z = A_z[i_z];
+  let zsn = 0; for (let i_z = 0; i_z < Z.length; i_z++) ZS[zsn++] = Z[i_z];                // copia reutilizable (los zombis pueden liberarse durante el bucle)
+  for (let i_z = 0; i_z < zsn; i_z++) { const z = ZS[i_z];
     z.lodT -= dt; if (z.lodT <= 0) { z.lodT = .5; z.near = z.st === 'chase' || z.st === 'attack' || z.st === 'invest' || z.st === 'dead' || z.noiseDelay > 0 || nearCell(z.p.x, z.p.z); }
     if (z.near) { if (z.farDt) { z.farDt = 0; z.sx = z.p.x; z.sz = z.p.z; } stepZ(z, dt); moveZ(z, dt); }
     else { z.farDt += dt; if (z.farDt >= .5) { farStep(z, z.farDt); z.farDt = 0; } }
@@ -557,15 +564,19 @@ MX.zom.update = dt => {
   /* dibujo: sólo los cercanos a la cámara (hasta RMAX). Cada zombi conserva su hueco mientras se ve (antes los huecos se reasignaban por orden de distancia cada fotograma: recolorear
      240 zombis × ~30 piezas y picos de 15–20 ms); al entrar toma un hueco libre y se copian sus colores, al salir lo libera y se oculta. Con más de RMAX a la vista se ordena por
      distancia cada 0,25 s (los de fuera de la selección ceden su hueco a los cercanos). */
-  const cx = P.pos.x, cz = P.pos.z, cand = []; let over = false;
-  for (let i_z = 0; i_z < Z.length; i_z++) { const z = Z[i_z]; const dx = z.p.x - cx, dz = z.p.z - cz, d2 = dx * dx + dz * dz; if (d2 < VIEW_R * VIEW_R) { z.d2 = d2; cand.push(z); } else if (z.ri >= 0) slotFree(z); }
-  if (cand.length > RMAX) { over = true; SLOT.sortT -= dt; if (SLOT.sortT <= 0) { SLOT.sortT = .25; cand.sort((a, b) => a.d2 - b.d2); for (let i = 0; i < cand.length; i++) cand[i].want = i < RMAX; } }
-  let recol = false; const vis = [];
-  for (let i_z = 0; i_z < cand.length; i_z++) { const z = cand[i_z];
+  const cx = P.pos.x, cz = P.pos.z, cand = CAND; let nc = 0, over = false;
+  for (let i_z = 0; i_z < Z.length; i_z++) { const z = Z[i_z]; const dx = z.p.x - cx, dz = z.p.z - cz, d2 = dx * dx + dz * dz; if (d2 < VIEW_R * VIEW_R) { z.d2 = d2; cand[nc++] = z; } else if (z.ri >= 0) slotFree(z); }
+  if (nc > RMAX) { over = true; SLOT.sortT -= dt; if (SLOT.sortT <= 0) { SLOT.sortT = .25; const srt = cand.slice(0, nc).sort((a, b) => a.d2 - b.d2); for (let i = 0; i < nc; i++) { srt[i].want = i < RMAX; cand[i] = srt[i]; } } }
+  let recol = false; const vis = VIS; let vn = 0;
+  for (let i_z = 0; i_z < nc; i_z++) { const z = cand[i_z];
     if (z.ri >= 0) { if (over && z.want === false) { slotFree(z); continue; } }
-    else { if ((over && z.want === false) || !SLOT.free.length) continue; z.ri = SLOT.free.pop(); SLOT.used[z.ri] = 1; recol = true; const C = z.cols, i = z.ri; for (let q = 0; q < C.length; q += 5) { const k = KL[C[q]]; if (IM[k].instanceColor) IM[k].setColorAt(i * MUL[k] + C[q + 1], _c.setRGB(C[q + 2], C[q + 3], C[q + 4])); } }
-    vis.push(z); pose(z, dt); }
-  visiblePoses = vis;
+    else { if ((over && z.want === false) || !SLOT.free.length) continue; z.ri = SLOT.free.pop(); SLOT.used[z.ri] = 1; recol = true; z.fresh = true; const C = z.cols, i = z.ri; for (let q = 0; q < C.length; q += 5) { const k = KL[C[q]]; if (IM[k].instanceColor) IM[k].setColorAt(i * MUL[k] + C[q + 1], _c.setRGB(C[q + 2], C[q + 3], C[q + 4])); } }
+    vis[vn++] = z;
+    /* animación con frecuencia por distancia: a < 14 m cada fotograma; 14–28 m uno de cada 2; más lejos, uno de cada 3 (las matrices de instancia se conservan entre fotogramas; la marcha va anclada a la
+       distancia, así que no se nota). Un zombi recién dibujado se posa en el acto. */
+    const k3 = z.d2 < 196 ? 1 : z.d2 < 784 ? 2 : 3;
+    if (z.fresh || k3 === 1 || (ZF + z.k3) % k3 === 0) { pose(z, dt * (z.fresh ? 1 : k3)); z.fresh = false; } }
+  visiblePoses = vis; visN = vn;
   let mx = 0; for (let i = RMAX - 1; i >= 0; i--) if (SLOT.used[i]) { mx = i + 1; break; }
   slotMax = mx;
   for (const k in IM) { const m = IM[k]; m.count = slotMax * MUL[k]; m.visible = slotMax > 0; m.instanceMatrix.needsUpdate = true; if (recol && m.instanceColor) m.instanceColor.needsUpdate = true; }
