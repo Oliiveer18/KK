@@ -8047,6 +8047,39 @@ function heal(dt) {                                                             
   for (const e of M.ents) { if (e.dead || e.dwn) continue; for (const m of meds) { if (m === e || m.team !== e.team || dist(m.p, e.p) > 7) continue; e.medNear = M.t; if (e.hp < 100) { e.hp = Math.min(100, e.hp + 8 * dt); e.tgp.hp = e.hp; e.healT = M.t; } break; } }
 }
 MX.medicHeal = e => e && e.healT && M.t - e.healT < .6;
+
+/* ---------- indicador sobre los compañeros de tu escuadra: chip con la inicial de la clase (color de la clase), número, estrella si lidera y barra de vida fina.
+   Ámbar y ⚠ si están abatidos; ✚ verde mientras un médico los cura. Se oculta a > 70 m, detrás de la cámara y en cuanto mueren. ---------- */
+{ const st = document.createElement('style'); st.textContent = `
+#sqTags{position:fixed;inset:0;pointer-events:none;z-index:6;overflow:hidden}
+#sqTags .t{position:absolute;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:2px;will-change:transform;transition:opacity .15s}
+#sqTags .c{display:flex;align-items:center;gap:4px;padding:2px 7px 2px 3px;border-radius:999px;background:rgba(9,13,20,.78);border:1px solid rgba(255,255,255,.16);font:700 10.5px system-ui,-apple-system,sans-serif;color:#fff;letter-spacing:.03em;box-shadow:0 2px 6px rgba(0,0,0,.45)}
+#sqTags .c b{display:flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;font-size:9.5px;color:#0b0f18;font-weight:800}
+#sqTags .h{width:30px;height:3px;border-radius:2px;background:rgba(0,0,0,.55);overflow:hidden}#sqTags .h i{display:block;height:100%;transition:width .2s}
+#sqTags .t.dn .c{border-color:#ffb020;color:#ffb020}#sqTags .t.hl .c{border-color:#4ee08a}#sqTags .t.hl .c u{color:#4ee08a}#sqTags u{text-decoration:none;font-size:10px}`; document.head.appendChild(st); }
+const tagBox = document.createElement('div'); tagBox.id = 'sqTags'; document.body.appendChild(tagBox);
+const tags = new Map(), _tv = new THREE.Vector3();
+function tagFor(e) {
+  let t = tags.get(e); if (t) return t; const c = CLS[e.cls || 'fus'], el = document.createElement('div'); el.className = 't';
+  el.innerHTML = '<div class="c"><b style="background:#' + c.col.toString(16).padStart(6, '0') + '">' + c.tag + '</b><span></span><u></u></div><div class="h"><i></i></div>';
+  tagBox.appendChild(el); t = { el, span: el.querySelector('span'), u: el.querySelector('u'), bar: el.querySelector('.h i'), cls: e.cls, last: '' }; tags.set(e, t); return t;
+}
+const placeBars = MX.placeBars;
+MX.placeBars = function () {
+  placeBars.apply(this, arguments);
+  const pl = MX.pl, s = MX.campaign && MX.on && pl && pl.sqd; const live = new Set();
+  if (s) for (const m of s.members) {
+    if (m.isPlayer || m.dead) continue; const t = tagFor(m); live.add(m);
+    _tv.set(m.p.x, m.p.y + 2.45, m.p.z).project(camera); const d = dist(m.p, P.pos);
+    if (_tv.z > 1 || d > 70 || (m.clsWait && d > 40)) { t.el.style.opacity = 0; continue; }
+    const k = Math.max(.7, Math.min(1.05, 1.15 - d / 90)), x = (_tv.x * .5 + .5) * innerWidth, y = (-_tv.y * .5 + .5) * innerHeight;
+    t.el.style.opacity = d < 55 ? 1 : (70 - d) / 15; t.el.style.transform = 'translate(' + (x - 28).toFixed(1) + 'px,' + (y - 26).toFixed(1) + 'px) scale(' + k.toFixed(2) + ')';
+    const num = String(m.id).replace(/^\D+/, ''), txt = (s.leader === m ? '★' : '') + num, dn = !!m.dwn, hl = MX.medicHeal(m), key = txt + '|' + (m.cls || '') + '|' + dn + '|' + hl;
+    if (key !== t.last) { t.last = key; t.span.textContent = txt; t.u.textContent = dn ? '⚠' : hl ? '✚' : ''; t.el.className = 't' + (dn ? ' dn' : hl ? ' hl' : ''); }
+    t.bar.style.width = Math.max(0, Math.min(100, m.hp)) + '%'; t.bar.style.background = dn ? '#ffb020' : m.hp < 40 ? '#ff6a4a' : '#6dff9a';
+    if (t.cls !== m.cls) { t.cls = m.cls; const c = CLS[m.cls || 'fus']; t.el.querySelector('b').style.background = '#' + c.col.toString(16).padStart(6, '0'); t.el.querySelector('b').textContent = c.tag; } }
+  for (const [e, t] of tags) if (!live.has(e)) { t.el.remove(); tags.delete(e); }
+};
 })();
 </script>
 <script>/* Efecto del dash (jugador y bots): marcas de viento. Unas pocas líneas finas, blancas y translúcidas que se quedan en el aire detrás del que corre,
