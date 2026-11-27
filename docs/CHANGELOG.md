@@ -1,5 +1,12 @@
 # Changelog
 
+## Escuadras por tipo y mando con maniobras (27-11)
+- **12 escuadras por facción, 6 tipos** (50 soldados, mismos tamaños en las 4 facciones): asalto 5 (2 asalto, fusilero, médico, flanqueador), línea 5 (3 fusileros, médico, apoyo), apoyo 4 (2 apoyo, francotirador, médico), flanco 3 (2 flanqueadores, francotirador), reserva 4 (2 fusileros, asalto, médico) y guarnición 3. Cada partida varía al azar, a igual tamaño, línea↔asalto, reserva↔apoyo y flanco↔guarnición. Tu escuadra es una línea.
+- **Rasgos suaves por facción** (±15 % al azar por partida, no una personalidad): agresividad (aumenta si va por detrás), atracción por el centro y rivalidad con la facción que va primera. Además, recuperar un punto perdido pesa más durante 2 minutos.
+- **Maniobras**: un asalto recluta, si están libres, un apoyo (fija al enemigo desde 36–62 m) y un flanco. 70 % pinza (el flanco rodea 40 m por un lado, espera a que su pareja esté a < 60 m del punto o 35 s, y entra); 30 % finta (el flanco ataca de frente y el asalto rodea). Un flanco sin pareja embosca en la ruta del rival o ataca por el flanco.
+- **Defensa**: la reserva recupera puntos perdidos (120 s), refuerza los amenazados o toma el mejor punto; la guarnición defiende el refugio si hay enemigos a < 150 m y si no, el puesto avanzado propio; en una línea, los de largo alcance se colocan hacia donde viene la amenaza (último contacto o centro).
+- **Medido** (5 min de partida simulada): 9 apoyos «fix», 9 flancos, 1 finta, 1 emboscada, 3 recuperaciones y 5 refuerzos; marcador final equilibrado (181/208/224/180); p95 de lógica 8,1 ms; primer contacto entre facciones a los ~116 s.
+
 ## Cruceta táctica y vista previa de la formación (27-11)
 - **Cruceta (toque / mantener)**: ▲ Avanzar / Capturar el punto no propio más cercano · ▼ Mantener / Replegarse al refugio · ◀ Seguirme / Cambiar formación (auto → cuña → línea → columna → círculo) · ▶ Fuego de cobertura / Atacar (todos se acercan al enemigo más cercano a ≤ 60 m, cada uno por un lado, con línea de tiro; 16 s).
 - **Gestión de escuadra** (unirse, por libre, tomar/ceder el mando, reagrupar) pasa a Mochila → Escuadra (y siguen las teclas 5–8).
