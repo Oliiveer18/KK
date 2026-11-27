@@ -30,6 +30,18 @@ const PERF = (() => {
   }
   /* se llama una vez por fotograma desde frame(): now = marca de rAF, u = ms de lógica, p = ms de preparación (luces, recorte por sectores), r = ms de dibujo en CPU */
   function tag(nm) { if (off) return; const t = performance.now(); tags.push([t, nm]); if (tags.length > 40) tags.shift(); }
+  /* RESOLUCIÓN DINÁMICA DE SEGURIDAD (solo si no se llega a 60 fps de forma sostenida): el 90 % de los últimos 90 fotogramas > 18,5 ms durante 2 s baja la resolución un 10 % (mínimo 80 %); con el 90 % < 15,5 ms
+     durante 8 s sube otro 10 %. Un cambio como máximo cada 4 s (cada cambio recrea los búferes). No actúa a 30 Hz (ahorro de energía), con la pestaña oculta ni en los primeros 6 s. ?nodinres la desactiva. */
+  const DR = { on: !/[?&]nodinres\b/.test(location.search), base: 0, cur: 0, buf: new Float32Array(90), i: 0, n: 0, bad: 0, good: 0, t: 0, last: 0 };
+  function dinRes(now, d) {
+    if (!DR.on || typeof renderer === 'undefined') return; if (!DR.base) DR.base = DR.cur = renderer.getPixelRatio();
+    DR.buf[DR.i] = d; DR.i = (DR.i + 1) % 90; if (DR.n < 90) DR.n++; if (DR.n < 90 || now - started < 6000 || lowPower) return;
+    if (now - DR.t < 1000) return; DR.t = now; const a = Array.from(DR.buf).sort((x, y) => x - y), p90 = a[Math.floor(89 * .9)];
+    if (p90 > 18.5) { DR.bad++; DR.good = 0; } else if (p90 < 15.5) { DR.good++; DR.bad = 0; } else { DR.bad = 0; DR.good = 0; }
+    if (now - DR.last < 4000) return;
+    if (DR.bad >= 2 && DR.cur > DR.base * .8 + 1e-3) { DR.cur = Math.max(DR.base * .8, DR.cur - DR.base * .1); renderer.setPixelRatio(DR.cur); DR.last = now; DR.bad = 0; DR.n = 0; }
+    else if (DR.good >= 8 && DR.cur < DR.base - 1e-3) { DR.cur = Math.min(DR.base, DR.cur + DR.base * .1); renderer.setPixelRatio(DR.cur); DR.last = now; DR.good = 0; DR.n = 0; }
+  }
   function frame(now, u, p, r) {
     if (off) return;
     if (document.hidden) { hidden = true; last = 0; return; }
@@ -50,6 +62,7 @@ const PERF = (() => {
     }
     for (const k in part) part[k].f = 0;
     since += d;
+    dinRes(now, d);
     if (since > 1000 && n > 30) lowPower = pct(iv, n, .5) > 28;                      // mediana > 28 ms: la pantalla va a 30 Hz (modo ahorro de iOS o equipo lento)
   }
   function resumen() {
@@ -60,6 +73,7 @@ const PERF = (() => {
   function texto(compacto) {
     const s = resumen(), f = x => x.toFixed(1);
     let t = 'p50 ' + f(s.p50) + ' · p95 ' + f(s.p95) + ' · p99 ' + f(s.p99) + ' · máx ' + f(s.max) + ' ms · >20 ms ' + f(s.pctOver20) + ' % · >33 ms ' + f(s.pctOver33) + ' %' + (s.lowPower ? ' · ¡mediana > 28 ms: pantalla a 30 Hz (modo ahorro de iOS) o equipo lento!' : '');
+    if (DR.base && DR.cur < DR.base - 1e-3) t += ' · res ×' + (DR.cur / DR.base).toFixed(1);
     if (compacto) return t;
     t += '\nlógica p95 ' + f(s.u95) + ' · prep. p95 ' + f(s.p95p) + ' · dibujo CPU p95 ' + f(s.r95) + ' ms';
     const ks = Object.keys(part).sort((a, b) => part[b].s - part[a].s).slice(0, 8);

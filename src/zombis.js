@@ -557,8 +557,13 @@ MX.zom.update = dt => {
   /* simulación por cercanía: completa cerca de cualquier combatiente (o si ya persigue, investiga o la empujan); lejos, barata y cada 0,5 s */
   let zsn = 0; for (let i_z = 0; i_z < Z.length; i_z++) ZS[zsn++] = Z[i_z];                // copia reutilizable (los zombis pueden liberarse durante el bucle)
   for (let i_z = 0; i_z < zsn; i_z++) { const z = ZS[i_z];
-    z.lodT -= dt; if (z.lodT <= 0) { z.lodT = .5; z.near = z.st === 'chase' || z.st === 'attack' || z.st === 'invest' || z.st === 'dead' || z.noiseDelay > 0 || nearCell(z.p.x, z.p.z); }
-    if (z.near) { if (z.farDt) { z.farDt = 0; z.sx = z.p.x; z.sz = z.p.z; } stepZ(z, dt); moveZ(z, dt); }
+    z.lodT -= dt; if (z.lodT <= 0) { z.lodT = .5; const act = z.st === 'chase' || z.st === 'attack' || z.st === 'invest' || z.st === 'dead' || z.noiseDelay > 0, dpx = z.p.x - P.pos.x, dpz = z.p.z - P.pos.z;
+      z.near = act || nearCell(z.p.x, z.p.z); z.full = act || dpx * dpx + dpz * dpz < 3600; }                   // «completo»: activo o a < 60 m del jugador
+    /* TRES NIVELES: completo (cada fotograma: activos y los que rodean al jugador), medio (cerca de algún bot pero lejos del jugador y sin actividad: uno de cada 3 fotogramas con el dt acumulado, escalonados)
+       y lejos (cada 0,5 s). Con 200 bots casi todo el mapa estaba «cerca» de alguien y se simulaban ~1.000 zombis completos cada fotograma. */
+    if (z.near) { if (z.farDt) { z.farDt = 0; z.sx = z.p.x; z.sz = z.p.z; }
+      if (z.full) { z.acc = 0; stepZ(z, dt); moveZ(z, dt); }
+      else { z.acc = (z.acc || 0) + dt; if ((ZF + z.k3) % 3 === 0) { const sd = Math.min(z.acc, .1); z.acc = 0; stepZ(z, sd); moveZ(z, sd); } } }
     else { z.farDt += dt; if (z.farDt >= .5) { farStep(z, z.farDt); z.farDt = 0; } }
   }
   /* dibujo: sólo los cercanos a la cámara (hasta RMAX). Cada zombi conserva su hueco mientras se ve (antes los huecos se reasignaban por orden de distancia cada fotograma: recolorear

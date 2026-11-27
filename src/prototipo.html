@@ -143,7 +143,7 @@ document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0c1018);
 scene.fog = new THREE.Fog(0x0c1018, 24, 58);
-const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 200);
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 66);   // la niebla (24–58 m) lo oculta todo más lejos: 66 m recorta lo invisible y afina la profundidad
 
 scene.add(new THREE.HemisphereLight(0x9bbcff, 0x1a1f2b, 0.45));
 const sun = new THREE.DirectionalLight(0xffffff, 0.8);
