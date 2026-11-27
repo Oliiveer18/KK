@@ -1140,6 +1140,18 @@ function sfxBoom() {
   } catch (e) { }
 }
 const R_FRAG = 3.5, R_LAUNCH = 3;                                                  // radio de explosión: granada de mano y lanzagranadas (antes 4,6 y 3,8)
+const BOOM = { q: [], off: /[?&]noboom2\b/.test(location.search) };              // ?noboom2: todo el daño de la explosión en el mismo fotograma, como antes
+function boomHit(pr, x, z, R, sc, own) {
+  if (pr.dead) return;
+  const d = Math.hypot(pr.x - x, pr.z - z), k = clamp(1 - d / (R + 1), 0, 1), l = d || 1;
+  pushProp(pr, (pr.x - x) / l * 40 * k, (pr.z - z) / l * 40 * k);
+  if (pr.explosive) return;
+  damageProp(pr, 150 * sc * k, pr.x, pr.z, (pr.x - x) / l, (pr.z - z) / l, 'blast');
+}
+function boomTick() {                                                                // reparte el daño pendiente de las explosiones (3 ms por fotograma como máximo, al menos uno)
+  if (!BOOM.q.length) return; const tEnd = performance.now() + 3; let n = 0;
+  while (BOOM.q.length && (n++ === 0 || performance.now() < tEnd)) { const h = BOOM.q.shift(); boomHit(h.pr, h.x, h.z, h.R, h.sc, h.own); }
+}
 function explode(p, R, sc, kind, own) {
   R = R || R_FRAG; sc = sc || 1; if (MX.on) MX.explosion(p, R, sc, own); if (MX.on && MX.combat) MX.combat('boom', p.x, p.z);
   for (let i = 0; i < 36; i++) spawn('spark', p, new V3((Math.random() - .5) * 16, Math.random() * 9, (Math.random() - .5) * 16), .5 + Math.random() * .5, .06, .06, .06, true, 10);
@@ -1151,11 +1163,16 @@ function explode(p, R, sc, kind, own) {
     const d = Math.hypot(tg.g.position.x - p.x, tg.g.position.z - p.z);
     if (d < R) { tg.hp -= 130 * sc * (1 - d / R); tg.flash = 1; if (tg.hp <= 0) tg.dead = 0; }
   }
-  for (const pr of props.slice()) {
-    const d = Math.hypot(pr.x - p.x, pr.z - p.z); if (pr.dead || d > R + 1) continue; const k = clamp(1 - d / (R + 1), 0, 1), l = d || 1;
-    pushProp(pr, (pr.x - p.x) / l * 40 * k, (pr.z - p.z) / l * 40 * k);
-    pr.by = own;
-    if (pr.explosive) { if (pr.fuse < 0) { pr.fuse = .12 + d * .06; AWAKE.add(pr); } } else damageProp(pr, 150 * sc * k, pr.x, pr.z, (pr.x - p.x) / l, (pr.z - p.z) / l, 'blast');
+  /* Objetos alcanzados: sin copiar los ~17.000 (antes props.slice()) ni calcular raíces de todos. Los 4 más cercanos reciben el daño ya; el resto se reparte en los siguientes
+     fotogramas (boomTick, ~3 ms por fotograma): romper y despertar decenas de objetos de golpe era un tirón de 8–13 ms en el PC (el triple en el móvil), y un retraso de 1–3 fotogramas
+     (16–50 ms) en las piezas más lejanas no se nota. Las mechas de los explosivos sí se ponen ya (la reacción en cadena conserva su ritmo). */
+  { const R2 = (R + 1) * (R + 1), near = []; for (let i = 0; i < props.length; i++) { const pr = props[i], dx = pr.x - p.x, dz = pr.z - p.z, d2 = dx * dx + dz * dz; if (d2 <= R2 && !pr.dead) { pr._bd = d2; near.push(pr); } }
+    near.sort((a, b) => a._bd - b._bd);
+    for (let i = 0; i < near.length; i++) {
+      const pr = near[i], d = Math.sqrt(pr._bd); pr.by = own;
+      if (pr.explosive && pr.fuse < 0) { pr.fuse = .12 + d * .06; AWAKE.add(pr); }
+      if (i < 4 || BOOM.off) boomHit(pr, p.x, p.z, R, sc, own); else BOOM.q.push({ pr, x: p.x, z: p.z, R, sc, own });
+    }
   }
   const dp = Math.hypot(P.pos.x - p.x, P.pos.z - p.z);
   P.shake = Math.max(P.shake, clamp(.7 - dp * .05, 0, .6)); { const q = clamp(1 - dp / 14, 0, 1); if (q > .05) rumble(160 + 200 * q, q, q * .8); }
@@ -1841,6 +1858,7 @@ function bulletHitProp(p, b, px, pz, dx, dz, dmg, inner, by) {
   return out;
 }
 function updateProps(dt) {
+  boomTick();
   let cv = null, bd = 9;                                                             // cobertura: agachado junto a un objeto bajo, se dispara por encima de él
   for (const b of boxesIn(P.pos.x - 1.5, P.pos.z - 1.5, P.pos.x + 1.5, P.pos.z + 1.5)) {   // sólo lo cercano (índice espacial)
     const p = b.prop; if (!p || p.box !== b || p.dead || !lowCoverAt(p, P.pos.x, P.pos.z)) continue;

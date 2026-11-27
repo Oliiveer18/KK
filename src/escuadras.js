@@ -63,7 +63,7 @@ SQ.init = () => {
     for (let i = 0; i < SIZES.length && k < ents.length; i++) { const s = mkSquad(t, { type: ROLE0[i] }); for (let j = 0; j < SIZES[i] && k < ents.length; j++) join(ents[k++], s, true); }
     while (k < ents.length) join(ents[k++], SQ.list.filter(s => s.team === t)[0], true);
   }
-  for (const e of M.ents) { e.vet = e.isPlayer ? 0 : rr(0, 4); e.lifeStart = 0; e.supp = 0; }
+  for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; e.vet = e.isPlayer ? 0 : rr(0, 4); e.lifeStart = 0; e.supp = 0; }
   const ps = MX.pl && MX.pl.sqd; if (ps) { ps.playerLead = true; ps.order = { type: 'follow' }; ps.mission = { type: 'free' }; }
   for (const s of SQ.list) electLeader(s, true);
   objInit();
@@ -78,7 +78,7 @@ function electLeader(s, quiet) {
     s.mission = n ? { type: 'hold', x: x / n, z: z / n, name: 'posición' } : { type: 'hold' }; s.baseType = 'hold'; s.missionT = M.t; }
   let L = null;
   if (s.playerLead) L = pl;
-  else { let bs = -1e9; for (const m of s.members) { if (!alive(m) || m.isPlayer) continue; const v = merit(m) + (m === prev ? 2 : 0); if (v > bs) { bs = v; L = m; } } }
+  else { let bs = -1e9; for (let i_m = 0; i_m < s.members.length; i_m++) { const m = s.members[i_m]; if (!alive(m) || m.isPlayer) continue; const v = merit(m) + (m === prev ? 2 : 0); if (v > bs) { bs = v; L = m; } } }
   s.leader = L;
   if (!quiet && L && L !== prev && pl && pl.sqd === s) toast(L.isPlayer ? 'Tienes el mando de ' + s.name : L.id + ' toma el mando de ' + s.name);
 }
@@ -136,7 +136,7 @@ function facingOf(s) {
   if (L.isPlayer) { const sp = Math.hypot(P.vel.x, P.vel.z); return sp > 1.5 ? Math.atan2(P.vel.x, P.vel.z) : P.aim; }
   if (L.goal) return Math.atan2(L.goal.x - L.p.x, L.goal.z - L.p.z); return L.yaw;
 }
-function slotOf(s, e) { let i = 0; for (const m of s.members) { if (m === e) return i; if (m !== s.leader) i++; } return 0; }
+function slotOf(s, e) { let i = 0; for (let i_m = 0; i_m < s.members.length; i_m++) { const m = s.members[i_m]; if (m === e) return i; if (m !== s.leader) i++; } return 0; }
 function formPoint(s, e, base, face, spread) {
   const o = FORM[slotOf(s, e) % FORM.length], k = spread || 1, ca = Math.cos(face), sa = Math.sin(face);
   return navNear(base.x + (o[0] * ca + o[1] * sa) * k, base.z + (-o[0] * sa + o[1] * ca) * k);
@@ -216,7 +216,7 @@ SQ.contact = (e, seen) => {                                                     
 };
 MX.bulletPass = (b, x0, z0, x1, z1) => {                                             // supresión: balas que pasan a < 2,5 m de alguien de otra facción
   if (!MX.campaign) return; const own = b.own || MX.pl, team = own ? own.team : 0, dx = x1 - x0, dz = z1 - z0, L2 = dx * dx + dz * dz || 1;
-  for (const e of M.ents) {
+  for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e];
     if (e.dead || e.team === team) continue;
     const ex = e.p.x, ez = e.p.z; if (ex < Math.min(x0, x1) - 3 || ex > Math.max(x0, x1) + 3 || ez < Math.min(z0, z1) - 3 || ez > Math.max(z0, z1) + 3) continue;
     const t = clamp(((ex - x0) * dx + (ez - z0) * dz) / L2, 0, 1), d = Math.hypot(x0 + dx * t - ex, z0 + dz * t - ez);
@@ -275,7 +275,7 @@ addEventListener('keydown', ev => {
 SQ.update = dt => {
   if (!MX.campaign || !SQ.list.length) return;
   padTick(dt);
-  for (const e of M.ents) { if (e.supp) e.supp = Math.max(0, e.supp - dt * (M.t - (e.suppT || 0) > 1.2 ? .35 : .08)); }
+  for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; if (e.supp) e.supp = Math.max(0, e.supp - dt * (M.t - (e.suppT || 0) > 1.2 ? .35 : .08)); }
   SQ.eT = (SQ.eT || 0) - dt; if (SQ.eT <= 0) { SQ.eT = .5; for (const s of SQ.list) electLeader(s); }
   for (let t = 0; t < 4; t++) { SQ.cmdT[t] -= dt; if (SQ.cmdT[t] <= 0) { SQ.cmdT[t] = 12; for (const s of SQ.list) if (s.team === t) assignMission(s); } }
   SQ.balT -= dt; if (SQ.balT <= 0) { SQ.balT = SQ_BAL; for (let t = 0; t < 4; t++) rebalance(t); }
@@ -333,7 +333,7 @@ function objTick(dt) {
     } else if (t === o.owner && t >= 0) o.cap = Math.max(0, o.cap - dt / CAP_N * 1.5);   // los dueños lo pisan: deshacen lo avanzado
     else if (t < 0) { o.cap = Math.max(0, o.cap - dt / (CAP_N * 4)); if (o.cap <= 0) o.capBy = -1; }   // vacío: lo avanzado baja poco a poco
     /* suministros para los dueños que pasan por él */
-    if (o.owner >= 0) for (const e of M.ents) { if (!alive(e) || e.team !== o.owner || (e.p.x - o.x) ** 2 + (e.p.z - o.z) ** 2 > o.r * o.r || M.t - (e.supT || -99) < 25) continue;
+    if (o.owner >= 0) for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; if (!alive(e) || e.team !== o.owner || (e.p.x - o.x) ** 2 + (e.p.z - o.z) ** 2 > o.r * o.r || M.t - (e.supT || -99) < 25) continue;
       e.supT = M.t; if (e.isPlayer) { if (MX.refill) MX.refill(); e.kits = 1; if (MX.syncKit) MX.syncKit(e); toast('Reabastecido en ' + o.name); } else { e.ammo = e.w.max; e.gCount = Math.min(3, e.gCount + 1); e.kits = 1; } }
   }
   /* puntuación de dominio */
@@ -490,7 +490,7 @@ function mapDraw() {
     if (o.code) { x.globalAlpha = 1; x.fillStyle = o.owner >= 0 ? col(o.owner) : '#0c1018'; x.font = '800 ' + Math.max(11, Math.round(r * 1.1)) + 'px system-ui,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(o.code, cx, cz); } }
   /* aliados (los enemigos no se ven): tu escuadra más grande; líderes con estrella */
   const ps = pl && pl.sqd;
-  for (const e of M.ents) { if (e.dead || e.team !== team || e.isPlayer) continue; const mine = ps && e.sqd === ps, cx = P2(e.p.x), cz = P2(e.p.z);
+  for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; if (e.dead || e.team !== team || e.isPlayer) continue; const mine = ps && e.sqd === ps, cx = P2(e.p.x), cz = P2(e.p.z);
     x.fillStyle = e.dwn ? '#ffb020' : col(team); x.globalAlpha = mine ? 1 : .55; x.beginPath(); x.arc(cx, cz, mine ? 3.2 : 2.2, 0, 6.283); x.fill(); x.globalAlpha = 1;
     if (e.sqd && e.sqd.leader === e) { x.fillStyle = '#fff'; x.font = '700 10px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('★', cx, cz - 7); } }
   if (ps && ps.playerLead && ps.order && ps.order.x !== undefined) { const ox = P2(ps.order.type === 'cover' ? ps.order.tx : ps.order.x), oz = P2(ps.order.type === 'cover' ? ps.order.tz : ps.order.z); x.strokeStyle = ps.order.type === 'cover' ? '#ff7a3a' : ps.order.type === 'move' ? '#4aa0ff' : '#6dff9a'; x.lineWidth = 2; x.setLineDash([4, 3]); x.beginPath(); x.moveTo(P2(P.pos.x), P2(P.pos.z)); x.lineTo(ox, oz); x.stroke(); x.setLineDash([]); x.beginPath(); x.arc(ox, oz, 5, 0, 6.283); x.stroke(); }
@@ -522,7 +522,7 @@ function miniTick(dt) {
     gr.addColorStop(0, 'rgba(' + rgb + ',' + Math.min(.9, .3 + h.w * .06) + ')'); gr.addColorStop(1, 'rgba(' + rgb + ',0)'); x.fillStyle = gr; x.beginPath(); x.arc(px, pz, r, 0, 6.283); x.fill();
     if (h.young < 2.5) { x.strokeStyle = 'rgba(' + rgb + ',' + (.5 + .5 * pulse) + ')'; x.lineWidth = 1.4; x.beginPath(); x.arc(px, pz, r * .5 + pulse * 2, 0, 6.283); x.stroke(); } }
   for (const o of SQ.objs) { const [px, pz] = W2(o.x, o.z); if (px < -10 || pz < -10 || px > size + 10 || pz > size + 10) continue; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.lineWidth = 1.6; x.beginPath(); x.arc(px, pz, Math.max(3, o.r * k), 0, 6.283); x.stroke(); if (o.code) { x.fillStyle = o.owner >= 0 ? col(o.owner) : '#0c1018'; x.font = '800 9px system-ui,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(o.code, px, pz); } }
-  const ps = pl && pl.sqd; for (const e of M.ents) { if (e.dead || e.team !== team || e.isPlayer) continue; const [px, pz] = W2(e.p.x, e.p.z); if (px < 0 || pz < 0 || px > size || pz > size) continue; x.fillStyle = e.dwn ? '#ffb020' : col(team); x.globalAlpha = ps && e.sqd === ps ? 1 : .55; x.beginPath(); x.arc(px, pz, ps && e.sqd === ps ? 2.6 : 1.8, 0, 6.283); x.fill(); x.globalAlpha = 1; }
+  const ps = pl && pl.sqd; for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; if (e.dead || e.team !== team || e.isPlayer) continue; const [px, pz] = W2(e.p.x, e.p.z); if (px < 0 || pz < 0 || px > size || pz > size) continue; x.fillStyle = e.dwn ? '#ffb020' : col(team); x.globalAlpha = ps && e.sqd === ps ? 1 : .55; x.beginPath(); x.arc(px, pz, ps && e.sqd === ps ? 2.6 : 1.8, 0, 6.283); x.fill(); x.globalAlpha = 1; }
   x.save(); x.translate(size / 2, size / 2); x.rotate(-P.aim + Math.PI); x.fillStyle = '#fff'; x.strokeStyle = '#000'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(0, -7); x.lineTo(5, 5); x.lineTo(0, 2.5); x.lineTo(-5, 5); x.closePath(); x.fill(); x.stroke(); x.restore();
   x.fillStyle = '#ffffffaa'; x.font = '700 9px system-ui'; x.textAlign = 'center'; x.textBaseline = 'top'; x.fillText('N', size / 2, 3);
 }

@@ -9,6 +9,8 @@ const PERF = (() => {
   const iv = new Float32Array(N), up = new Float32Array(N), rd = new Float32Array(N), pr = new Float32Array(N);
   let n = 0, head = 0, last = 0, since = 0;
   const part = Object.create(null);                                                  // partes de la lógica: { suma, máx, n } desde el último informe
+  const tags = [];                                                                   // eventos recientes (explosión, humo, destrucción, reaparición…) para explicar un tirón
+  let gPrev = null;
   const spikes = [];                                                                 // últimos picos (> 33 ms): cuándo, cuánto y a qué se debió
   let tot = 0, over20 = 0, over33 = 0, over50 = 0, hidden = false, lowPower = false, started = 0;
   const pct = (a, len, p) => { if (!len) return 0; const b = Array.from(a.subarray(0, len)).sort((x, y) => x - y); return b[Math.min(len - 1, Math.floor(p * len))]; };
@@ -17,10 +19,17 @@ const PERF = (() => {
   function wrap(obj, key, name) {
     if (off || !obj || typeof obj[key] !== 'function' || obj[key].__perf) return;
     const f = obj[key], nm = name || key;
-    const w = function () { const t = performance.now(); try { return f.apply(this, arguments); } finally { const d = performance.now() - t, p = part[nm] || (part[nm] = { s: 0, m: 0, n: 0, f: 0 }); p.s += d; p.f += d; if (d > p.m) p.m = d; p.n++; } };
+    const w = function () { if (!DIAG.on) return f.apply(this, arguments); const t = performance.now(); try { return f.apply(this, arguments); } finally { const d = performance.now() - t, p = part[nm] || (part[nm] = { s: 0, m: 0, n: 0, f: 0 }); p.s += d; p.f += d; if (d > p.m) p.m = d; p.n++; } };
     w.__perf = 1; obj[key] = w;
   }
+  /* envuelve una función cualquiera (también las locales de otros archivos, vía su gancho) y acumula su coste en la misma tabla de partes */
+  function fn(f, nm) {
+    if (off || typeof f !== 'function' || f.__perf) return f;
+    const w = function () { if (!DIAG.on) return f.apply(this, arguments); const t = performance.now(); try { return f.apply(this, arguments); } finally { const d = performance.now() - t, p = part[nm] || (part[nm] = { s: 0, m: 0, n: 0, f: 0 }); p.s += d; p.f += d; if (d > p.m) p.m = d; p.n++; } };
+    w.__perf = 1; return w;
+  }
   /* se llama una vez por fotograma desde frame(): now = marca de rAF, u = ms de lógica, p = ms de preparación (luces, recorte por sectores), r = ms de dibujo en CPU */
+  function tag(nm) { if (off) return; const t = performance.now(); tags.push([t, nm]); if (tags.length > 40) tags.shift(); }
   function frame(now, u, p, r) {
     if (off) return;
     if (document.hidden) { hidden = true; last = 0; return; }
@@ -30,10 +39,14 @@ const PERF = (() => {
     iv[head] = d; up[head] = u; pr[head] = p; rd[head] = r; head = (head + 1) % N; if (n < N) n++;
     tot++; if (d > 20) over20++; if (d > 33.5) over33++; if (d > 50) over50++;
     let pmax = 0, pname = ''; for (const k in part) { if (part[k].f > pmax) { pmax = part[k].f; pname = k; } }
+    let gd = '';                                                                     // shaders / geometrías / texturas nuevos en la GPU desde el fotograma anterior (una subida o compilación en pleno juego es un tirón)
+    try { const i = renderer.info, g = [i.programs ? i.programs.length : 0, i.memory.geometries, i.memory.textures];
+      if (gPrev) { const dd = [g[0] - gPrev[0], g[1] - gPrev[1], g[2] - gPrev[2]]; if (dd[0] > 0 || dd[1] > 0 || dd[2] > 0) gd = (dd[0] > 0 ? ' +' + dd[0] + ' shader' : '') + (dd[1] > 0 ? ' +' + dd[1] + ' geom' : '') + (dd[2] > 0 ? ' +' + dd[2] + ' tex' : ''); } gPrev = g; } catch (e) { }
     if (d > 33.5 && now - started > 4000) {
       const work = u + p + r, resto = d - work;
       const causa = work > d * .6 ? (u > r + p ? 'lógica' + (pname ? ' (' + pname + ' ' + pmax.toFixed(1) + ' ms)' : '') : 'dibujo CPU') : resto > 12 ? 'GPU / basura / navegador' : 'mixto';
-      spikes.push({ t: (now - started) / 1000, d, u, p, r, causa }); if (spikes.length > 12) spikes.shift();
+      const tg = []; const t1 = performance.now(); for (const x of tags) if (t1 - x[0] < 1500) tg.push(x[1]); const ev = tg.length ? ' [' + Array.from(new Set(tg)).join(',') + ']' : '';
+      spikes.push({ t: (now - started) / 1000, d, u, p, r, causa: causa + gd + ev }); if (spikes.length > 12) spikes.shift();
     }
     for (const k in part) part[k].f = 0;
     since += d;
@@ -62,7 +75,7 @@ const PERF = (() => {
     const on = typeof DIAG !== 'undefined' && DIAG.on; el.style.display = on ? 'block' : 'none'; if (on) el.textContent = texto(false);
   }
   setInterval(pinta, 500);
-  return { frame, wrap, resumen, texto, informe: () => texto(false), reset, get activo() { return !off; }, partes: part, tirones: spikes };
+  return { frame, tag, wrap, fn, resumen, texto, informe: () => texto(false), reset, get activo() { return !off; }, partes: part, tirones: spikes };
 })();
 /* partes de la lógica que se miden por separado (se ve cuál se come el tiempo) */
 (() => {
@@ -117,5 +130,15 @@ const SOMBRA = (() => {
 (() => {
   if (/[?&]nohypot\b/.test(location.search)) return;
   const orig = Math.hypot;
-  Math.hypot = function (a, b, c) { return b !== undefined && c === undefined ? Math.sqrt(a * a + b * b) : orig.apply(Math, arguments); };
+  Math.hypot = function (a, b) { 'use strict'; if (arguments.length === 2) return Math.sqrt(a * a + b * b); return orig.apply(Math, arguments); };
+})();
+
+/* ganchos de medición en las funciones locales de partida.js y zombis.js */
+(() => {
+  if (!PERF.activo) return;
+  try { if (MX.perfHook) MX.perfHook(PERF.fn); if (MX.zom && MX.zom.perfHook) MX.zom.perfHook(PERF.fn); } catch (e) { }
+  for (const n of ['explode', 'popSmoke', 'destroyProp']) { try { const f = window[n]; if (typeof f === 'function') window[n] = function () { PERF.tag(n); return f.apply(this, arguments); }; } catch (e) { } }
+  for (const n of ['updateBullets', 'updateParts', 'updateCasings', 'updateMags', 'updateGrenades', 'updateSmoke', 'updateFlames', 'updateFires', 'updatePuddles', 'updateDebris', 'updateScorch', 'updatePicks', 'updateProps', 'popTick', 'loopTick', 'lightsSync']) {
+    try { if (typeof window[n] === 'function') window[n] = PERF.fn(window[n], n); } catch (e) { }
+  }
 })();

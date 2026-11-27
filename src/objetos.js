@@ -1147,11 +1147,19 @@
   OBJ.clearBuildings = function () { for (const b of OBJ.buildings.slice()) OBJ.removeBuilding(b); };
   OBJ.removeBuilding = function (b) { for (const p of b.props.slice()) if (!p.dead) { dropBoxes(p); scene.remove(p.g); const i = props.indexOf(p); if (i >= 0) props.splice(i, 1); AWAKE.delete(p); } scene.remove(b.group); const i = OBJ.buildings.indexOf(b); if (i >= 0) OBJ.buildings.splice(i, 1); };
   function buildingsTick(dt) {
+    const px = P.pos.x, pz = P.pos.z;
     for (const b of OBJ.buildings) {
+      if (b._idle) {                                                                 // edificio en reposo (techo entero, nadie dentro) y el jugador lejos: nada que actualizar
+        const dx = px - b.x, dz = pz - b.z; if (dx * dx + dz * dz > b._r2) continue; b._idle = false;
+      }
       b.inside = false;
       b.roofs.forEach((r, i) => { const inn = inRect(b, P.pos.x, P.pos.z, r.rect), tgt = inn ? 1 : 0; r.cut += (tgt - r.cut) * Math.min(1, dt * 7); if (Math.abs(r.cut - tgt) < .01) r.cut = tgt; r.g.visible = r.cut < .98; if (r.g.visible) r.slab.material.opacity = 1 - r.cut; if (i === 0 && inn) b.inside = true; });
       b.cut = b.roofs.length ? b.roofs[0].cut : 0; if (b.fascia) b.fascia.visible = b.cut < .5;
       for (const p of b.near) if (!p.dead) p.g.scale.y = 1 - .72 * b.cut;
+      if (!b.inside && b.cut === 0 && b.roofs.every(r => r.cut === 0)) {
+        if (b._r2 === undefined) { let m = 0; for (const r of b.roofs) for (const x of [r.rect.x0, r.rect.x1]) for (const z of [r.rect.z0, r.rect.z1]) m = Math.max(m, Math.hypot(x, z)); b._r2 = (m + 2) * (m + 2); }
+        b._idle = true;
+      }
     }
   }
   /* ---------- API para el generador de mapas (src/mapa.js, src/mapa_distrito.js) ----------

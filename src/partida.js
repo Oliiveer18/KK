@@ -49,7 +49,7 @@ function navResize(half) {                                                      
 }
 function buildDistrict() {                                                           // campaña sobre el distrito generado por MAPA (src/mapa.js + mapa_distrito.js)
   for (const o of OBST) { o.m.visible = false; const i = boxes.indexOf(o.bx); if (i >= 0) boxes.splice(i, 1); }
-  for (const p of props.slice()) { scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); }
+  for (let i_p = 0, A_p = props.slice(); i_p < A_p.length; i_p++) { const p = A_p[i_p]; scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); }
   props.length = 0; AWAKE.clear(); for (const tg of targets) scene.remove(tg.g); targets.length = 0;
   grid.visible = false;                                                             // la cuadrícula de referencia de la arena no se usa en el distrito
   const D = MAPA.build(MAPA.data[MX.dataId || 'M1']());
@@ -64,7 +64,7 @@ function buildMap() {
   if (MX.district) return buildDistrict();
   /* se aparta la arena original (mapa 1) y los blancos: aquí los rivales son los bots */
   for (const o of OBST) { o.m.visible = false; const i = boxes.indexOf(o.bx); if (i >= 0) boxes.splice(i, 1); }
-  for (const p of props.slice()) { scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); }
+  for (let i_p = 0, A_p = props.slice(); i_p < A_p.length; i_p++) { const p = A_p[i_p]; scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); }
   props.length = 0; AWAKE.clear(); for (const t of targets) scene.remove(t.g); targets.length = 0;
   WORLD.x = 49.6; WORLD.z = 29.6; border.scale.set(WORLD.x / 40, 1, WORLD.z / 40);
   /* suelo: bases, plaza central y carriles */
@@ -210,13 +210,16 @@ function nearestFree(c) {
   }
   return -1;
 }
-const AS = { g: new Float32Array(NV.n), par: new Int32Array(NV.n), st: new Uint8Array(NV.n), hf: [], hi: [] };
+const AS = { g: new Float32Array(NV.n), par: new Int32Array(NV.n), st: new Uint8Array(NV.n), hf: new Float64Array(1 << 16), hi: new Int32Array(1 << 16), hn: 0 };   // montículo en arrays tipados (crecen al doble si hace falta): sin basura por búsqueda
 let lastSearchMark = 0;
 const DX8 = [1, -1, 0, 0, 1, 1, -1, -1], DZ8 = [0, 0, 1, -1, 1, -1, 1, -1];
-function hpush(f, i) { const F = AS.hf, I = AS.hi; let k = F.length; F.push(f); I.push(i); while (k > 0) { const p = (k - 1) >> 1; if (F[p] <= f) break; F[k] = F[p]; I[k] = I[p]; k = p; } F[k] = f; I[k] = i; }
+function hpush(f, i) {
+  if (AS.hn >= AS.hf.length) { const nf = new Float64Array(AS.hf.length * 2); nf.set(AS.hf); AS.hf = nf; const ni = new Int32Array(AS.hi.length * 2); ni.set(AS.hi); AS.hi = ni; }
+  const F = AS.hf, I = AS.hi; let k = AS.hn++; while (k > 0) { const p = (k - 1) >> 1; if (F[p] <= f) break; F[k] = F[p]; I[k] = I[p]; k = p; } F[k] = f; I[k] = i;
+}
 function hpop() {
-  const F = AS.hf, I = AS.hi, top = I[0], lf = F.pop(), li = I.pop(), n = F.length;
-  if (n) { let k = 0; for (;;) { let c = 2 * k + 1; if (c >= n) break; if (c + 1 < n && F[c + 1] < F[c]) c++; if (F[c] >= lf) break; F[k] = F[c]; I[k] = I[c]; k = c; } F[k] = lf; I[k] = li; }
+  const F = AS.hf, I = AS.hi, top = I[0], n = --AS.hn;
+  if (n > 0) { const lf = F[n], li = I[n]; let k = 0; for (;;) { let c = 2 * k + 1; if (c >= n) break; if (c + 1 < n && F[c + 1] < F[c]) c++; if (F[c] >= lf) break; F[k] = F[c]; I[k] = I[c]; k = c; } F[k] = lf; I[k] = li; }
   return top;
 }
 function lineFree(a, b) {
@@ -224,17 +227,24 @@ function lineFree(a, b) {
   for (let i = 1; i < n; i++) { const t = i / n; if (!navAt(a.x + dx * t, a.z + dz * t)) return false; }
   return true;
 }
-function findPath(sx, sz, gx, gz) {
-  const s = nearestFree(cellOf(sx, sz)), g = nearestFree(cellOf(gx, gz)); if (s < 0 || g < 0) return null;
-  const W_ = NV.w, gcx = g % W_, gcz = (g / W_) | 0;
+/* A* en dos tiempos: jobInit prepara la búsqueda, jobRun la avanza (hasta un instante límite) y jobFinish construye el camino. findPath (síncrona) las ejecuta de golpe;
+   las rutas de bots, zombis y hordas van por una cola (pathAsync) y se reparten el tiempo de cada fotograma (pathPump: ~2,5 ms en total), así que una ruta larga (hasta 22.000 nodos,
+   12–14 ms en el PC, el triple en el móvil) deja de ser un tirón: se resuelve en varios fotogramas. Sólo hay una búsqueda activa a la vez (comparten los buffers AS). */
+function jobInit(j) {
+  const s = nearestFree(cellOf(j.sx, j.sz)), g = nearestFree(cellOf(j.gx, j.gz)); if (s < 0 || g < 0) { j.done = true; j.res = null; return; }
+  const W_ = NV.w; j.g = g; j.gcx = g % W_; j.gcz = (g / W_) | 0;
   // Dos marcas por búsqueda (abierto y cerrado). Al agotar el byte se limpia una vez.
   if (MX.dataId!=='M2' || lastSearchMark>=253) { AS.st.fill(0); lastSearchMark=0; }
-  const openMark=lastSearchMark+1, closedMark=openMark+1;
-  lastSearchMark=closedMark;
-  AS.hf.length = 0; AS.hi.length = 0; AS.g[s] = 0; AS.st[s] = openMark; AS.par[s] = -1; hpush(0, s); let found = false, expanded = 0, best = s, bestH = 1e9, goalC = g;   // tope de nodos: en un mapa de 1 km² una ruta larga no puede congelar el juego
-  while (AS.hi.length) {
-    const c = hpop(); if (AS.st[c] === closedMark) continue; AS.st[c] = closedMark; if (c === g) { found = true; break; }
-    { const hx = Math.abs(c % W_ - gcx), hz = Math.abs(((c / W_) | 0) - gcz), hh = Math.max(hx, hz) + .414 * Math.min(hx, hz); if (hh < bestH) { bestH = hh; best = c; } if (++expanded > 22000) { goalC = best; found = true; break; } }
+  j.openMark = lastSearchMark + 1; j.closedMark = j.openMark + 1; lastSearchMark = j.closedMark;
+  AS.hn = 0; AS.g[s] = 0; AS.st[s] = j.openMark; AS.par[s] = -1; hpush(0, s);
+  j.found = false; j.expanded = 0; j.best = s; j.bestH = 1e9; j.goalC = g; j.started = true;   // tope de nodos: en un mapa de 1 km² una ruta larga no puede congelar el juego
+}
+function jobRun(j, tEnd) {                                                           // true al terminar; false si se acaba el tiempo (se continúa en el siguiente fotograma)
+  const W_ = NV.w, gcx = j.gcx, gcz = j.gcz, openMark = j.openMark, closedMark = j.closedMark, g = j.g; let n = 0;
+  while (AS.hn > 0) {
+    if ((++n & 127) === 0 && tEnd < 1e12 && performance.now() > tEnd) return false;
+    const c = hpop(); if (AS.st[c] === closedMark) continue; AS.st[c] = closedMark; if (c === g) { j.found = true; break; }
+    { const hx = Math.abs(c % W_ - gcx), hz = Math.abs(((c / W_) | 0) - gcz), hh = Math.max(hx, hz) + .414 * Math.min(hx, hz); if (hh < j.bestH) { j.bestH = hh; j.best = c; } if (++j.expanded > 22000) { j.goalC = j.best; j.found = true; break; } }
     const cx = c % W_, cz = (c / W_) | 0;
     for (let k = 0; k < 8; k++) {
       const nx = cx + DX8[k], nz = cz + DZ8[k]; if (nx < 0 || nz < 0 || nx >= W_ || nz >= NV.h) continue;
@@ -244,19 +254,39 @@ function findPath(sx, sz, gx, gz) {
       if (AS.st[ni] !== openMark || ng < AS.g[ni]) { AS.g[ni] = ng; AS.par[ni] = c; AS.st[ni] = openMark; const ex = Math.abs(nx - gcx), ez = Math.abs(nz - gcz); hpush(ng + Math.max(ex, ez) + .414 * Math.min(ex, ez), ni); }
     }
   }
-  if (!found) return null;
-  const pts = []; for (let c = goalC; c !== -1; c = AS.par[c]) pts.push({ x: NV.ox + (c % W_ + .5) * NV.cs, z: NV.oz + (((c / W_) | 0) + .5) * NV.cs });
-  pts.reverse(); pts[0] = { x: sx, z: sz }; if (goalC === g && navAt(gx, gz)) pts[pts.length - 1] = { x: gx, z: gz };
-  const out = []; let i = 0;                                                         // se alisa el camino: se salta a la waypoint más lejana con línea libre
-  while (i < pts.length - 1) { let j = pts.length - 1; while (j > i + 1 && !lineFree(pts[i], pts[j])) j--; out.push(pts[j]); i = j; }
-  return out.length ? out : [{ x: gx, z: gz }];
+  j.done = true; return true;
 }
+function jobFinish(j) {
+  if (j.res !== undefined) return j.res;
+  if (!j.found) return j.res = null;
+  const W_ = NV.w, sx = j.sx, sz = j.sz, gx = j.gx, gz = j.gz, goalC = j.goalC;
+  const pts = []; for (let c = goalC; c !== -1; c = AS.par[c]) pts.push({ x: NV.ox + (c % W_ + .5) * NV.cs, z: NV.oz + (((c / W_) | 0) + .5) * NV.cs });
+  pts.reverse(); pts[0] = { x: sx, z: sz }; if (goalC === j.g && navAt(gx, gz)) pts[pts.length - 1] = { x: gx, z: gz };
+  const out = []; let i = 0;                                                         // se alisa el camino: se salta a la waypoint más lejana con línea libre
+  while (i < pts.length - 1) { let k = pts.length - 1; while (k > i + 1 && !lineFree(pts[i], pts[k])) k--; out.push(pts[k]); i = k; }
+  return j.res = out.length ? out : [{ x: gx, z: gz }];
+}
+const JQ = []; let JOB = null;
+function findPath(sx, sz, gx, gz) {
+  if (JOB) { JOB.started = false; JQ.unshift(JOB); JOB = null; }                  // una búsqueda a medias se reanuda desde cero después (comparten buffers)
+  const j = { sx, sz, gx, gz }; jobInit(j); if (!j.done) jobRun(j, 1e13); return j.res === undefined ? jobFinish(j) : j.res;
+}
+MX.pathAsync = (sx, sz, gx, gz, cb, valid) => { if (JQ.length >= 48) return false; JQ.push({ sx, sz, gx, gz, cb, valid }); return true; };   // cb(camino | null); cb(undefined) si ya no hacía falta (valid() falso)
+MX.pathPump = ms => {
+  const tEnd = performance.now() + ms; let guard = 0;
+  while (guard++ < 64) {
+    if (!JOB) { JOB = JQ.shift(); if (!JOB) return; if (JOB.valid && !JOB.valid()) { const cb = JOB.cb; JOB = null; cb(undefined); continue; } if (!JOB.started) jobInit(JOB); }
+    if (!JOB.done && !jobRun(JOB, tEnd)) return;
+    const j = JOB; JOB = null; j.cb(jobFinish(j));
+    if (performance.now() >= tEnd) return;
+  }
+};
 MX.refill = () => refillAll(); MX.syncKit = e => syncKit(e); MX.findPath = findPath; MX.navAt = navAt; MX.lineFree = lineFree; MX.HOT = HOT; MX.coverPoint = (e, tx, tz) => coverPoint(e, tx, tz); MX.segClear = (...a) => segClear(...a);   // para escuadras.js
 
 /* ---- visibilidad: línea libre entre dos puntos (ignorando, si se pide, los objetos bajos: se ve por encima de ellos) y humo ---- */
 function segClear(ax, az, bx, bz, ign1, ign2, lowIgnore) {
   const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz); if (L < 1e-4) return true; const ux = dx / L, uz = dz / L;
-  for (const b of boxesIn(ax, az, bx, bz)) {
+  for (let i_b = 0, A_b = boxesIn(ax, az, bx, bz); i_b < A_b.length; i_b++) { const b = A_b[i_b];
     if (b.prop && ((b.prop === ign1 && coverPass(b.prop, ax, az, ux, uz, true)) || b.prop === ign2)) continue;   // su propia cobertura (tras un parapeto, se levantará para disparar)
     if (lowIgnore && b.prop && (b.prop.h <= .95 || isParapet(b.prop))) continue;   // se ve por encima de lo bajo y de los parapetos (a quien está agachado tras uno lo oculta hiddenBehind)
     const r = rayBox2(ax, az, ux, uz, b); if (r && r[0] < L) return false;
@@ -274,7 +304,7 @@ function smokeBlock(ax, az, bx, bz) {
 }
 function wallBetween(ax, az, bx, bz) {
   const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz); if (L < 1e-4) return false; const ux = dx / L, uz = dz / L;
-  for (const b of boxesIn(ax, az, bx, bz)) { if (!b.wall || b.prop) continue; const r = rayBox2(ax, az, ux, uz, b); if (r && r[0] < L) return true; }   // muros y árboles del mapa (M.walls), por el índice espacial
+  for (let i_b = 0, A_b = boxesIn(ax, az, bx, bz); i_b < A_b.length; i_b++) { const b = A_b[i_b]; if (!b.wall || b.prop) continue; const r = rayBox2(ax, az, ux, uz, b); if (r && r[0] < L) return true; }   // muros y árboles del mapa (M.walls), por el índice espacial
   return false;
 }
 
@@ -367,6 +397,11 @@ function poseBot(e, dt) {
     setLimb(R.upper[i], _shd[i], IKO.mid); setLimb(R.fore[i], IKO.mid, IKO.end); R.hand[i].position.copy(IKO.end); R.shoulder[i].position.copy(_shd[i]);
   }
 }
+MX.perfHook = w => {                                                                  // medición (src/rendimiento.js): coste de las partes locales de este archivo
+  sightUpdate = w(sightUpdate, 'sightUpdate'); refreshNav = w(refreshNav, 'refreshNav'); armoryTick = w(armoryTick, 'armoryTick'); botTick = w(botTick, 'botTick'); respawn = w(respawn, 'respawn'); kill = w(kill, 'kill');
+  poseBot = w(poseBot, 'poseBot'); findPath = w(findPath, 'findPath'); perceive = w(perceive, 'perceive');
+  const rs = respawn, kl = kill; respawn = function () { PERF.tag('reaparece'); return rs.apply(this, arguments); }; kill = function () { PERF.tag('baja'); return kl.apply(this, arguments); };
+};
 MX.poseBot = poseBot;
 function bake(e, dx, dz) {                                                           // al morir, el cuerpo cae como un bloque alrededor de los pies
   const r = e.root, px = e.p.x, pz = e.p.z; r.position.set(px, 0, pz);
@@ -439,7 +474,7 @@ function perceive(e) {
     if (!segClear(e.p.x, e.p.z, o.p.x, o.p.z, null, null, true) || smokeBlock(e.p.x, e.p.z, o.p.x, o.p.z)) continue;
     if (d + 2 < bs) { bs = d + 2; best = o; }
   }
-  for (const o of M.ents) {
+  for (let i_o = 0; i_o < M.ents.length; i_o++) { const o = M.ents[i_o];
     if (o.dead || o.team === e.team || o.inv > 0) continue;
     const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.hypot(dx, dz); if (!inSight(e, dx, dz)) continue;
     if (!segClear(e.p.x, e.p.z, o.p.x, o.p.z, null, null, true) || smokeBlock(e.p.x, e.p.z, o.p.x, o.p.z) || hiddenBehind(o, e.p.x, e.p.z)) continue;
@@ -465,7 +500,7 @@ function dangerVec(e) {
 }
 function coverPoint(e, tx, tz) {                                                    // punto junto a un objeto desde el que la amenaza no tiene línea de tiro
   let best = null, bs = 1e9; const list = [];
-  for (const b of boxesIn(e.p.x - 17, e.p.z - 17, e.p.x + 17, e.p.z + 17)) { const p = b.prop; if (p) { if (!p.dead && !p.explosive && p.box === b) list.push(p); } else if (b.wall) list.push(b); }   // sólo lo cercano (índice espacial)
+  for (let i_b = 0, A_b = boxesIn(e.p.x - 17, e.p.z - 17, e.p.x + 17, e.p.z + 17); i_b < A_b.length; i_b++) { const b = A_b[i_b]; const p = b.prop; if (p) { if (!p.dead && !p.explosive && p.box === b) list.push(p); } else if (b.wall) list.push(b); }   // sólo lo cercano (índice espacial)
   for (const c of list) {
     if (Math.hypot(c.x - e.p.x, c.z - e.p.z) > 17) continue;
     const pts = DIRS4.map(([sx, sz]) => [c.x + sx * (c.hx + .85), c.z + sz * (c.hz + .85)]);
@@ -504,7 +539,7 @@ function squadSync(e) {                                                         
 function squadAlert(e, seen) {                                                       // un miembro ve un enemigo: avisa a los de su escuadra que no lo ven
   if (MX.SQ && e.sqd) { MX.SQ.contact(e, seen); return; }                             // campaña: la escuadra toma posiciones de apoyo (escuadras.js), no corre hacia el enemigo
   if (M.t - (e.sqAlert || -9) < 1.5) return; e.sqAlert = M.t;
-  for (const o of M.ents) {
+  for (let i_o = 0; i_o < M.ents.length; i_o++) { const o = M.ents[i_o];
     if (o === e || o.dead || o.dwn || o.isPlayer || o.team !== e.team || o.sq !== e.sq || o.vis || o.st === 'cover' || M.t - o.alertT < 3) continue;
     if (Math.hypot(o.p.x - e.p.x, o.p.z - e.p.z) > 25) continue;                          // alcance de la radio de escuadra
     o.alertT = M.t; o.ls.x = seen.p.x; o.ls.z = seen.p.z; o.st = 'search'; o.searchStart = M.t; setGoal(o, o.ls.x, o.ls.z);
@@ -520,9 +555,13 @@ function pickGoal(e) {
 }
 function steerPath(e) {
   if (!e.goal) return 'none';
-  if (e.needPath) {
-    if (M.budget <= 0) return 'wait';
-    M.budget--; e.needPath = false; e.pathT = M.t; e.path = findPath(e.p.x, e.p.z, e.goal.x, e.goal.z); e.pi = 0; if (!e.path) { e.goal = null; return 'none'; }
+  if (e.needPath || e.pj) {                                                          // ruta por la cola con reparto de tiempo (MX.pathAsync): mientras llega, sigue la anterior si la tiene
+    if (!e.pj) {
+      const gx = e.goal.x, gz = e.goal.z;
+      if (MX.pathAsync(e.p.x, e.p.z, gx, gz, path => { e.pj = false; if (path !== undefined && !e.needPath && e.goal && e.goal.x === gx && e.goal.z === gz) { e.path = path; e.pi = 0; e.pathT = M.t; if (!path) e.goal = null; } },
+        () => !e.dead && e.goal && e.goal.x === gx && e.goal.z === gz)) { e.pj = true; e.needPath = false; e.pathT = M.t; } else return 'wait';
+    }
+    if (!e.path) return 'wait';
   }
   if (!e.path) return 'none';
   while (e.pi < e.path.length) {
@@ -534,7 +573,7 @@ function steerPath(e) {
 function think(e) {
   const df = DIFFS[M.diff];
   let cv = null, bd = 9;                                                             // cobertura baja pegada (se dispara por encima, como el jugador)
-  for (const b of boxesIn(e.p.x - 1.5, e.p.z - 1.5, e.p.x + 1.5, e.p.z + 1.5)) { const p = b.prop; if (!p || p.box !== b || p.dead || !lowCoverAt(p, e.p.x, e.p.z)) continue; const dx = Math.max(Math.abs(e.p.x - p.x) - p.hx, 0), dz = Math.max(Math.abs(e.p.z - p.z) - p.hz, 0), d = Math.hypot(dx, dz); if (d < (p === e.cover ? 1 : .8) && d < bd) { bd = d; cv = p; } }
+  for (let i_b = 0, A_b = boxesIn(e.p.x - 1.5, e.p.z - 1.5, e.p.x + 1.5, e.p.z + 1.5); i_b < A_b.length; i_b++) { const b = A_b[i_b]; const p = b.prop; if (!p || p.box !== b || p.dead || !lowCoverAt(p, e.p.x, e.p.z)) continue; const dx = Math.max(Math.abs(e.p.x - p.x) - p.hx, 0), dz = Math.max(Math.abs(e.p.z - p.z) - p.hz, 0), d = Math.hypot(dx, dz); if (d < (p === e.cover ? 1 : .8) && d < bd) { bd = d; cv = p; } }
   e.cover = cv; e.flee = dangerVec(e);
   const seen = perceive(e);
   if (MX.campaign) { e.syncT = (e.syncT || 0) - .13; if (e.syncT <= 0) { e.syncT = 1 + rnd() * .5; squadSync(e); } if (seen && seen.p && (!e.vis || e.tgt !== seen)) squadAlert(e, seen); }      // se avisa sólo cuando el bot VE al enemigo por primera vez (o a uno nuevo), no con seguimiento continuo
@@ -692,7 +731,7 @@ function moveBot(e, dt) {
   else if (l <= step) { e.v.x = tx; e.v.z = tz; } else { e.v.x += ax / l * step; e.v.z += az / l * step; }
   e.p.x += e.v.x * dt; e.p.z += e.v.z * dt; collide(e.p, .38, 2.6);
   const SEP = MX.campaign ? 1.7 : .85;                                               // espacio personal: en campaña nadie se pega a un compañero (no ir en piña)
-  for (const o of M.ents) {                                                          // separación blanda entre personajes
+  for (let i_o = 0; i_o < M.ents.length; i_o++) { const o = M.ents[i_o];                                                          // separación blanda entre personajes
     if (o === e || o.dead) continue; const ox = e.p.x - o.p.x, oz = e.p.z - o.p.z, od = Math.hypot(ox, oz);
     if (od < .85 && od > 1e-3) { const k = (.85 - od) * .5; e.p.x += ox / od * k; e.p.z += oz / od * k; }
     else if (od < SEP && od > 1e-3 && o.team === e.team && !e.rt) { const k = (SEP - od) * 1.2 * dt; if (navAt(e.p.x + ox / od * .5, e.p.z + oz / od * .5)) { e.p.x += ox / od * k; e.p.z += oz / od * k; } }
@@ -730,7 +769,7 @@ function botTick(e, dt) {
 function pickSpawn(team) {
   const c = M.spawn[team].map(s => {
     let dng = rnd() * .15;
-    for (const o of M.ents) { if (o.dead) continue; const d = Math.hypot(o.p.x - s.x, o.p.z - s.z); if (o.team !== team) dng += 1 / (1 + d * d * .01); else if (d < 1.2) dng += 5; }
+    for (let i_o = 0; i_o < M.ents.length; i_o++) { const o = M.ents[i_o]; if (o.dead) continue; const d = Math.hypot(o.p.x - s.x, o.p.z - s.z); if (o.team !== team) dng += 1 / (1 + d * d * .01); else if (d < 1.2) dng += 5; }
     return { s, dng };
   }).sort((a, b) => a.dng - b.dng);
   return c[0].s;
@@ -758,7 +797,7 @@ function respawnPlayer(e) {
 }
 function playerCorpse(dx, dz) {
   const grp = new THREE.Group(); grp.position.set(P.pos.x, 0, P.pos.z); scene.add(grp);
-  for (const m of playerBodyMeshes) { const c = m.clone(true); c.position.sub(grp.position); c.castShadow = true; grp.add(c); }
+  for (let i_m = 0; i_m < playerBodyMeshes.length; i_m++) { const m = playerBodyMeshes[i_m]; const c = m.clone(true); c.position.sub(grp.position); c.castShadow = true; grp.add(c); }
   const l = Math.hypot(dx, dz) || 1; grp.userData.ax = new V3(dz / l, 0, -dx / l); grp.userData.t = 0; corpseP = grp;
 }
 function regen(e, dt) {                                                              // tras 5 s sin daño: primero se recarga el escudo y después la vida
@@ -855,7 +894,7 @@ const _kp = new V3(), _kv = new V3();
 MX.explosion = (p, R, sc, own) => {
   if (MX.zom) MX.zom.blast(p, R, own === undefined ? null : (own || MX.pl));
   const killer = own === undefined ? null : (own || MX.pl);
-  for (const e of M.ents) {
+  for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e];
     if (e.dead || e.inv > 0) continue; const dx = e.p.x - p.x, dz = e.p.z - p.z, d = Math.hypot(dx, dz); if (d >= R) continue;
     let dmg = 150 * sc * (1 - d / R); if (wallBetween(p.x, p.z, e.p.x, e.p.z)) dmg *= .15; if (dmg < 1) continue;
     if (!e.isPlayer) { e.v.x += dx / (d || 1) * 6; e.v.z += dz / (d || 1) * 6; }
@@ -989,8 +1028,8 @@ MX.restart = () => {
   if (!M.over) return; if (MX.campaign) { location.reload(); return; }   // campaña: partida nueva clearFeed(); M.over = false; M.win = -1; M.score = [0, 0]; endEl.style.display = 'none';
   for (const p of M.props.slice()) { scene.remove(p.g); const i = boxes.indexOf(p.box); if (i >= 0) boxes.splice(i, 1); const j = props.indexOf(p); if (j >= 0) props.splice(j, 1); AWAKE.delete(p); } M.props.length = 0; M.propQ.length = 0;
   for (const s of M.specs) placeProp(s, false);
-  clouds.length = 0; FIRES.length = 0; for (const g of grens) { g.on = false; g.m.visible = false; } for (const b of BUL) { b.on = false; b.m.visible = false; }
-  for (const e of M.ents) { e.kills = e.deaths = 0; e.dead = true; respawn(e); } navBuild();
+  clouds.length = 0; FIRES.length = 0; for (let i_g = 0; i_g < grens.length; i_g++) { const g = grens[i_g]; g.on = false; g.m.visible = false; } for (const b of BUL) { b.on = false; b.m.visible = false; }
+  for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; e.kills = e.deaths = 0; e.dead = true; respawn(e); } navBuild();
 };
 
 /* ============================ ARRANQUE Y BUCLE ============================ */
@@ -1013,12 +1052,13 @@ MX.start = () => {
 };
 MX.placeBars = () => {                                                              // se llama tras mover la cámara: así la barra no se retrasa un fotograma respecto al personaje
   camera.updateMatrixWorld();
-  for (const e of M.ents) { if (e.isPlayer || !e.barOn) continue; const hp = e.R.head.position; _kp.set(hp.x, hp.y + .13 + .5, hp.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight); }   // base de la barra 0,5 m sobre la coronilla (igual que los zombis)
+  for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; if (e.isPlayer || !e.barOn) continue; const hp = e.R.head.position; _kp.set(hp.x, hp.y + .13 + .5, hp.z).project(camera); placeBar(e.bar, (_kp.x * .5 + .5) * innerWidth, (-_kp.y * .5 + .5) * innerHeight); }   // base de la barra 0,5 m sobre la coronilla (igual que los zombis)
 };
 MX.update = dt => {
   SIGHT.t -= dt; if (SIGHT.t <= 0) { SIGHT.t = .5; sightUpdate(); }
   if (!M.built) return; dt = Math.min(dt, .05); M.t += dt; M.budget = 2;
   M.navT -= dt; if (M.navT <= 0) { M.navT = .5; refreshNav(); }
+  MX.pathPump(2.5);                                                                  // rutas pendientes: ~2,5 ms por fotograma en total
   for (let i = M.propQ.length - 1; i >= 0; i--) { const q = M.propQ[i]; if (M.t >= q.t) { if (placeProp(q.spec, true)) M.propQ.splice(i, 1); else q.t = M.t + 4; } }
   armoryTick(dt);
   if (MX.campaign) INVENTARIO.tick(dt);
@@ -1046,7 +1086,7 @@ MX.update = dt => {
   }
   mxMsg.textContent = msg; mxMsg.style.display = msg ? 'block' : 'none'; MX.rev = false;
   MX.foes.length = 0;
-  for (const e of M.ents) {
+  for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e];
     if (e.isPlayer) continue;
     if (e.dead) {
       e.respT -= dt; e.deadT += dt; const k = smooth(e.deadT / .55); e.root.quaternion.setFromAxisAngle(e.fallAx, k * 1.45); e.root.position.y = -smooth((e.deadT - 2.3) / .7) * .6;
