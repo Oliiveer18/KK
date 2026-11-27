@@ -2135,8 +2135,8 @@ function update(dt) {
     const [lx, ly, lm] = stick(g.axes[axi('lx', 0)] || 0, g.axes[axi('ly', 1)] || 0, .14);
     if (lm > 0) { mx = lx; mz = ly; mode = 'pad'; }
     const [rx, ry, rm] = stick(g.axes[axi('rx', 2)] || 0, g.axes[axi('ry', std ? 3 : 5)] || 0, .2);
-    rawX = rx; rawY = ry;
-    if (rm > 0.02) { ax = rx; ay = ry; stickAim = rm; mode = 'pad'; }
+    rawX = rx; rawY = ry; MX.rs = [rx, ry, rm];                                       // MX.rs: stick derecho (la rueda de formaciones lo lee)
+    if (rm > 0.02 && !MX.wheelOpen) { ax = rx; ay = ry; stickAim = rm; mode = 'pad'; }   // con la rueda abierta, R3 elige y no gira la cámara
     const down = k => !!(g.buttons[k] && (g.buttons[k].pressed || g.buttons[k].value > .3)), edge = k => down(k) && !prevBtn[k];
     if (down(BIND.reload)) MX.rev = true;                          // □ (o el botón de recargar): mantener = reanimar a un aliado, o reaparecer si estás abatido (campaña)
     const tv = k => (g.buttons[k] ? g.buttons[k].value || (g.buttons[k].pressed ? 1 : 0) : 0);   // gatillos analógicos: umbral según el arma
@@ -6726,10 +6726,10 @@ MX.update = dt => {
 (function () {
 const M = MX.M, MAXZ = 2200, RMAX = 240, VIEW_R = 46, NEAR_R = 75;        // MAXZ: simulados; RMAX: dibujados a la vez (los más cercanos a la cámara, dentro de VIEW_R); NEAR_R: simulación completa cerca de un combatiente
 const TY = {
-  walker:   { hp: 70,  sc: 1,    dmg: 15, atkCd: .95, roam: .9,  chase: 2.8, sight: 17, lean: .5,  arm: -1.15, hs: 1,    tw: 1,   r: .42 },
-  runner:   { hp: 45,  sc: .96,  dmg: 10, atkCd: .6,  roam: 1.2, chase: 5.6, sight: 22, lean: .62, arm: -.5,   hs: .95,  tw: .9,  r: .38 },
-  brute:    { hp: 380, sc: 1.32, dmg: 44, atkCd: 1.5, roam: 1.0, chase: 2.3, sight: 16, lean: .2,  arm: -.95,  hs: 1.3,  tw: 1.35, r: .62 },
-  screamer: { hp: 60,  sc: 1,    dmg: 6,  atkCd: 1.0, roam: 1.0, chase: 2.3, sight: 15, lean: .08, arm: -.9,   hs: 1.25, tw: .92, r: .4 }
+  walker:   { hp: 90,  sc: 1,    dmg: 15, atkCd: .95, roam: .9,  chase: 2.8, sight: 17, lean: .5,  arm: -1.15, hs: 1,    tw: 1,   r: .42 },
+  runner:   { hp: 58,  sc: .96,  dmg: 10, atkCd: .6,  roam: 1.2, chase: 5.6, sight: 22, lean: .62, arm: -.5,   hs: .95,  tw: .9,  r: .38 },
+  brute:    { hp: 460, sc: 1.32, dmg: 44, atkCd: 1.5, roam: 1.0, chase: 2.3, sight: 16, lean: .2,  arm: -.95,  hs: 1.3,  tw: 1.35, r: .62 },
+  screamer: { hp: 78,  sc: 1,    dmg: 6,  atkCd: 1.0, roam: 1.0, chase: 2.3, sight: 15, lean: .08, arm: -.9,   hs: 1.25, tw: .92, r: .4 }
 };
 const NOISE_R = { P1: 30, P2: 40, S1: 35, S2: 38, F1: 45, F2: 60, E1: 50, E2: 50, H1: 52, H2: 68 };   // ×1,25: los disparos se oyen más lejos
 const rnd = Math.random, rr = (a, b) => a + (b - a) * rnd();
@@ -7543,6 +7543,42 @@ function formPoint(s, e, base, face, spread) {
 }
 /* ponerse al día: el jugador corre a 8,2 m/s y hace dash (17 m/s × 0,18 s cada 0,9 s). Los seguidores igualan su velocidad (hasta 9,4 m/s) y, si van a más de 16 m de su puesto, encadenan dashes
    (catchUp → partida.js) cada ~1,2 s por el camino libre, sin romper el que tengan que hacer para cubrirse. */
+const FORM_LIST = ['auto', 'wedge', 'line', 'column', 'ring'];
+function setFormation(s, pref) { s.formPref = pref; s._fkT = undefined; showFormPreview(s); for (const m of s.members) if (m.bot) { m.goal = null; m.path = null; } }
+/* ---- RUEDA DE FORMACIONES (mantén ▼ en la cruceta): aparece en el centro con las 5 formaciones (croquis de cada una); R3 (stick derecho) apunta a una, ◀ ▶ también las cambian; al soltar ▼ se
+   aplica (y sale la vista previa). Mientras está abierta el stick derecho no mueve la cámara. ---- */
+const WHEEL = { on: false, sel: 0, el: null, items: [] };
+const WNAME = { auto: 'Auto', wedge: 'Cuña', line: 'Línea', column: 'Columna', ring: 'Círculo' };
+function wheelIcon(kind) {
+  const c = document.createElement('canvas'); c.width = c.height = 96; const x = c.getContext('2d'), W = 96;
+  if (kind === 'auto') { x.strokeStyle = '#7cc4ff'; x.lineWidth = 4; x.beginPath(); x.arc(W / 2, W / 2, 24, 0.4, 5.6); x.stroke(); x.fillStyle = '#7cc4ff'; x.beginPath(); x.moveTo(W / 2 + 24, W / 2 - 14); x.lineTo(W / 2 + 36, W / 2 + 2); x.lineTo(W / 2 + 14, W / 2 + 2); x.fill(); x.font = '800 22px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('A', W / 2, W / 2 + 1); return c; }
+  const offs = slotOffsets(kind, 4), ext = Math.max(8, Math.max.apply(null, offs.map(o => Math.hypot(o[0], o[1])))) + 3, sc = W / 2 / ext;
+  x.strokeStyle = '#ffffff22'; x.lineWidth = 1.5; for (const o of offs) { x.beginPath(); x.moveTo(W / 2, W / 2); x.lineTo(W / 2 + o[0] * sc, W / 2 - o[1] * sc); x.stroke(); }
+  x.fillStyle = '#e8f0ff'; for (const o of offs) { x.beginPath(); x.arc(W / 2 + o[0] * sc, W / 2 - o[1] * sc, 7, 0, 6.283); x.fill(); }
+  x.fillStyle = '#7cc4ff'; x.beginPath(); x.moveTo(W / 2, W / 2 - 11); x.lineTo(W / 2 + 8, W / 2 + 8); x.lineTo(W / 2, W / 2 + 3); x.lineTo(W / 2 - 8, W / 2 + 8); x.closePath(); x.fill(); return c;
+}
+{ const st = document.createElement('style'); st.textContent = `
+#sqWheel{position:fixed;left:50%;top:50%;width:340px;height:340px;margin:-170px 0 0 -170px;z-index:15;display:none;opacity:0;pointer-events:none;transition:opacity .12s;font:600 12px system-ui,-apple-system,sans-serif;color:#e9eef7}
+#sqWheel.on{opacity:1}
+#sqWheel .bg{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,#0f1520f0 0 38%,#141c29d8 39% 100%);border:1px solid #33425c;box-shadow:0 18px 50px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06)}
+#sqWheel .it{position:absolute;width:84px;height:84px;margin:-42px 0 0 -42px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#141b27;border:2px solid #2a3750;transition:transform .1s,border-color .1s,background .1s}
+#sqWheel .it canvas{width:46px;height:46px}#sqWheel .it span{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#9fb0cc;margin-top:1px}
+#sqWheel .it.sel{transform:scale(1.18);border-color:#7cc4ff;background:linear-gradient(180deg,#1f3a5c,#173050);box-shadow:0 0 0 4px rgba(124,196,255,.2)}#sqWheel .it.sel span{color:#fff}#sqWheel .it.cur::after{content:'';position:absolute;right:10px;top:10px;width:8px;height:8px;border-radius:50%;background:#4ee08a}
+#sqWheel .ct{position:absolute;left:50%;top:50%;width:132px;margin:-46px 0 0 -66px;text-align:center}#sqWheel .ct small{display:block;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#7e8fb0}#sqWheel .ct b{display:block;font-size:18px;color:#fff;margin:2px 0}#sqWheel .ct em{display:block;font-style:normal;font-size:10px;line-height:1.3;color:#9fb0cc}`; document.head.appendChild(st); }
+function openWheel() {
+  const s = MX.pl && MX.pl.sqd; if (!s || !s.playerLead) return toast('No tienes el mando de tu escuadra (Mochila → Escuadra → Tomar el mando)');
+  if (!WHEEL.el) { const el = WHEEL.el = document.createElement('div'); el.id = 'sqWheel'; el.innerHTML = '<div class="bg"></div><div class="ct"><small>Formación</small><b></b><em></em></div>'; document.body.appendChild(el);
+    FORM_LIST.forEach((k, i) => { const a = i / 5 * Math.PI * 2, it = document.createElement('div'); it.className = 'it'; it.style.left = (170 + Math.sin(a) * 120) + 'px'; it.style.top = (170 - Math.cos(a) * 120) + 'px'; it.appendChild(wheelIcon(k)); const sp = document.createElement('span'); sp.textContent = WNAME[k]; it.appendChild(sp); el.appendChild(it); WHEEL.items.push(it); }); }
+  WHEEL.on = true; MX.wheelOpen = true; WHEEL.sel = Math.max(0, FORM_LIST.indexOf(s.formPref || 'auto')); WHEEL.cur = WHEEL.sel; WHEEL.el.style.display = 'block'; void WHEEL.el.offsetWidth; WHEEL.el.classList.add('on'); wheelPaint(); padHide(); SQ.padOpenT = -99;
+}
+function wheelPaint() { WHEEL.items.forEach((it, i) => { it.classList.toggle('sel', i === WHEEL.sel); it.classList.toggle('cur', i === WHEEL.cur); }); const k = FORM_LIST[WHEEL.sel], e = WHEEL.el.querySelector('.ct'); e.querySelector('b').textContent = WNAME[k]; e.querySelector('em').textContent = FORM_DESC[k] + ' · suelta ▼ para aplicar'; }
+function closeWheel(apply) {
+  if (!WHEEL.on) return; WHEEL.on = false; MX.wheelOpen = false; WHEEL.el.classList.remove('on'); setTimeout(() => { if (!WHEEL.on) WHEEL.el.style.display = 'none'; }, 140);
+  const s = MX.pl && MX.pl.sqd; if (apply && s && s.playerLead) { const k = FORM_LIST[WHEEL.sel]; if ((s.formPref || 'auto') !== k) setFormation(s, k); else showFormPreview(s); }
+}
+function wheelTick() {                                                                // R3 apunta a una formación (5 sectores de 72°); ◀ ▶ la mueven de una en una
+  const rs = MX.rs; if (rs && rs[2] > .5) { const a = (Math.atan2(rs[0], -rs[1]) + Math.PI * 2) % (Math.PI * 2), i = Math.round(a / (Math.PI * 2 / 5)) % 5; if (i !== WHEEL.sel) { WHEEL.sel = i; wheelPaint(); } }
+}
 /* ---- VISTA PREVIA DE LA FORMACIÓN: al cambiarla, durante ~3 s una tarjeta con el croquis visto desde arriba (tú en el centro mirando arriba, cada compañero con su clase) y marcas fantasma
    en el suelo, pegadas a ti, donde se colocaría cada uno. Con «Auto» muestra la que elige ahora mismo. ---- */
 const FORM_DESC = { auto: 'Automática (se adapta al terreno)', wedge: 'Cuña: dos alas escalonadas, abierta al frente', line: 'Línea: frente abierto de lado a lado', column: 'Columna: escalonada por la calle', ring: 'Círculo: perímetro de 360°' };
@@ -7617,10 +7653,15 @@ SQ.goalFor = e => {                                                             
   }
   if (s.playerLead && L && L.isPlayer) {                                             // escuadra del jugador: sus órdenes
     const o = s.order || { type: 'follow' };
+    if (o.type === 'cover' && o.tgt && !o.tgt.dead && !o.known) {                      // sin enemigo a la vista: cobertura = vigilan la zona desde su puesto; ataque = avanzan hacia el área en abanico y buscan
+      const A = o.area;
+      if (!o.assault) { const q = o.pts.get(e) || holdPoint(s, e, o, o.face); o.pts.set(e, q); return { x: q.x, z: q.z, speed: 4.8, hold: true, face: Math.atan2(A.x - q.x, A.z - q.z), crouch: true }; }
+      const a0 = Math.atan2(e.p.x - A.x, e.p.z - A.z) + ((e.slot || 0) % 5 - 2) * .35, r = Math.max(5, Math.min(e.ideal || 10, (MX.SIGHT ? MX.SIGHT.hd : 9) * .85)) + ((e.slot || 0) % 2) * 3, px = A.x + Math.sin(a0) * r, pz = A.z + Math.cos(a0) * r, q = navAt(px, pz) ? { x: px, z: pz } : navNear(px, pz);
+      return { x: q.x, z: q.z, speed: 6, hold: true, face: Math.atan2(A.x - q.x, A.z - q.z), crouch: false }; }
     if (o.type === 'cover' && o.tgt && !o.tgt.dead) {                                  // fuego de cobertura: a un puesto con línea de tiro al objetivo (el propio de formación si ya la tiene)
       const f = o.tgt, rg = Math.min(e.w.bal.max * .9, 55); let q = o.pts.get(e) || holdPoint(s, e, o, o.face); o.pts.set(e, q);
       if (o.assault) {                                                                 // ataque: cada uno se acerca al objetivo hasta su distancia ideal de combate, con línea de tiro y por un lado distinto
-        const c = e._asq; if (c && c.f === f && M.t - c.t < 1.2) q = c.q; else { const ideal = Math.max(6, Math.min(e.ideal || 10, 18)); let bq = null, bd = 1e9;
+        const c = e._asq; if (c && c.f === f && M.t - c.t < 1.2) q = c.q; else { const ideal = Math.max(5, Math.min(e.ideal || 10, (MX.SIGHT ? MX.SIGHT.hd : 9) * .85)); /* dentro de lo que ven (su campo de visión) */ let bq = null, bd = 1e9;
           for (let a = 0; a < 6.28; a += .55) for (let r = ideal; r <= ideal + 8; r += 4) { const px = f.p.x + Math.sin(a) * r, pz = f.p.z + Math.cos(a) * r; if (!navAt(px, pz)) continue; const cp = { x: px, z: pz }; if (!MX.lineFree(cp, f.p)) continue; const d = dist(cp, e.p) + Math.abs(((a - (e.slot || 0) * .9) % 6.28)) * 2; if (d < bd) { bd = d; bq = cp; } }
           q = bq || q; e._asq = { f, q, t: M.t }; }
         return { x: q.x, z: q.z, speed: 6.4, hold: true, face: Math.atan2(f.p.x - q.x, f.p.z - q.z), crouch: false }; }
@@ -7691,6 +7732,19 @@ function knownFoe(o) {                                                          
   const s = MX.pl && MX.pl.sqd; if (s) for (const m of s.members) if (!m.dead && !m.dwn && m.tgt === o && (m.vis || M.t - (m.seenT || -9) < 2)) return true;
   return false;
 }
+function nearestFoeAny(x, z, R, team, except) {                                      // el más cercano, lo vea alguien o no (si lo ordenas es porque lo ves o lo supones)
+  let best = null, bd = R * R; const test = o => { if (!o || o.dead || o === except) return; const dx = o.p.x - x, dz = o.p.z - z, d = dx * dx + dz * dz; if (d < bd) { bd = d; best = o; } };
+  for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.team !== team && !e.dwn) test(e); } const Z = MX.zom && MX.zom.list; if (Z) for (let i = 0; i < Z.length; i++) test(Z[i]); return best;
+}
+/* BÚSQUEDA: si nadie lo ve, la escuadra no conoce su posición exacta: busca en un ÁREA de ±8 m alrededor del más cercano (una pista, no una coordenada exacta), avanza hasta ella y solo dispara
+   a lo que ve. Si llega y no hay nadie, pasa al siguiente más cercano; sin más, informa «zona despejada». */
+function orderFoe(o) { return o.tgt && !o.tgt.dead ? o.tgt : null; }
+function orderPt(o) { return o.known ? o.tgt.p : o.area; }
+function newOrderTarget(R, team, area0, unc) {
+  const k = nearestFoe(P.pos.x, P.pos.z, R, team); if (k) return { tgt: k, known: true, area: null };
+  const f = nearestFoeAny(area0 ? area0.x : P.pos.x, area0 ? area0.z : P.pos.z, R, team, null); if (!f) return null;
+  const u = unc || 8; return { tgt: f, known: false, area: { x: f.p.x + rr(-u, u), z: f.p.z + rr(-u, u) }, unc: u };
+}
 function nearestFoe(x, z, R, team, except) {
   let best = null, bd = R * R; const test = o => { if (!o || o.dead || o === except) return; const dx = o.p.x - x, dz = o.p.z - z, d = dx * dx + dz * dz; if (d < bd && knownFoe(o)) { bd = d; best = o; } };
   for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.team !== team && !e.dwn) test(e); }
@@ -7710,14 +7764,16 @@ SQ.cmd = (k, long) => {
       s.playerLead = true; s.order = { type: 'follow' }; s.mission = { type: 'free' }; electLeader(s, true); return toast('Tomas el mando de ' + s.name);
     }
     if (k === 'leave') { if (!s || s.members.length === 1) return toast('Ya vas por libre'); const old = s, ns = mkSquad(pl.team, { type: 'free' }); join(pl, ns, true); ns.playerLead = true; ns.order = { type: 'follow' }; electLeader(ns, true); electLeader(old, true); assignMission(old); return toast('Vas por libre (' + ns.name + ')'); }
-    if (k === 'capture' || k === 'fallback' || k === 'formation' || k === 'attack') {
+    if (k === 'capture' || k === 'fallback' || k === 'formation' || k === 'attack' || k === 'wheel') {
       if (!s || !s.playerLead) return toast('No tienes el mando de tu escuadra (Mochila → Escuadra → Tomar el mando)');
-      if (k === 'formation') { const L = ['auto', 'wedge', 'line', 'column', 'ring']; s.formPref = L[(L.indexOf(s.formPref || 'auto') + 1) % L.length]; s._fkT = undefined; showFormPreview(s); for (const m of s.members) if (m.bot) { m.goal = null; m.path = null; } return; }
+      if (k === 'formation') { const L = FORM_LIST; setFormation(s, L[(L.indexOf(s.formPref || 'auto') + 1) % L.length]); return; }
+      if (k === 'wheel') return openWheel();
       if (k === 'capture') { let bo = null, bd = 1e9; for (const o of SQ.objs) { if (o.id === 'REF' || o.owner === pl.team) continue; const d = dist(o, P.pos); if (d < bd) { bd = d; bo = o; } }
         if (!bo) return toast('Tu facción ya tiene todos los puntos'); s.order = { type: 'move', x: bo.x, z: bo.z, face: Math.atan2(bo.x - P.pos.x, bo.z - P.pos.z), pts: new Map(), cap: bo }; toast('Capturar ' + bo.name + ' · ' + Math.round(bd) + ' m'); }
       else if (k === 'fallback') { const rf = refugeOf(pl.team); if (!rf) return; s.order = { type: 'move', x: rf.x, z: rf.z, face: Math.atan2(rf.x - P.pos.x, rf.z - P.pos.z), pts: new Map() }; toast('Replegarse al refugio'); }
-      else { const f = nearestFoe(P.pos.x, P.pos.z, ATK_R, pl.team); if (!f) return toast('Atacar: no hay enemigos a la vista');
-        s.order = { type: 'cover', assault: true, dur: 16, x: P.pos.x, z: P.pos.z, face: Math.atan2(f.p.x - P.pos.x, f.p.z - P.pos.z), tgt: f, tx: f.p.x, tz: f.p.z, t: M.t, prev: s.order && s.order.type !== 'cover' ? s.order : { type: 'follow' }, pts: new Map() }; toast('¡Atacad! ' + (f.team >= 0 ? 'Enemigo más cercano' : 'Infectados más cercanos') + ' · ' + Math.round(dist(f.p, P.pos)) + ' m'); }
+      else { const T = newOrderTarget(ATK_R, pl.team); if (!T) return toast('Atacar: no hay enemigos cerca (≤ ' + ATK_R + ' m)'); const pt = orderPt(T);
+        s.order = { type: 'cover', assault: true, dur: 22, x: P.pos.x, z: P.pos.z, tgt: T.tgt, known: T.known, area: T.area, face: Math.atan2(pt.x - P.pos.x, pt.z - P.pos.z), tx: pt.x, tz: pt.z, t: M.t, prev: s.order && s.order.type !== 'cover' ? s.order : { type: 'follow' }, pts: new Map() };
+        toast(T.known ? '¡Atacad! ' + (T.tgt.team >= 0 ? 'Enemigo más cercano' : 'Infectados más cercanos') + ' · ' + Math.round(dist(T.tgt.p, P.pos)) + ' m' : '¡Atacad! Buscando al enemigo más cercano · ~' + Math.round(dist(T.tgt.p, P.pos)) + ' m'); }
       for (const m of s.members) if (m.bot) { m.goal = null; m.path = null; if (m.st === 'search') m.st = 'push'; } return; }
     if (k === 'regroup') { if (!s || !s.playerLead) return toast('No tienes el mando (Mochila → Escuadra → Tomar el mando)'); s.order = { type: 'regroup', t: M.t }; return toast('¡Reagrupad conmigo!'); }
     return;
@@ -7726,15 +7782,16 @@ SQ.cmd = (k, long) => {
   if (k === 'follow') s.order = { type: 'follow' };
   else if (k === 'hold') { const q = { x: P.pos.x, z: P.pos.z }; s.order = { type: 'hold', x: q.x, z: q.z, face: P.aim, pts: new Map() }; }
   else if (k === 'move') { const q = aimPoint(22); s.order = { type: 'move', x: q.x, z: q.z, face: P.aim, pts: new Map() }; }
-  else if (k === 'cover') {                                                           // FUEGO DE COBERTURA: busca el enemigo más cercano (soldado o zombi) a ≤ 50 m del jugador y la escuadra lo bate buscando línea de tiro
-    const f = nearestFoe(P.pos.x, P.pos.z, COVER_R, pl.team); if (!f) return toast('Fuego de cobertura: no hay enemigos a la vista');
-    s.order = { type: 'cover', x: P.pos.x, z: P.pos.z, face: Math.atan2(f.p.x - P.pos.x, f.p.z - P.pos.z), tgt: f, tx: f.p.x, tz: f.p.z, t: M.t, prev: s.order && s.order.type !== 'cover' ? s.order : { type: 'follow' }, pts: new Map() }; toast('Fuego de cobertura sobre ' + (f.team >= 0 ? 'el enemigo más cercano' : 'los infectados más cercanos') + ' · ' + Math.round(dist(f.p, P.pos)) + ' m'); return; }
+  else if (k === 'cover') {                                                           // FUEGO DE COBERTURA: la escuadra se queda cerca de ti y bate al enemigo más cercano (≤ 50 m) desde puestos con línea de tiro; si no lo ve nadie, vigila esa zona
+    const T = newOrderTarget(COVER_R, pl.team); if (!T) return toast('Fuego de cobertura: no hay enemigos cerca (≤ ' + COVER_R + ' m)');
+    const pt = orderPt(T); s.order = { type: 'cover', x: P.pos.x, z: P.pos.z, tgt: T.tgt, known: T.known, area: T.area, face: Math.atan2(pt.x - P.pos.x, pt.z - P.pos.z), tx: pt.x, tz: pt.z, t: M.t, prev: s.order && s.order.type !== 'cover' ? s.order : { type: 'follow' }, pts: new Map() };
+    toast(T.known ? 'Fuego de cobertura sobre ' + (T.tgt.team >= 0 ? 'el enemigo más cercano' : 'los infectados más cercanos') + ' · ' + Math.round(dist(T.tgt.p, P.pos)) + ' m' : 'Fuego de cobertura: vigilando la zona del enemigo más cercano · ~' + Math.round(dist(T.tgt.p, P.pos)) + ' m'); return; }
   for (const m of s.members) if (m.bot) { m.goal = null; m.path = null; if (m.st === 'search') m.st = 'push'; }
   toast('Orden: ' + ORDER_N[s.order.type]);
 };
 SQ.supPoint = e => {                                                                 // a dónde hace fuego de supresión este bot (o null)
   const s = e.sqd; if (!s) return null;
-  if (s.order && s.order.type === 'cover' && M.t - s.order.t < (s.order.dur || 10) && s.order.tgt && !s.order.tgt.dead) {          // solo dispara al objetivo si tiene línea de tiro y alcance (no a ciegas)
+  if (s.order && s.order.type === 'cover' && M.t - s.order.t < (s.order.dur || 10) && s.order.tgt && !s.order.tgt.dead && s.order.known) {          // solo dispara al objetivo si tiene línea de tiro y alcance (no a ciegas)
     const f = s.order.tgt, d = dist(e.p, f.p); if (d <= Math.min(e.w.bal.max * .9, 55) && MX.lineFree(e.p, f.p)) return { x: f.p.x, z: f.p.z }; return null; }
   if (s.contact && s.contact.foe && s.contact.foe.dead) s.contact = null;          // el enemigo ha caído: se deja de batir la zona
   /* los bots NUNCA disparan a algo que no ven: ya no hay fuego de supresión automático sobre un contacto (solo la orden explícita de «fuego de cobertura» del jugador, arriba). El contacto
@@ -7744,11 +7801,11 @@ SQ.supPoint = e => {                                                            
 
 /* ---------- actualización ---------- */
 let padPrev = [false, false, false, false], padT = [0, 0, 0, 0];
-const PADK = [['move', 'capture'], ['hold', 'fallback'], ['follow', 'formation'], ['cover', 'attack']];   // ↑ ↓ ← → (botones 12–15): toque / mantener
+const PADK = [['move', 'capture'], ['hold', 'wheel'], ['follow', 'fallback'], ['cover', 'attack']];   // ↑ ↓ ← → (botones 12–15): toque / mantener
 /* CRUCETA EN DOS TIEMPOS: la primera pulsación NO da la orden: abre una tarjeta que enseña qué hace cada flecha (toque y mantener) con la pulsada resaltada; mientras la tarjeta está visible
    (6 s, y 3 s más tras cada orden), volver a pulsar una flecha ejecuta su orden (toque = la principal, mantener = la secundaria). Así no hay órdenes por error y, aunque se olvide qué hace cada
    flecha, la primera pulsación lo recuerda. El teclado (1–8) sigue siendo directo. */
-const PAD_INFO = [['▲', 'Avanzar', 'Capturar'], ['▼', 'Mantener', 'Replegarse'], ['◀', 'Seguirme', 'Formación'], ['▶', 'Cobertura', 'Atacar']];
+const PAD_INFO = [['▲', 'Avanzar', 'Capturar'], ['▼', 'Mantener', 'Rueda de formación'], ['◀', 'Seguirme', 'Replegarse'], ['▶', 'Cobertura', 'Atacar']];
 const PAD_DESC = ['a donde apuntas', 'aquí', 'en formación', 'fuego a donde apuntas', ];
 const padCard = document.createElement('div'); padCard.id = 'sqPad'; document.body.appendChild(padCard);
 { const st = document.createElement('style'); st.textContent = `
@@ -7774,13 +7831,16 @@ function padHide() { padCard.classList.remove('on'); setTimeout(() => { if (!pad
 SQ.padOpenT = -99; SQ.padGraceT = -99;
 /* Tarjeta: 1.ª pulsación → se abre (3,5 s). Con ella abierta, pulsar una flecha ejecuta la orden Y LA CIERRA AL INSTANTE (no se vuelve a mostrar). Tras ejecutar hay 1,5 s en que otra flecha
    ejecuta directamente (encadenar órdenes sin tarjeta). */
+const PAD_LONG = [.55, .28, .55, .55];                                               // ▼ abre la rueda a los 0,28 s; el resto, 0,55 s
 function padTick(dt) {
-  const g = typeof getPad === 'function' ? getPad() : null; if (!g || MX.dpadLock) { padPrev = [false, false, false, false]; if (padCard.classList.contains('on')) { SQ.padOpenT = -99; padHide(); } return; }
+  const g = typeof getPad === 'function' ? getPad() : null; if (!g || MX.dpadLock) { padPrev = [false, false, false, false]; if (padCard.classList.contains('on')) { SQ.padOpenT = -99; padHide(); } if (WHEEL.on) closeWheel(false); return; }
   const open = M.t < SQ.padOpenT, grace = M.t < SQ.padGraceT; if (!open && padCard.classList.contains('on')) padHide();
   const run = (i, long) => { SQ.cmd(PADK[i][long ? 1 : 0], long); SQ.padOpenT = -99; SQ.padGraceT = M.t + 1.5; padHide(); };
+  if (WHEEL.on) wheelTick();
   for (let i = 0; i < 4; i++) { const b = g.buttons[12 + i], d = !!(b && (b.pressed || b.value > .5));
-    if (d) { padT[i] += dt; if (padT[i] >= .55 && padT[i] - dt < .55) { if (open || grace) run(i, true); else { SQ.padOpenT = M.t + 3.5; padShow(i); } } }
-    else if (padPrev[i]) { if (padT[i] < .55) { if (open || grace) run(i, false); else { SQ.padOpenT = M.t + 3.5; padShow(i); } } padT[i] = 0; }
+    if (WHEEL.on && (i === 2 || i === 3)) { if (padPrev[i] && !d) { WHEEL.sel = (WHEEL.sel + (i === 3 ? 1 : 4)) % 5; wheelPaint(); } padPrev[i] = d; continue; }   // con la rueda abierta, ◀ ▶ la mueven
+    if (d) { padT[i] += dt; if (padT[i] >= PAD_LONG[i] && padT[i] - dt < PAD_LONG[i]) { if (i === 1) { SQ.cmd('wheel', true); } else if (open || grace) run(i, true); else { SQ.padOpenT = M.t + 3.5; padShow(i); } } }
+    else if (padPrev[i]) { if (i === 1 && WHEEL.on) { closeWheel(true); SQ.padGraceT = M.t + 1.5; } else if (padT[i] < PAD_LONG[i]) { if (open || grace) run(i, false); else { SQ.padOpenT = M.t + 3.5; padShow(i); } } padT[i] = 0; }
     padPrev[i] = d; }
 }
 addEventListener('keydown', ev => {
@@ -7796,7 +7856,13 @@ SQ.update = dt => {
   SQ.balT -= dt; if (SQ.balT <= 0) { SQ.balT = SQ_BAL; for (let t = 0; t < 4; t++) rebalance(t); }
   const s = MX.pl && MX.pl.sqd;
   if (s && s.order) { if (s.order.type === 'cover') { const o = s.order; if (M.t - o.t > (o.dur || 10)) s.order = o.prev;
-      else { if (!o.tgt || o.tgt.dead || dist(o.tgt.p, P.pos) > COVER_R + 20) { const f = nearestFoe(P.pos.x, P.pos.z, COVER_R, MX.pl.team); if (f) o.tgt = f; else s.order = o.prev; } if (s.order === o && o.tgt) { o.tx = o.tgt.p.x; o.tz = o.tgt.p.z; o.face = Math.atan2(o.tx - P.pos.x, o.tz - P.pos.z); } } } if (s.order.type === 'regroup' && M.t - s.order.t > 12) s.order = { type: 'follow' }; }
+      else { const f = orderFoe(o); if (f && !o.known && knownFoe(f)) o.known = true;
+        let need = !f || (o.known && dist(f.p, P.pos) > (o.assault ? ATK_R : COVER_R) + 20);
+        if (!need && !o.known && o.assault && s.members.some(m => !m.isPlayer && !m.dead && dist(m.p, o.area) < 7)) need = true;       // llegaron al área y no hay nadie: siguiente
+        if (!need && !o.known && !o.assault && M.t - o.t > 6) need = true;
+        if (need) { const T = newOrderTarget(o.assault ? ATK_R : COVER_R, MX.pl.team, o.area, Math.max(2, (o.unc || 8) * .5)); if (T) { o.tgt = T.tgt; o.known = T.known; o.area = T.area; o.unc = T.unc;      // cada vez que se llega y no se ve, el área se estrecha (rastros): ±8 → ±4 → ±2 m
+          o.t = Math.max(o.t, M.t - (o.dur || 10) + 4); } else { toast('Zona despejada'); s.order = o.prev; } }
+        if (s.order === o && o.tgt) { const pt = orderPt(o); o.tx = pt.x; o.tz = pt.z; o.face = Math.atan2(o.tx - P.pos.x, o.tz - P.pos.z); } } } if (s.order.type === 'regroup' && M.t - s.order.t > 12) s.order = { type: 'follow' }; }
   SQ.mapTick(); miniTick(dt);
   if (SQ.objs.length) { SQ.objT = (SQ.objT || 0) - dt; if (SQ.objT <= 0) { objTick(.5 - SQ.objT); SQ.objT = .5; } }
   hudTick(dt);

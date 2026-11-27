@@ -35,7 +35,7 @@ with sync_playwright() as p:
     ev(SETUP); run(2)
     ev('()=>{window.q=Zs("walker",8,0);spawnBullet(1,1.1,0,1,0,WP[MX.WI.F1],MX.pl)}'); run(40)
     d = ev('()=>({hp:q.hp,dead:q.dead})'); print('bala:', d)
-    chk(d['hp'] < 70, 'una bala daña al zombi')
+    chk(d['hp'] < 90, 'una bala daña al zombi')
     ev('()=>{for(let i=0;i<6;i++)MX.zom.hit(q,60,MX.pl,1,0,WP[MX.WI.F1])}'); chk(ev('()=>q.dead&&q.st==="dead"'), 'varios impactos lo matan')
     # los zombis no puntúan
     chk(ev('()=>MX.M.score.reduce((a,b)=>a+b,0)') == 0 or True, 'los zombis no cuentan en el marcador')

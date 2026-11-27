@@ -7,10 +7,10 @@
 (function () {
 const M = MX.M, MAXZ = 2200, RMAX = 240, VIEW_R = 46, NEAR_R = 75;        // MAXZ: simulados; RMAX: dibujados a la vez (los más cercanos a la cámara, dentro de VIEW_R); NEAR_R: simulación completa cerca de un combatiente
 const TY = {
-  walker:   { hp: 70,  sc: 1,    dmg: 15, atkCd: .95, roam: .9,  chase: 2.8, sight: 17, lean: .5,  arm: -1.15, hs: 1,    tw: 1,   r: .42 },
-  runner:   { hp: 45,  sc: .96,  dmg: 10, atkCd: .6,  roam: 1.2, chase: 5.6, sight: 22, lean: .62, arm: -.5,   hs: .95,  tw: .9,  r: .38 },
-  brute:    { hp: 380, sc: 1.32, dmg: 44, atkCd: 1.5, roam: 1.0, chase: 2.3, sight: 16, lean: .2,  arm: -.95,  hs: 1.3,  tw: 1.35, r: .62 },
-  screamer: { hp: 60,  sc: 1,    dmg: 6,  atkCd: 1.0, roam: 1.0, chase: 2.3, sight: 15, lean: .08, arm: -.9,   hs: 1.25, tw: .92, r: .4 }
+  walker:   { hp: 90,  sc: 1,    dmg: 15, atkCd: .95, roam: .9,  chase: 2.8, sight: 17, lean: .5,  arm: -1.15, hs: 1,    tw: 1,   r: .42 },
+  runner:   { hp: 58,  sc: .96,  dmg: 10, atkCd: .6,  roam: 1.2, chase: 5.6, sight: 22, lean: .62, arm: -.5,   hs: .95,  tw: .9,  r: .38 },
+  brute:    { hp: 460, sc: 1.32, dmg: 44, atkCd: 1.5, roam: 1.0, chase: 2.3, sight: 16, lean: .2,  arm: -.95,  hs: 1.3,  tw: 1.35, r: .62 },
+  screamer: { hp: 78,  sc: 1,    dmg: 6,  atkCd: 1.0, roam: 1.0, chase: 2.3, sight: 15, lean: .08, arm: -.9,   hs: 1.25, tw: .92, r: .4 }
 };
 const NOISE_R = { P1: 30, P2: 40, S1: 35, S2: 38, F1: 45, F2: 60, E1: 50, E2: 50, H1: 52, H2: 68 };   // ×1,25: los disparos se oyen más lejos
 const rnd = Math.random, rr = (a, b) => a + (b - a) * rnd();

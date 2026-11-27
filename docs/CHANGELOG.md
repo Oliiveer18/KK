@@ -1,5 +1,12 @@
 # Changelog
 
+## Rueda de formaciones, búsqueda del enemigo y zombis algo más duros (27-11)
+- **Rueda de formaciones**: mantener ▼ (0,28 s) abre una rueda con Auto, Cuña, Línea, Columna y Círculo (croquis de cada una); R3 apunta a una (◀ ▶ también las mueven) y al soltar ▼ se aplica y sale la vista previa. Con la rueda abierta, R3 no gira la cámara. ▼ toque = Mantener.
+- **Cruceta**: ▲ Avanzar / Capturar · ▼ Mantener / Rueda de formación · ◀ Seguirme / Replegarse · ▶ Cobertura / Atacar.
+- **Fuego de cobertura (▶ toque)**: la escuadra se queda cerca de ti y bate al enemigo más cercano (≤ 50 m) desde puestos con línea de tiro; unos 10 s. **Atacar (▶ mantener)**: se acercan para eliminarlo, cada uno por un lado y a distancia de visión; unos 22 s.
+- **Sin enemigo a la vista**: la escuadra recibe un ÁREA de búsqueda de ±8 m alrededor del más cercano (no su posición exacta). Cobertura vigila la zona desde sus puestos; Atacar avanza en abanico y busca. Cada vez que llegan y no ven nada, el área se estrecha (±4, ±2 m) y se pasa al siguiente más cercano; sin más, «Zona despejada». Solo disparan a lo que ven.
+- **Zombis**: vida +28 % (caminante 90, corredor 58, pesado 460, gritón 78).
+
 ## Coherencia de la percepción y tiroteo contra infectados (27-11)
 - **Nadie sabe lo que no puede ver** (mismo campo de visión que el jugador, ~13–20 m): un bot solo nota que lo apuntas si puede verte (campo de visión, línea libre, sin humo ni agachado tras cobertura); el oído se reduce a un fusil 38 m, subfusil 28, escopeta 32, ametralladora 48, precisión 60, y tras muros a partir del 65 % del alcance no llega, con 18 % de error; el aviso por radio de la escuadra se limita a 60 m y llega con 0,7 s de retraso; el contacto de escuadra solo orienta la mirada a < 70 m.
 - **Las órdenes valen para lo que se ve**: «Fuego de cobertura» y «Atacar» solo eligen enemigos a la vista del jugador o de algún miembro de la escuadra (antes, cualquiera a ≤ 50/60 m aunque estuviera fuera de pantalla). El mando de la facción solo cuenta enemigos que su facción haya visto en los últimos 25 s o que estén junto a un amigo.

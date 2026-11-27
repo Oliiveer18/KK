@@ -2127,8 +2127,8 @@ function update(dt) {
     const [lx, ly, lm] = stick(g.axes[axi('lx', 0)] || 0, g.axes[axi('ly', 1)] || 0, .14);
     if (lm > 0) { mx = lx; mz = ly; mode = 'pad'; }
     const [rx, ry, rm] = stick(g.axes[axi('rx', 2)] || 0, g.axes[axi('ry', std ? 3 : 5)] || 0, .2);
-    rawX = rx; rawY = ry;
-    if (rm > 0.02) { ax = rx; ay = ry; stickAim = rm; mode = 'pad'; }
+    rawX = rx; rawY = ry; MX.rs = [rx, ry, rm];                                       // MX.rs: stick derecho (la rueda de formaciones lo lee)
+    if (rm > 0.02 && !MX.wheelOpen) { ax = rx; ay = ry; stickAim = rm; mode = 'pad'; }   // con la rueda abierta, R3 elige y no gira la cámara
     const down = k => !!(g.buttons[k] && (g.buttons[k].pressed || g.buttons[k].value > .3)), edge = k => down(k) && !prevBtn[k];
     if (down(BIND.reload)) MX.rev = true;                          // □ (o el botón de recargar): mantener = reanimar a un aliado, o reaparecer si estás abatido (campaña)
     const tv = k => (g.buttons[k] ? g.buttons[k].value || (g.buttons[k].pressed ? 1 : 0) : 0);   // gatillos analógicos: umbral según el arma
