@@ -7108,7 +7108,7 @@ MX.zom.cand = (ox, oz, dx, dz, d0, d1) => {
    que aparecen fuera de la vista y llegan por ruta. Intensidad SUAVE al empezar y creciente hasta el final: sube con el tiempo (25 min) y con el marcador (la meta). ?zpunto=N la multiplica. */
 const ZPUNTO = +new URLSearchParams(location.search).get('zpunto') || 1;
 const PT = { t: 0, waves: [] };
-function matchProg() { const SQ = MX.SQ; let sc = 0; if (SQ && SQ.score && SQ.meta) sc = Math.max.apply(null, SQ.score) / SQ.meta; return Math.max(0, Math.min(1, Math.max(M.t / 1500, sc))); }   // 0 al empezar, 1 a los 25 min o con la meta cerca
+function matchProg() { const SQ = MX.SQ; let sc = 0; if (SQ && SQ.score && SQ.meta) sc = Math.max.apply(null, SQ.score) / SQ.meta; return Math.max(0, Math.min(1, sc)); }   // 0 al empezar, 1 con la meta cerca: solo cuentan los puntos de la mejor facción, no el tiempo
 const offScreen = (x, z) => { const S = MX.SIGHT || { hw: 13, hd: 8 }, dx = x - P.pos.x, dz = z - P.pos.z; return (Math.abs(dx) > S.hw + 9 || Math.abs(dz) > S.hd + 9) && dx * dx + dz * dz > 900; };   // fuera de la pantalla y a > 30 m del jugador
 function pointSpawnPos(o, rMin, rMax, needOff) { for (let t = 0; t < 30; t++) { const a = rnd() * 6.283, r = rMin + rnd() * (rMax - rMin), x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r; if (navFree(x, z) && (!needOff || offScreen(x, z))) return [x, z]; } return null; }
 function pointsTick() {
@@ -7118,14 +7118,14 @@ function pointsTick() {
   if (alive > MAXZ - 60) return;
   for (const o of SQ.objs) {
     if (o.id === 'REF') continue;
-    const want = Math.round((o.id === 'PLAZA' ? 12 : 8) * k), have = ngar.get(o) || 0;
+    const want = Math.round((o.id === 'PLAZA' ? 150 : 50) * (.6 + .4 * prog) * Math.min(2, ZPUNTO)), have = ngar.get(o) || 0, rOut = o.id === 'PLAZA' ? 70 : 45;   // guarnición: 60 % al empezar, 100 % con la meta cerca
     if (o._zInit === undefined) { o._zInit = true; o._zNext = 0; o._wNext = M.t + rr(40, 70); }
     if (have < want && M.t >= o._zNext) {                                                                                                         // guarnición: se rellena (la primera vez de golpe, luego en grupos de 2–3 cada 20–40 s) y sólo fuera de la vista
-      const first = o._zFirst === undefined; if (first) o._zFirst = true;
-      const n = first ? want : Math.min(4, want - have); let made = 0;
+      const first = o._zFirst === undefined || o._zFirst < 3; o._zFirst = (o._zFirst || 0) + 1;
+      const n = Math.min(first ? 45 : 8, want - have); let made = 0;
       /* el 40 % dentro de la zona del punto, el resto en su entorno */
-      for (let i = 0; i < n; i++) { const inner = rnd() < .4, p = inner ? pointSpawnPos(o, 2, o.r, !first) : pointSpawnPos(o, o.r, 45, !first); if (!p) continue; const zb = newZ(mixPick(true), p[0], p[1], { st: rnd() < .5 ? 'dorm' : 'wander' }); if (zb) { zb.gar = o; made++; } }
-      o._zNext = M.t + (first ? 5 : rr(12, 22) / Math.min(2, k)); if (!made && !first) o._zNext = M.t + 5;
+      for (let i = 0; i < n; i++) { const inner = rnd() < .4, p = inner ? pointSpawnPos(o, 2, o.r, !first) : pointSpawnPos(o, o.r, rOut, !first); if (!p) continue; const zb = newZ(mixPick(true), p[0], p[1], { st: rnd() < .5 ? 'dorm' : 'wander' }); if (zb) { zb.gar = o; made++; } }
+      o._zNext = M.t + (first ? 1 : rr(6, 12) / Math.min(2, k)); if (!made && !first) o._zNext = M.t + 5;
     }
     if (M.t >= o._wNext && PT.waves.length < 3 && !(o._wave && o._wave.members.some(m => !m.dead))) {                                              // oleada dirigida al punto
       o._wNext = M.t + rr(110, 170) / k;

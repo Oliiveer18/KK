@@ -511,14 +511,14 @@ function pointsTick() {
   if (alive > MAXZ - 60) return;
   for (const o of SQ.objs) {
     if (o.id === 'REF') continue;
-    const want = Math.round((o.id === 'PLAZA' ? 26 : 18) * k), have = ngar.get(o) || 0;
+    const want = Math.round((o.id === 'PLAZA' ? 150 : 50) * (.6 + .4 * prog) * Math.min(2, ZPUNTO)), have = ngar.get(o) || 0, rOut = o.id === 'PLAZA' ? 70 : 45;   // guarnición: 60 % al empezar, 100 % con la meta cerca
     if (o._zInit === undefined) { o._zInit = true; o._zNext = 0; o._wNext = M.t + rr(40, 70); }
     if (have < want && M.t >= o._zNext) {                                                                                                         // guarnición: se rellena (la primera vez de golpe, luego en grupos de 2–3 cada 20–40 s) y sólo fuera de la vista
-      const first = o._zFirst === undefined; if (first) o._zFirst = true;
-      const n = first ? want : Math.min(4, want - have); let made = 0;
+      const first = o._zFirst === undefined || o._zFirst < 3; o._zFirst = (o._zFirst || 0) + 1;
+      const n = Math.min(first ? 45 : 8, want - have); let made = 0;
       /* el 40 % dentro de la zona del punto, el resto en su entorno */
-      for (let i = 0; i < n; i++) { const inner = rnd() < .4, p = inner ? pointSpawnPos(o, 2, o.r, !first) : pointSpawnPos(o, o.r, 45, !first); if (!p) continue; const zb = newZ(mixPick(true), p[0], p[1], { st: rnd() < .5 ? 'dorm' : 'wander' }); if (zb) { zb.gar = o; made++; } }
-      o._zNext = M.t + (first ? 5 : rr(12, 22) / Math.min(2, k)); if (!made && !first) o._zNext = M.t + 5;
+      for (let i = 0; i < n; i++) { const inner = rnd() < .4, p = inner ? pointSpawnPos(o, 2, o.r, !first) : pointSpawnPos(o, o.r, rOut, !first); if (!p) continue; const zb = newZ(mixPick(true), p[0], p[1], { st: rnd() < .5 ? 'dorm' : 'wander' }); if (zb) { zb.gar = o; made++; } }
+      o._zNext = M.t + (first ? 1 : rr(6, 12) / Math.min(2, k)); if (!made && !first) o._zNext = M.t + 5;
     }
     if (M.t >= o._wNext && PT.waves.length < 3 && !(o._wave && o._wave.members.some(m => !m.dead))) {                                              // oleada dirigida al punto
       o._wNext = M.t + rr(110, 170) / k;

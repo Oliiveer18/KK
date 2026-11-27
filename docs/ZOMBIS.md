@@ -65,7 +65,7 @@ Equilibrio (vida, daño, velocidades, cuántos zombis, la horda), infestación d
 
 ## Presión en los puntos de captura (27-11)
 Antes, ningún punto tenía un solo zombi en su zona (la población se reparte por zonas, los bots la barren y la reposición exigía estar a > 70 m de cualquier combatiente). Ahora cada punto (menos los refugios) tiene:
-- **Guarnición propia** (26 en la Plaza, 18 en los demás, ×1 al empezar): el 40 % dentro de la zona y el resto a 6–45 m, dormidos o rondando. Se rellena en grupos de hasta 4 cada 12–22 s, sólo fuera de la pantalla del jugador.
+- **Guarnición propia** (150 en la Plaza y 50 en los demás a pleno rendimiento (el 60 % al empezar, subiendo con los puntos de la mejor facción; la Plaza los reparte hasta 70 m)): el 40 % dentro de la zona y el resto a 6–45 m, dormidos o rondando. Se rellena en grupos de hasta 8 cada 6–12 s, sólo fuera de la pantalla del jugador.
 - **Oleadas dirigidas** (la primera a los 40–70 s, luego cada 110–170 s): aparecen a 75–115 m fuera de la vista como una horda y llegan por ruta al punto. Tamaño 5 + hasta 4 según los combatientes que haya dentro; mezcla con más corredores y pesados según avanza la partida; como mucho 3 oleadas vivas a la vez.
 - **Dificultad creciente**: intensidad ×1 al empezar y hasta ×2,6 al final, solo según los puntos de la mejor facción (puntos / meta), nunca por tiempo. `?zpunto=N` la multiplica.
 - Sin cambios en las reglas de captura ni avisos previos (decisión del usuario).
