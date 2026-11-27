@@ -537,20 +537,50 @@
   def('supplyMed', { name: 'Caja médica', cat: 'Comercio y transporte', loot: [{ k: 'botiquín', n: [1, 2] }, { k: 'kit de reanimación', n: [0, 1] }] }, { mat: 'plastic', hp: 40, push: true, mass: 2.5, fric: 7, build: supplyBuild('med') });
 
   const CAR_COL = [0xb8412e, 0xd9a21f, 0x2a8f8a, 0x4f6b3a, 0xd8d0bc, 0x3a63a0];
-  def('car', { name: 'Coche abandonado', cat: 'Comercio y transporte', proposal: true, loot: [{ k: 'material', n: [0, 2] }, { k: 'munición', n: [0, 1] }] }, {
-    mat: 'metal', hp: 320, push: true, mass: 40, fric: 14, build: g => {
-      const out = [], L = 4.3, W = 1.8, body = sm(pick(CAR_COL), .5, .45), bd = body.clone(); bd.color.multiplyScalar(.7);
-      bx(g, out, body, L, .55, W, 0, .6, 0, false); bx(g, out, bd, L - .1, .22, W - .06, 0, .3, 0, false); bx(g, out, OM.soil, L - .05, .12, W + .01, 0, .2, 0, false);
-      bx(g, out, body, 1.35, .13, W - .12, L / 2 - .9, .94, 0, true); bx(g, out, body, 1.0, .13, W - .12, -L / 2 + .55, .94, 0, true);
-      bx(g, out, body, 1.9, .5, W - .2, -.2, 1.22, 0, true);
-      for (const x of [.73, -1.0]) bx(g, out, OM.glass, .04, .38, W - .36, x, 1.2, 0, true);
-      for (const s of [-1, 1]) { bx(g, out, OM.glass, 1.3, .36, .03, -.2, 1.24, s * (W / 2 - .09), true); bx(g, out, OM.dark, .06, .4, .05, .35, 1.24, s * (W / 2 - .1), true); }
-      for (const a of [-1, 1]) for (const b of [-1, 1]) { cy(g, out, OM.rubber, .31, .22, a * (L / 2 - .85), .31, b * (W / 2 - .07), true).rotation.x = Math.PI / 2; cy(g, out, OM.steelL, .16, .24, a * (L / 2 - .85), .31, b * (W / 2 - .07), true).rotation.x = Math.PI / 2; }
-      for (const s of [-1, 1]) { bx(g, out, OM.lampOff, .06, .12, .32, L / 2 - .02, .72, s * (W / 2 - .3), true); bx(g, out, OM.red, .06, .1, .3, -L / 2 + .02, .72, s * (W / 2 - .3), true); }
+  /* ---- vehículos: una sola receta con varias carrocerías (coche, taxi, policía, furgoneta, pickup, camión). Pesados (no se empujan con un roce), con la puerta del conductor
+     que se abre (cobertura lateral y botón «Abrir puerta»), y con daño por etapas: humo al 66 %, y al 33 % puede arder y explotar (reacción en cadena con los vecinos). ---- */
+  const VKIND = {
+    car:    { name: 'Coche abandonado', L: 4.3, W: 1.8, H: 1.5, hp: 320, door: 1.0 },
+    taxi:   { name: 'Taxi', L: 4.4, W: 1.8, H: 1.7, hp: 320, door: 1.0, col: 0xe9b928, sign: 1 },
+    police: { name: 'Coche de policía', L: 4.6, W: 1.9, H: 1.75, hp: 380, door: 1.05, col: 0x23304a, white: 1, bar: 1 },
+    van:    { name: 'Furgoneta', L: 5.2, W: 2.0, H: 2.35, hp: 420, door: 1.1, tall: 1 },
+    pickup: { name: 'Pickup', L: 5.4, W: 2.0, H: 1.9, hp: 400, door: 1.1, bed: 1 },
+    truck:  { name: 'Camión de reparto', L: 7.8, W: 2.5, H: 3.3, hp: 700, door: 1.15, box: 1 }
+  };
+  const VLOOT = [{ k: 'material', n: [0, 2] }, { k: 'munición', n: [0, 1] }];
+  for (const [kind, K] of Object.entries(VKIND)) def(kind, { name: K.name, cat: 'Comercio y transporte', loot: VLOOT, note: 'pesado, puerta que se abre, humo y fuego al dañarlo' }, {
+    mat: 'metal', hp: K.hp, push: false, mass: 900, fric: 14, veh: true, build: g => {
+      const out = [], L = K.L, W = K.W, col = PAR().c || K.col || pick(CAR_COL), body = sm(col, .5, .45), bd = body.clone(); bd.color.multiplyScalar(.7);
+      const top = K.white ? sm(0xe8e8ea, .5, .4) : body, lowH = K.tall || K.box ? .95 : .55;
+      bx(g, out, bd, L - .1, .22, W - .06, 0, .3, 0, false); bx(g, out, OM.soil, L - .05, .12, W + .01, 0, .2, 0, false);
+      if (K.box) {                                                                                                  // camión: cabina delante y caja de carga detrás
+        bx(g, out, body, 2.0, 1.2, W - .1, L / 2 - 1.0, .95, 0, false); bx(g, out, body, 1.7, 1.0, W - .2, L / 2 - 1.1, 2.0, 0, true); bx(g, out, OM.glass, .04, .8, W - .5, L / 2 - .24, 1.95, 0, true);
+        bx(g, out, OM.white, 5.5, 2.5, W - .05, -L / 2 + 2.9, 2.15, 0, true); bx(g, out, OM.ironD, 5.5, .12, W - .05, -L / 2 + 2.9, .86, 0, false); bx(g, out, pick([OM.red, OM.teal, OM.navy, OM.orange]), 5.4, .5, W - .04, -L / 2 + 2.9, 2.6, 0, true);
+        bx(g, out, OM.steel, .06, 2.2, W - .4, -L / 2 + .12, 2.1, 0, true);
+      } else if (K.tall) {                                                                                          // furgoneta: un solo volumen alto con parabrisas
+        bx(g, out, body, L, K.H - .85, W, 0, .85 + (K.H - .85) / 2, 0, false); bx(g, out, OM.glass, .04, .7, W - .35, L / 2 - .02, 1.65, 0, true); bx(g, out, OM.ironD, L - .2, .1, W - .2, -.1, K.H + .02, 0, true);
+        for (const sg of [-1, 1]) bx(g, out, OM.glass, 1.0, .55, .03, L / 2 - 1.1, 1.7, sg * (W / 2 + .005), true);
+      } else if (K.bed) {                                                                                           // pickup: cabina y caja abierta con cajas sueltas
+        bx(g, out, body, L, .55, W, 0, .6, 0, false); bx(g, out, body, 1.9, .75, W - .2, L / 2 - 1.7, 1.28, 0, true); bx(g, out, OM.glass, .04, .55, W - .4, L / 2 - .78, 1.3, 0, true);
+        for (const sg of [-1, 1]) { bx(g, out, body, 2.2, .35, .06, -L / 2 + 1.2, 1.0, sg * (W / 2 - .03), true); bx(g, out, OM.glass, 1.0, .42, .03, L / 2 - 1.75, 1.32, sg * (W / 2 - .09), true); }
+        bx(g, out, body, .06, .35, W, -L / 2 + .06, 1.0, 0, true); bx(g, out, OM.dark, 2.0, .05, W - .2, -L / 2 + 1.2, .9, 0, false);
+        for (let k = 0; k < 2; k++) if (rnd() < .7) bx(g, out, OM.card, .7, .5, .7, -L / 2 + .9 + k * .9, 1.18, (rnd() - .5) * .6, true);
+      } else {                                                                                                      // turismo: carrocería baja, capó, maletero y cabina de cristal
+        bx(g, out, body, L, .55, W, 0, .6, 0, false); bx(g, out, top, 1.35, .13, W - .12, L / 2 - .9, .94, 0, true); bx(g, out, top, 1.0, .13, W - .12, -L / 2 + .55, .94, 0, true);
+        bx(g, out, top, 1.9, .5, W - .2, -.2, 1.22, 0, true); for (const x of [.73, -1.0]) bx(g, out, OM.glass, .04, .38, W - .36, x, 1.2, 0, true);
+        for (const sg of [-1, 1]) bx(g, out, OM.glass, 1.3, .36, .03, -.2, 1.24, sg * (W / 2 - .09), true);
+        if (K.sign) { bx(g, out, OM.cream, .6, .18, .24, -.2, 1.55, 0, true); bx(g, out, OM.dark, 4.0, .04, .03, 0, .75, W / 2 + .01, false); }
+        if (K.bar) { bx(g, out, OM.dark, .35, .08, 1.2, -.2, 1.52, 0, true); bx(g, out, OM.red, .3, .09, .5, -.2, 1.58, -.35, true); bx(g, out, OM.blueP, .3, .09, .5, -.2, 1.58, .35, true); }
+      }
+      for (const a of [-1, 1]) for (const b of [-1, 1]) { cy(g, out, OM.rubber, K.box ? .46 : .31, .22, a * (L / 2 - (K.box ? 1.0 : .85)), K.box ? .46 : .31, b * (W / 2 - .07), true).rotation.x = Math.PI / 2; cy(g, out, OM.steelL, .16, .24, a * (L / 2 - (K.box ? 1.0 : .85)), K.box ? .46 : .31, b * (W / 2 - .07), true).rotation.x = Math.PI / 2; }
+      for (const sg of [-1, 1]) { bx(g, out, OM.lampOff, .06, .12, .32, L / 2 - .02, .72, sg * (W / 2 - .3), true); bx(g, out, OM.red, .06, .1, .3, -L / 2 + .02, .72, sg * (W / 2 - .3), true); }
       bx(g, out, OM.ironD, .16, .12, W - .1, L / 2 - .02, .35, 0, true); bx(g, out, OM.ironD, .16, .12, W - .1, -L / 2 + .02, .35, 0, true);
       for (let k = 0; k < 4; k++) bx(g, out, OM.rust, .25 + rnd() * .3, .015, .15 + rnd() * .2, k % 2 ? -.2 + (rnd() - .5) * 1.0 : 1.4 + (rnd() - .5) * .6, k % 2 ? 1.48 : 1.02, (rnd() - .5) * .8, true);
-      for (const s of [-1, 1]) bx(g, out, OM.rust, .8, .22, .02, (rnd() - .5) * 2, .42, s * (W / 2 + .005), true);
-      return { out, hx: L / 2, hz: W / 2, h: 1.5 };
+      // puerta del conductor (lado +z): panel y ventanilla giran juntos sobre la bisagra delantera; al abrirla deja un hueco y un panel de cobertura lateral
+      const dl = K.door, xh = (K.box ? L / 2 - .6 : K.bed ? L / 2 - 1.0 : K.tall ? L / 2 - .9 : L / 2 - 1.15), xc = xh - dl / 2, i0 = out.length, dz = W / 2 + .035, base = K.box ? 1.0 : K.tall ? .95 : .62;
+      bx(g, out, body, dl, K.box ? .9 : .55, .06, xc, base, dz, true); bx(g, out, OM.glass, dl - .1, K.box ? .7 : .34, .03, xc, base + (K.box ? .85 : .5), dz - .01, true); bx(g, out, OM.steelL, .12, .04, .05, xc - dl / 2 + .15, base + .12, dz + .04, true);
+      const lf = leaf(out, i0, xh, W / 2, 1), ca = Math.cos(1.15), sa = Math.sin(1.15);
+      return { out, hx: L / 2, hz: W / 2, h: K.H, leaves: [lf], swing: 1.15, openBoxes: [{ lx: 0, lz: 0, hx: L / 2, hz: W / 2 }, { lx: xh - dl / 2 * ca, lz: W / 2 + dl / 2 * sa, hx: dl / 2 * ca + .05, hz: dl / 2 * sa + .05 }] };
     }
   });
   def('stall', { name: 'Puesto de mercado', cat: 'Comercio y transporte' }, {
@@ -915,6 +945,7 @@
     if (s && b) {
       p.o = { leaves: b.leaves || null, openBoxes: b.openBoxes || null, swing: b.swing || 0, slide: b.slide || 0, roll: !!b.roll, beacon: b.beacon || null, glassPcs: b.glassPcs || null, glow: b.glow || null, lamp: b.lamp || null, seats: b.seats || null };
       p.fullBox = p.box; p.open = false; p.oT = 0;
+      if (s.veh) p.veh = true;
       if (s.alarm) p.alarmOn = false;
     }
     if (s) { p.meta = META[type]; p.faction = OBJ.fac; emit('add', p); } return p;
@@ -1217,6 +1248,14 @@
     if (BLD[tipo]) { const b = OBJ.building(tipo, x, z, rot, fac); if (b) b.isBuilding = true; return b; }
     if (!SP[tipo]) { if (!OBJ._warned[tipo]) { OBJ._warned[tipo] = 1; console.warn('placeObject: tipo desconocido «' + tipo + '»'); } return null; }
     const param = Object.assign({}, o.param || {}); if (o.len !== undefined) param.len = o.len;
+    if (o.yaw !== undefined && SP[tipo].veh && Math.abs(Math.sin(o.yaw * 2)) > .05) {                  // vehículo girado un ángulo libre (choques, atravesados): colisión de 3 cajas a lo largo, sin puertas
+      const p = OBJ.place(tipo, x, z, 0, fac, Object.keys(param).length ? param : null), L2 = p.hx, W2 = p.hz, c = Math.cos(o.yaw), sn = Math.sin(o.yaw), n = 3, sl = L2 * 2 / n;
+      p.g.rotation.y = o.yaw; p.g.updateMatrixWorld(true); dropBoxes(p); p.xb = [];
+      for (let i = 0; i < n; i++) { const lx = -L2 + sl * (i + .5); p.xb.push({ x: p.x + lx * c, z: p.z - lx * sn, hx: Math.abs(sl / 2 * c) + Math.abs(W2 * sn), hz: Math.abs(sl / 2 * sn) + Math.abs(W2 * c), prop: p }); }
+      for (const b of p.xb) boxes.push(b); p.box = p.xb[1]; p.fullBox = p.box; p.hx = L2 * Math.abs(c) + W2 * Math.abs(sn); p.hz = L2 * Math.abs(sn) + W2 * Math.abs(c); p.yaw = o.yaw;
+      if (p.o) p.o.leaves = null;
+      return p;
+    }
     const p = OBJ.place(tipo, x, z, rot, fac, Object.keys(param).length ? param : null);
     if (o.abierto !== undefined && p.o && p.o.leaves) OBJ.setOpen(p, !!o.abierto, true);
     return p;

@@ -300,6 +300,10 @@ MAPA.data.M2 = function () {
       if (PUT('car', nd.x + sx * 5.5, nd.z + sz * 1.6, 0) | PUT('car', nd.x + sx * 1.6, nd.z + sz * 5.8, H)) {
         COMP.scatter(D, { x: nd.x + sx * 4, z: nd.z + sz * 4, r: 2.5, n: 2, seed: ++sd, types: ['barrier', 'crateS', 'barrel', 'blocks'] }); poi('Accidente', nd.x, nd.z); } }
   }
+  { // tácticas de calle: cobertura cada ≤ ~14 m a los lados y un rompe-líneas cada ~50 m en TODAS las calles (misma disposición en las calles idénticas)
+    const skipRd = (x, z) => D.refuges.some(r => Math.hypot(x - r.x, z - r.z) < 70) || D.info.places.some(q => ['PLAZA', 'FAB', 'EST', 'PUE'].includes(q.id) && Math.hypot(x - q.x, z - q.z) < 26);
+    let nRoad = 0; withSym(1, () => { for (const r of D.roads) nRoad += COMP.roadTactics(D, { road: r, nodes: D.info.nodes, skip: skipRd }); }); D.info.roadTactics = nRoad;
+  }
   { // lugares con historia en una rejilla de ~62 m por todo el cuarto
     const taken = D.info.places.filter(p => p.fac === 0 || p.fac === -1).map(p => [p.x, p.z]).concat([[RX, RZ]]);
     const BUILD = {

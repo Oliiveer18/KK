@@ -20,13 +20,14 @@ const optRot = (o, k) => o && o.fac !== undefined && o.fac !== null && k ? Objec
 function put(D, t, x, z, g, o, pad) {
   g = snap(g); pad = pad === undefined ? .15 : pad; const occ = occOf(D), cps = [];
   for (const k of COMP.ks(D)) {
-    const [xk, zk] = COMP.rot(k, x, z), gk = g - k * PI2, f = MAPA.fp(t, gk); if (!f) return false;
+    const [xk, zk] = COMP.rot(k, x, z), gk = g - k * PI2; let f = MAPA.fp(t, gk); if (!f) return false;
+    if (o && o.yaw !== undefined) { const f0 = MAPA.fp(t, 0), yk = o.yaw - k * PI2, c = Math.abs(Math.cos(yk)), sn = Math.abs(Math.sin(yk)); f = { hx: f0.hx * c + f0.hz * sn, hz: f0.hx * sn + f0.hz * c, h: f0.h }; }   // vehículo con giro libre: huella de la caja que lo envuelve
     if (cps.some(c => Math.abs(c.x - xk) < .05 && Math.abs(c.z - zk) < .05)) continue;          // la copia cae en el mismo sitio (centro exacto)
     const hx = f.hx + pad, hz = f.hz + pad;
     if (Math.abs(xk) + f.hx > D.half - .5 || Math.abs(zk) + f.hz > D.half - .5) return false;
     for (const b of occ) if (Math.abs(b.x - xk) < b.hx + hx && Math.abs(b.z - zk) < b.hz + hz) return false;
     for (const b of cps) if (Math.abs(b.x - xk) < b.hx + hx && Math.abs(b.z - zk) < b.hz + hz) return false;
-    cps.push({ x: xk, z: zk, hx: f.hx, hz: f.hz, t, g: gk, o: optRot(o, k) });
+    cps.push({ x: xk, z: zk, hx: f.hx, hz: f.hz, t, g: gk, o: o && o.yaw !== undefined ? Object.assign({}, optRot(o, k), { yaw: o.yaw - k * PI2 }) : optRot(o, k) });
   }
   for (const c of cps) { occ.push({ x: c.x, z: c.z, hx: c.hx, hz: c.hz, t }); (D.objects || (D.objects = [])).push({ t, x: c.x, z: c.z, g: c.g, o: c.o }); }
   COMP.used.add(t); return true;
@@ -52,6 +53,56 @@ COMP.jam = function (D, o) {
     const q = P[Math.floor(s)], nx = -q.dz, nz = q.dx, lane = (R() < .5 ? -1 : 1), lat = lane * (w * .25 + (R() - .5) * .5), g = yawAlong(q.dx, q.dz) + (lane > 0 ? 0 : Math.PI);
     if (put(D, o.car || 'car', q.x + nx * lat, q.z + nz * lat, g)) n++;
     if (R() < ex) { const side = R() < .5 ? -1 : 1, t = extra[Math.floor(R() * extra.length)], f = MAPA.fp(t, 0), dep = Math.abs(q.dx) >= Math.abs(q.dz) ? f.hz : f.hx, off = w / 2 + .5 + dep; if (put(D, t, q.x + nx * side * off, q.z + nz * side * off, 0)) n++; }
+  }
+  return n;
+};
+/* ---------- carreteras tácticas ----------
+   Reglas por calle (se miden en el juego con tests/carreteras_bosques.py): cobertura a los lados cada ≤ ~14 m alternando carriles (vehículos aparcados en el bordillo, cruzados
+   en el carril o girados tras un choque, barreras de hormigón, bloques), y un ROMPE-LÍNEAS cada ~50 m: un vehículo girado contra un bordillo que cruza el eje de la calle y deja un
+   paso libre de ≥ 3 m al otro lado, de modo que no se ve ni se dispara por la calzada a más de ~60 m. Las calles idénticas (rotadas entre cuartos) reciben la misma disposición:
+   la semilla sale de su ancho y su largo. Se evitan los cruces, el entorno de los objetivos y los refugios. */
+const VW = [['car', .36], ['van', .17], ['pickup', .16], ['truck', .07], ['taxi', .1], ['police', .08], ['dumpster', .06]];
+const vpick = R => { let r = R(), a = 0; for (const [k, w] of VW) { a += w; if (r <= a) return k; } return 'car'; };
+COMP.roadTactics = function (D, o) {
+  const r = o.road, P = roadPts(r), w = r.w, L = P.length - 1, seed = o.seed || (9000 + Math.round(w * 13 + L / 10)), R = rngOf(seed), skip = o.skip || (() => false), nodes = o.nodes || [];
+  const base = (q) => Math.abs(q.dx) >= Math.abs(q.dz) ? 0 : PI2;
+  let n = 0, nb = 0;
+  const free = (x, z, rad) => !skip(x, z) && nodes.every(nd => Math.hypot(nd.x - x, nd.z - z) > rad);
+  const place = (t, s, lat, yaw, ang) => {                                                             // lat: desplazamiento lateral con signo; ang: giro libre (radianes) o undefined
+    const q = P[Math.max(0, Math.min(L, Math.round(s)))], nx = -q.dz, nz = q.dx, x = q.x + nx * lat, z = q.z + nz * lat;
+    if (!free(x, z, 11)) return false;
+    return put(D, t, x, z, ang === undefined ? yaw : 0, ang === undefined ? null : { yaw: base(q) + ang }, .2);
+  };
+  const across = (K, th) => K.L * Math.sin(th) + K.W * Math.cos(th);
+  const DIM = { car: [4.3, 1.8], taxi: [4.4, 1.8], police: [4.6, 1.9], van: [5.2, 2.0], pickup: [5.4, 2.0], truck: [7.8, 2.5] };
+  let sB = 16 + R() * 20, side = R() < .5 ? -1 : 1;                                                   // próximo rompe-líneas
+  for (let s = 14 + R() * 6; s < L - 14; s += 11 + R() * 4) {
+    const q = P[Math.round(s)];
+    if (s >= sB) {                                                                                     // rompe-líneas: vehículo girado contra un bordillo que cruza el eje y deja ≥ 3 m al otro lado
+      const kinds = w >= 12 ? ['truck', 'truck', 'wreckBus', 'van'] : w >= 8 ? ['van', 'pickup', 'truck'] : ['van', 'pickup', 'police'];
+      for (const kind of kinds.sort(() => R() - .5)) {
+        const K = kind === 'wreckBus' ? { L: 8.8, W: 2.4 } : { L: DIM[kind][0], W: DIM[kind][1] }, want = w / 2 + .3;                                 // cruza el eje 0,3 m y llega al bordillo
+        let th = 0; for (let a = .2; a <= 1.3; a += .02) { th = a; if (across(K, a) >= want) break; }
+        if (th >= 1.3 || w - across(K, th) < 3.0 - .6) continue;
+        const c = side * (w / 2 - .15 - across(K, th) / 2);
+        if (place(kind, s, c, 0, side * th * (kind === 'wreckBus' ? 1 : 1))) { n++; nb++; sB = s + 42 + R() * 18; side = -side; break; }
+      }
+      if (s < sB) { /* ninguno cupo */ sB = s + 9; }
+      continue;
+    }
+    const roll = R(), lane = R() < .5 ? -1 : 1;
+    if (roll < .62) {                                                                                  // vehículo: en el bordillo, cruzado en el carril o girado tras un choque
+      const kind = vpick(R), K = DIM[kind] || [1.9, .95], hw = K[1] / 2, mode = R();
+      let lat = lane * (w / 2 - hw - .35), ang;
+      if (mode > .72) { lat = lane * w * .22; }                                                         // en el carril
+      if (mode > .55 && mode <= .72 && kind !== 'dumpster') ang = (R() < .5 ? -1 : 1) * (.25 + R() * .4);                                // girado
+      const yaw = base(q) + (R() < .5 ? 0 : 0);
+      for (const ds of [0, 2.5, -2.5, 5]) if (place(kind, s + ds, lat, yaw, ang)) { n++; break; }
+    } else if (roll < .82) {                                                                           // barrera de hormigón en el bordillo (par en línea)
+      const lat = lane * (w / 2 - .6); for (const ds of [0, 3]) if (place('jersey', s + ds, lat, base(q))) n++;
+    } else {                                                                                           // bloques, sacos o contenedor
+      const t = ['blocks', 'sandbags', 'barrier', 'dumpster', 'crate'][Math.floor(R() * 5)]; if (place(t, s, lane * (w / 2 - .7), base(q))) n++;
+    }
   }
   return n;
 };

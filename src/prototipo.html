@@ -1794,6 +1794,10 @@ function damageProp(p, dmg, x, z, dx, dz, kind) {
   p.hp -= dmg * MT[p.mat].dm; p.wob = Math.min(1, p.wob + dmg * .02);
   const f = p.hp / p.maxHp;
   while (p.stage < 2 && p.hp > 0 && f <= (p.stage === 0 ? .66 : .33)) { p.stage++; if (p.mat !== 'metal') shedPieces(p, p.stage === 1 ? 2 : 3, x, z, dx, dz); }
+  if (p.veh && p.hp > 0) {                                                           // vehículos: humo al 66 % de vida; al 33 % arde y puede explotar (en cadena con los de al lado)
+    if (p.stage >= 1 && !p.smk) { p.smk = 1; AWAKE.add(p); }
+    if (p.stage >= 2 && p.fireT === undefined && !p.noFire) { if (Math.random() < .6) { p.fireT = 2.5 + Math.random() * 3.5; igniteZone(p.x, p.z, Math.max(p.hx, p.hz) + .3, 6); } else p.noFire = true; }
+  }
   if (p.hp <= 0) destroyProp(p, dx, dz, kind === 'blast' ? 1.7 : 1);
 }
 function rayBox2(ox, oz, dx, dz, b) {
@@ -1868,6 +1872,11 @@ function updateProps(dt) {
   P.cover = cv;
   for (const p of AWAKE) {                                                           // sólo los despiertos (los soldados e intactos no tienen nada que actualizar: cualquier toque los despierta, MAPA.wake)
     if (p.dead) { AWAKE.delete(p); continue; }
+    if (p.smk) {                                                                     // vehículo dañado: humo (más denso si arde) y llamas; al acabar la cuenta atrás, explota
+      p.smkT = (p.smkT || 0) - dt; if (p.smkT <= 0) { p.smkT = p.fireT !== undefined ? .1 : .3; emitPuff(p.x + (Math.random() - .5) * p.hx, 1.3, p.z + (Math.random() - .5) * p.hz, 0, 1, 0, .18, 1.0, 1.8, .3); }
+      if (p.fireT !== undefined) { if (Math.random() < dt * 18) flame(p.x + (Math.random() - .5) * p.hx * 1.2, 1.0, p.z + (Math.random() - .5) * p.hz * 1.2, .15); p.fireT -= dt;
+        if (p.fireT <= 0) { p.fireT = undefined; p.smk = 0; explode(new V3(p.x, .8, p.z), 3.4, .8, 'barrel', p.by); destroyProp(p, 0, 0, 1.5); continue; } }
+    }
     if (p.fuse >= 0) { p.fuse -= dt; if (p.fuse < 0) { destroyProp(p, 0, 0, 1.5); continue; } if (Math.random() < dt * 25) flame(p.x, .9, p.z, .12); }
     if (p.burnT > 0) {                                                               // madera ardiendo: se carboniza y pierde vida
       p.burnT -= dt; loopAt('pb' + p.uid, 'FIRE_loop', p.x, p.z, .6); if (!p.charred) { p.charred = true; if (p.lz) MAPA.wake(p); for (const pc of p.pieces) if (!pc.gone && pc.obj.material === PM.plank) pc.obj.material = PM.char; }
