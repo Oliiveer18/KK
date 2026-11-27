@@ -7520,7 +7520,7 @@ function bound(s, e, m) {
 SQ.contact = (e, seen) => {                                                          // un miembro ve a un enemigo: la escuadra lo sabe (radio de 60 m alrededor del líder)
   const s = e.sqd; if (!s || !seen || !seen.p || seen.team === undefined) return;
   s.contact = { x: seen.p.x, z: seen.p.z, t: M.t, by: e, foe: seen };
-  if (seen.team !== e.team) { SQ.lastFoe = SQ.lastFoe || []; SQ.lastFoe[e.team] = { x: seen.p.x, z: seen.p.z, t: M.t, name: 'contacto' }; }   // último enemigo de otra facción visto por cualquier escuadra de este equipo
+  if (seen.team >= 0 && seen.team !== e.team) { SQ.lastFoe = SQ.lastFoe || []; SQ.lastFoe[e.team] = { x: seen.p.x, z: seen.p.z, t: M.t, name: 'contacto' }; }   // último enemigo de otra facción visto por cualquier escuadra de este equipo
 };
 MX.bulletPass = (b, x0, z0, x1, z1) => {                                             // supresión: balas que pasan a < 2,5 m de alguien de otra facción
   if (!MX.campaign) return; const own = b.own || MX.pl, team = own ? own.team : 0, dx = x1 - x0, dz = z1 - z0, L2 = dx * dx + dz * dz || 1;
