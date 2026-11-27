@@ -454,28 +454,31 @@ const pMat = {
   gun: mGun,
   smoke: new THREE.MeshBasicMaterial({ color: 0x2a2f3a })
 };
-const parts = [];
-for (let i = 0; i < 360; i++) {
-  const m = new THREE.Mesh(geoBox, pMat.spark); m.visible = false; m.castShadow = false; scene.add(m);
-  parts.push({ m, v: new V3(), life: 0, grav: 20, bounce: false, spin: 0 });
-}
+/* partículas: las 360 comparten UN solo dibujo instanciado (antes una malla, y una llamada de dibujo, por chispa/astilla/humo: un tiroteo con granadas pasaba de ~270 a ~540 llamadas
+   y cada explosión añadía ~50). Misma caja y mismo color plano que antes (el color de cada una va por instancia); `m` es sólo el transformador de cada partícula. */
+const parts = [], PINST = new THREE.InstancedMesh(geoBox, new THREE.MeshBasicMaterial({ color: 0xffffff }), 360), _pc = new THREE.Color();
+PINST.frustumCulled = false; PINST.castShadow = false; PINST.setMatrixAt(0, new THREE.Matrix4()); PINST.setColorAt(0, _pc.set(1, 1, 1)); PINST.count = 0;   /* setColorAt reserva el búfer según count: se pone a 0 después */ PINST.instanceMatrix.setUsage(THREE.DynamicDrawUsage); PINST.instanceColor.setUsage(THREE.DynamicDrawUsage); scene.add(PINST);
+for (let i = 0; i < 360; i++) parts.push({ m: new THREE.Object3D(), c: pMat.spark.color, v: new V3(), life: 0, grav: 20, bounce: false, spin: 0 });
 function spawn(type, pos, vel, life, sx, sy, sz, bounce, spin, grav) {
   const p = parts.find(q => q.life <= 0); if (!p) return;
-  p.m.material = pMat[type]; p.m.position.copy(pos); p.v.copy(vel); p.life = life;
+  p.m.material = pMat[type]; p.c = p.m.material.color; p.m.position.copy(pos); p.v.copy(vel); p.life = life;
   p.m.scale.set(sx, sy, sz); p.bounce = !!bounce; p.spin = spin || 0; p.grav = grav === undefined ? 20 : grav; p.m.visible = true;
   p.m.rotation.set(Math.random() * 3, Math.random() * 3, 0);
 }
 function updateParts(dt) {
-  for (const p of parts) {
-    if (p.life <= 0) continue;
+  let k = 0; const ia = PINST.instanceMatrix.array, ca = PINST.instanceColor.array;
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i]; if (p.life <= 0) continue;
     p.life -= dt; if (p.life <= 0) { p.m.visible = false; continue; }
     p.v.y -= p.grav * dt; p.m.position.addScaledVector(p.v, dt);
     if (p.m.position.y < .03 && p.v.y < 0) {
       p.m.position.y = .03;
       if (p.bounce) { p.v.y *= -.3; p.v.x *= .6; p.v.z *= .6; } else { p.v.set(0, 0, 0); }
     }
-    p.m.rotation.x += p.spin * dt;
+    p.m.rotation.x += p.spin * dt; p.m.updateMatrix(); p.m.matrix.toArray(ia, k * 16); const c = p.c; ca[k * 3] = c.r; ca[k * 3 + 1] = c.g; ca[k * 3 + 2] = c.b; k++;
   }
+  if (k || PINST.count) { PINST.count = k; PINST.instanceMatrix.needsUpdate = true; PINST.instanceColor.needsUpdate = true; }
+  PINST.visible = k > 0;
 }
 /* casquillos: física propia (rebotes, rodadura, reposo plano) y aspecto según el arma */
 const CS = { pool: [], pend: -1, i: 0 };

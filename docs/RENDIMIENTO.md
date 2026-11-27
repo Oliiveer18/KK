@@ -118,3 +118,8 @@ Medido en simulación de escritorio (sin dibujar, 2 min, 200 bots + ~1.600 zombi
 
 ## Minimapa en caché (27-11)
 - Medido: con el minimapa desactivado el peor fotograma de 4 min de simulación era 27 ms; con él, 88–99 ms. Las paradas eran del lienzo 2D (texto y degradados radiales 10 veces por segundo). Ahora los números y etiquetas (`drawTxt`) y las manchas de fuego (`drawBlob`) se pintan una vez en lienzos pequeños y solo se copian con `drawImage`; el aspecto es el mismo. Peor fotograma: 42–61 ms. Queda algo de ruido en el lienzo del minimapa en el navegador de pruebas (software); en el iPhone el lienzo 2D va por GPU y no se ha podido medir.
+
+## Partículas instanciadas (captura real del iPhone)
+Captura de una partida larga: 540 llamadas de dibujo y tirones de 40–90 ms que coincidían con `explode`, `popSmoke`, `destroyProp`, `reaparece` y `baja`. En la simulación esos eventos cuestan <3 ms de JS: el coste estaba en el dibujo.
+Cada chispa, astilla, gota o trozo de humo era una malla suelta (hasta 360 en el pool, ~50 por explosión) = una llamada de dibujo cada una. Ahora las 360 comparten UN `InstancedMesh` (`PINST`), con la misma caja y el mismo color plano (el color va por instancia). Aspecto idéntico, de ~240 llamadas en un tiroteo a 1.
+Pendiente de medir en el iPhone. Siguiente candidato si siguen los tirones: las 130 bocanadas `puffs` (mallas transparentes sueltas).
