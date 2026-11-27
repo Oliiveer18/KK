@@ -7102,8 +7102,43 @@ MX.zom.cand = (ox, oz, dx, dz, d0, d1) => {
   for (let ix = x0; ix <= x1; ix++) for (let iz = z0; iz <= z1; iz++) { const a = ZG.get(zgk(ix, iz)); if (a) for (let i = 0; i < a.length; i++) out.push(a[i]); }
   return out;
 };
+/* ---- PRESIÓN EN LOS PUNTOS DE CAPTURA ----
+   Los puntos estaban siempre vacíos de zombis: la población se reparte por zonas, los 200 bots los barren desde el minuto 1 y la reposición exige estar a > 70 m de CUALQUIER combatiente.
+   Cada punto (menos los refugios) tiene ahora una guarnición propia (zombis dormidos o rondando entre 6 y 45 m) que se repone en cuanto no la vea el jugador, y recibe oleadas dirigidas
+   que aparecen fuera de la vista y llegan por ruta. Intensidad SUAVE al empezar y creciente hasta el final: sube con el tiempo (25 min) y con el marcador (la meta). ?zpunto=N la multiplica. */
+const ZPUNTO = +new URLSearchParams(location.search).get('zpunto') || 1;
+const PT = { t: 0, waves: [] };
+function matchProg() { const SQ = MX.SQ; let sc = 0; if (SQ && SQ.score && SQ.meta) sc = Math.max.apply(null, SQ.score) / SQ.meta; return Math.max(0, Math.min(1, Math.max(M.t / 1500, sc))); }   // 0 al empezar, 1 a los 25 min o con la meta cerca
+const offScreen = (x, z) => { const S = MX.SIGHT || { hw: 13, hd: 8 }, dx = x - P.pos.x, dz = z - P.pos.z; return (Math.abs(dx) > S.hw + 9 || Math.abs(dz) > S.hd + 9) && dx * dx + dz * dz > 900; };   // fuera de la pantalla y a > 30 m del jugador
+function pointSpawnPos(o, rMin, rMax, needOff) { for (let t = 0; t < 30; t++) { const a = rnd() * 6.283, r = rMin + rnd() * (rMax - rMin), x = o.x + Math.cos(a) * r, z = o.z + Math.sin(a) * r; if (navFree(x, z) && (!needOff || offScreen(x, z))) return [x, z]; } return null; }
+function pointsTick() {
+  const SQ = MX.SQ; if (!SQ || !SQ.objs || !MX.campaign || !M.built) return; const prog = matchProg(), k = (1 + 1.6 * prog) * ZPUNTO;                       // intensidad: ×1 al empezar, ×2,6 al final
+  let alive = 0, ngar = new Map(); for (let i = 0; i < Z.length; i++) { const z = Z[i]; if (z.dead) continue; alive++; if (z.gar) ngar.set(z.gar, (ngar.get(z.gar) || 0) + 1); }
+  PT.waves = PT.waves.filter(h => h.members.some(m => !m.dead));
+  if (alive > MAXZ - 60) return;
+  for (const o of SQ.objs) {
+    if (o.id === 'REF') continue;
+    const want = Math.round((o.id === 'PLAZA' ? 12 : 8) * k), have = ngar.get(o) || 0;
+    if (o._zInit === undefined) { o._zInit = true; o._zNext = 0; o._wNext = M.t + rr(40, 70); }
+    if (have < want && M.t >= o._zNext) {                                                                                                         // guarnición: se rellena (la primera vez de golpe, luego en grupos de 2–3 cada 20–40 s) y sólo fuera de la vista
+      const first = o._zFirst === undefined; if (first) o._zFirst = true;
+      const n = first ? want : Math.min(4, want - have); let made = 0;
+      /* el 40 % dentro de la zona del punto, el resto en su entorno */
+      for (let i = 0; i < n; i++) { const inner = rnd() < .4, p = inner ? pointSpawnPos(o, 2, o.r, !first) : pointSpawnPos(o, o.r, 45, !first); if (!p) continue; const zb = newZ(mixPick(true), p[0], p[1], { st: rnd() < .5 ? 'dorm' : 'wander' }); if (zb) { zb.gar = o; made++; } }
+      o._zNext = M.t + (first ? 5 : rr(12, 22) / Math.min(2, k)); if (!made && !first) o._zNext = M.t + 5;
+    }
+    if (M.t >= o._wNext && PT.waves.length < 3 && !(o._wave && o._wave.members.some(m => !m.dead))) {                                              // oleada dirigida al punto
+      o._wNext = M.t + rr(110, 170) / k;
+      let act = 0; for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (!e.dead && Math.sqrt((e.p.x - o.x) * (e.p.x - o.x) + (e.p.z - o.z) * (e.p.z - o.z)) < o.r + 12) act++; }
+      const size = Math.round((5 + Math.min(2, act / 8) * 2) * k), pr = .14 + .26 * prog, pb = .03 + .12 * prog, mix = [];
+      for (let i = 0; i < size; i++) { const r = rnd(); mix.push(r < pr ? 'runner' : r < pr + pb ? 'brute' : r < pr + pb + .05 ? 'screamer' : 'walker'); }
+      const p = pointSpawnPos(o, 75, 115, true); if (p) { const h = newHorde(p[0], p[1], mix); if (h.members.length) { h.st = 'invest'; h.tx = o.x + rr(-4, 4); h.tz = o.z + rr(-4, 4); h.path = null; h.wait = 0; h.divertT = M.t; h.migrate = false; h.roamPts = [[o.x, o.z]]; o._wave = h; PT.waves.push(h); } }
+    }
+  }
+}
 let nearZ = 0, heatT = 0;
 MX.zom.update = dt => {
+  PT.t -= dt; if (PT.t <= 0) { PT.t = 1; pointsTick(); }
   if (!ZGOFF) zgBuild();
   if (!MX.campaign || !M.built) return; dt = Math.min(dt, .05); zt += dt; astar = 3; extraA = 0;
   heatT -= dt; if (heatT <= 0) { heatT = .5; for (const [k, v] of HEAT) { const n = v * .95; if (n < .08) HEAT.delete(k); else HEAT.set(k, n); } }

@@ -61,3 +61,12 @@ Equilibrio (vida, daño, velocidades, cuántos zombis, la horda), infestación d
 - **Calor de combate**: cada disparo, explosión o grito calienta su zona (celdas de 32 m, se enfría solo) y las hordas que migran tiran hacia las zonas calientes (60 %): acuden a los tiroteos y a los puntos de captura disputados. Sin cebos ni alarmas.
 - **Medido** (jugador quieto, un ruido de fusil cada 1,5 s, 60 s, sin defenderse): cae a los 56 → 28 s (casco), 21 → 10 s (residencial), 17 → 4 s (comercios); en la plaza de aguantar 60 s a caer a los 19 s con hasta 55 perseguidores. `?zdif=0.7` multiplica el daño de los zombis para ajustar sin tocar el código.
 - **Rendimiento**: mapa de cercanía de 16 m en vez de preguntar a cada combatiente por cada zombi; rejilla de zombis para balas y rayos (`?nozgrid`); huecos de dibujo estables (antes se reasignaban por distancia cada fotograma y se recoloreaban hasta 240 zombis); `toDebris` buscaba el objeto de cada trozo recorriendo los ~22.000 (10–20 ms al romper un vehículo) y `updateFires` recorría todos los objetos por cada fuego: ahora por enlace e índice espacial.
+
+
+## Presión en los puntos de captura (27-11)
+Antes, ningún punto tenía un solo zombi en su zona (la población se reparte por zonas, los bots la barren y la reposición exigía estar a > 70 m de cualquier combatiente). Ahora cada punto (menos los refugios) tiene:
+- **Guarnición propia** (12 en la Plaza, 8 en los demás, ×1 al empezar): el 40 % dentro de la zona y el resto a 6–45 m, dormidos o rondando. Se rellena en grupos de hasta 4 cada 12–22 s, sólo fuera de la pantalla del jugador.
+- **Oleadas dirigidas** (la primera a los 40–70 s, luego cada 110–170 s): aparecen a 75–115 m fuera de la vista como una horda y llegan por ruta al punto. Tamaño 5 + hasta 4 según los combatientes que haya dentro; mezcla con más corredores y pesados según avanza la partida; como mucho 3 oleadas vivas a la vez.
+- **Dificultad creciente**: intensidad ×1 al empezar y hasta ×2,6 al final, según el tiempo (25 min) o el marcador (lo que vaya antes a la meta). `?zpunto=N` la multiplica.
+- Sin cambios en las reglas de captura ni avisos previos (decisión del usuario).
+- Medido (con 200 bots barriendo): al empezar 2–5 zombis dentro de cada zona y 9–27 a ≤ 40 m (antes 0 y 0–9); a los 4 min sigue habiendo 1–10 en la Plaza y presencia menor en el resto.
