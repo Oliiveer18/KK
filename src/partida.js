@@ -472,6 +472,7 @@ MX.perfHook = w => {                                                            
   const rs = respawn, kl = kill; respawn = function () { PERF.tag('reaparece'); return rs.apply(this, arguments); }; kill = function () { PERF.tag('baja'); return kl.apply(this, arguments); };
 };
 MX.poseBot = poseBot;
+MX.setWeapon = (e, i) => setWeapon(e, i); MX.WI = WI; MX.tryEquip = tryEquip; MX.P = P;
 function bake(e, dx, dz) {                                                           // al morir, el cuerpo cae como un bloque alrededor de los pies
   const r = e.root, px = e.p.x, pz = e.p.z; r.position.set(px, 0, pz);
   for (const ch of r.children) { ch.position.x -= px; ch.position.z -= pz; }
@@ -878,7 +879,7 @@ function respawn(e) {
   e.p.set(s.x, 0, s.z); e.v.set(0, 0, 0); e.hp = HP; e.sh = MX.campaign ? INVENTARIO.protection(e) : SH; e.bH.fill = e.bH.chunk = HP; e.bS.fill = e.bS.chunk = e.sh; e.tgp.hp = HP; e.dead = false; e.inv = INV_T; e.lastHurt = -99; e.lastAtt = null; e.hitSrc = null; e.yaw = e.body = s.yaw; e.cover = null; e.dwn = false; e.revived = false; if (!MX.campaign) e.kits = 1; e.rescuer = null; e.rt = null; e.revP = 0; dwnFxClear(e); if (MX.campaign) e.kitShown = null; syncKit(e);
   if (MX.SQ && MX.campaign) MX.SQ.onRespawn(e);
   if (e.isPlayer) return respawnPlayer(e);
-  unbake(e); setWeapon(e, pickWeaponIdx()); e.gCount = 3; e.sCount = 2; e.st = 'push'; e.goal = null; e.path = null; e.tgt = null; e.vis = false; e.reactT = 0; e.canShoot = false; e.wantThrow = null; e.holdT = 0;
+  unbake(e); setWeapon(e, MX.classWeapon && MX.classWeapon(e) >= 0 ? MX.classWeapon(e) : pickWeaponIdx()); e.gCount = 3; e.sCount = 2; e.st = 'push'; e.goal = null; e.path = null; e.tgt = null; e.vis = false; e.reactT = 0; e.canShoot = false; e.wantThrow = null; e.holdT = 0;
   e.crouch = e.crouchT = 0; e.kick = 0; e.fireCd = rr(.2, .6); e.pause = 0; e.burst = 0; e.gCd = rr(4, 10); e.sCd = 6; e.walk = 0; e.stuckN = 0; e.nudge = 0; e.py = 1.1; e.thinkT = rnd() * .12; e.ring.visible = true; e.root.visible = true;
 }
 let corpseP = null;

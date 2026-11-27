@@ -70,6 +70,13 @@ const INVENTARIO = (() => {
       set(n) { this.bag.revive = n; }
     });
   }
+  /* equipo de clase: sustituye la mochila y lo puesto por el del kit (piezas de mejor nivel puestas) y recarga la protección */
+  function setKit(e, kit) {
+    e.bag = Object.assign({}, kit); e.worn = {};
+    if (!Object.getOwnPropertyDescriptor(e,'kits')) Object.defineProperty(e, 'kits', { get() { return this.bag.revive || 0; }, set(n) { this.bag.revive = n; } });
+    for (const item of pieces(e.bag)) { const sl = slotOf(item), w = e.worn[sl]; if (!w || limits[item.key] > limits[w.key]) e.worn[sl] = item; }
+    e.sh = protection(e); MX.refreshGear && MX.refreshGear(e);
+  }
   function appearance(e) {
     return {helmet:Number(e.worn.helmet?.key.slice(-1)||0), vest:Number(e.worn.vest?.key.slice(-1)||0), pack:gear(e.bag,'pack')};
   }
@@ -298,5 +305,5 @@ dialog.inv[open]{animation:invIn .16s ease-out}
       } else for(const k of Object.keys(stock(s))) if(transfer(e,s,k))return;
     }
   }
-  return {absorb,protection,spawn,appearance,start,death,transfer,use,capacity,count,input,tick,open};
+  return {absorb,protection,spawn,setKit,appearance,start,death,transfer,use,capacity,count,input,tick,open};
 })();

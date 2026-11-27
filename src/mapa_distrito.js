@@ -128,6 +128,8 @@ MAPA.data.M2 = function () {
     pts.push([HD - 2.2, -2.6, 0], [HD - 2.2, 2.6, 0]);
     for (const b of [-10, 10]) pts.push([-HD + 1.25, b, Math.PI]);
     D.info.defense = [0, 1, 2, 3].map(k => ({ team: COMP.facRot(0, k), pts: pts.map(([a, b, yaw]) => { const [x, z] = at(a, b), [rx, rz] = R(k, x, z); return [rx, rz, yaw - k * PI2]; }) })); }
+  /* puesto de clases: 6 chapas en fila dentro del refugio, delante del tabique (una por clase); al pisarla se cambia de clase y de equipo (src/clases.js). Misma disposición en los 4 refugios. */
+  D.info.classPads = [0, 1, 2, 3].map(k => ({ team: COMP.facRot(0, k), pts: [-8.5, -5.1, -1.7, 1.7, 5.1, 8.5].map(b => { const [x, z] = at(-.8, b), [rx, rz] = R(k, x, z); return [+rx.toFixed(2), +rz.toFixed(2)]; }) }));
   D.info.refugeRects = D.refuges.map(r => ({ fac: r.fac, x: r.x, z: r.z, hx: r.w / 2 + .6, hz: r.d / 2 + .6 }));
   place('REF', 'Refugio', RX, RZ); zone('Refugio', RX - HX, RZ - HD, RX + HX, RZ + HD);
   /* ---------- 2. Plaza Mayor (centro exacto): 4 cuadros de adoquín en las esquinas del cruce, cada uno con el mismo campamento ---------- */

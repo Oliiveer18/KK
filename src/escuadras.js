@@ -610,7 +610,7 @@ SQ.mapTick = () => { if (TM.open) { if (!MX.on || menuOpen || (MX.pl && (MX.pl.d
 #sqPanel .c i{position:absolute;left:0;bottom:0;height:3px;background:#6dff9a}#sqPanel .c.ld{box-shadow:inset 0 0 0 1px #ffd24a}#sqPanel .c.me{background:#1d3352d0}
 #sqPanel .c.dn{background:#4a3208d0}#sqPanel .c.dd{opacity:.35}
 #sqPanel .ex{margin-top:5px;background:#0b0f18b8;border-radius:6px;padding:5px 8px;box-shadow:inset 0 0 0 1px #ffffff1c}
-#sqPanel .ex div{display:flex;gap:6px;align-items:center}#sqPanel .ex b{width:40px;font-weight:700}#sqPanel .ex span{flex:1;height:3px;background:#ffffff22;border-radius:2px;overflow:hidden}#sqPanel .ex span i{display:block;height:100%}
+#sqPanel .ex div{display:flex;gap:6px;align-items:center}#sqPanel .ex b{width:98px;font-weight:700;white-space:nowrap}#sqPanel .ex span{flex:1;height:3px;background:#ffffff22;border-radius:2px;overflow:hidden}#sqPanel .ex span i{display:block;height:100%}
 #sqToast{position:fixed;left:50%;top:calc(40px + env(safe-area-inset-top));transform:translateX(-50%);z-index:3;pointer-events:none;font:700 12px system-ui,-apple-system,sans-serif;color:#fff;background:#0b0f18c8;border-radius:6px;padding:4px 12px;display:none;text-shadow:0 1px 2px #000;white-space:nowrap;max-width:70vw;overflow:hidden;text-overflow:ellipsis}
 @media (min-height:521px){#sqPanel{bottom:calc(92px + env(safe-area-inset-bottom));font-size:12px}#sqPanel .c{width:30px;height:20px;line-height:20px;font-size:10px}#sqToast{top:calc(52px + env(safe-area-inset-top));font-size:14px}}
 `; document.head.appendChild(st); }
@@ -631,9 +631,9 @@ function hudTick(dt) {
   panel.style.display = 'block';
   const L = s.leader, what = s.playerLead ? ORDER_N[(s.order || { type: 'follow' }).type] : (MISSION_N[s.mission.type] || '') + (s.mission.name ? ' · ' + s.mission.name : '');
   const hpc = m => m.dwn ? '#ffb020' : m.hp < 40 ? '#ff6a4a' : '#6dff9a', num = m => m.isPlayer ? 'TÚ' : String(m.id).replace(/^\D+/, '');
-  const chips = s.members.map(m => '<div class="c' + (m === L ? ' ld' : '') + (m.isPlayer ? ' me' : '') + (m.dead ? ' dd' : m.dwn ? ' dn' : '') + '">' + (m.dead ? '✝' : num(m)) + '<i style="width:' + (m.dead ? 0 : Math.round(m.hp)) + '%;background:' + hpc(m) + '"></i></div>').join('');
+  const chips = s.members.map(m => '<div class="c' + (m === L ? ' ld' : '') + (m.isPlayer ? ' me' : '') + (m.dead ? ' dd' : m.dwn ? ' dn' : '') + '">' + (m.dead ? '✝' : num(m) + (MX.classOf ? '<u style="text-decoration:none;font-size:8px;opacity:.75;margin-left:1px">' + MX.classOf(m).tag + '</u>' : '')) + '<i style="width:' + (m.dead ? 0 : Math.round(m.hp)) + '%;background:' + hpc(m) + '"></i></div>').join('');
   const open = M.t - (SQ.expandT || -99) < 3;                                         // desplegado 3 s tras una orden o un cambio en la escuadra
-  const ex = open ? '<div class="ex"><div style="opacity:.8;margin-bottom:2px">Líder: ' + (L ? (L.isPlayer ? 'tú' : L.id) : '—') + '</div>' + s.members.map(m => '<div style="opacity:' + (m.dead ? .45 : 1) + '"><b>' + (m === L ? '★ ' : '') + (m.isPlayer ? 'Tú' : m.id) + '</b><span><i style="width:' + (m.dead ? 0 : Math.round(m.hp)) + '%;background:' + hpc(m) + '"></i></span>' + (m.dead ? '✝' : m.dwn ? '⚠' : '') + '</div>').join('') + '</div>' : '';
+  const ex = open ? '<div class="ex"><div style="opacity:.8;margin-bottom:2px">Líder: ' + (L ? (L.isPlayer ? 'tú' : L.id) : '—') + '</div>' + s.members.map(m => '<div style="opacity:' + (m.dead ? .45 : 1) + '"><b>' + (m === L ? '★ ' : '') + (m.isPlayer ? 'Tú' : m.id) + (MX.classOf ? ' · ' + MX.classOf(m).name : '') + '</b><span><i style="width:' + (m.dead ? 0 : Math.round(m.hp)) + '%;background:' + hpc(m) + '"></i></span>' + (m.dead ? '✝' : m.dwn ? '⚠' : '') + '</div>').join('') + '</div>' : '';
   panel.innerHTML = '<div class="hd"><span class="nm">' + s.name.toUpperCase() + '</span><span class="od">' + (s.playerLead ? '★ ' : '') + what + '</span></div><div class="ch">' + chips + '</div>' + ex;
   if (SQ.capTick) SQ.capTick();
 }
