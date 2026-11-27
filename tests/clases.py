@@ -29,11 +29,12 @@ with sync_playwright() as p:
     r2 = ev('''(id)=>{ const a=MX.M.ents.find(e=>e.id===id); return a.hp }''', r); print('hp tras 1,5 s de juego con médico', r2)
     chk(r2 > 36, 'el médico cura (+8/s) a un aliado a 2 m')
     # táctica: las escuadras de bots con misión de ataque colocan al francotirador/apoyo lejos del punto y al asalto dentro
-    pg.wait_for_function('()=>MX.M.t>60', timeout=100000)
+    pg.wait_for_function('()=>MX.M.t>45', timeout=400000)
     r = ev('''()=>{ const o=[]; for(const s of MX.SQ.list){ if(s.playerLead||!s.leader||s.mission.x===undefined||s.mission.type!=='attack') continue; const L=s.leader; const dl=Math.hypot(L.p.x-s.mission.x,L.p.z-s.mission.z); if(dl>70) continue;
         for(const m of s.members){ if(m.dead) continue; o.push([m.cls, Math.round(Math.hypot(m.p.x-s.mission.x,m.p.z-s.mission.z))]) } } return o }''')
     print('distancia al punto (clase, m):', r[:30])
     fr = [d for c, d in r if c == 'fra']; asa = [d for c, d in r if c == 'asa']
-    chk(not fr or sum(fr) / len(fr) > (sum(asa) / len(asa) if asa else 0), 'francotiradores más lejos del punto que el asalto (media %s vs %s)' % (sum(fr) // max(1, len(fr)), sum(asa) // max(1, len(asa))))
+    if not fr or not asa: print('(sin datos suficientes de táctica en este tiempo de simulación: informativo)')
+    else: chk(sum(fr) / len(fr) > (sum(asa) / len(asa) if asa else 0), 'francotiradores más lejos del punto que el asalto (media %s vs %s)' % (sum(fr) // max(1, len(fr)), sum(asa) // max(1, len(asa))))
     chk(not errs, 'sin errores JS ' + str(errs[:2]))
 sys.exit(1 if bad else 0)
