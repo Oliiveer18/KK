@@ -733,21 +733,77 @@ const mapEl = document.createElement('div');
 mapEl.style.cssText = 'position:fixed;inset:0;z-index:12;display:none;flex-direction:column;gap:6px;align-items:center;justify-content:center;background:#05070bcc;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)';
 const mapCv = document.createElement('canvas'); mapCv.style.cssText = 'border-radius:10px;box-shadow:0 10px 40px #000c,0 0 0 1px #ffffff22';
 const mapLeg = document.createElement('div'); mapLeg.style.cssText = 'position:static;max-width:94vw;text-align:center;line-height:1.5;font:600 clamp(9px,1.6vw,12px) system-ui,-apple-system,sans-serif;color:#dfe6f2;background:#0b0f18d0;border:1px solid #ffffff1c;border-radius:8px;padding:4px 10px;white-space:normal;text-shadow:0 1px 2px #000';
-mapLeg.innerHTML = '<span style="color:#ff7a2a">●</span> disparos que oyes (150 m) &nbsp; <span style="color:#ff4a4a">●</span> aliados bajo fuego &nbsp; <span style="color:#ffd24a">✸</span> explosión &nbsp; <span style="color:#ff4a2a">▲</span> incendio &nbsp; <span style="color:#fff">➤</span> tú &nbsp; ★ líder &nbsp; ◯ objetivo (color del dueño) &nbsp; · Share / M para cerrar';
+mapLeg.innerHTML = '<span style="color:#4ee08a">✚</span> curación (verde: con médico) <span style="color:#4ee08a">+</span> botiquines <span style="color:#ffc24a">●</span> munición <span style="color:#6ab4ff">■</span> material <span style="color:#d28bff">★</span> equipo · <b>toca el mapa: marca y ruta</b> &nbsp; <span style="color:#ff7a2a">●</span> disparos que oyes (150 m) &nbsp; <span style="color:#ff4a4a">●</span> aliados bajo fuego &nbsp; <span style="color:#ffd24a">✸</span> explosión &nbsp; <span style="color:#ff4a2a">▲</span> incendio &nbsp; <span style="color:#fff">➤</span> tú &nbsp; ★ líder &nbsp; ◯ objetivo (color del dueño) &nbsp; · Share / M para cerrar';
 const mapHead = document.createElement('div'); mapHead.style.cssText = 'font:700 clamp(10px,1.8vw,13px) system-ui,-apple-system,sans-serif;color:#dfe6f2;text-shadow:0 1px 2px #000;max-width:94vw;white-space:normal;text-align:center';
-mapEl.append(mapHead, mapCv, mapLeg); document.body.appendChild(mapEl);
+const mapSide = document.createElement('div'); mapSide.style.cssText = 'display:contents;flex-direction:column;gap:8px;justify-content:center';
+mapHead.style.order = 0; mapCv.style.order = 1; mapLeg.style.order = 3; mapSide.append(mapHead, mapLeg); mapEl.append(mapSide, mapCv); document.body.appendChild(mapEl);
 for (const ev of ['pointerdown', 'mousedown', 'touchstart']) mapEl.addEventListener(ev, e => { e.stopPropagation(); MX.mapClose(); });
+/* MARCAR UN PUNTO: tocar el mapa pone una marca con la ruta sugerida desde tu posición (evita las zonas calientes si hay una alternativa razonable), la distancia y el tiempo; «Enviar escuadra» da la orden
+   de avanzar a ese punto (hace falta llevar el mando) y «Borrar» la quita. Tocar fuera del mapa (o ○ / M) lo cierra. */
+const mapBar = document.createElement('div'); mapBar.style.cssText = 'display:none;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;font:700 clamp(10px,1.8vw,13px) system-ui,-apple-system,sans-serif;color:#dfe6f2';
+const mapInfo = document.createElement('span'); mapInfo.style.cssText = 'background:#0b0f18d0;border:1px solid #ffffff22;border-radius:999px;padding:3px 10px';
+const mkBtn = (t, bg) => { const b = document.createElement('button'); b.textContent = t; b.style.cssText = 'font:700 clamp(10px,1.8vw,13px) system-ui,sans-serif;color:#fff;background:' + bg + ';border:1px solid #ffffff33;border-radius:999px;padding:4px 12px'; return b; };
+const mapSend = mkBtn('✔ Enviar escuadra', '#1f7a45'), mapClr = mkBtn('✖ Borrar marca', '#444b5a'); mapBar.append(mapInfo, mapSend, mapClr); mapBar.style.order = 2; mapSide.insertBefore(mapBar, mapLeg);
+for (const ev of ['pointerdown', 'mousedown', 'touchstart']) { mapBar.addEventListener(ev, e => e.stopPropagation()); }
+mapEl.addEventListener('pointerdown', e => { if (e.target === mapEl) return; });
+const routeLen = r => { let l = 0; for (let i = 1; i < r.length; i++) l += Math.hypot(r[i].x - r[i - 1].x, r[i].z - r[i - 1].z); return l; };
+function routeExposure(r, hot) { let e = 0; for (let i = 1; i < r.length; i++) { const a = r[i - 1], b = r[i], L = Math.hypot(b.x - a.x, b.z - a.z), n = Math.max(1, Math.ceil(L / 8));
+    for (let k = 0; k < n; k++) { const x = a.x + (b.x - a.x) * k / n, z = a.z + (b.z - a.z) * k / n; for (const h of hot) { const d = Math.hypot(x - h.x, z - h.z); if (d < 30) e += (30 - d) / 30; } } } return e; }
+function planRoute(gx, gz, team) {
+  const hot = combatCells(team, P.pos.x, P.pos.z, FADE).filter(h => h.w > 2).map(h => ({ x: h.x / h.w, z: h.z / h.w })), A = { x: P.pos.x, z: P.pos.z };
+  const mk = (a, b) => { try { const p = MX.findPath(a.x, a.z, b.x, b.z); return p && p.length ? [a, ...p] : [a, b]; } catch (e) { return [a, b]; } };
+  let best = mk(A, { x: gx, z: gz }), ex = routeExposure(best, hot), sc = routeLen(best) + ex * 90, detour = false;
+  if (ex > 0 && hot.length) {                                                          // rodeo: por un punto a un lado de la zona caliente más peligrosa de la ruta
+    let hz = null, hd = 1e9; for (const h of hot) for (const q of best) { const d = Math.hypot(q.x - h.x, q.z - h.z); if (d < hd) { hd = d; hz = h; } }
+    const dx = gx - A.x, dz = gz - A.z, L = Math.hypot(dx, dz) || 1, nx = -dz / L, nz = dx / L;
+    for (const side of [1, -1]) { const v = { x: hz.x + nx * side * 70, z: hz.z + nz * side * 70 }; if (!MX.navAt(v.x, v.z)) continue;
+      const r1 = mk(A, v), r2 = mk(v, { x: gx, z: gz }), r = r1.concat(r2.slice(1)), e2 = routeExposure(r, hot), s2 = routeLen(r) + e2 * 90; if (s2 < sc - 20 && routeLen(r) < routeLen(best) * 1.9 + 60) { best = r; ex = e2; sc = s2; detour = true; } } }
+  return { r: best, len: routeLen(best), ex, detour };
+}
+mapCv.addEventListener('pointerdown', e => { e.stopPropagation(); mapPick(e); });
+for (const ev of ['mousedown', 'touchstart']) mapCv.addEventListener(ev, e => e.stopPropagation());
+function mapPick(e) {
+  const g = mapGeom(), rc = mapCv.getBoundingClientRect(); if (!rc.width) return; const px = (e.clientX - rc.left) * g.sz / rc.width, pz = (e.clientY - rc.top) * g.sz / rc.height, pl = MX.pl; if (!pl || pl.dead) return;
+  const gx = Math.max(-g.half + 4, Math.min(g.half - 4, px / g.k - g.half)), gz = Math.max(-g.half + 4, Math.min(g.half - 4, pz / g.k - g.half));
+  const pt = MX.navAt && !MX.navAt(gx, gz) ? null : { x: gx, z: gz };
+  if (!pt) { toast('Ahí no se puede llegar (edificio o muro)'); return; }
+  const R = planRoute(gx, gz, pl.team); TM.mark = { x: gx, z: gz, r: R.r, len: R.len, ex: R.ex, detour: R.detour, t: M.t }; mapBarUpdate(); if (TM.open) mapDraw();
+}
+function mapBarUpdate() {
+  const m = TM.mark; mapBar.style.display = m ? 'flex' : 'none'; if (!m) return; const s = Math.round(m.len / 5.4), lead = MX.pl && MX.pl.sqd && MX.pl.sqd.playerLead;
+  mapInfo.innerHTML = 'Marca · ' + Math.round(m.len) + ' m · ~' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') + (m.detour ? ' · <span style="color:#7ee0ff">rodea la zona caliente</span>' : m.ex > 0 ? ' · <span style="color:#ff9a4a">⚠ cruza zona caliente</span>' : '') + (lead ? '' : ' · <span style="color:#ffd24a">sin el mando de la escuadra</span>');
+}
+mapSend.onclick = () => { const m = TM.mark, pl = MX.pl, s = pl && pl.sqd; if (!m || !s) return; if (!s.playerLead) { toast('No tienes el mando de tu escuadra (Mochila → Escuadra → Tomar el mando)'); return; }
+  s.order = { type: 'move', x: m.x, z: m.z, face: Math.atan2(m.x - P.pos.x, m.z - P.pos.z), pts: new Map() }; for (const q of s.members) if (q.bot) { q.goal = null; q.path = null; if (q.st === 'search') q.st = 'push'; }
+  toast('Orden: avanzar a la marca · ' + Math.round(m.len) + ' m'); s.expandT = M.t; SQ.expandT = M.t; TM.mark = null; mapBarUpdate(); MX.mapClose(); };
+mapClr.onclick = () => { TM.mark = null; mapBarUpdate(); if (TM.open) mapDraw(); };
+/* suministros conocidos, agrupados por celdas de 36 m: médicos (cajas médicas y farmacias), munición, material y equipo; sólo mientras queda algo. Se recalcula cada 2 s. */
+function supplyCells() {
+  if (TM.supT !== undefined && M.t - TM.supT < 2 && TM.sup) return TM.sup; TM.supT = M.t; const cells = new Map(), K = { supplyMed: 'med', pharmaCab: 'med', supplyAmmo: 'ammo', locker: 'ammo', supplyMat: 'mat', storeMat: 'eq' };
+  for (const p of props) { const k = K[p.type]; if (!k || p.dead || !p.stock) continue; let n = 0; for (const v in p.stock) n += p.stock[v]; if (n <= 0) continue;
+    const CS = k === 'med' || k === 'eq' ? 36 : 80, key = k + Math.floor(p.x / CS) + ',' + Math.floor(p.z / CS); let c = cells.get(key); if (!c) cells.set(key, c = { k, x: 0, z: 0, n: 0 }); c.x += p.x; c.z += p.z; c.n++; }
+  TM.sup = [...cells.values()].map(c => ({ k: c.k, x: c.x / c.n, z: c.z / c.n, n: c.n })); return TM.sup;
+}
+const SUP_COL = { med: '#4ee08a', ammo: '#ffc24a', mat: '#6ab4ff', eq: '#d28bff' }, SUP_TXT = { med: '+', ammo: '●', mat: '■', eq: '★' };
+
 MX.mapToggle = () => TM.open ? MX.mapClose() : mapOpen();
 MX.mapClose = () => { TM.open = false; mapEl.style.display = 'none'; MX.mapDock(false); };
 /* con el inventario al lado (Share): el mapa se arrima a la izquierda y deja sitio al panel de la derecha */
 MX.mapDock = on => { TM.dock = !!on; mapEl.style.alignItems = on ? 'flex-start' : 'center'; mapEl.style.paddingLeft = on ? 'calc(14px + env(safe-area-inset-left))' : '0'; if (TM.open) mapDraw(); };
 Object.defineProperty(MX, 'mapOpen', { get: () => TM.open });
 addEventListener('keydown', ev => { if (ev.code === 'KeyM' && !ev.repeat && MX.on && MX.campaign && !menuOpen) { ev.preventDefault(); MX.mapToggle(); } });
-function mapOpen() { if (!MX.on || !MX.campaign || menuOpen) return; TM.open = true; mapEl.style.display = 'flex'; TM.t0 = M.t; mapDraw(); }
+function mapOpen() { if (!MX.on || !MX.campaign || menuOpen) return; TM.open = true; mapEl.style.display = 'flex'; TM.t0 = M.t; if (TM.mark && M.t - TM.mark.t > 90) TM.mark = null; mapBarUpdate(); mapDraw(); }
 function mapGeom() {                                                                   // tamaño del lienzo (cabe en pantalla) y escala mundo → píxeles
-  const half = (MAPA.built && MAPA.built.half) || (typeof WORLD !== 'undefined' ? Math.max(WORLD.x, WORLD.z) : 50), sz0 = Math.floor(Math.min(TM.dock ? innerWidth - Math.min(340, innerWidth * .46) - 44 : innerWidth * .94, innerHeight * .97));
+  const half = (MAPA.built && MAPA.built.half) || (typeof WORLD !== 'undefined' ? Math.max(WORLD.x, WORLD.z) : 50), avail = TM.dock ? innerWidth - Math.min(340, innerWidth * .46) - 44 : innerWidth * .94;
+  /* apaisado en un móvil (poca altura): el mapa ocupa casi toda la altura y cabecera, marca y leyenda van en una columna a su lado (antes la leyenda se comía la mitad del mapa) */
+  const land = innerHeight < 520 && innerWidth > innerHeight * 1.4, W = Math.max(210, Math.min(300, Math.floor(innerWidth * .3)));
+  if (TM.land !== land) { TM.land = land; mapSide.style.display = land ? 'flex' : 'contents'; mapEl.style.flexDirection = land ? 'row' : 'column'; mapEl.style.gap = land ? '14px' : '6px'; }
+  if (land) { mapSide.style.width = W + 'px'; mapHead.style.maxWidth = mapLeg.style.maxWidth = W + 'px'; mapHead.style.textAlign = 'left'; mapLeg.style.textAlign = 'left'; mapBar.style.justifyContent = 'flex-start';
+    const sz = Math.max(120, Math.min(Math.floor(avail - W - 14), Math.floor(innerHeight - 20))); return { half, sz, k: sz / (2 * half) }; }
+  mapHead.style.textAlign = 'center'; mapLeg.style.textAlign = 'center'; mapBar.style.justifyContent = 'center'; mapSide.style.width = '';
+  const sz0 = Math.floor(Math.min(avail, innerHeight * .97));
   mapHead.style.maxWidth = mapLeg.style.maxWidth = Math.max(260, sz0) + 'px';                                   // cabecera y leyenda del ancho del mapa (se parten en líneas) y su altura real se descuenta: nada tapa el mapa
-  const sz = Math.max(120, Math.min(sz0, Math.floor(innerHeight - Math.max(mapHead.offsetHeight, 34) - mapLeg.offsetHeight - 6 * 2 - 24 - 8)));
+  const sz = Math.max(120, Math.min(sz0, Math.floor(innerHeight - Math.max(mapHead.offsetHeight, 34) - mapLeg.offsetHeight - (mapBar.style.display !== 'none' ? mapBar.offsetHeight + 6 : 0) - 6 * 2 - 24 - 8)));
   return { half, sz, k: sz / (2 * half) };
 }
 /* La capa fija del mapa (suelo, zonas, calles, edificios, refugios) se dibuja UNA vez a 1024 px, independiente del tamaño de la pantalla y de la interfaz: el mapa grande y el minimapa solo la escalan
@@ -820,6 +876,7 @@ function mapDraw() {
   const P2 = v => (v + g.half) * g.k, pl = MX.pl, team = pl ? pl.team : 0, col = t => '#' + TEAM_COL[t].toString(16).padStart(6, '0');
   /* fuego: los disparos que se oyen (≤ 150 m de ti; explosiones ≤ 250 m) y, a cualquier distancia, el fuego contra tu facción (rojo, late); se apagan en 20 s */
   const cells = combatCells(team, P.pos.x, P.pos.z, FADE), pulse = .5 + .5 * Math.sin(M.t * 6);
+  { const H = combatCells(team, P.pos.x, P.pos.z, 75); for (const h of H) { if (h.young < 5) continue; drawBlob(x, P2(h.x / h.w), P2(h.z / h.w), Math.min(34, 10 + Math.sqrt(h.w) * 4), h.ally ? '255,60,60' : '255,140,40', Math.min(.34, .08 + h.w * .02)); } }   // zonas calientes: actividad de los últimos 75 s (mancha tenue)
   if (pl) { x.strokeStyle = '#ffffff22'; x.setLineDash([3, 4]); x.lineWidth = 1; x.beginPath(); x.arc(P2(P.pos.x), P2(P.pos.z), HEAR_R * g.k, 0, 6.283); x.stroke(); x.setLineDash([]); }   // alcance del oído
   for (const h of cells) { const cx = P2(h.x / h.w), cz = P2(h.z / h.w), r = Math.min(26, 6 + Math.sqrt(h.w) * 3.2), a = Math.min(.85, .25 + h.w * .05), rgb = h.ally ? '255,60,60' : '255,140,40';
     const gr = x.createRadialGradient(cx, cz, 0, cx, cz, r); gr.addColorStop(0, 'rgba(' + rgb + ',' + a + ')'); gr.addColorStop(1, 'rgba(' + rgb + ',0)'); x.fillStyle = gr; x.beginPath(); x.arc(cx, cz, r, 0, 6.283); x.fill();
@@ -827,6 +884,9 @@ function mapDraw() {
     if (h.boom > 0) { x.fillStyle = 'rgba(255,215,80,' + (.4 + .6 * h.boom) + ')'; x.font = '700 ' + Math.round(10 + 6 * h.boom) + 'px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('✸', cx, cz); }
     if (h.ally && h.young < 6) { x.fillStyle = '#ff8a8a'; x.font = '800 10px system-ui'; x.textAlign = 'center'; x.textBaseline = 'bottom'; x.fillText('ALIADOS BAJO FUEGO', cx, cz - r * .6 - 2); } }
   if (typeof FIRES !== 'undefined') for (const f of FIRES) { x.fillStyle = '#ff4a2a'; x.beginPath(); const fx = P2(f.x), fz = P2(f.z); x.moveTo(fx, fz - 5); x.lineTo(fx + 4.5, fz + 3.5); x.lineTo(fx - 4.5, fz + 3.5); x.closePath(); x.fill(); }
+  for (const c of supplyCells()) { const minor = c.k === 'ammo' || c.k === 'mat'; x.globalAlpha = minor ? .6 : 1; drawTxt(x, SUP_TXT[c.k], P2(c.x), P2(c.z), c.k === 'eq' ? 13 : minor ? 7 : 11, 800, SUP_COL[c.k], '#000c'); } x.globalAlpha = 1;
+  if (MX.stations) for (const st of MX.stations.list) { const cx = P2(st.x), cz = P2(st.z), on = st.act[team] > 0 && M.t - st.act[team] < .7;
+    x.fillStyle = '#0b0f18d8'; x.strokeStyle = on ? '#4ee08a' : '#8d98a8'; x.lineWidth = on ? 2 : 1.3; x.beginPath(); x.arc(cx, cz, 5.2, 0, 6.283); x.fill(); x.stroke(); drawTxt(x, '✚', cx, cz + .5, 8, 800, on ? '#4ee08a' : '#aab4c2'); }
   /* objetivos con el color del dueño y su progreso de captura */
   for (const o of SQ.objs) { const cx = P2(o.x), cz = P2(o.z), r = Math.max(4, o.r * g.k); x.lineWidth = 2.2; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.globalAlpha = o.contested ? .5 + .5 * pulse : 1; x.beginPath(); x.arc(cx, cz, r, 0, 6.283); x.stroke(); x.globalAlpha = 1;
     if (o.capBy >= 0 && o.cap > 0) { x.strokeStyle = col(o.capBy); x.lineWidth = 3; x.beginPath(); x.arc(cx, cz, r + 3, -1.571, -1.571 + 6.283 * o.cap); x.stroke(); }
@@ -837,6 +897,10 @@ function mapDraw() {
     x.strokeStyle = col(team); x.globalAlpha = .32; x.beginPath(); x.moveTo(P2(ax / an), P2(az / an)); x.lineTo(P2(q.mission.x), P2(q.mission.z)); x.stroke(); }
   x.setLineDash([]); x.globalAlpha = 1;
   const FR = drawFriends(x, (wx, wz) => [P2(wx), P2(wz)], g.sz, team, ps, true, false);
+  if (TM.mark) { const m = TM.mark; x.save(); x.lineWidth = 2.2; x.setLineDash([6, 5]); x.lineDashOffset = -M.t * 14; x.strokeStyle = m.ex > 0 ? '#ff9a4a' : m.detour ? '#7ee0ff' : '#ffffff'; x.globalAlpha = .9; x.beginPath();
+    m.r.forEach((q, i) => { const px = P2(q.x), pz = P2(q.z); if (i) x.lineTo(px, pz); else x.moveTo(P2(P.pos.x), P2(P.pos.z)); }); x.stroke(); x.restore();
+    const mx = P2(m.x), mz = P2(m.z), pu = .5 + .5 * Math.sin(M.t * 5); x.strokeStyle = '#ffd24a'; x.lineWidth = 2; x.beginPath(); x.arc(mx, mz, 7 + pu * 3, 0, 6.283); x.stroke(); x.fillStyle = '#ffd24a'; x.beginPath(); x.arc(mx, mz, 3, 0, 6.283); x.fill();
+    drawTxt(x, Math.round(m.len) + ' m', mx, mz - 15, 11, 800, '#fff', '#000c'); }
   if (ps && ps.playerLead && ps.order && ps.order.x !== undefined) { const ox = P2(ps.order.type === 'cover' ? ps.order.tx : ps.order.x), oz = P2(ps.order.type === 'cover' ? ps.order.tz : ps.order.z); x.strokeStyle = ps.order.type === 'cover' ? '#ff7a3a' : ps.order.type === 'move' ? '#4aa0ff' : '#6dff9a'; x.lineWidth = 2; x.setLineDash([4, 3]); x.beginPath(); x.moveTo(P2(P.pos.x), P2(P.pos.z)); x.lineTo(ox, oz); x.stroke(); x.setLineDash([]); x.beginPath(); x.arc(ox, oz, 5, 0, 6.283); x.stroke(); }
   if (pl && !pl.dead) { const cx = P2(P.pos.x), cz = P2(P.pos.z), a = P.aim; x.save(); x.translate(cx, cz); x.rotate(-a + Math.PI); x.fillStyle = '#fff'; x.strokeStyle = '#000'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(0, -9); x.lineTo(6, 6); x.lineTo(0, 3); x.lineTo(-6, 6); x.closePath(); x.fill(); x.stroke(); x.restore(); }
   /* encabezado: facción, objetivos por facción y combate activo */
@@ -868,6 +932,7 @@ function miniTick(dt) {
     if (h.young < 2.5) { x.strokeStyle = 'rgba(' + rgb + ',' + (.5 + .5 * pulse) + ')'; x.lineWidth = 1.4; x.beginPath(); x.arc(px, pz, r * .5 + pulse * 2, 0, 6.283); x.stroke(); } }
   const m2 = performance.now(); SQ.pm.m_cells = Math.max(SQ.pm.m_cells || 0, m2 - m1);
   for (const o of SQ.objs) { const [px, pz] = W2(o.x, o.z); if (px < -10 || pz < -10 || px > size + 10 || pz > size + 10) continue; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.lineWidth = 1.6; x.beginPath(); x.arc(px, pz, Math.max(3, o.r * k), 0, 6.283); x.stroke(); if (o.code) drawTxt(x, o.code, px, pz, 9, 800, o.owner >= 0 ? col(o.owner) : '#0c1018'); }
+  if (MX.stations) for (const st of MX.stations.list) { const [px, pz] = W2(st.x, st.z); if (px < 4 || pz < 4 || px > size - 4 || pz > size - 4) continue; const on = st.act[team] > 0 && M.t - st.act[team] < .7; drawTxt(x, '✚', px, pz, 10, 800, on ? '#4ee08a' : '#aab4c2', '#000c'); }
   const m3 = performance.now(); SQ.pm.m_objs = Math.max(SQ.pm.m_objs || 0, m3 - m2); drawFriends(x, W2, size, team, pl && pl.sqd, false, true); SQ.pm.m_friends = Math.max(SQ.pm.m_friends || 0, performance.now() - m3);
   x.save(); x.translate(size / 2, size / 2); x.rotate(-P.aim + Math.PI); x.fillStyle = '#fff'; x.strokeStyle = '#000'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(0, -7); x.lineTo(5, 5); x.lineTo(0, 2.5); x.lineTo(-5, 5); x.closePath(); x.fill(); x.stroke(); x.restore();
   drawTxt(x, 'N', size / 2, 3 + 7, 9, 700, '#ffffffaa');

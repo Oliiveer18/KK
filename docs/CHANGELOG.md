@@ -415,3 +415,10 @@ Primera versión estable del prototipo.
 
 ## Puestos de curación en camillas (fase 1 del plan de juego)
 Camillas + médico = curación hasta 100 a 12 puntos/s; el médico a pie baja su tope a 75; los bots heridos acuden y los médicos van a los puestos con heridos. Ver `docs/EQUIPO_Y_VIDA.md`.
+
+## Mapa táctico (fase 2 del plan de juego)
+- Marcadores: puestos de curación (✚, verde si tienen médico; también en el minimapa), botiquines (+), equipo (★), munición y material (discretos); sólo mientras queda botín.
+- Zonas calientes: mancha tenue con la actividad de combate de los últimos 75 s, bajo los marcadores de fuego de siempre (20 s).
+- Marcar un punto: tocar el mapa pone una marca con ruta desde tu posición, distancia y tiempo; si la ruta cruza una zona caliente busca un rodeo (aviso «rodea la zona caliente» / «cruza zona caliente»). «Enviar escuadra» da la orden de avanzar (hace falta el mando) y «Borrar marca» la quita. Tocar fuera del mapa lo cierra.
+- Apaisado en móvil: el mapa ocupa casi toda la altura y cabecera, marca y leyenda van en una columna a su lado.
+- Test: `tests/mapa_marcas.py`.
