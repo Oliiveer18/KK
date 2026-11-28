@@ -412,3 +412,6 @@ Primera versión estable del prototipo.
 - Marcador de bajas: ya no se monta sobre el botón Mochila (se coloca debajo).
 - Zombis a más de 14 m: la pose se recalcula 1 de cada 2–3 fotogramas y entre medias la malla se quedaba quieta y luego saltaba (tirones a 20–30 Hz, «se deslizan»). Ahora, entre poses, el cuerpo entero se traslada cada fotograma lo que ha avanzado (coste despreciable, probado: 0 % de fotogramas parados en zombis en movimiento).
 - Tests puestos al día (los fallos eran del test, no del juego): sin_parpadeo (sprites necesitan cámara en el Raycaster; sin z-fighting en tiendas), hit_sonido (rival por equipo, no por índice), share_mapa (inventario siempre acoplado), bots_defensa (más tiempo para llegar a sus puestos; apoyo y francotirador vigilan desde fuera por diseño de defensa en capas).
+
+## Puestos de curación en camillas (fase 1 del plan de juego)
+Camillas + médico = curación hasta 100 a 12 puntos/s; el médico a pie baja su tope a 75; los bots heridos acuden y los médicos van a los puestos con heridos. Ver `docs/EQUIPO_Y_VIDA.md`.

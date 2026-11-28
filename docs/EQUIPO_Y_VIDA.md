@@ -21,3 +21,11 @@ Reglas de campaña implementadas en la rama de protección. La prueba reproducib
 
 ## Aspecto
 Los personajes se construyen con primitivas y **piezas modulares** (casco, chaleco, mochila) para que el equipo se vea sin rehacerlos. Paletas provisionales de facción: azul, rojo, ámbar y violeta (sin verde, reservado a zombis y barras de vida).
+
+## Puestos de curación (camillas)
+- Cada grupo de camillas (refugios, clínicas, hospitales de campaña; ~24 en el mapa de 750 m) es un puesto. Se detectan solos: camillas a < 9 m unas de otras forman un grupo.
+- **Activo** para una facción cuando hay un médico suyo vivo y de pie dentro y la zona está despejada (ningún enemigo ni infectado despierto a < 3 m del borde). Entonces cura a 12 puntos/s a todos sus heridos de dentro, **hasta 100**.
+- El médico a pie sigue curando a < 7 m, pero ahora **sólo hasta 75**; la regeneración natural sigue en 60 (75 junto a un médico).
+- Marca en el suelo: aro verde que pulsa si está activo, gris si no. Al entrar, el jugador recibe un aviso (atendido / sin médico / zona no despejada).
+- Bots: los de vida < 55, sin combate reciente (5 s) y que no siguen al jugador, acuden al puesto activo más cercano (≤ 150 m) y salen al llegar a 98; si el puesto se queda sin médico esperan 6 s. Un médico va a un puesto con heridos esperando y sin médico (≤ 160 m).
+- Test: `tests/puestos_curacion.py`.

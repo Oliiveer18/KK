@@ -8290,10 +8290,10 @@ function hudTick(dt) {
    Seis clases con el armamento que ya existe. Cada bot tiene la suya fija (reparto por escuadra: 2 → Fusilero + Médico; 3 → + Asalto; 4 → + Apoyo; 5 → + Flanqueador; 6 → + Francotirador).
    PUESTO DE CLASES: en cada refugio hay 6 chapas en fila (delante del tabique). El jugador cambia de clase pisando una (arma y equipo al instante). Los bots, al aparecer en el refugio,
    caminan a su chapa, se quedan ~1 s «equipándose» y salen ya con el arma y el equipo de su clase (si hay combate en el refugio, se equipan al momento).
-   MÉDICO: cura a los aliados a < 7 m (8 puntos/s, hasta 100) y con él al lado la regeneración natural sube su tope de 60 a 75; los bots médicos acuden al aliado herido de su escuadra.
+   MÉDICO: cura a los aliados a < 7 m (8 puntos/s, hasta 75; hasta 100 sólo en un puesto de camillas con médico, ver PUESTOS DE CURACIÓN) y con él al lado la regeneración natural sube su tope de 60 a 75; los bots médicos acuden al aliado herido de su escuadra.
    Lo estratégico (reparto de capturas, táctica por clase) va en escuadras.js. */
 (function () {
-const M = MX.M, rnd = Math.random, SQ = MX.SQ;
+const M = MX.M, rnd = Math.random, SQ = MX.SQ, REGEN_MED = 75;   /* el médico a pie cura hasta 75; sólo un puesto de camillas con médico llega a 100 */
 const CLS = {
   fus: { name: 'Fusilero', tag: 'F', sid: 'F1', col: 0x4aa0ff, role: 'Captura y mantiene puntos. Fusil de asalto a media distancia.', kit: { helmet2: 1, vest2: 1, pack1: 1, revive: 1, medkit: 1 } },
   asa: { name: 'Asalto', tag: 'A', sid: 'E2', col: 0xff7a3a, role: 'Abre el punto a corta distancia. Escopeta y chaleco pesado.', kit: { helmet2: 1, vest3: 1, pack1: 1, revive: 1, medkit: 1 } },
@@ -8424,15 +8424,80 @@ SQ.goalFor = e => {
     let best = null, bd = 1e9; for (const m of e.sqd.members) { if (m === e || m.dead || m.dwn || m.hp >= 70) continue; const d = dist(m.p, e.p); if (d < 32 && d < bd) { bd = d; best = m; } }
     if (best) { const a = Math.atan2(best.p.x - e.p.x, best.p.z - e.p.z); return { x: best.p.x - Math.sin(a) * 2.4, z: best.p.z - Math.cos(a) * 2.4, speed: 5.8, hold: true, face: a, crouch: false }; }
   }
+  const sg = stGoal(e); if (sg) return sg;
   const cg = classGoal(e); if (cg) return cg;
   return sqGoal(e);
 };
 
+/* ---------- PUESTOS DE CURACIÓN: los grupos de camillas (refugios, clínicas, hospitales de campaña) ----------
+   Un puesto está ACTIVO para una facción cuando hay un médico suyo vivo dentro y la zona está despejada (ningún enemigo ni infectado despierto a < 3 m del borde). Entonces cura a TODOS sus heridos
+   de dentro a 12 puntos/s hasta 100 (el médico a pie sólo sube hasta 75, y la regeneración natural hasta 60). Los bots con poca vida y sin combate reciente acuden al puesto activo más cercano de su
+   facción; si no hay médico, el médico más cercano de la facción va. Marca en el suelo: aro con cruz (verde y pulsando si está activo). */
+const ST = { list: [], key: null, tex: null, t: 0, inside: null };
+const ST_RATE = 12, ST_WANT = 55, ST_FULL = 98;
+function stTex() {
+  if (ST.tex) return ST.tex; const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
+  x.strokeStyle = '#fff'; x.lineWidth = 5; x.beginPath(); x.arc(64, 64, 58, 0, 6.2832); x.stroke(); x.lineWidth = 2; x.beginPath(); x.arc(64, 64, 52, 0, 6.2832); x.stroke();
+  x.fillStyle = '#fff'; x.fillRect(54, 30, 20, 68); x.fillRect(30, 54, 68, 20); const t = new THREE.CanvasTexture(c); t.minFilter = THREE.LinearFilter; return (ST.tex = t);
+}
+function stBuild() {
+  for (const q of ST.list) { scene.remove(q.m); q.m.material.dispose(); } ST.list = []; ST.key = MAPA.built || null; if (!MX.campaign || !ST.key) return;
+  const cots = props.filter(p => p.type === 'cot' && !p.dead), used = new Array(cots.length).fill(false), GP = ST.geo || (ST.geo = new THREE.PlaneGeometry(1, 1));
+  for (let i = 0; i < cots.length; i++) { if (used[i]) continue; const g = [cots[i]]; used[i] = true;                    // grupos: camillas a < 9 m una de otra (en cadena)
+    for (let k = 0; k < g.length; k++) for (let j = 0; j < cots.length; j++) if (!used[j] && dist(g[k], cots[j]) < 9) { used[j] = true; g.push(cots[j]); }
+    let cx = 0, cz = 0; for (const p of g) { cx += p.x; cz += p.z; } cx /= g.length; cz /= g.length; let ex = 0; for (const p of g) ex = Math.max(ex, dist(p, { x: cx, z: cz }));
+    const r = Math.max(4.2, ex + 3.2), m = new THREE.Mesh(GP, new THREE.MeshBasicMaterial({ map: stTex(), color: 0x6dff9a, transparent: true, opacity: .2, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    m.rotation.x = -Math.PI / 2; m.position.set(cx, .07, cz); m.scale.set(r * 2, r * 2, 1); m.renderOrder = 1; scene.add(m);
+    ST.list.push({ x: cx, z: cz, r, n: g.length, m, act: [0, 0, 0, 0], want: [0, 0, 0, 0], blocked: false }); }
+}
+function stActive(st, team) { return st.act[team] > 0 && M.t - st.act[team] < .7; }
+function stTick(dt) {                                                                   // cada 0,25 s
+  if (ST.key !== (MAPA.built || null)) stBuild(); if (!ST.list.length) return;
+  const zl = MX.zom && MX.zom.list;
+  for (const st of ST.list) { st.want = [0, 0, 0, 0]; }
+  for (const e of M.ents) if (!e.dead && !e.isPlayer && e.stGo) { if (e.stGo.st && e.stGo.st.want) e.stGo.st.want[e.team]++; }
+  for (const st of ST.list) {
+    let med = [-1, -1, -1, -1]; for (const e of M.ents) { if (e.dead || e.dwn || e.cls !== 'med' || e.clsWait) continue; if (dist(e.p, st) < st.r && e.team >= 0 && e.team < 4) med[e.team] = e; }
+    if (!med.some(m => m !== -1)) { st.blocked = false; continue; }
+    let hostile = [false, false, false, false]; const R2 = (st.r + 3) * (st.r + 3);
+    for (const e of M.ents) { if (e.dead || e.dwn) continue; const dx = e.p.x - st.x, dz = e.p.z - st.z; if (dx * dx + dz * dz < R2) for (let t = 0; t < 4; t++) if (t !== e.team) hostile[t] = true; }
+    if (zl) for (let i = 0; i < zl.length; i++) { const z = zl[i]; if (z.dead || z.st === 'dorm' || z.st === 'dead') continue; const dx = z.p.x - st.x, dz = z.p.z - st.z; if (dx * dx + dz * dz < R2) { hostile = [true, true, true, true]; break; } }
+    st.blocked = false;
+    for (let t = 0; t < 4; t++) { if (med[t] === -1 || hostile[t]) { if (med[t] !== -1) st.blocked = true; continue; }
+      st.act[t] = M.t;
+      for (const e of M.ents) { if (e.dead || e.dwn || e.team !== t || e.hp >= 100) continue; if (dist(e.p, st) > st.r) continue;
+        e.hp = Math.min(100, e.hp + ST_RATE * .25); if (e.tgp) e.tgp.hp = e.hp; e.healT = M.t; e.medNear = M.t; e.stT = M.t; e.regT = 0; } }
+  }
+  const pl = MX.pl; if (pl && !pl.dead) {                                                // aviso al jugador al entrar en un puesto
+    let cur = null; for (const st of ST.list) if (dist(P.pos, st) < st.r) { cur = st; break; }
+    if (cur !== ST.inside) { ST.inside = cur; if (cur) { if (stActive(cur, pl.team)) toast('Puesto de curación · atendido por un médico'); else if (cur.blocked) toast('Puesto de curación · zona no despejada'); else toast('Puesto de curación · sin médico (un médico lo activa)'); } } }
+}
+function stVisual(dt) {
+  ST.t += dt; const pl = MX.pl, pt = pl ? pl.team : 0;
+  for (const st of ST.list) { const on = stActive(st, pt), d = dist(P.pos, st); st.m.visible = d < 110;
+    st.m.material.opacity = on ? .42 + Math.sin(ST.t * 3.2) * .12 : .16; st.m.material.color.setHex(on ? 0x6dff9a : 0xaab8c4); }
+}
+/* destino de curación de un bot: el puesto ACTIVO más cercano de su facción (herido), o, para un médico, un puesto con heridos esperando y sin médico */
+function stGoal(e) {
+  if (!ST.list.length || e.isPlayer || e.dwn || e.dead || (e.sqd && e.sqd.playerLead) || (e.vis && e.tgt) || e.st === 'fight' || e.clsWait) { e.stGo = null; return null; }
+  const hit = M.t - (e.lastHurt || -99) < 5; let g = e.stGo;
+  if (g && !g.medic) { if (stActive(g.st, e.team)) g.i = 0; else if (!g.i) g.i = M.t; else if (M.t - g.i > 6) g.t = -99; }   /* el puesto se queda sin médico: no esperan más de 6 s */
+  if (g && (e.hp >= ST_FULL || M.t - g.t > 28 || hit)) { e.stGo = g = null; if (e.hp < ST_FULL) e.stCd = M.t + 12; }
+  if (!g && e.stCd > M.t) return null;
+  if (!g) {
+    if (e.hp < ST_WANT && !hit) { let best = null, bd = 150; for (const st of ST.list) { if (!stActive(st, e.team)) continue; const d = dist(e.p, st); if (d < bd) { bd = d; best = st; } } if (best) g = e.stGo = { st: best, t: M.t }; }
+    else if (e.cls === 'med' && !hit && e.hp > 50) { let best = null, bd = 160; for (const st of ST.list) { if (!st.want[e.team] || stActive(st, e.team) || st.blocked) continue; const d = dist(e.p, st); if (d < bd) { bd = d; best = st; } } if (best) g = e.stGo = { st: best, t: M.t, medic: true }; }
+  }
+  if (!g) return null; const st = g.st, a = ((e.slot || 0) + 1) * 1.7, rr = Math.min(st.r * .6, 2.6);
+  return { x: st.x + Math.sin(a) * rr, z: st.z + Math.cos(a) * rr, speed: 5.6, hold: true, face: a + 3.14, crouch: false };
+}
+MX.stations = ST;
+
 /* ---------- actualización ---------- */
-let healT = 0, tpl = 0;
+let healT = 0, tpl = 0, stT = 0;
 const sqUpdate = SQ.update;
 SQ.update = dt => {
-  owN = 0; sqUpdate(dt); if (!MX.campaign || !pads.length) return;
+  owN = 0; sqUpdate(dt); if (MX.campaign) { stT += dt; if (stT >= .25) { stT = 0; stTick(.25); } stVisual(dt); } if (!MX.campaign || !pads.length) return;
   const pl = MX.pl;
   for (const q of pads) {                                                             // jugador: pisar la chapa de su facción cambia la clase
     const d = pl && !pl.dead ? dist(q, P.pos) : 99;
@@ -8446,7 +8511,7 @@ SQ.update = dt => {
 };
 function heal(dt) {                                                                   // aura del médico
   const meds = M.ents.filter(e => e.cls === 'med' && !e.dead && !e.dwn && !e.clsWait); if (!meds.length) return;
-  for (const e of M.ents) { if (e.dead || e.dwn) continue; for (const m of meds) { if (m === e || m.team !== e.team || dist(m.p, e.p) > 7) continue; e.medNear = M.t; if (e.hp < 100) { e.hp = Math.min(100, e.hp + 8 * dt); e.tgp.hp = e.hp; e.healT = M.t; } break; } }
+  for (const e of M.ents) { if (e.dead || e.dwn) continue; for (const m of meds) { if (m === e || m.team !== e.team || dist(m.p, e.p) > 7) continue; e.medNear = M.t; if (e.hp < REGEN_MED) { e.hp = Math.min(REGEN_MED, e.hp + 8 * dt); e.tgp.hp = e.hp; e.healT = M.t; } break; } }
 }
 MX.medicHeal = e => e && e.healT && M.t - e.healT < .6;
 
