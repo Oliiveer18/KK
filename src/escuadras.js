@@ -344,7 +344,9 @@ function holdPoint0(s, e, c, face) {
 const refugeOf = t => { const r = MAPA.built && MAPA.built.info && MAPA.built.info.refugeRects; return r ? r.find(q => q.fac === t) : null; };
 const defensePts = t => { const d = MAPA.built && MAPA.built.info && MAPA.built.info.defense; const q = d && d.find(x => x.team === t); return q ? q.pts : null; };
 SQ.goalFor = e => {                                                                  // → { x, z, speed, hold, face } o null (sin escuadra)
-  const s = e.sqd; if (!s) return null; const L = s.leader; const pl = MX.pl;
+  const s = e.sqd; if (!s) return null; const pl = MX.pl;
+  if (s.playerLead && pl && s.leader !== pl && !pl.dead && !pl.dwn && s.members.includes(pl)) s.leader = pl;           // con el mando del jugador el líder ES el jugador (si no, la escuadra seguía a un bot parado)
+  const L = s.leader;
   if (!s.playerLead && s.mission.type === 'defend' && L && s.mission.x !== undefined && dist(L.p, s.mission) < 32 && !(s.contact && M.t - s.contact.t < 10 && e.st !== 'fight' && dist(e.p, s.mission) > 20)) {
     const dp = defensePts(s.team);                                                     // defensa del refugio: cada uno a su puesto pegado al muro bajo, agachado y mirando fuera
     if (dp) { const i = (e === L ? 0 : slotOf(s, e) + 1) % dp.length, q = dp[i]; return { x: q[0], z: q[1], speed: dist(e.p, { x: q[0], z: q[1] }) > 10 ? 5 : 3.2, hold: true, face: q[2], crouch: false }; }
@@ -383,7 +385,7 @@ SQ.goalFor = e => {                                                             
     if (o.type === 'move') { const q = o.pts.get(e) || holdPoint(s, e, o, o.face); o.pts.set(e, q); const dq = dist(e.p, q); return { x: q.x, z: q.z, speed: dq > 25 ? 8.4 : dq > 8 ? 6.2 : 4.4, hold: true, face: o.face, crouch: dq < 3, catchUp: dq > 30 }; }
     const q = formPoint(s, e, P.pos, facingOf(s), 1);
     if (formKind(s) === 'ring' && o.type !== 'regroup') return { x: q.x, z: q.z, speed: followSpeed(s, e, q), hold: true, face: e._ringFace !== undefined ? e._ringFace : facingOf(s), crouch: false };
-    return { x: q.x, z: q.z, speed: o.type === 'regroup' ? Math.max(8.6, followSpeed(s, e, q)) : followSpeed(s, e, q), hold: false, face: facingOf(s), catchUp: dist(e.p, q) > 16 };
+    return { x: q.x, z: q.z, speed: o.type === 'regroup' ? Math.max(8.6, followSpeed(s, e, q)) : followSpeed(s, e, q), hold: false, face: facingOf(s), catchUp: dist(e.p, q) > 10 };
   }
   if (!L) return null;
   if (e === L) {                                                                     // líder de bots: hacia la misión; espera a los rezagados; salto por equipos al atacar
