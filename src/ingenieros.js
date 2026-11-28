@@ -17,6 +17,7 @@ ECO.mej = {
   enfermeria: [null, { madera: 40, hierro: 20 }, { hierro: 50, piedra: 20 }],
   armeria: [null, { hierro: 50, piedra: 20 }, { hierro: 90, piedra: 40 }],
 };
+for (const k in ECO.mej) for (const lv of ECO.mej[k]) if (lv) for (const m in lv) lv[m] = Math.round(lv[m] * 2.5);   // calibración F13: el gasto quedaba en ≈ 30 % del ingreso
 ECO.mejMax = { muros: 3, porton: 3, torre: 2, enfermeria: 2, armeria: 2 };
 ECO.mejName = { muros: 'Muros', porton: 'Portón', torre: 'Torre de vigilancia', enfermeria: 'Enfermería', armeria: 'Armería' };
 const teamName = t => ['Azul', 'Rojo', 'Ámbar', 'Violeta'][t];

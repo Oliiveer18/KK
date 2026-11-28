@@ -8629,7 +8629,7 @@ function classGoal(e) {
   const m = s.mission, L = s.leader, dm = dm2(L.p.x, L.p.z, m.x, m.z), face = Math.atan2(m.x - e.p.x, m.z - e.p.z);
   if (c === 'fra' && dm < 110) { const q = overwatch(e, s, m, 62); if (!q) return null; return { x: q.x, z: q.z, speed: 5.4, hold: true, face: Math.atan2(m.x - q.x, m.z - q.z), crouch: dm2(e.p.x, e.p.z, q.x, q.z) < 3 }; }
   if (c === 'apo' && dm < 95) { const q = overwatch(e, s, m, 38); if (!q) return null; return { x: q.x, z: q.z, speed: 5.4, hold: true, face: Math.atan2(m.x - q.x, m.z - q.z), crouch: dm2(e.p.x, e.p.z, q.x, q.z) < 3 }; }
-  if (c === 'asa' && s.mission.type === 'attack' && dm < 70) { const a = face + 3.14159 + ((e.slot || 0) % 3 - 1) * .7, r = 6 + ((e.slot || 0) % 2) * 4, q = MX.navAt(m.x + Math.sin(a) * r, m.z + Math.cos(a) * r) ? { x: m.x + Math.sin(a) * r, z: m.z + Math.cos(a) * r } : m; return { x: q.x, z: q.z, speed: 6.4, hold: true, face, crouch: false }; }
+  if (c === 'asa' && s.mission.type === 'attack' && dm < 70) { const a = face + 3.14159 + ((e.slot || 0) % 3 - 1) * .7, r = 10 + ((e.slot || 0) % 2) * 4, q = MX.navAt(m.x + Math.sin(a) * r, m.z + Math.cos(a) * r) ? { x: m.x + Math.sin(a) * r, z: m.z + Math.cos(a) * r } : m; return { x: q.x, z: q.z, speed: 6.4, hold: true, face, crouch: false }; }
   if (c === 'fla' && s.mission.type === 'attack' && dm > 24 && dm < 120) { const q = flank(e, s, m); if (dm2(e.p.x, e.p.z, q.x, q.z) > 6) return { x: q.x, z: q.z, speed: 6, hold: false }; }
   return null;
 }
@@ -9339,6 +9339,7 @@ ECO.mej = {
   enfermeria: [null, { madera: 40, hierro: 20 }, { hierro: 50, piedra: 20 }],
   armeria: [null, { hierro: 50, piedra: 20 }, { hierro: 90, piedra: 40 }],
 };
+for (const k in ECO.mej) for (const lv of ECO.mej[k]) if (lv) for (const m in lv) lv[m] = Math.round(lv[m] * 2.5);   // calibración F13: el gasto quedaba en ≈ 30 % del ingreso
 ECO.mejMax = { muros: 3, porton: 3, torre: 2, enfermeria: 2, armeria: 2 };
 ECO.mejName = { muros: 'Muros', porton: 'Portón', torre: 'Torre de vigilancia', enfermeria: 'Enfermería', armeria: 'Armería' };
 const teamName = t => ['Azul', 'Rojo', 'Ámbar', 'Violeta'][t];
@@ -9602,6 +9603,9 @@ function startWave(t) {
   OFF.stats.waves[t]++;
   if (pue && pue.owner === rv) {                                                    // 1.º el puesto avanzado
     s.mission = { type: 'attack', x: pue.x, z: pue.z, name: 'oleada · ' + pue.name, role: 'wave' }; s.missionT = M.t; s.baseType = 'attack'; s.ap = null; s.wave = { t0: M.t, rv, phase: 'outpost', n0: s.members.filter(alive).length }; return true; }
+  return beginSiege(t, s, rv);
+}
+function beginSiege(t, s, rv) {
   const seg = segTarget(rv, s.leader.p); if (!seg) return false;
   const w = { team: t, rv, s, seg, t0: M.t, n0: s.members.filter(alive).length, init: s.members.filter(alive), pos: new Map() }; OFF.siege.push(w); s.siege = w; OFF.stats.sieges[t]++;
   s.mission = { type: 'attack', x: seg.ref.spec.x, z: seg.ref.spec.z, name: 'asedio · refugio ' + teamName(rv), role: 'siege' }; s.missionT = M.t; s.ap = null;
@@ -9662,6 +9666,7 @@ SQ.update = dt => {
   if (M.t - OFF.rivalT > 300 || OFF.rival[0] < 0) pickRivals();
   ta += dt; if (ta >= 2) { ta = 0; siegeTick(2); if (M.t >= OFF.t0) { for (let t = 0; t < 4; t++) { if (REF.eliminated[t] || M.t < OFF.next[t] || (DEF && DEF.level[t] >= 2)) continue; if (startWave(t)) OFF.next[t] = M.t + 150; } horde(); } }
   shootTick(dt); zt += dt; if (zt >= .5) { zombieSiege(zt); zt = 0; }
+  for (const s of SQ.list) if (s.wave && s.wave.phase === 'outpost' && !s.siege && M.t - s.wave.t0 > 90 && s.members.filter(e => alive(e) && breaker(e)).length >= 3) { const wv = s.wave; s.wave = null; beginSiege(s.team, s, wv.rv); }   // el puesto resiste: se pasa al refugio
   for (const s of SQ.list) if (s.wave && s.wave.phase === 'outpost' && (M.t - s.wave.t0 > 200 || !SQ.objs.some(o => o.id === 'PUE' && o.home === s.wave.rv && o.owner === s.wave.rv))) s.wave = null;
 };
 const rs = MX.restart; if (rs) MX.restart = function () { const r = rs.apply(this, arguments); OFF.siege.length = 0; OFF.rivalT = -999; OFF.next = [300, 330, 360, 390]; OFF.horde.next = 360; OFF.horde.k = 0; for (const k of ['waves', 'sieges', 'retreats', 'shots']) OFF.stats[k] = [0, 0, 0, 0]; OFF.stats.zomDmg = 0; OFF.stats.hordes = 0; OFF.stats.hordeSize = []; for (const e of M.ents) e.siege = null; return r; };

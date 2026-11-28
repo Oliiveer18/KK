@@ -33,6 +33,9 @@ function startWave(t) {
   OFF.stats.waves[t]++;
   if (pue && pue.owner === rv) {                                                    // 1.º el puesto avanzado
     s.mission = { type: 'attack', x: pue.x, z: pue.z, name: 'oleada · ' + pue.name, role: 'wave' }; s.missionT = M.t; s.baseType = 'attack'; s.ap = null; s.wave = { t0: M.t, rv, phase: 'outpost', n0: s.members.filter(alive).length }; return true; }
+  return beginSiege(t, s, rv);
+}
+function beginSiege(t, s, rv) {
   const seg = segTarget(rv, s.leader.p); if (!seg) return false;
   const w = { team: t, rv, s, seg, t0: M.t, n0: s.members.filter(alive).length, init: s.members.filter(alive), pos: new Map() }; OFF.siege.push(w); s.siege = w; OFF.stats.sieges[t]++;
   s.mission = { type: 'attack', x: seg.ref.spec.x, z: seg.ref.spec.z, name: 'asedio · refugio ' + teamName(rv), role: 'siege' }; s.missionT = M.t; s.ap = null;
@@ -93,6 +96,7 @@ SQ.update = dt => {
   if (M.t - OFF.rivalT > 300 || OFF.rival[0] < 0) pickRivals();
   ta += dt; if (ta >= 2) { ta = 0; siegeTick(2); if (M.t >= OFF.t0) { for (let t = 0; t < 4; t++) { if (REF.eliminated[t] || M.t < OFF.next[t] || (DEF && DEF.level[t] >= 2)) continue; if (startWave(t)) OFF.next[t] = M.t + 150; } horde(); } }
   shootTick(dt); zt += dt; if (zt >= .5) { zombieSiege(zt); zt = 0; }
+  for (const s of SQ.list) if (s.wave && s.wave.phase === 'outpost' && !s.siege && M.t - s.wave.t0 > 90 && s.members.filter(e => alive(e) && breaker(e)).length >= 3) { const wv = s.wave; s.wave = null; beginSiege(s.team, s, wv.rv); }   // el puesto resiste: se pasa al refugio
   for (const s of SQ.list) if (s.wave && s.wave.phase === 'outpost' && (M.t - s.wave.t0 > 200 || !SQ.objs.some(o => o.id === 'PUE' && o.home === s.wave.rv && o.owner === s.wave.rv))) s.wave = null;
 };
 const rs = MX.restart; if (rs) MX.restart = function () { const r = rs.apply(this, arguments); OFF.siege.length = 0; OFF.rivalT = -999; OFF.next = [300, 330, 360, 390]; OFF.horde.next = 360; OFF.horde.k = 0; for (const k of ['waves', 'sieges', 'retreats', 'shots']) OFF.stats[k] = [0, 0, 0, 0]; OFF.stats.zomDmg = 0; OFF.stats.hordes = 0; OFF.stats.hordeSize = []; for (const e of M.ents) e.siege = null; return r; };
