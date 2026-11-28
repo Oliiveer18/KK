@@ -8,7 +8,7 @@ bad = 0
 def chk(c, m):
     global bad
     print(('OK  ' if c else 'FALLO ') + m); bad += 0 if c else 1
-IDS = ['miniMap', 'domScore', 'sqToast', 'cfgBtn', 'fps', 'invBtn', 'sqPanel', 'capBar', 'ammo', 'wname', 'gren', 'dash', 'rl']
+IDS = ['miniMap', 'domScore', 'sqToast', 'cfgBtn', 'fps', 'invBtn', 'sqPanel', 'capBar', 'ammo', 'wname', 'gren', 'dash', 'rl', 'ecoChip']
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])
     ctx = b.new_context(**p.devices['iPhone 13 landscape']); pg = ctx.new_page(); errs = []; pg.on('pageerror', lambda e: errs.append(str(e))); ev = pg.evaluate

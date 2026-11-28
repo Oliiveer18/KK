@@ -1275,7 +1275,7 @@ MX.update = dt => {
     if (pl.dead) pl.respT -= dt; else { pl.dwT += dt; dwnFxTick(pl); if (MX.campaign && pl.dwT >= DWN_T && !M.over) { endRescueOn(pl); kill(pl, pl.lastAtt && M.t - pl.lastAttT < 40 ? pl.lastAtt : null, 0, 1); } }
     for (const m of playerBodyMeshes) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false;
     if (corpseP) { corpseP.userData.t += dt; corpseP.quaternion.setFromAxisAngle(corpseP.userData.ax, smooth(corpseP.userData.t / .55) * (pl.dwn ? 1.3 : 1.45)); corpseP.position.y = pl.dwn ? 0 : -smooth((corpseP.userData.t - 2.3) / .7) * .6; }
-    if (pl.dead && pl.respT <= 0 && !M.over) respawn(pl);
+    if (pl.dead && pl.respT <= 0 && !M.over && (!MX.canRespawn || MX.canRespawn(pl))) respawn(pl);
   } else {
     if (pl.inv > 0) { pl.inv -= dt; const on = Math.floor(M.t * 14) % 2 === 0 || pl.inv <= 0; for (const m of playerBodyMeshes) m.visible = on; }
     regen(pl, dt);
@@ -1298,7 +1298,7 @@ MX.update = dt => {
     if (e.isPlayer) continue;
     if (e.dead) {
       e.respT -= dt; e.deadT += dt; const k = smooth(e.deadT / .55); e.root.quaternion.setFromAxisAngle(e.fallAx, k * 1.45); e.root.position.y = -smooth((e.deadT - 2.3) / .7) * .6;
-      if (e.respT <= 0 && !M.over) respawn(e);
+      if (e.respT <= 0 && !M.over && (!MX.canRespawn || MX.canRespawn(e))) respawn(e);
     } else if (e.dwn) {
       dwnTick(e, dt); e.v.set(0, 0, 0); e.ring.visible = false; e.flash.visible = false;                  // abatido: no actúa, queda tumbado con su marcador
     } else {

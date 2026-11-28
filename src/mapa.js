@@ -388,7 +388,7 @@ MAPA.wake = function (p) {                                                      
   /* OBJETOS LEJANOS: a más de 60 m del jugador (la niebla acaba a 58 m) nadie ve un decal, un empujón ni un hueco: un objeto dormido NO se despierta por eso. Los impactos de bala y los daños pequeños solo
      restan vida (la bala se detiene en él); en cuanto le quede ≤ 50 % o sea explosivo/fluido/fuego, se despierta y se trata como siempre. Antes cada bala o explosión lejana despertaba su objeto para siempre. */
   const far = p => { const dx = p.x - P.pos.x, dz = p.z - P.pos.z; return dx * dx + dz * dz > 3600; };
-  const safe = p => p && p.lz && !p.explosive && !(p.fluid > 0) && far(p);
+  const safe = p => p && p.lz && !p.ref && !p.explosive && !(p.fluid > 0) && far(p);
   const wrapP = name => { const f = window[name]; if (typeof f !== 'function') return; window[name] = function (p) {
     if (p && p.lz) { if (safe(p)) {
       if (name === 'holeDecal' || name === 'addDecal' || name === 'shedPieces' || name === 'launchPiece' || name === 'pushProp') return;

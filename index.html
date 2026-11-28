@@ -1833,6 +1833,7 @@ function destroyProp(p, dx, dz, power) {
 }
 function damageProp(p, dmg, x, z, dx, dz, kind) {
   if (p.dead || dmg <= 0) return;
+  if (p.ref && MX.REF) { dmg = MX.REF.filter(p, dmg, kind); if (dmg <= 0) return; }                          // refugios destruibles (refugios.js): fuego propio 0, explosivos limitados
   p.hp -= dmg * MT[p.mat].dm; p.wob = Math.min(1, p.wob + dmg * .02);
   const f = p.hp / p.maxHp;
   while (p.stage < 2 && p.hp > 0 && f <= (p.stage === 0 ? .66 : .33)) { p.stage++; if (p.mat !== 'metal') shedPieces(p, p.stage === 1 ? 2 : 3, x, z, dx, dz); }
@@ -4261,7 +4262,7 @@ MAPA.wake = function (p) {                                                      
   /* OBJETOS LEJANOS: a más de 60 m del jugador (la niebla acaba a 58 m) nadie ve un decal, un empujón ni un hueco: un objeto dormido NO se despierta por eso. Los impactos de bala y los daños pequeños solo
      restan vida (la bala se detiene en él); en cuanto le quede ≤ 50 % o sea explosivo/fluido/fuego, se despierta y se trata como siempre. Antes cada bala o explosión lejana despertaba su objeto para siempre. */
   const far = p => { const dx = p.x - P.pos.x, dz = p.z - P.pos.z; return dx * dx + dz * dz > 3600; };
-  const safe = p => p && p.lz && !p.explosive && !(p.fluid > 0) && far(p);
+  const safe = p => p && p.lz && !p.ref && !p.explosive && !(p.fluid > 0) && far(p);
   const wrapP = name => { const f = window[name]; if (typeof f !== 'function') return; window[name] = function (p) {
     if (p && p.lz) { if (safe(p)) {
       if (name === 'holeDecal' || name === 'addDecal' || name === 'shedPieces' || name === 'launchPiece' || name === 'pushProp') return;
@@ -6841,7 +6842,7 @@ MX.update = dt => {
     if (pl.dead) pl.respT -= dt; else { pl.dwT += dt; dwnFxTick(pl); if (MX.campaign && pl.dwT >= DWN_T && !M.over) { endRescueOn(pl); kill(pl, pl.lastAtt && M.t - pl.lastAttT < 40 ? pl.lastAtt : null, 0, 1); } }
     for (const m of playerBodyMeshes) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false;
     if (corpseP) { corpseP.userData.t += dt; corpseP.quaternion.setFromAxisAngle(corpseP.userData.ax, smooth(corpseP.userData.t / .55) * (pl.dwn ? 1.3 : 1.45)); corpseP.position.y = pl.dwn ? 0 : -smooth((corpseP.userData.t - 2.3) / .7) * .6; }
-    if (pl.dead && pl.respT <= 0 && !M.over) respawn(pl);
+    if (pl.dead && pl.respT <= 0 && !M.over && (!MX.canRespawn || MX.canRespawn(pl))) respawn(pl);
   } else {
     if (pl.inv > 0) { pl.inv -= dt; const on = Math.floor(M.t * 14) % 2 === 0 || pl.inv <= 0; for (const m of playerBodyMeshes) m.visible = on; }
     regen(pl, dt);
@@ -6864,7 +6865,7 @@ MX.update = dt => {
     if (e.isPlayer) continue;
     if (e.dead) {
       e.respT -= dt; e.deadT += dt; const k = smooth(e.deadT / .55); e.root.quaternion.setFromAxisAngle(e.fallAx, k * 1.45); e.root.position.y = -smooth((e.deadT - 2.3) / .7) * .6;
-      if (e.respT <= 0 && !M.over) respawn(e);
+      if (e.respT <= 0 && !M.over && (!MX.canRespawn || MX.canRespawn(e))) respawn(e);
     } else if (e.dwn) {
       dwnTick(e, dt); e.v.set(0, 0, 0); e.ring.visible = false; e.flash.visible = false;                  // abatido: no actúa, queda tumbado con su marcador
     } else {
@@ -8115,7 +8116,7 @@ function objTick(dt) {
     const teams = n.map((c, t) => c ? t : -1).filter(t => t >= 0); o.contested = teams.length > 1; o.n = n;
     if (o.contested) continue;                                                       // disputado: congelado
     const t = teams.length ? teams[0] : -1;
-    if (t >= 0 && t !== o.owner) {                                                   // atacantes solos dentro
+    if (t >= 0 && t !== o.owner && !(o.refuge && MX.REF && MX.REF.on)) {              // atacantes solos dentro (los refugios ya no se capturan: se destruyen)
       if (o.capBy !== t) { if (o.cap > 0 && o.capBy >= 0) { o.cap = Math.max(0, o.cap - dt / CAP_N * 2); continue; } o.capBy = t; o.cap = 0; }   // otro bando a medias: primero lo deshace
       o.cap += dt / (o.owner >= 0 ? CAP_N : CAP_C) * Math.min(1.6, 1 + (n[t] - 1) * .15);
       if (o.cap >= 1) {
@@ -8162,8 +8163,8 @@ SQ.endCampaign = endCampaign;
 SQ.respawnTime = e => { if (!SQ.objs.length) return null; const k = SQ.objs.filter(o => o.shared && o.owner === e.team).length; return Math.max(4, 9 - k) + (e.isPlayer ? 0 : rnd() * .8); };
 SQ.spawnFor = e => {                                                                 // reaparición adelantada en el puesto avanzado propio
   const rf = SQ.objs.find(o => o.refuge && o.home === e.team);
-  if (rf && rf.owner !== e.team) {                                                   // nos han quitado el refugio: se reaparece en el punto propio más cercano a él que esté a salvo
-    const ok = SQ.objs.filter(o => o.owner === e.team && !M.ents.some(q => alive(q) && q.team !== e.team && dist(q.p, o) < 35)).sort((a, b) => dist(a, rf) - dist(b, rf))[0];
+  if (rf && (rf.destroyed || rf.owner !== e.team)) {                                  // refugio destruido (o, antes, capturado): se reaparece en el punto propio más cercano a él que esté a salvo
+    const ok = SQ.objs.filter(o => !o.refuge && o.owner === e.team && !M.ents.some(q => alive(q) && q.team !== e.team && dist(q.p, o) < 35)).sort((a, b) => dist(a, rf) - dist(b, rf))[0];
     if (ok) { const q = navNear(ok.x + rr(-4, 4), ok.z + rr(-4, 4)); return { x: q.x, z: q.z, yaw: Math.atan2(-q.x, -q.z) }; }
     return null; }
   const pue = SQ.objs.find(o => o.id === 'PUE' && o.owner === e.team && o.home === e.team); if (!pue) return null;
@@ -8193,10 +8194,11 @@ function objHud() {
 }
 /* marcador de dominio (arriba en el centro) y barra de captura (abajo en el centro, sólo dentro de un punto) */
 { const st = document.createElement('style'); st.textContent = `
-#domScore{position:fixed;left:50%;top:calc(6px + env(safe-area-inset-top));transform:translateX(-50%);z-index:3;pointer-events:none;display:none;gap:4px;align-items:center;font:800 12px/1 system-ui,-apple-system,sans-serif;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #000}
-#domScore .f{position:relative;min-width:40px;padding:3px 5px 5px;border-radius:5px;background:#0b0f18b8;text-align:center}#domScore .f.me{box-shadow:inset 0 0 0 1px #ffffff55}
-#domScore .f i{position:absolute;left:3px;right:3px;bottom:2px;height:2px;background:#ffffff1c;border-radius:1px;overflow:hidden}#domScore .f i b{display:block;height:100%}
-#domScore .f s{text-decoration:none;font-size:9px;opacity:.75;margin-left:3px;font-weight:700}#domScore .m{font-size:9px;opacity:.6;margin-left:4px;font-weight:700}
+#domScore{position:fixed;left:50%;top:calc(6px + env(safe-area-inset-top));transform:translateX(-50%);z-index:3;pointer-events:none;display:none;gap:3px;align-items:center;font:800 12px/1 system-ui,-apple-system,sans-serif;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #000}
+#domScore .f{position:relative;min-width:30px;padding:2px 3px 4px;border-radius:5px;background:#0b0f18b8;text-align:center}#domScore .f.me{box-shadow:inset 0 0 0 1px #ffffff55}
+#domScore .f i{position:absolute;left:3px;right:3px;bottom:1px;height:2px;background:#ffffff1c;border-radius:1px;overflow:hidden}#domScore .f i b{display:block;height:100%}
+#domScore .f em.r{font-style:normal;font-size:8px;font-weight:700;margin-left:2px;opacity:.9;color:#dfe6f2}#domScore .f em.r.low{color:#ff6a4a}#domScore .f em.r.dead{color:#ff3b30}#domScore .f em.r.atk{animation:refAtk .55s steps(2,jump-none) infinite}@keyframes refAtk{50%{opacity:.25;color:#ff5a48}}
+#domScore .f s{text-decoration:none;font-size:8px;opacity:.75;margin-left:2px;font-weight:700}#domScore .m{font-size:8px;opacity:.6;margin-left:2px;font-weight:700}
 #capBar{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:3;pointer-events:none;display:none;width:min(260px,40vw);text-align:center;font:700 11px/1.2 system-ui,-apple-system,sans-serif;color:#fff;text-shadow:0 1px 2px #000}
 #capBar .t{margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#capBar .b{height:6px;border-radius:3px;background:#0b0f18c8;box-shadow:inset 0 0 0 1px #ffffff26;overflow:hidden}#capBar .b i{display:block;height:100%;transition:width .2s}
 @media (min-height:521px){#domScore{font-size:15px;top:calc(10px + env(safe-area-inset-top))}#domScore .f{min-width:60px}#capBar{font-size:13px;bottom:calc(40px + env(safe-area-inset-bottom))}}
@@ -8207,7 +8209,7 @@ SQ.capTick = () => {
   objHud(); const pl = MX.pl, on = MX.on && SQ.objs.length && !menuOpen && !TM.open;
   domEl.style.display = on ? 'flex' : 'none'; if (!on) { capEl.style.display = 'none'; return; }
   const hex = t => '#' + TEAM_COL[t].toString(16).padStart(6, '0'), held = [0, 0, 0, 0]; for (const o of SQ.objs) if (o.owner >= 0) held[o.owner]++;
-  domEl.innerHTML = [0, 1, 2, 3].map(t => '<div class="f' + (pl && t === pl.team ? ' me' : '') + '" style="color:' + hex(t) + '">' + SQ.score[t] + '<s>' + held[t] + '⚑</s><i><b style="width:' + Math.min(100, SQ.score[t] / META * 100) + '%;background:' + hex(t) + '"></b></i></div>').join('') + '<span class="m">/' + META + '</span>';
+  domEl.innerHTML = [0, 1, 2, 3].map(t => '<div class="f' + (pl && t === pl.team ? ' me' : '') + '" style="color:' + hex(t) + '">' + SQ.score[t] + '<s>' + held[t] + '⚑</s>' + (MX.REF && MX.REF.on ? '<em class="r' + (MX.REF.destroyed[t] ? ' dead' : MX.REF.attacked(t) ? ' atk' : '') + (MX.REF.pct[t] < 30 ? ' low' : '') + '">' + (MX.REF.eliminated[t] ? 'ELIM.' : MX.REF.destroyed[t] ? '✖' : Math.ceil(MX.REF.pct[t]) + '%') + '</em>' : '') + '<i><b style="width:' + Math.min(100, SQ.score[t] / META * 100) + '%;background:' + hex(t) + '"></b></i></div>').join('') + '<span class="m">/' + META + '</span>';
   const here = pl && !pl.dead && SQ.objs.find(o => dist(pl.p, o) < o.r);
   capEl.style.display = here ? 'block' : 'none'; if (!here) return;
   const st = SQ.objState(here), prog = here.capBy >= 0 ? here.cap : here.owner >= 0 ? 1 : 0, c = here.contested ? '#ffd24a' : hex(here.capBy >= 0 ? here.capBy : here.owner >= 0 ? here.owner : pl.team);
@@ -8401,6 +8403,7 @@ function mapDraw() {
   /* objetivos con el color del dueño y su progreso de captura */
   for (const o of SQ.objs) { const cx = P2(o.x), cz = P2(o.z), r = Math.max(4, o.r * g.k); x.lineWidth = 2.2; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.globalAlpha = o.contested ? .5 + .5 * pulse : 1; x.beginPath(); x.arc(cx, cz, r, 0, 6.283); x.stroke(); x.globalAlpha = 1;
     if (o.capBy >= 0 && o.cap > 0) { x.strokeStyle = col(o.capBy); x.lineWidth = 3; x.beginPath(); x.arc(cx, cz, r + 3, -1.571, -1.571 + 6.283 * o.cap); x.stroke(); }
+    if (o.refuge && MX.REF && MX.REF.on) { const R = MX.REF, a = R.attacked(o.home); x.save(); x.font = '800 12px system-ui,sans-serif'; x.textAlign = 'center'; x.fillStyle = R.pct[o.home] < 30 || R.destroyed[o.home] ? '#ff6a4a' : '#fff'; if (a) x.globalAlpha = .45 + .55 * pulse; x.fillText(R.destroyed[o.home] ? 'DESTRUIDO' : '⌂ ' + Math.ceil(R.pct[o.home]) + '%' + (a ? ' ¡ATACADO!' : ''), cx, cz - r - 6); if (a) { x.strokeStyle = '#ff3b30'; x.lineWidth = 3; x.beginPath(); x.arc(cx, cz, r + 6 + pulse * 3, 0, 6.283); x.stroke(); } x.restore(); }
     if (o.pile && o.pile.n > 0 && o.owner === MX.pl.team) { x.save(); x.fillStyle = '#ffd86a'; x.font = '700 11px system-ui,sans-serif'; x.textAlign = 'left'; x.fillText('▣ ' + o.pile.n + '/60', cx + r + 4, cz + 4); x.restore(); }
     if (o.code) { x.globalAlpha = 1; x.fillStyle = o.owner >= 0 ? col(o.owner) : '#0c1018'; x.font = '800 ' + Math.max(11, Math.round(r * 1.1)) + 'px system-ui,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(o.code, cx, cz); } }
   /* aliados (los enemigos no se ven): tu escuadra suelta con la clase de cada uno; el resto agrupado por zonas con su número; cada escuadra dibuja una línea suave a su objetivo */
@@ -8444,6 +8447,9 @@ function miniTick(dt) {
     if (h.young < 2.5) { x.strokeStyle = 'rgba(' + rgb + ',' + (.5 + .5 * pulse) + ')'; x.lineWidth = 1.4; x.beginPath(); x.arc(px, pz, r * .5 + pulse * 2, 0, 6.283); x.stroke(); } }
   const m2 = performance.now(); SQ.pm.m_cells = Math.max(SQ.pm.m_cells || 0, m2 - m1);
   for (const o of SQ.objs) { const [px, pz] = W2(o.x, o.z); if (px < -10 || pz < -10 || px > size + 10 || pz > size + 10) continue; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.lineWidth = 1.6; x.beginPath(); x.arc(px, pz, Math.max(3, o.r * k), 0, 6.283); x.stroke(); if (o.code) drawTxt(x, o.code, px, pz, 9, 800, o.owner >= 0 ? col(o.owner) : '#0c1018'); }
+  if (MX.REF && MX.REF.on) for (const o of SQ.objs) { if (!o.refuge) continue; const [px, pz] = W2(o.x, o.z); if (px < -10 || pz < -10 || px > size + 10 || pz > size + 10) continue; const R = MX.REF, atk = R.attacked(o.home), low = R.pct[o.home] < 30;
+    if (atk || low || R.destroyed[o.home]) { x.strokeStyle = 'rgba(255,60,48,' + (atk ? .4 + .6 * pulse : .8) + ')'; x.lineWidth = 2; x.beginPath(); x.arc(px, pz, Math.max(5, o.r * k) + 3, 0, 6.283); x.stroke(); }
+    drawTxt(x, R.destroyed[o.home] ? '✖' : Math.ceil(R.pct[o.home]) + '%', px, pz + Math.max(8, o.r * k) + 4, 8, 800, low || R.destroyed[o.home] ? '#ff6a4a' : '#e8eef8', '#000c'); }
   if (MX.stations) for (const st of MX.stations.list) { const on = st.act[team] > 0 && M.t - st.act[team] < .7; if (!on && st.n < 2) continue;   /* puestos de curación: sólo los activos destacan; los inactivos (> 1 camilla) pequeños y tenues; con ~24 en el mapa llenaban el minimapa de cruces */
     const [px, pz] = W2(st.x, st.z); if (px < 4 || pz < 4 || px > size - 4 || pz > size - 4) continue; const ga = x.globalAlpha; x.globalAlpha = on ? 1 : .45; drawTxt(x, '✚', px, pz, on ? 10 : 7, 800, on ? '#4ee08a' : '#aab4c2', on ? '#000c' : undefined); x.globalAlpha = ga; }
   const m3 = performance.now(); SQ.pm.m_objs = Math.max(SQ.pm.m_objs || 0, m3 - m2); drawFriends(x, W2, size, team, pl && pl.sqd, false, true); SQ.pm.m_friends = Math.max(SQ.pm.m_friends || 0, performance.now() - m3);
@@ -8678,7 +8684,7 @@ function stTick(dt) {                                                           
     for (let t = 0; t < 4; t++) { if (med[t] === -1 || hostile[t]) { if (med[t] !== -1) st.blocked = true; continue; }
       st.act[t] = M.t;
       for (const e of M.ents) { if (e.dead || e.dwn || e.team !== t || e.hp >= 100) continue; if (dist(e.p, st) > st.r) continue;
-        e.hp = Math.min(100, e.hp + ST_RATE * .25); if (e.tgp) e.tgp.hp = e.hp; e.healT = M.t; e.medNear = M.t; e.stT = M.t; e.regT = 0; } }
+        e.hp = Math.min(100, e.hp + ST_RATE * .25 * (MX.REF && MX.REF.healMul ? MX.REF.healMul(st.x, st.z, e.team) : 1)); if (e.tgp) e.tgp.hp = e.hp; e.healT = M.t; e.medNear = M.t; e.stT = M.t; e.regT = 0; } }
   }
   const pl = MX.pl; if (pl && !pl.dead) {                                                // aviso al jugador al entrar en un puesto
     let cur = null; for (const st of ST.list) if (dist(P.pos, st) < st.r) { cur = st; break; }
@@ -8863,12 +8869,14 @@ function build() {
   scene.add(grp);
 }
 /* ---------- HUD: «llevas 8/20» y «Almacén N» ---------- */
-let chip = null, chipKey = -1;
+let chip = null, chipKey = -1; const chipChg = { k: -1, t: -99 };
 function hud() {
-  if (!chip) { const st = document.createElement('style'); st.textContent = `#ecoChip{position:fixed;left:50%;top:calc(34px + env(safe-area-inset-top));transform:translateX(-50%);z-index:3;pointer-events:none;display:none;gap:8px;font:700 10.5px/1 system-ui,-apple-system,sans-serif;color:#fff;text-shadow:0 1px 2px #000;white-space:nowrap}
+  if (!chip) { const st = document.createElement('style'); st.textContent = `#ecoChip{position:fixed;right:max(14px,env(safe-area-inset-right));top:calc(88px + env(safe-area-inset-top));z-index:3;pointer-events:none;display:none;flex-direction:column;align-items:flex-end;gap:3px;font:700 10.5px/1 system-ui,-apple-system,sans-serif;color:#fff;text-shadow:0 1px 2px #000;white-space:nowrap}
 #ecoChip span{background:#0b0f18b0;border-radius:999px;padding:3px 8px;border:1px solid #ffffff1e}#ecoChip .w{color:#ffd86a}
-@media (min-height:521px){#ecoChip{top:calc(42px + env(safe-area-inset-top));font-size:12px}}`; document.head.appendChild(st); chip = document.createElement('div'); chip.id = 'ecoChip'; document.body.appendChild(chip); }
-  const pl = MX.pl, on = MX.on && MX.campaign && pl && !menuOpen && !MX.mapOpen; chip.style.display = on ? 'flex' : 'none'; if (!on) return;
+@media (min-height:521px){#ecoChip{top:calc(96px + env(safe-area-inset-top));font-size:12px}}`; document.head.appendChild(st); chip = document.createElement('div'); chip.id = 'ecoChip'; document.body.appendChild(chip); }
+  const pl = MX.pl, z0 = pl && ECO.zoneOf(pl.team), key0 = pl ? ECO.total(pl.team) * 1000 + ECO.load(pl) : 0; if (key0 !== chipChg.k) { if (chipChg.k >= 0) chipChg.t = M.t; chipChg.k = key0; }
+  const on = MX.on && MX.campaign && pl && !pl.dead && !menuOpen && !MX.mapOpen && (ECO.load(pl) > 0 || M.t - chipChg.t < 4 || (z0 && Math.hypot(pl.p.x - z0.x, pl.p.z - z0.z) < 45));   // solo cuando importa: llevas algo, acabas de cambiar el stock o estás junto a tu refugio
+  chip.style.display = on ? 'flex' : 'none'; if (!on) return;
   const s = ECO.stock[pl.team], L = ECO.load(pl), m = pl.mat || {}, key = ((((((L * 61 + ECO.cap(pl)) * 61 + (m.madera || 0)) * 61 + (m.piedra || 0)) * 61 + (m.hierro || 0)) * 1009 + s.madera) * 1009 + s.piedra) * 1009 + s.hierro;
   if (key === chipKey) return; chipKey = key;
   const det = L ? ' <small>' + MATS.filter(k => m[k]).map(k => ICON[k] + m[k]).join(' ') + '</small>' : '';
@@ -9223,6 +9231,268 @@ SQ.update = dt => {
   ta += dt; if (ta >= 2) { ta = 0; assign(2); }
 };
 LG.reset = () => { for (const e of M.ents) { e.lg = null; e.lgCool = 0; e.work = null; } BLOCK.clear(); for (let t = 0; t < 4; t++) { LG.stats.jobs[t] = LG.stats.aborts[t] = LG.stats.carried[t] = 0; } };
+})();
+</script>
+<script>"use strict";
+/* ===================== REFUGIOS DESTRUIBLES (campaña) =====================
+   Cada tramo del perímetro (muro bajo y portón) tiene vida propia; la INTEGRIDAD de un refugio es la vida total de sus tramos (0 % = todos destruidos). Daño por arma: las balas hacen
+   daño considerable; los explosivos están limitados (≈ 8 % por tramo, con rendimiento decreciente); el fuego propio no daña el refugio propio (balas, granadas, barriles, fuego). Se anota
+   cuánto daño ha hecho cada facción rival (los infectados no cuentan): al llegar a 0 % se reparten 150 puntos entre ellas según su parte. Los muros no sueltan botín.
+   ALMACÉN: la estantería de material de cada refugio tiene vida propia; si cae se pierde el stock de esa facción (si el refugio cae pero el almacén no, el stock se conserva).
+   REFUGIO CAÍDO: la facción NO queda eliminada; reaparece en un punto propio a salvo (sin punto, no reaparece hasta controlar uno) por oleadas de 3 cada 8 s con 3 s de protección.
+   Sin refugio, sin puntos y sin soldados vivos queda eliminada (el jugador observa). Los refugios ya no se capturan: se destruyen. */
+(function () {
+const M = MX.M, SQ = MX.SQ, ECO = MX.ECO, dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+ECO.wallHp = 14000; ECO.gateHp = 11000; ECO.warehouseHp = 9000; ECO.dmgMuro = { bullet: 1, blast: .08, blastDecay: .6, blastWindow: 12, fire: .15 };
+const REF = { seg: [[], [], [], []], ware: [null, null, null, null], dmgBy: [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], destroyed: [false, false, false, false], pct: [100, 100, 100, 100], atkT: [-99, -99, -99, -99],
+  eliminated: [false, false, false, false], wave: [{ t: -99, n: 0 }, { t: -99, n: 0 }, { t: -99, n: 0 }, { t: -99, n: 0 }], key: null, on: !/[?&]norefugios\b/.test(location.search), pts: [0, 0, 0, 0], awarded: false, wareLost: [false, false, false, false], tick: 0 };
+MX.REF = REF;
+REF.attacked = t => M.t - REF.atkT[t] < 8;
+function build() {
+  REF.key = MAPA.built || null; for (let t = 0; t < 4; t++) { REF.seg[t] = []; REF.ware[t] = null; REF.dmgBy[t] = [0, 0, 0, 0]; REF.destroyed[t] = false; REF.eliminated[t] = false; REF.pct[t] = 100; REF.wareLost[t] = false; }
+  const rr = REF.key && REF.key.info && REF.key.info.refugeRects; if (!rr) return;
+  for (const p of props) { if (p.dead) continue; const isW = p.type === 'wallLow1' || p.type === 'gate1', isS = p.type === 'storeMat'; if (!isW && !isS) continue;
+    const q = rr.find(r => Math.abs(p.x - r.x) <= r.hx + .6 && Math.abs(p.z - r.z) <= r.hz + .6); if (!q) continue;
+    p.ref = { team: q.fac, kind: isS ? 'ware' : 'wall', blastN: 0, blastT: -99 };
+    p.ref.spec = { type: p.type, x: p.x, z: p.z, rot: p.g.rotation.y, fac: p.lzFac, param: p.lzParam }; if (isS) { p.maxHp = p.hp = ECO.warehouseHp; REF.ware[q.fac] = p; } else { p.maxHp = p.hp = p.type === 'gate1' ? ECO.gateHp : ECO.wallHp; REF.seg[q.fac].push(p); } }
+}
+/* filtro de daño a objetos del refugio (lo llama damageProp). Devuelve el daño efectivo (0 = ninguno). */
+REF.filter = (p, dmg, kind) => {
+  const r = p.ref; if (!r || !REF.on) return dmg; const by = p.by, team = by && by.team !== undefined ? by.team : -1;
+  if (team === r.team) return 0;                                                  // fuego propio: nada
+  let eff;
+  if (kind === 'blast') { if (M.t - r.blastT > ECO.dmgMuro.blastWindow) r.blastN = 0; eff = p.maxHp * ECO.dmgMuro.blast * Math.min(1.3, dmg / 150) * Math.pow(ECO.dmgMuro.blastDecay, r.blastN); r.blastN += .5; r.blastT = M.t; }   // 0,5 por tramo y explosión: varias seguidas rinden cada vez menos
+  else if (kind === 'fire') { if (team < 0) return 0; eff = dmg * ECO.dmgMuro.fire; }
+  else eff = dmg * ECO.dmgMuro.bullet;
+  if (team >= 0) { REF.dmgBy[r.team][team] += Math.min(eff, Math.max(0, p.hp)); REF.atkT[r.team] = M.t; }
+  return eff / ((typeof MT !== 'undefined' && MT[p.mat]) ? MT[p.mat].dm : 1);       // el multiplicador del material se compensa: el daño efectivo es el calculado
+};
+function pctOf(t) { let a = 0, b = 0; for (const p of REF.seg[t]) { b += p.maxHp; if (!p.dead) a += Math.max(0, p.hp); } return b ? 100 * a / b : 0; }
+const teamName = t => ['Azul', 'Rojo', 'Ámbar', 'Violeta'][t];
+function award(t) {                                                                // reparto de 150 puntos entre las facciones rivales según su daño
+  const d = REF.dmgBy[t], tot = d.reduce((s, v, k) => s + (k === t ? 0 : v), 0); REF.pts[t] = 0; if (tot <= 0) return;
+  let given = 0, best = -1; const pts = [0, 0, 0, 0]; for (let k = 0; k < 4; k++) { if (k === t || d[k] <= 0) continue; pts[k] = Math.floor(150 * d[k] / tot); given += pts[k]; if (best < 0 || d[k] > d[best]) best = k; }
+  if (best >= 0) pts[best] += 150 - given;
+  for (let k = 0; k < 4; k++) if (pts[k]) SQ.score[k] += pts[k]; REF.pts[t] = pts; REF.lastPts = pts;
+  const txt = pts.map((v, k) => v ? teamName(k) + ' +' + v : '').filter(Boolean).join(' · '); SQ.toast('Refugio ' + teamName(t) + ' destruido · ' + txt); if (SQ.beep) SQ.beep('lost');
+  const w = SQ.score.findIndex(v => v >= (SQ.meta ? SQ.meta.goal || 1000 : 1000)); if (w >= 0 && SQ.endCampaign) SQ.endCampaign(w);
+}
+function aliveOf(t) { for (const e of M.ents) if (e.team === t && !e.dead) return true; return false; }
+function ownsPoint(t) { return SQ.objs.some(o => !o.refuge && o.owner === t); }
+function tick() {
+  if (!REF.on) return;
+  for (let t = 0; t < 4; t++) {
+    REF.pct[t] = pctOf(t);
+    const rf = SQ.objs.find(o => o.refuge && o.home === t);
+    if (!REF.destroyed[t] && REF.seg[t].length && REF.pct[t] <= 0) { REF.destroyed[t] = true; if (rf) rf.destroyed = true; award(t); }
+    else if (REF.destroyed[t] && REF.pct[t] > 0) { REF.destroyed[t] = false; if (rf) rf.destroyed = false; }
+    const w = REF.ware[t]; if (w && w.dead && !REF.wareLost[t]) { REF.wareLost[t] = true; const s = ECO.stock[t]; s.madera = s.piedra = s.hierro = 0; SQ.toast('¡Almacén ' + teamName(t) + ' destruido! Stock perdido'); ECO.log(t, 'Almacén destruido'); }
+    if (REF.destroyed[t] && !REF.eliminated[t] && !ownsPoint(t) && !aliveOf(t)) { REF.eliminated[t] = true; SQ.toast('Facción ' + teamName(t) + ' eliminada'); const pl = MX.pl; if (pl && pl.team === t) SQ.toast('Tu facción ha sido eliminada · observas la partida');
+      const left = [0, 1, 2, 3].filter(k => !REF.eliminated[k]); if (left.length === 1 && SQ.endCampaign) SQ.endCampaign(left[0]); }
+  }
+}
+/* reaparición con el refugio caído: oleadas de 3 cada 8 s, solo si hay un punto propio a salvo */
+MX.canRespawn = e => {
+  if (!REF.on || !MX.campaign || !REF.destroyed[e.team]) return true; if (REF.eliminated[e.team]) return false;
+  if (!SQ.spawnFor(e)) return false;
+  const W = REF.wave[e.team]; if (M.t - W.t >= 8) { W.t = M.t; W.n = 0; } if (W.n >= 3) return false; W.n++; return true;
+};
+const onResp = SQ.onRespawn; SQ.onRespawn = e => { onResp(e); if (MX.campaign && REF.destroyed[e.team]) e.inv = Math.max(e.inv || 0, 3); };
+const sqUpdate = SQ.update; let ts = 0;
+SQ.update = dt => {
+  sqUpdate(dt); if (!MX.campaign) return; if (REF.key !== (MAPA.built || null) || (!REF.seg[0].length && !REF.built)) { build(); REF.built = true; }
+  ts += dt; if (ts >= .25) { ts = 0; tick(); }
+  const pl = MX.pl; if (pl && pl.dead && REF.eliminated[pl.team]) {                                // eliminado: observa a una facción viva
+    let tgt = REF.spec; if (!tgt || tgt.dead) { tgt = REF.spec = M.ents.find(e => !e.dead && !e.isPlayer && !REF.eliminated[e.team]) || null; } if (tgt) { P.pos.x = tgt.p.x; P.pos.z = tgt.p.z; } }
+};
+const rs = MX.restart; if (rs) MX.restart = function () { const r = rs.apply(this, arguments); REF.key = null; REF.built = false; REF.spec = null; for (let t = 0; t < 4; t++) { REF.wave[t].t = -99; REF.wave[t].n = 0; } return r; };
+})();
+</script>
+<script>"use strict";
+/* ===================== INGENIEROS Y MEJORAS DEL REFUGIO (campaña) =====================
+   Los bots disponibles en el refugio (recién reaparecidos o de apoyo, sin misión de combate) hacen de INGENIEROS: reconstruyen los tramos destruidos, reparan los dañados y levantan las
+   mejoras en cola, gastando material del almacén por tipo (madera/piedra/hierro) y tiempo; nunca trabajan con el refugio bajo ataque (pasan a defender) y paran si falta material.
+   MEJORAS por niveles: muros (parapeto de troncos → piedra → hierro), portón (1 → 3), torre de vigilancia (alcance de alerta, lo usa la defensa), enfermería (las camillas del refugio curan más
+   rápido) y armería (se reaparece con más munición y granadas). La CONSOLA del refugio (junto al almacén) muestra el almacén y la cola y deja elegir «Reparar» o «Mejorar».
+   Los costes están en ECO.cost / ECO.mej y se calibran con partidas simuladas (F13). */
+(function () {
+const M = MX.M, SQ = MX.SQ, ECO = MX.ECO, REF = MX.REF, INT = MX.INT, MATS = ECO.MATS;
+ECO.wallHpLv = [0, 14000, 22400, 35000]; ECO.gateHpLv = [0, 11000, 17600, 27500];
+ECO.rep = { hpps: 450, rebuildT: 12, hitEvery: .5, maxEng: 2, near: 50 };
+ECO.cost = { reparar: { madera: 1.2, piedra: .5 }, reconstruir: { madera: 18, piedra: 6 } };       // reparar: por cada 1.000 de vida; reconstruir: base (luego se repara)
+ECO.mej = {
+  muros: [null, null, { piedra: 70, madera: 30 }, { hierro: 110, piedra: 50 }],                       // coste TOTAL del nivel (se reparte entre los tramos)
+  porton: [null, null, { hierro: 40, madera: 20 }, { hierro: 80, piedra: 30 }],
+  torre: [null, { madera: 50, hierro: 25 }, { hierro: 60, piedra: 30 }],
+  enfermeria: [null, { madera: 40, hierro: 20 }, { hierro: 50, piedra: 20 }],
+  armeria: [null, { hierro: 50, piedra: 20 }, { hierro: 90, piedra: 40 }],
+};
+ECO.mejMax = { muros: 3, porton: 3, torre: 2, enfermeria: 2, armeria: 2 };
+ECO.mejName = { muros: 'Muros', porton: 'Portón', torre: 'Torre de vigilancia', enfermeria: 'Enfermería', armeria: 'Armería' };
+const teamName = t => ['Azul', 'Rojo', 'Ámbar', 'Violeta'][t];
+REF.up = [0, 1, 2, 3].map(() => ({ muros: 1, porton: 1, torre: 0, enfermeria: 0, armeria: 0 }));
+REF.queue = [[], [], [], []];                                                       // cola de mejoras: { k, to, left: tramos pendientes, per: coste por tramo }
+REF.stats = { repaired: [0, 0, 0, 0], rebuilt: [0, 0, 0, 0], upgraded: [0, 0, 0, 0], spent: [0, 0, 0, 0], waits: [0, 0, 0, 0] };
+REF.alertRadius = t => 120 + 40 * REF.up[t].torre;                                  // radio de alerta (lo usa la defensa, F10)
+REF.healMul = (x, z, team) => { const q = REF.up[team] && REF.up[team].enfermeria; const rr = MAPA.built && MAPA.built.info && MAPA.built.info.refugeRects; if (!q || !rr) return 1; const r = rr.find(o => o.fac === team); return r && Math.abs(x - r.x) <= r.hx && Math.abs(z - r.z) <= r.hz ? 1 + .5 * q : 1; };
+const costOf = (c, mul) => { const o = {}; for (const k of MATS) if (c[k]) o[k] = c[k] * (mul || 1); return o; };
+const fmt = c => MATS.filter(k => c[k]).map(k => Math.ceil(c[k]) + ' ' + k).join(' · ');
+const lvOf = p => /(\d)$/.exec(p.type) ? +/(\d)$/.exec(p.type)[1] : 1;
+const isGate = p => p.ref && /^gate/.test(p.ref.spec.type);
+
+/* ---------- gasto fraccionado: se descuenta del almacén en unidades enteras ---------- */
+function pay(team, owed) {                                                           // owed: { tipo: fracción }; devuelve false si falta material para la siguiente unidad
+  for (const k of MATS) { const need = Math.floor(owed[k] || 0); if (need >= 1) { if (ECO.stock[team][k] < need) return false; } }
+  for (const k of MATS) { const n = Math.floor(owed[k] || 0); if (n >= 1) { ECO.stock[team][k] -= n; owed[k] -= n; ECO.stat.spent[team] += n; REF.stats.spent[team] += n; } }
+  return true;
+}
+const canAfford = (team, c) => MATS.every(k => (ECO.stock[team][k] || 0) >= Math.ceil(c[k] || 0));
+
+/* ---------- sustitución de un tramo (reconstruir / mejorar) ---------- */
+function replace(team, p, type, hpFrac) {
+  const sp = p.ref.spec, idx = REF.seg[team].indexOf(p); const q = OBJ.place(type, sp.x, sp.z, sp.rot, sp.fac, sp.param); if (!q) return null;
+  if (!p.dead) { if (MAPA.wake) MAPA.wake(p); destroyPropSilent(p); }
+  const w = /^gate/.test(type) ? ECO.gateHpLv[+type.slice(-1)] : ECO.wallHpLv[+type.slice(-1)];
+  q.ref = { team, kind: 'wall', blastN: 0, blastT: -99, spec: { type, x: sp.x, z: sp.z, rot: sp.rot, fac: sp.fac, param: sp.param } }; q.maxHp = w; q.hp = Math.max(1, w * hpFrac); if (idx >= 0) REF.seg[team][idx] = q; else REF.seg[team].push(q);
+  if (/^gate/.test(type)) q.open = p.open; return q;
+}
+function destroyPropSilent(p) {                                                      // quita un tramo sin escombros ni daño (sustituido por otro mejor)
+  p.dead = true; const bi = boxes.indexOf(p.box); if (bi >= 0) boxes.splice(bi, 1); scene.remove(p.g); const pi = props.indexOf(p); if (pi >= 0) props.splice(pi, 1); AWAKE.delete(p); M.navT = 0;
+}
+
+/* ---------- trabajos ---------- */
+function pickJob(team, e) {
+  if (REF.attacked(team)) return null; const S = REF.seg[team], st = ECO.stock[team];
+  let best = null, bs = 1e9; const z = ECO.zoneOf(team);
+  const taken = p => { for (const o of M.ents) if (o.eng && o !== e && o.eng.p === p && !o.dead) return true; return false; };
+  for (const p of S) { if (taken(p) || (p.ref.unreach && M.t - p.ref.unreach < 60)) continue; if (p.dead) { if (canAfford(team, costOf(ECO.cost.reconstruir))) { const d = z ? Math.hypot(p.ref.spec.x - z.x, p.ref.spec.z - z.z) : 0; if (d - 1000 < bs) { bs = d - 1000; best = { k: 'rebuild', p }; } } }
+    else if (p.hp < p.maxHp * .7) { const d = p.hp / p.maxHp * 100; if (d - 500 < bs) { bs = d - 500; best = { k: 'repair', p }; } } }
+  const w = REF.ware[team]; if (!best && w && !w.dead && w.hp < w.maxHp * .8 && !taken(w)) best = { k: 'repair', p: w };
+  if (!best) for (const q of REF.queue[team]) { if (q.left <= 0) continue; for (const p of S) { if (p.dead || taken(p) || !q.todo.has(p)) continue; best = { k: 'upgrade', p, q }; break; } if (best) break; }
+  if (!best) for (const p of S) { if (!p.dead && p.hp < p.maxHp * .98 && !taken(p)) { best = { k: 'repair', p }; break; } }
+  return best;
+}
+function startJob(e, j) { e.engRole = Math.max(e.engRole || 0, M.t + 150); e.eng = { st: 'go', k: j.k, p: j.p, q: j.q, t0: M.t, owed: {}, hitT: 0, prog: 0 }; return true; }
+function approach(team, p, e) {                                                     // un punto libre junto al tramo, por el lado (dentro o fuera) en el que está el ingeniero
+  const rr = MAPA.built.info.refugeRects.find(o => o.fac === team), sp = p.ref.spec, dx = rr.x - sp.x, dz = rr.z - sp.z, l = Math.hypot(dx, dz) || 1, ux = dx / l, uz = dz / l;
+  const side = e && ((e.p.x - sp.x) * ux + (e.p.z - sp.z) * uz) < -.3 ? -1 : 1, key = (MAPA.built || 0), C = p.ref.appr || (p.ref.appr = {}), c = C[side]; if (c && c.t === key) return c.v;
+  let v = null; for (const d of [1.5, 2.1, 2.8, 3.6]) { for (const lat of [0, 1.6, -1.6, 3.2, -3.2]) { const x = sp.x + side * ux * d - uz * lat, z = sp.z + side * uz * d + ux * lat; if (!MX.inMainNav || MX.inMainNav(x, z)) { v = { x, z }; break; } } if (v) break; }
+  if (!v) v = { x: sp.x + side * ux * 1.5, z: sp.z + side * uz * 1.5 }; C[side] = { t: key, v }; return v;
+}
+function stopJob(e) { if (e.eng) { if (DESG_) DESG_.stopWork(e); e.eng = null; } }
+let DESG_ = null;
+function stepEng(e, dt) {
+  const j = e.eng, team = e.team; if (!j) return;
+  if (e.dead || e.dwn || REF.attacked(team) || !(!(e.vis && e.tgt) && e.st !== 'fight' && M.t - e.lastHurt > 5) || M.t - j.t0 > 240) { stopJob(e); return; }
+  const sp = j.p.ref.spec, ap = approach(team, j.p, e);
+  if (j.st === 'go') { if (Math.hypot(e.p.x - ap.x, e.p.z - ap.z) < 1.8) { j.st = 'work'; } else if (M.t - j.t0 > 30) { j.p.ref.unreach = M.t; stopJob(e); } return; }
+  e.v.set(0, 0, 0); if (DESG_) e.work = { tool: 'mazo', t: M.t }; j.hitT -= dt; if (j.hitT <= 0) { j.hitT = ECO.rep.hitEvery; playAt('IMP_wood', sp.x, sp.z, { gap: 160, vol: .7 }); if (j.p.wob !== undefined) j.p.wob = Math.min(1, j.p.wob + .1); }
+  let p = j.p;
+  if (j.k === 'rebuild') {
+    if (j.prog === 0 && !canAfford(team, costOf(ECO.cost.reconstruir))) { REF.stats.waits[team]++; stopJob(e); return; }
+    j.prog += dt / ECO.rep.rebuildT; if (j.prog >= 1) { const c = costOf(ECO.cost.reconstruir); if (!canAfford(team, c)) { stopJob(e); return; } for (const k of MATS) if (c[k]) { ECO.stock[team][k] -= c[k]; ECO.stat.spent[team] += c[k]; REF.stats.spent[team] += c[k]; }
+      const lvl = Math.min(REF.up[team][isGate(p) ? 'porton' : 'muros'], 3), type = (isGate(p) ? 'gate' : 'wallLow') + lvl; const q = replace(team, p, type, .05); REF.stats.rebuilt[team]++; if (q) { j.p = q; j.k = 'repair'; j.prog = 0; } else stopJob(e); }
+    return; }
+  if (j.k === 'repair') {
+    const add = Math.min(p.maxHp - p.hp, ECO.rep.hpps * dt); if (add <= 0) { stopJob(e); return; }
+    if (!MATS.every(k => !ECO.cost.reparar[k] || ECO.stock[team][k] >= 1)) { REF.stats.waits[team]++; stopJob(e); e.engCool = M.t + 20; return; }
+    const mul = add / 1000; for (const k of MATS) if (ECO.cost.reparar[k]) j.owed[k] = (j.owed[k] || 0) + ECO.cost.reparar[k] * mul;
+    if (!pay(team, j.owed)) { j.owed = {}; REF.stats.waits[team]++; stopJob(e); e.engCool = M.t + 20; return; }
+    p.hp += add; REF.stats.repaired[team] += add; if (p.hp >= p.maxHp - .5) { p.hp = p.maxHp; stopJob(e); } return; }
+  if (j.k === 'upgrade') {
+    const q = j.q; if (!q || q.left <= 0 || !q.todo.has(p)) { stopJob(e); return; }
+    j.prog += dt / 6; if (j.prog >= 1) { if (!canAfford(team, q.per)) { REF.stats.waits[team]++; stopJob(e); e.engCool = M.t + 20; return; } for (const k of MATS) if (q.per[k]) { ECO.stock[team][k] -= Math.ceil(q.per[k]); ECO.stat.spent[team] += Math.ceil(q.per[k]); REF.stats.spent[team] += Math.ceil(q.per[k]); }
+      const frac = p.hp / p.maxHp, type = (q.k === 'porton' ? 'gate' : 'wallLow') + q.to; const nq = replace(team, p, type, Math.max(.3, frac)); q.todo.delete(p); q.left--; REF.stats.upgraded[team]++;
+      if (q.left <= 0) { REF.up[team][q.k] = q.to; REF.queue[team] = REF.queue[team].filter(x => x !== q); if (team === (MX.pl && MX.pl.team)) SQ.toast(ECO.mejName[q.k] + ' nivel ' + q.to + ' terminado'); }
+      stopJob(e); } }
+}
+/* mejoras que no son tramos: se levantan con material y tiempo de un ingeniero junto al almacén */
+function stepSpecial(e, dt) {
+  const j = e.eng; if (!j || j.k !== 'special') return false;
+  const team = e.team, z = ECO.zoneOf(team);
+  if (j.st === 'go') { if (Math.hypot(e.p.x - z.x, e.p.z - z.z) < 3.2) j.st = 'work'; return true; }
+  e.v.set(0, 0, 0); e.work = { tool: 'mazo', t: M.t }; j.prog += dt / 18; j.hitT -= dt; if (j.hitT <= 0) { j.hitT = .5; playAt('IMP_metal', z.x, z.z, { gap: 160, vol: .7 }); }
+  if (j.prog >= 1) { const q = j.q; if (!canAfford(team, q.cost)) { stopJob(e); return true; } for (const k of MATS) if (q.cost[k]) { ECO.stock[team][k] -= Math.ceil(q.cost[k]); ECO.stat.spent[team] += Math.ceil(q.cost[k]); REF.stats.spent[team] += Math.ceil(q.cost[k]); }
+    REF.up[team][q.k] = q.to; REF.queue[team] = REF.queue[team].filter(x => x !== q); REF.stats.upgraded[team]++; SQ.toast && team === (MX.pl && MX.pl.team) && SQ.toast(ECO.mejName[q.k] + ' nivel ' + q.to + ' terminado'); stopJob(e); }
+  return true;
+}
+/* ---------- cola de mejoras (la usan la consola del jugador y la decisión de los bots) ---------- */
+REF.canQueue = (team, k) => { const to = REF.up[team][k] + 1; if (to > ECO.mejMax[k]) return null; if (REF.queue[team].some(q => q.k === k)) return null; if (!ECO.mej[k][to]) return null; return { to, cost: ECO.mej[k][to] }; };
+REF.enqueue = (team, k) => {
+  const c = REF.canQueue(team, k); if (!c) return false; if (!canAfford(team, c.cost)) return false;
+  if (k === 'muros' || k === 'porton') { const segs = REF.seg[team].filter(p => !p.dead && (k === 'porton' ? isGate(p) : !isGate(p) && p.ref.kind === 'wall')); const per = {}; for (const m of MATS) if (c.cost[m]) per[m] = c.cost[m] / Math.max(1, segs.length); REF.queue[team].push({ k, to: c.to, left: segs.length, todo: new Set(segs), per, total: c.cost }); }
+  else REF.queue[team].push({ k, to: c.to, left: 1, special: true, cost: c.cost, todo: new Set() });
+  return true;
+};
+/* el almacén reserva el coste al encolar? No: se gasta por tramo; las mejoras sin tramos se pagan al terminar */
+
+/* ---------- asignación de ingenieros ---------- */
+const eligible = e => !e.isPlayer && !e.dead && !e.dwn && e.sqd && !e.sqd.playerLead && !e.lg && !e.clsWait && !e.medCall && !(e.vis && e.tgt) && e.st !== 'fight' && M.t - e.lastHurt > 6 && M.t >= (e.engCool || 0) && e.hp >= 60
+  && (M.t - (e.lifeStart || -99) < 30 || M.t < (e.engRole || 0) || (e.cls || 'fus') === 'sup');
+function assign() {
+  for (let t = 0; t < 4; t++) {
+    if (REF.attacked(t) || REF.eliminated[t]) continue; const z = ECO.zoneOf(t); if (!z) continue;
+    let n = 0; for (const e of M.ents) if (e.team === t && e.eng) n++; if (n >= ECO.rep.maxEng) continue;
+    const spq = REF.queue[t].find(q => q.special && q.left > 0 && !M.ents.some(o => o.eng && o.eng.q === q)); const job = pickJob(t, null) || null;
+    if (!job && !spq) continue;
+    for (const e of M.ents) { if (e.team !== t || e.eng || !eligible(e) || Math.hypot(e.p.x - z.x, e.p.z - z.z) > ECO.rep.near) continue;
+      if (job && startJob(e, job)) { n++; break; } if (!job && spq && canAfford(t, spq.cost)) { e.engRole = Math.max(e.engRole || 0, M.t + 150); e.eng = { st: 'go', k: 'special', q: spq, t0: M.t, prog: 0, hitT: 0 }; n++; break; } }
+  }
+}
+/* decisión de los bots: encolan mejoras cuando les sobra material (la prioridad: muros, portón, enfermería, armería, torre) */
+function botPlan() {
+  for (let t = 0; t < 4; t++) { if (REF.destroyed[t] || t === (MX.pl && MX.pl.team && 0)) continue; if (MX.pl && MX.pl.team === t && !MX.REF.autoPlayer) continue;
+    for (const k of ['muros', 'enfermeria', 'porton', 'armeria', 'torre']) { const c = REF.canQueue(t, k); if (!c) continue; const reserve = 80; if (MATS.every(m => ECO.stock[t][m] >= Math.ceil(c.cost[m] || 0) + (c.cost[m] ? reserve : 0))) { REF.enqueue(t, k); break; } } }
+}
+const sqGoal = SQ.goalFor;
+SQ.goalFor = e => {
+  const j = e.eng; if (j && !e.isPlayer) {
+    if (j.k === 'special') { const z = ECO.zoneOf(e.team); if (z) return { x: z.x + 1.4, z: z.z, speed: 5.4, hold: true, face: 0, crouch: false }; }
+    else if (j.p && j.p.ref) { const ap = approach(e.team, j.p, e); const sp = j.p.ref.spec; return { x: ap.x, z: ap.z, speed: 5.4, hold: true, face: Math.atan2(sp.x - ap.x, sp.z - ap.z), crouch: false }; } }
+  return sqGoal(e);
+};
+/* mando en la consola: cruceta ↑↓ elige, ✕ acepta, ○ cierra (como el inventario) */
+const padPrev = {};
+function conPad() {
+  if (!dlg || !dlg.open) return; const gp = (navigator.getGamepads ? navigator.getGamepads() : [])[0]; if (!gp) return; const dn = k => !!(gp.buttons[k] && gp.buttons[k].pressed), edge = k => { const v = dn(k), e = v && !padPrev[k]; padPrev[k] = v; return e; };
+  const bs = [...dlg.querySelectorAll('button:not([disabled])')]; if (!bs.length) return; let i = bs.indexOf(document.activeElement);
+  if (edge(13)) { i = (i + 1) % bs.length; bs[i].focus(); } if (edge(12)) { i = (i - 1 + bs.length) % bs.length; bs[i].focus(); } if (edge(0) && i >= 0) bs[i].click(); if (edge(1)) dlg.close();
+}
+let ta = 0, tb = 0; const sqUpdate = SQ.update;
+SQ.update = dt => {
+  sqUpdate(dt); conPad(); if (!MX.campaign || !REF.on || !REF.built) return; DESG_ = MX.DESG;
+  for (const e of M.ents) if (e.eng) { if (!stepSpecial(e, dt)) stepEng(e, dt); }
+  ta += dt; if (ta >= 2) { ta = 0; assign(); } tb += dt; if (tb >= 15) { tb = 0; botPlan(); }
+};
+/* efectos de las mejoras */
+const onResp = SQ.onRespawn; SQ.onRespawn = e => { onResp(e); if (!MX.campaign || REF.destroyed[e.team]) return; const a = REF.up[e.team].armeria; if (a > 0 && e.bag) { e.gCount = Math.min(5, (e.gCount || 0) + a); if (!e.isPlayer && e.w) e.ammo = e.w.max; } };
+const rs = MX.restart; if (rs) MX.restart = function () { const r = rs.apply(this, arguments); for (let t = 0; t < 4; t++) { REF.up[t] = { muros: 1, porton: 1, torre: 0, enfermeria: 0, armeria: 0 }; REF.queue[t] = []; for (const k in REF.stats) REF.stats[k][t] = 0; } for (const e of M.ents) e.eng = null; return r; };
+
+/* ---------- consola del refugio (interactuable) ---------- */
+let dlg = null;
+function ui() {
+  if (dlg) return dlg; dlg = document.createElement('dialog'); dlg.id = 'refCon'; dlg.className = 'inv';
+  const st = document.createElement('style'); st.textContent = '#refCon{max-width:min(92vw,460px)}#refCon h2{margin:0 0 6px;font-size:15px}#refCon .r{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:3px 0;border-bottom:1px solid #ffffff14}#refCon button{margin:4px 4px 0 0}#refCon small{opacity:.7}'; document.head.appendChild(st); document.body.appendChild(dlg);
+  dlg.addEventListener('close', () => { MX.conOpen = false; }); return dlg;
+}
+function renderCon() {
+  const pl = MX.pl, t = pl.team, d = ui(), s = ECO.stock[t], up = REF.up[t]; d.replaceChildren();
+  const add = (tag, html, cls) => { const n = document.createElement(tag); n.innerHTML = html; if (cls) n.className = cls; d.appendChild(n); return n; };
+  add('h2', 'Consola del refugio · ' + teamName(t));
+  add('div', '<span>Almacén</span><b>🪵 ' + s.madera + ' · 🪨 ' + s.piedra + ' · ⛓ ' + s.hierro + '</b>', 'r');
+  add('div', '<span>Integridad</span><b>' + Math.ceil(REF.pct[t]) + ' %</b>', 'r');
+  const q = REF.queue[t]; add('div', '<span>Cola</span><b>' + (q.length ? q.map(x => ECO.mejName[x.k] + ' → ' + x.to + (x.left > 0 && !x.special ? ' (' + x.left + ')' : '')).join(' · ') : 'vacía') + '</b>', 'r');
+  const b0 = document.createElement('button'); b0.textContent = 'Reparar todo'; b0.onclick = () => { REF.autoRepair = true; SQ.toast('Los ingenieros repararán los muros'); renderCon(); }; d.appendChild(b0);
+  for (const k of Object.keys(ECO.mejMax)) { const c = REF.canQueue(t, k), b = document.createElement('button');
+    if (!c) { b.textContent = ECO.mejName[k] + ' · nivel ' + up[k] + (up[k] >= ECO.mejMax[k] ? ' (máx.)' : ' (en cola)'); b.disabled = true; } else { const ok = canAfford(t, c.cost); b.textContent = 'Mejorar ' + ECO.mejName[k].toLowerCase() + ' → ' + c.to + ' · ' + fmt(c.cost); b.disabled = !ok; b.onclick = () => { if (REF.enqueue(t, k)) { SQ.toast(ECO.mejName[k] + ' en cola'); renderCon(); } }; }
+    d.appendChild(b); }
+  const bc = document.createElement('button'); bc.textContent = 'Cerrar'; bc.onclick = () => d.close(); d.appendChild(bc);
+}
+INT.reg('consola', (pl, out) => {
+  if (!MX.campaign || !REF.built) return; const w = REF.ware[pl.team]; if (!w || w.dead) return; const dx = w.x - pl.p.x, dz = w.z - pl.p.z; if (dx * dx + dz * dz > 9) return;
+  out.push({ x: w.x, z: w.z, y: 1.2, r: Math.max(w.hx, w.hz), key: 'consola', tool: null, time: .5, label: 'Consola del refugio', done: () => { renderCon(); const d = ui(); if (!d.open) { MX.conOpen = true; d.showModal(); } } });
+});
+MX.REFCON = { render: renderCon, open: () => { renderCon(); const d = ui(); if (!d.open) d.showModal(); } };
 })();
 </script>
 <script>/* Efecto del dash (jugador y bots): marcas de viento. Unas pocas líneas finas, blancas y translúcidas que se quedan en el aire detrás del que corre,

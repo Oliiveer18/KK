@@ -20,7 +20,7 @@ with sync_playwright() as p:
     r = ev('''()=>{P.pos.set(470,0,470);MX.pl.p.set(470,0,470);const o=MX.SQ.objs.find(q=>q.refuge&&q.home===0);window.O=o;const R=MX.ents.find(e=>e.bot&&e.team===1);R.keep=true;window.Rb=R;R.dead=false;R.dwn=false;R.hp=1e9;R.inv=1e9;R.fireCd=1e9;
       R.sqd.mission={type:'hold',x:o.x,z:o.z};R.sqd.missionT=MX.M.t;const run2=n=>{for(let i=0;i<n;i++){__clear();R.p.set(o.x+2,0,o.z);update(1/60)}};run2(60*11.5);const half=[o.owner,o.capBy];run2(60*10.6);return {half,owner:o.owner}}''')
     print(r)
-    chk(r['half'] == [-1, 1] and r['owner'] == 1, 'un rojo solo dentro del refugio azul: a los 10 s lo neutraliza (%s) y a los 20 s es suyo' % r['half'])
+    chk(r['half'] == [0, -1] and r['owner'] == 0, 'v4: los refugios ya no se capturan (se destruyen): un rojo solo dentro del refugio azul durante 20 s no lo neutraliza (%s) y sigue siendo azul' % r['half'])
     r = ev('''()=>{const o=MX.SQ.objs.find(q=>q.id==="PUE"&&q.home===0);o.owner=0;const A=MX.ents.find(e=>e.bot&&e.team===0);A.keep=true;A.dead=false;A.dwn=false;A.hp=1e9;A.inv=1e9;A.fireCd=1e9;Rb.fireCd=1e9;
       Rb.p.set(o.x,0,o.z);A.p.set(o.x+2,0,o.z);for(let i=0;i<60*12;i++){__clear();Rb.p.set(o.x,0,o.z);A.p.set(o.x+2,0,o.z);Rb.fireCd=A.fireCd=1e9;update(1/60)}return {owner:o.owner,cap:o.cap,cont:o.contested}}''')
     print(r)

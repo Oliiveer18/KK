@@ -26,8 +26,7 @@ with sync_playwright() as p:
     chk(r['r'] == 12, 'zona de 12 m en la Plaza')
     r = ev('''()=>{const F=MX.SQ.objs.find(o=>o.refuge&&o.owner===1);window.__at=F;run(10.3);const a=[F.owner,F.capBy];run(10.3);return {a,b:F.owner,r:F.r,r8:MX.SQ.objs.find(o=>o.id==='PUE').r}}''')
     print(r)
-    chk(r['a'] == [-1, 0], 'refugio enemigo: a los 10 s queda neutralizado (gris) y seguimos capturando')
-    chk(r['b'] == 0, 'a los 20 s es nuestro')
+    chk(r['a'] == [1, -1] and r['b'] == 1, 'v4: el refugio enemigo no se captura (se destruye): a los 10 s y a los 20 s sigue siendo suyo')
     chk(r['r'] == 12 and r['r8'] == 8, 'zona de 12 m en el refugio y de 8 m en el puesto avanzado')
     r = ev('''()=>{const B=MX.SQ.objs.find(o=>o.code==='B');window.__at=B;run(4);const c0=B.cap;
       const foe=MX.ents.find(e=>e.team===2&&!e.dead);window.park=()=>{for(const e of MX.ents)if(!e.isPlayer&&e!==foe){e.p.set(470,0,470);e.inv=1e9}};foe.p.set(B.x-2,0,B.z);foe.inv=1e9;foe.hp=1e9;foe.dead=false;foe.dwn=false;
@@ -37,11 +36,11 @@ with sync_playwright() as p:
     print(r)
     chk(r['cont'] and abs(r['c1'] - r['c0']) < .01 and 'DISPUTADO' in r['txt'], 'con un enemigo dentro: DISPUTADO y congelado')
     chk(0 < r['c2'] < r['c1'] and r['c1'] - r['c2'] < .15, 'al salir, lo avanzado baja poco a poco (%.2f → %.2f)' % (r['c1'], r['c2']))
-    r = ev('''()=>{window.__at=null;MX.SQ.score=[0,0,0,0];MX.SQ.scoreT=0;const held=[0,0,0,0],sh=[0,0,0,0];for(const o of MX.SQ.objs)if(o.owner>=0)(o.shared||o.refuge?sh:held)[o.owner]++;
+    r = ev('''()=>{window.__at=null;MX.SQ.score=[0,0,0,0];MX.SQ.scoreT=0;const held=[0,0,0,0],sh=[0,0,0,0];for(const o of MX.SQ.objs)if(o.owner>=0)(o.refuge?[]:o.shared?sh:held)[o.owner]++;
       run(5.6);const s=MX.SQ.score.slice();MX.SQ.score[0]=MX.SQ.meta-1;run(5.6);const end=document.getElementById('domEnd');
       return {s,exp:held.map((h,t)=>h+2*sh[t]),win:MX.SQ.winner,over:MX.M.over,endVis:getComputedStyle(end).display!=='none',txt:end.textContent.slice(0,40),score:document.getElementById('domScore').textContent}}''')
     print(r)
-    chk(r['s'] == r['exp'], 'cada 5 s: +1 por punto de cuarto y +2 por común o refugio %s' % r['s'])
+    chk(r['s'] == r['exp'], 'cada 5 s: +1 por puesto avanzado y +2 por común; el refugio no puntúa %s' % r['s'])
     chk(r['win'] == 0 and r['over'] and r['endVis'] and 'VICTORIA' in r['txt'], 'al llegar a la meta gana la facción y sale la pantalla de fin («%s»)' % r['txt'])
     chk('/1000' in r['score'], 'marcador de dominio arriba con la meta (%s)' % r['score'])
     chk(not errs, 'sin errores JS ' + str(errs[:2]))

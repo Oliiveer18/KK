@@ -181,7 +181,7 @@ function stTick(dt) {                                                           
     for (let t = 0; t < 4; t++) { if (med[t] === -1 || hostile[t]) { if (med[t] !== -1) st.blocked = true; continue; }
       st.act[t] = M.t;
       for (const e of M.ents) { if (e.dead || e.dwn || e.team !== t || e.hp >= 100) continue; if (dist(e.p, st) > st.r) continue;
-        e.hp = Math.min(100, e.hp + ST_RATE * .25); if (e.tgp) e.tgp.hp = e.hp; e.healT = M.t; e.medNear = M.t; e.stT = M.t; e.regT = 0; } }
+        e.hp = Math.min(100, e.hp + ST_RATE * .25 * (MX.REF && MX.REF.healMul ? MX.REF.healMul(st.x, st.z, e.team) : 1)); if (e.tgp) e.tgp.hp = e.hp; e.healT = M.t; e.medNear = M.t; e.stT = M.t; e.regT = 0; } }
   }
   const pl = MX.pl; if (pl && !pl.dead) {                                                // aviso al jugador al entrar en un puesto
     let cur = null; for (const st of ST.list) if (dist(P.pos, st) < st.r) { cur = st; break; }

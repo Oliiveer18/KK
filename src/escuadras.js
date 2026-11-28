@@ -618,7 +618,7 @@ function objTick(dt) {
     const teams = n.map((c, t) => c ? t : -1).filter(t => t >= 0); o.contested = teams.length > 1; o.n = n;
     if (o.contested) continue;                                                       // disputado: congelado
     const t = teams.length ? teams[0] : -1;
-    if (t >= 0 && t !== o.owner) {                                                   // atacantes solos dentro
+    if (t >= 0 && t !== o.owner && !(o.refuge && MX.REF && MX.REF.on)) {              // atacantes solos dentro (los refugios ya no se capturan: se destruyen)
       if (o.capBy !== t) { if (o.cap > 0 && o.capBy >= 0) { o.cap = Math.max(0, o.cap - dt / CAP_N * 2); continue; } o.capBy = t; o.cap = 0; }   // otro bando a medias: primero lo deshace
       o.cap += dt / (o.owner >= 0 ? CAP_N : CAP_C) * Math.min(1.6, 1 + (n[t] - 1) * .15);
       if (o.cap >= 1) {
@@ -665,8 +665,8 @@ SQ.endCampaign = endCampaign;
 SQ.respawnTime = e => { if (!SQ.objs.length) return null; const k = SQ.objs.filter(o => o.shared && o.owner === e.team).length; return Math.max(4, 9 - k) + (e.isPlayer ? 0 : rnd() * .8); };
 SQ.spawnFor = e => {                                                                 // reaparición adelantada en el puesto avanzado propio
   const rf = SQ.objs.find(o => o.refuge && o.home === e.team);
-  if (rf && rf.owner !== e.team) {                                                   // nos han quitado el refugio: se reaparece en el punto propio más cercano a él que esté a salvo
-    const ok = SQ.objs.filter(o => o.owner === e.team && !M.ents.some(q => alive(q) && q.team !== e.team && dist(q.p, o) < 35)).sort((a, b) => dist(a, rf) - dist(b, rf))[0];
+  if (rf && (rf.destroyed || rf.owner !== e.team)) {                                  // refugio destruido (o, antes, capturado): se reaparece en el punto propio más cercano a él que esté a salvo
+    const ok = SQ.objs.filter(o => !o.refuge && o.owner === e.team && !M.ents.some(q => alive(q) && q.team !== e.team && dist(q.p, o) < 35)).sort((a, b) => dist(a, rf) - dist(b, rf))[0];
     if (ok) { const q = navNear(ok.x + rr(-4, 4), ok.z + rr(-4, 4)); return { x: q.x, z: q.z, yaw: Math.atan2(-q.x, -q.z) }; }
     return null; }
   const pue = SQ.objs.find(o => o.id === 'PUE' && o.owner === e.team && o.home === e.team); if (!pue) return null;
@@ -696,10 +696,11 @@ function objHud() {
 }
 /* marcador de dominio (arriba en el centro) y barra de captura (abajo en el centro, sólo dentro de un punto) */
 { const st = document.createElement('style'); st.textContent = `
-#domScore{position:fixed;left:50%;top:calc(6px + env(safe-area-inset-top));transform:translateX(-50%);z-index:3;pointer-events:none;display:none;gap:4px;align-items:center;font:800 12px/1 system-ui,-apple-system,sans-serif;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #000}
-#domScore .f{position:relative;min-width:40px;padding:3px 5px 5px;border-radius:5px;background:#0b0f18b8;text-align:center}#domScore .f.me{box-shadow:inset 0 0 0 1px #ffffff55}
-#domScore .f i{position:absolute;left:3px;right:3px;bottom:2px;height:2px;background:#ffffff1c;border-radius:1px;overflow:hidden}#domScore .f i b{display:block;height:100%}
-#domScore .f s{text-decoration:none;font-size:9px;opacity:.75;margin-left:3px;font-weight:700}#domScore .m{font-size:9px;opacity:.6;margin-left:4px;font-weight:700}
+#domScore{position:fixed;left:50%;top:calc(6px + env(safe-area-inset-top));transform:translateX(-50%);z-index:3;pointer-events:none;display:none;gap:3px;align-items:center;font:800 12px/1 system-ui,-apple-system,sans-serif;font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #000}
+#domScore .f{position:relative;min-width:30px;padding:2px 3px 4px;border-radius:5px;background:#0b0f18b8;text-align:center}#domScore .f.me{box-shadow:inset 0 0 0 1px #ffffff55}
+#domScore .f i{position:absolute;left:3px;right:3px;bottom:1px;height:2px;background:#ffffff1c;border-radius:1px;overflow:hidden}#domScore .f i b{display:block;height:100%}
+#domScore .f em.r{font-style:normal;font-size:8px;font-weight:700;margin-left:2px;opacity:.9;color:#dfe6f2}#domScore .f em.r.low{color:#ff6a4a}#domScore .f em.r.dead{color:#ff3b30}#domScore .f em.r.atk{animation:refAtk .55s steps(2,jump-none) infinite}@keyframes refAtk{50%{opacity:.25;color:#ff5a48}}
+#domScore .f s{text-decoration:none;font-size:8px;opacity:.75;margin-left:2px;font-weight:700}#domScore .m{font-size:8px;opacity:.6;margin-left:2px;font-weight:700}
 #capBar{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:3;pointer-events:none;display:none;width:min(260px,40vw);text-align:center;font:700 11px/1.2 system-ui,-apple-system,sans-serif;color:#fff;text-shadow:0 1px 2px #000}
 #capBar .t{margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#capBar .b{height:6px;border-radius:3px;background:#0b0f18c8;box-shadow:inset 0 0 0 1px #ffffff26;overflow:hidden}#capBar .b i{display:block;height:100%;transition:width .2s}
 @media (min-height:521px){#domScore{font-size:15px;top:calc(10px + env(safe-area-inset-top))}#domScore .f{min-width:60px}#capBar{font-size:13px;bottom:calc(40px + env(safe-area-inset-bottom))}}
@@ -710,7 +711,7 @@ SQ.capTick = () => {
   objHud(); const pl = MX.pl, on = MX.on && SQ.objs.length && !menuOpen && !TM.open;
   domEl.style.display = on ? 'flex' : 'none'; if (!on) { capEl.style.display = 'none'; return; }
   const hex = t => '#' + TEAM_COL[t].toString(16).padStart(6, '0'), held = [0, 0, 0, 0]; for (const o of SQ.objs) if (o.owner >= 0) held[o.owner]++;
-  domEl.innerHTML = [0, 1, 2, 3].map(t => '<div class="f' + (pl && t === pl.team ? ' me' : '') + '" style="color:' + hex(t) + '">' + SQ.score[t] + '<s>' + held[t] + '⚑</s><i><b style="width:' + Math.min(100, SQ.score[t] / META * 100) + '%;background:' + hex(t) + '"></b></i></div>').join('') + '<span class="m">/' + META + '</span>';
+  domEl.innerHTML = [0, 1, 2, 3].map(t => '<div class="f' + (pl && t === pl.team ? ' me' : '') + '" style="color:' + hex(t) + '">' + SQ.score[t] + '<s>' + held[t] + '⚑</s>' + (MX.REF && MX.REF.on ? '<em class="r' + (MX.REF.destroyed[t] ? ' dead' : MX.REF.attacked(t) ? ' atk' : '') + (MX.REF.pct[t] < 30 ? ' low' : '') + '">' + (MX.REF.eliminated[t] ? 'ELIM.' : MX.REF.destroyed[t] ? '✖' : Math.ceil(MX.REF.pct[t]) + '%') + '</em>' : '') + '<i><b style="width:' + Math.min(100, SQ.score[t] / META * 100) + '%;background:' + hex(t) + '"></b></i></div>').join('') + '<span class="m">/' + META + '</span>';
   const here = pl && !pl.dead && SQ.objs.find(o => dist(pl.p, o) < o.r);
   capEl.style.display = here ? 'block' : 'none'; if (!here) return;
   const st = SQ.objState(here), prog = here.capBy >= 0 ? here.cap : here.owner >= 0 ? 1 : 0, c = here.contested ? '#ffd24a' : hex(here.capBy >= 0 ? here.capBy : here.owner >= 0 ? here.owner : pl.team);
@@ -904,6 +905,7 @@ function mapDraw() {
   /* objetivos con el color del dueño y su progreso de captura */
   for (const o of SQ.objs) { const cx = P2(o.x), cz = P2(o.z), r = Math.max(4, o.r * g.k); x.lineWidth = 2.2; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.globalAlpha = o.contested ? .5 + .5 * pulse : 1; x.beginPath(); x.arc(cx, cz, r, 0, 6.283); x.stroke(); x.globalAlpha = 1;
     if (o.capBy >= 0 && o.cap > 0) { x.strokeStyle = col(o.capBy); x.lineWidth = 3; x.beginPath(); x.arc(cx, cz, r + 3, -1.571, -1.571 + 6.283 * o.cap); x.stroke(); }
+    if (o.refuge && MX.REF && MX.REF.on) { const R = MX.REF, a = R.attacked(o.home); x.save(); x.font = '800 12px system-ui,sans-serif'; x.textAlign = 'center'; x.fillStyle = R.pct[o.home] < 30 || R.destroyed[o.home] ? '#ff6a4a' : '#fff'; if (a) x.globalAlpha = .45 + .55 * pulse; x.fillText(R.destroyed[o.home] ? 'DESTRUIDO' : '⌂ ' + Math.ceil(R.pct[o.home]) + '%' + (a ? ' ¡ATACADO!' : ''), cx, cz - r - 6); if (a) { x.strokeStyle = '#ff3b30'; x.lineWidth = 3; x.beginPath(); x.arc(cx, cz, r + 6 + pulse * 3, 0, 6.283); x.stroke(); } x.restore(); }
     if (o.pile && o.pile.n > 0 && o.owner === MX.pl.team) { x.save(); x.fillStyle = '#ffd86a'; x.font = '700 11px system-ui,sans-serif'; x.textAlign = 'left'; x.fillText('▣ ' + o.pile.n + '/60', cx + r + 4, cz + 4); x.restore(); }
     if (o.code) { x.globalAlpha = 1; x.fillStyle = o.owner >= 0 ? col(o.owner) : '#0c1018'; x.font = '800 ' + Math.max(11, Math.round(r * 1.1)) + 'px system-ui,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(o.code, cx, cz); } }
   /* aliados (los enemigos no se ven): tu escuadra suelta con la clase de cada uno; el resto agrupado por zonas con su número; cada escuadra dibuja una línea suave a su objetivo */
@@ -947,6 +949,9 @@ function miniTick(dt) {
     if (h.young < 2.5) { x.strokeStyle = 'rgba(' + rgb + ',' + (.5 + .5 * pulse) + ')'; x.lineWidth = 1.4; x.beginPath(); x.arc(px, pz, r * .5 + pulse * 2, 0, 6.283); x.stroke(); } }
   const m2 = performance.now(); SQ.pm.m_cells = Math.max(SQ.pm.m_cells || 0, m2 - m1);
   for (const o of SQ.objs) { const [px, pz] = W2(o.x, o.z); if (px < -10 || pz < -10 || px > size + 10 || pz > size + 10) continue; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.lineWidth = 1.6; x.beginPath(); x.arc(px, pz, Math.max(3, o.r * k), 0, 6.283); x.stroke(); if (o.code) drawTxt(x, o.code, px, pz, 9, 800, o.owner >= 0 ? col(o.owner) : '#0c1018'); }
+  if (MX.REF && MX.REF.on) for (const o of SQ.objs) { if (!o.refuge) continue; const [px, pz] = W2(o.x, o.z); if (px < -10 || pz < -10 || px > size + 10 || pz > size + 10) continue; const R = MX.REF, atk = R.attacked(o.home), low = R.pct[o.home] < 30;
+    if (atk || low || R.destroyed[o.home]) { x.strokeStyle = 'rgba(255,60,48,' + (atk ? .4 + .6 * pulse : .8) + ')'; x.lineWidth = 2; x.beginPath(); x.arc(px, pz, Math.max(5, o.r * k) + 3, 0, 6.283); x.stroke(); }
+    drawTxt(x, R.destroyed[o.home] ? '✖' : Math.ceil(R.pct[o.home]) + '%', px, pz + Math.max(8, o.r * k) + 4, 8, 800, low || R.destroyed[o.home] ? '#ff6a4a' : '#e8eef8', '#000c'); }
   if (MX.stations) for (const st of MX.stations.list) { const on = st.act[team] > 0 && M.t - st.act[team] < .7; if (!on && st.n < 2) continue;   /* puestos de curación: sólo los activos destacan; los inactivos (> 1 camilla) pequeños y tenues; con ~24 en el mapa llenaban el minimapa de cruces */
     const [px, pz] = W2(st.x, st.z); if (px < 4 || pz < 4 || px > size - 4 || pz > size - 4) continue; const ga = x.globalAlpha; x.globalAlpha = on ? 1 : .45; drawTxt(x, '✚', px, pz, on ? 10 : 7, 800, on ? '#4ee08a' : '#aab4c2', on ? '#000c' : undefined); x.globalAlpha = ga; }
   const m3 = performance.now(); SQ.pm.m_objs = Math.max(SQ.pm.m_objs || 0, m3 - m2); drawFriends(x, W2, size, team, pl && pl.sqd, false, true); SQ.pm.m_friends = Math.max(SQ.pm.m_friends || 0, performance.now() - m3);

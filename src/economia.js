@@ -69,12 +69,14 @@ function build() {
   scene.add(grp);
 }
 /* ---------- HUD: «llevas 8/20» y «Almacén N» ---------- */
-let chip = null, chipKey = -1;
+let chip = null, chipKey = -1; const chipChg = { k: -1, t: -99 };
 function hud() {
-  if (!chip) { const st = document.createElement('style'); st.textContent = `#ecoChip{position:fixed;left:50%;top:calc(34px + env(safe-area-inset-top));transform:translateX(-50%);z-index:3;pointer-events:none;display:none;gap:8px;font:700 10.5px/1 system-ui,-apple-system,sans-serif;color:#fff;text-shadow:0 1px 2px #000;white-space:nowrap}
+  if (!chip) { const st = document.createElement('style'); st.textContent = `#ecoChip{position:fixed;right:max(14px,env(safe-area-inset-right));top:calc(88px + env(safe-area-inset-top));z-index:3;pointer-events:none;display:none;flex-direction:column;align-items:flex-end;gap:3px;font:700 10.5px/1 system-ui,-apple-system,sans-serif;color:#fff;text-shadow:0 1px 2px #000;white-space:nowrap}
 #ecoChip span{background:#0b0f18b0;border-radius:999px;padding:3px 8px;border:1px solid #ffffff1e}#ecoChip .w{color:#ffd86a}
-@media (min-height:521px){#ecoChip{top:calc(42px + env(safe-area-inset-top));font-size:12px}}`; document.head.appendChild(st); chip = document.createElement('div'); chip.id = 'ecoChip'; document.body.appendChild(chip); }
-  const pl = MX.pl, on = MX.on && MX.campaign && pl && !menuOpen && !MX.mapOpen; chip.style.display = on ? 'flex' : 'none'; if (!on) return;
+@media (min-height:521px){#ecoChip{top:calc(96px + env(safe-area-inset-top));font-size:12px}}`; document.head.appendChild(st); chip = document.createElement('div'); chip.id = 'ecoChip'; document.body.appendChild(chip); }
+  const pl = MX.pl, z0 = pl && ECO.zoneOf(pl.team), key0 = pl ? ECO.total(pl.team) * 1000 + ECO.load(pl) : 0; if (key0 !== chipChg.k) { if (chipChg.k >= 0) chipChg.t = M.t; chipChg.k = key0; }
+  const on = MX.on && MX.campaign && pl && !pl.dead && !menuOpen && !MX.mapOpen && (ECO.load(pl) > 0 || M.t - chipChg.t < 4 || (z0 && Math.hypot(pl.p.x - z0.x, pl.p.z - z0.z) < 45));   // solo cuando importa: llevas algo, acabas de cambiar el stock o estás junto a tu refugio
+  chip.style.display = on ? 'flex' : 'none'; if (!on) return;
   const s = ECO.stock[pl.team], L = ECO.load(pl), m = pl.mat || {}, key = ((((((L * 61 + ECO.cap(pl)) * 61 + (m.madera || 0)) * 61 + (m.piedra || 0)) * 61 + (m.hierro || 0)) * 1009 + s.madera) * 1009 + s.piedra) * 1009 + s.hierro;
   if (key === chipKey) return; chipKey = key;
   const det = L ? ' <small>' + MATS.filter(k => m[k]).map(k => ICON[k] + m[k]).join(' ') + '</small>' : '';

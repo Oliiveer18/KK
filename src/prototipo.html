@@ -1825,6 +1825,7 @@ function destroyProp(p, dx, dz, power) {
 }
 function damageProp(p, dmg, x, z, dx, dz, kind) {
   if (p.dead || dmg <= 0) return;
+  if (p.ref && MX.REF) { dmg = MX.REF.filter(p, dmg, kind); if (dmg <= 0) return; }                          // refugios destruibles (refugios.js): fuego propio 0, explosivos limitados
   p.hp -= dmg * MT[p.mat].dm; p.wob = Math.min(1, p.wob + dmg * .02);
   const f = p.hp / p.maxHp;
   while (p.stage < 2 && p.hp > 0 && f <= (p.stage === 0 ? .66 : .33)) { p.stage++; if (p.mat !== 'metal') shedPieces(p, p.stage === 1 ? 2 : 3, x, z, dx, dz); }
@@ -2559,6 +2560,8 @@ if (document.readyState === 'complete') requestAnimationFrame(frame); else windo
 <script src="economia.js"></script>
 <script src="desguace.js"></script>
 <script src="logistica.js"></script>
+<script src="refugios.js"></script>
+<script src="ingenieros.js"></script>
 <script src="efectos.js"></script>
 <script src="estilo.js"></script>
 <script src="rendimiento.js"></script>
