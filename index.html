@@ -6188,6 +6188,7 @@ function perceive(e) {
   if (MX.zom) for (let i_z = 0, nZL = gridRectN(GRID.Z, MX.zom.list, e.p.x - SIGHT.hw - 1, e.p.z - SIGHT.hd - 1, e.p.x + SIGHT.hw + 1, e.p.z + SIGHT.hd + 1, _gZ), ZL = GRID.arr; i_z < nZL; i_z++) { const o = ZL[i_z];   // los zombis también son amenaza para los bots
     if (o.dead) continue;
     const dx = o.p.x - e.p.x, dz = o.p.z - e.p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)); if (!inSight(e, dx, dz)) continue;
+    if (MX.campaign && d > 14 && o.st !== 'chase' && o.st !== 'attack') continue;                        // v4 (F12): no se gasta munición en infectados lejanos que no persiguen
     if (!segClear(e.p.x, e.p.z, o.p.x, o.p.z, null, null, true) || smokeBlock(e.p.x, e.p.z, o.p.x, o.p.z)) continue;
     if (d + 2 < bs) { bs = d + 2; best = o; }
   }
@@ -6370,7 +6371,7 @@ function botLaunch(e, mx, mz, dx, dz) {                                         
 function shoot(e) {
   const w = e.w, dx = Math.sin(e.yaw), dz = Math.cos(e.yaw), y = e.crouch > .5 ? .86 : 1.12, mx = e.p.x + dx * .62, mz = e.p.z + dz * .62, sp = Math.sqrt((e.v.x) * (e.v.x) + (e.v.z) * (e.v.z));
   if (w.launch) botLaunch(e, mx, mz, dx, dz);
-  else for (let n = 0; n < w.pellets; n++) { const yw = e.yaw + (rnd() - .5) * (w.spr * .8 + (e.spread * .06 + Math.min(sp, 8) * .006) * (1 - e.crouch * .35)); spawnBullet(mx, y, mz, Math.sin(yw), Math.cos(yw), w, e); }
+  else for (let n = 0; n < w.pellets; n++) { const yw = e.yaw + (rnd() - .5) * (w.spr * .8 * (w.kind === 'shot' ? .75 : 1) + (e.spread * .06 + Math.min(sp, 8) * .006) * (1 - e.crouch * .35)); spawnBullet(mx, y, mz, Math.sin(yw), Math.cos(yw), w, e); }
   if (MX.campaign) heardShot(e);
   e.ammo--; e.spread = Math.min(1, e.spread + .14); e.kick = 1; e.flashT = .05; e.firing = true; const zomT = !!(e.tgt && e.tgt.team === -1 && e.vis);                               // contra infectados cerca: fuego continuo (sin ráfagas ni pausas); contra otra facción, ráfagas y pausas tácticas
   e.fireCd = w.cd * (w.auto ? 1 : (zomT ? rr(1, 1.2) : rr(1.1, 1.7)));
@@ -7116,7 +7117,7 @@ function stepZ(z, dt) {
     if (d < z.r + .75) {                                                            // a distancia de golpe
       z.st = 'attack'; z.v.x *= .8; z.v.z *= .8;
       if (z.atk < 0 && z.atkCd <= 0) { z.atk = 0; z.atkCd = T.atkCd; }
-      if (z.atk >= 0) { z.atk += dt / .6; if (z.atk >= .5 && !z.hitDone) { z.hitDone = true; if (d < z.r + 1.0) { MX.hit(t, T.dmg * ZDIF, null, dx, dz, null, 'ZOM'); playAt('ZOM_attack', z.p.x, z.p.z, { gap: 150 }); } } if (z.atk >= 1) { z.atk = -1; z.hitDone = false; } }
+      if (z.atk >= 0) { z.atk += dt / .6; if (z.atk >= .5 && !z.hitDone) { z.hitDone = true; if (d < z.r + 1.0) { MX.hit(t, T.dmg * ZDIF * (z.horde ? 1.3 : 1) * (nearZ > 8 ? 1.15 : 1), null, dx, dz, null, 'ZOM'); playAt('ZOM_attack', z.p.x, z.p.z, { gap: 150 }); } } if (z.atk >= 1) { z.atk = -1; z.hitDone = false; } }
       if (z.type === 'brute') bruteSmash(z);
     } else {
       if (z.noPath !== undefined && M.t - z.noPath < 6 && (z.stk || 0) >= 2) bruteSmash(z, 14);                 // sin ruta y pegado a algo: lo golpea hasta abrir paso
@@ -7315,11 +7316,12 @@ const farFromAll = (x, z, R) => M.ents.every(e => e.dead || Math.sqrt((e.p.x - x
 const ZTARGET = 1250;   // incluye las guarniciones de los puntos (~300)
 function restockDistrict() {
   const alive = MX.zom.count(); if (!ZPTS || !ZPTS.length) return;
-  if (alive < ZTARGET) for (let tries = 0; tries < 10; tries++) {                   // repone en grupos, siempre lejos de todos (nunca a la vista) y con el peso de cada zona
+  const lowK = alive < ZTARGET * .6 ? 2 : 1;                                       // v4 (F12): población baja → se repone el doble de rápido, en grupos mayores y más cerca de los combatientes (llegar a ≥ 50 % a los 14 min)
+  if (alive < ZTARGET) for (let tries = 0, made = 0; tries < 30 && made < lowK; tries++) {                   // repone en grupos, siempre lejos de todos (nunca a la vista) y con el peso de cada zona
     const q = ZPTS[(rnd() * ZPTS.length) | 0], k = q[3][(rnd() * q[3].length) | 0], [x, z] = ROT(k, q[0], q[1]);
-    if (!farFromAll(x, z, 70) || rnd() * 16 > q[2]) continue;
-    const c = 2 + ((rnd() * 3) | 0); for (let i = 0; i < c; i++) { const px = x + rr(-4, 4), pz = z + rr(-4, 4); if (navFree(px, pz)) newZ(mixPick(q[2] >= 13), px, pz, { st: rnd() < .5 ? 'dorm' : 'wander' }); }
-    break;
+    if (!farFromAll(x, z, 48) || rnd() * 16 > q[2]) continue;
+    const c = 3 + ((rnd() * 4) | 0); for (let i = 0; i < c; i++) { const px = x + rr(-4, 4), pz = z + rr(-4, 4); if (navFree(px, pz)) newZ(mixPick(q[2] >= 13), px, pz, { st: rnd() < .5 ? 'dorm' : 'wander' }); }
+    made++;
   }
   const liveH = HORDES.filter(h => h.members.some(m => !m.dead)).length;
   if (liveH < 12 && alive < ZTARGET + 100 && rnd() < .12) { const q = ZPTS[(rnd() * ZPTS.length) | 0], [x, z] = ROT(q[3][0], q[0], q[1]); if (farFromAll(x, z, 90)) { const h = newHorde(x, z, ['walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','runner','runner','runner','runner','runner','runner','brute','brute','screamer','screamer']); h.migrate = true; h.roamPts = HORDES[0] && HORDES[0].roamPts; } }
@@ -7452,7 +7454,7 @@ MX.zom.update = dt => {
   ZGDIRTY = true;                                                                    // la rejilla de balas se rehace solo cuando alguien la consulta (a lo sumo una vez por fotograma)
   if (!MX.campaign || !M.built) return; dt = Math.min(dt, .05); zt += dt; astar = 3; extraA = 0;
   heatT -= dt; if (heatT <= 0) { heatT = .5; for (const [k, v] of HEAT) { const n = v * .95; if (n < .08) HEAT.delete(k); else HEAT.set(k, n); } }
-  popT -= dt; if (popT <= 0) { popT = 2; if (!MX.zom.noRestock) restock(); }
+  popT -= dt; if (popT <= 0) { popT = 1.2; if (!MX.zom.noRestock) restock(); }
   for (const h of HORDES) stepHorde(h, dt);
   for (const a of grid.values()) a.n = 0;                                            // rejilla: arrays reutilizados y CONTADOR (poner length = 0 libera el almacén del array y vuelve a reservarlo cada fotograma)
   for (let i_z = 0; i_z < Z.length; i_z++) { const z = Z[i_z]; if (z.dead) continue; const k = gk(z.p.x, z.p.z); let a = grid.get(k); if (!a) { a = []; a.n = 0; grid.set(k, a); } a[a.n++] = z; }
@@ -8627,7 +8629,7 @@ function classGoal(e) {
   const m = s.mission, L = s.leader, dm = dm2(L.p.x, L.p.z, m.x, m.z), face = Math.atan2(m.x - e.p.x, m.z - e.p.z);
   if (c === 'fra' && dm < 110) { const q = overwatch(e, s, m, 62); if (!q) return null; return { x: q.x, z: q.z, speed: 5.4, hold: true, face: Math.atan2(m.x - q.x, m.z - q.z), crouch: dm2(e.p.x, e.p.z, q.x, q.z) < 3 }; }
   if (c === 'apo' && dm < 95) { const q = overwatch(e, s, m, 38); if (!q) return null; return { x: q.x, z: q.z, speed: 5.4, hold: true, face: Math.atan2(m.x - q.x, m.z - q.z), crouch: dm2(e.p.x, e.p.z, q.x, q.z) < 3 }; }
-  if (c === 'asa' && s.mission.type === 'attack' && dm < 70) { const a = face + 3.14159 + ((e.slot || 0) % 3 - 1) * .7, r = 3 + ((e.slot || 0) % 2) * 3, q = MX.navAt(m.x + Math.sin(a) * r, m.z + Math.cos(a) * r) ? { x: m.x + Math.sin(a) * r, z: m.z + Math.cos(a) * r } : m; return { x: q.x, z: q.z, speed: 6.4, hold: true, face, crouch: false }; }
+  if (c === 'asa' && s.mission.type === 'attack' && dm < 70) { const a = face + 3.14159 + ((e.slot || 0) % 3 - 1) * .7, r = 6 + ((e.slot || 0) % 2) * 4, q = MX.navAt(m.x + Math.sin(a) * r, m.z + Math.cos(a) * r) ? { x: m.x + Math.sin(a) * r, z: m.z + Math.cos(a) * r } : m; return { x: q.x, z: q.z, speed: 6.4, hold: true, face, crouch: false }; }
   if (c === 'fla' && s.mission.type === 'attack' && dm > 24 && dm < 120) { const q = flank(e, s, m); if (dm2(e.p.x, e.p.z, q.x, q.z) > 6) return { x: q.x, z: q.z, speed: 6, hold: false }; }
   return null;
 }
@@ -9163,7 +9165,7 @@ function enemiesNear(e, x, z, r) {
 }
 function calm(e) { return !(e.vis && e.tgt) && e.st !== 'fight' && M.t - e.lastHurt > 6 && !e.dwn && !e.dead && !e.clsWait && !e.medCall; }
 function eligible(e) {
-  if (e.isPlayer || e.dead || e.dwn || !e.sqd || e.sqd.playerLead || !calm(e)) return false;
+  if (e.isPlayer || e.dead || e.dwn || !e.sqd || e.sqd.playerLead || !calm(e) || e.gar || e.siege || e.eng) return false;
   if (e.stGo) return false; if (e.hp < 60) return false;
   return cls(e) === 'sup' || M.t - (e.lifeStart || -99) < 25;
 }
@@ -9427,7 +9429,7 @@ REF.enqueue = (team, k) => {
 /* el almacén reserva el coste al encolar? No: se gasta por tramo; las mejoras sin tramos se pagan al terminar */
 
 /* ---------- asignación de ingenieros ---------- */
-const eligible = e => !e.isPlayer && !e.dead && !e.dwn && e.sqd && !e.sqd.playerLead && !e.lg && !e.clsWait && !e.medCall && !(e.vis && e.tgt) && e.st !== 'fight' && M.t - e.lastHurt > 6 && M.t >= (e.engCool || 0) && e.hp >= 60
+const eligible = e => !e.isPlayer && !e.dead && !e.dwn && e.sqd && !e.sqd.playerLead && !e.lg && !e.gar && !e.siege && !e.clsWait && !e.medCall && !(e.vis && e.tgt) && e.st !== 'fight' && M.t - e.lastHurt > 6 && M.t >= (e.engCool || 0) && e.hp >= 60
   && (M.t - (e.lifeStart || -99) < 30 || M.t < (e.engRole || 0) || (e.cls || 'fus') === 'sup');
 function assign() {
   for (let t = 0; t < 4; t++) {
@@ -9493,6 +9495,166 @@ INT.reg('consola', (pl, out) => {
   out.push({ x: w.x, z: w.z, y: 1.2, r: Math.max(w.hx, w.hz), key: 'consola', tool: null, time: .5, label: 'Consola del refugio', done: () => { renderCon(); const d = ui(); if (!d.open) { MX.conOpen = true; d.showModal(); } } });
 });
 MX.REFCON = { render: renderCon, open: () => { renderCon(); const d = ui(); if (!d.open) d.showModal(); } };
+})();
+</script>
+<script>"use strict";
+/* ===================== DEFENSA PROFESIONAL DEL REFUGIO (campaña) =====================
+   NIVELES DE ALERTA por facción: VERDE (nada cerca), ÁMBAR (enemigo dentro del radio de alerta del refugio: 120 m, más con la torre de vigilancia, o una horda de infectados cerca) y
+   ROJO (muro atacado, enemigo a < 45 m o brecha con enemigo a < 90 m). GUARNICIÓN por turnos: 6 soldados en verde, 8 en ámbar y 12 en rojo, tomados de los que están cerca del refugio y no
+   van con el jugador ni trabajan de ingenieros/recicladores; ocupan los puestos de defensa pegados al muro (mirando fuera) y, con una brecha, los más cercanos a ella; el exceso se coloca
+   en la segunda línea (tras el tabique interior, defensa en profundidad). Cada turno dura 150 s y se relevan si no hay peligro. Con brecha y enemigos junto a ella, un defensor lanza
+   una granada hacia la abertura (cada 12 s como mucho por facción). Los ingenieros solo reparan en calma (ingenieros.js). La protección de 3 s al reaparecer y la ausencia de caza del punto de
+   aparición vienen de refugios.js/partida.js. */
+(function () {
+const M = MX.M, SQ = MX.SQ, ECO = MX.ECO, REF = MX.REF, dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const DEF = { level: [0, 0, 0, 0], size: [6, 6, 6, 6], want: [6, 8, 12], stats: { red: [0, 0, 0, 0], amber: [0, 0, 0, 0], grenades: [0, 0, 0, 0], shifts: [0, 0, 0, 0] }, on: !/[?&]nodefensa\b/.test(location.search), lastG: [-99, -99, -99, -99], redT: [0, 0, 0, 0] };
+MX.DEF = DEF;
+const rect = t => { const r = MAPA.built && MAPA.built.info && MAPA.built.info.refugeRects; return r ? r.find(q => q.fac === t) : null; };
+const posts = t => { const d = MAPA.built && MAPA.built.info && MAPA.built.info.defense; const q = d && d.find(x => x.team === t); return q ? q.pts : []; };
+function breachOf(t) { let best = null; for (const p of REF.seg[t]) if (p.dead && p.ref) best = best || p.ref.spec; return best; }
+function nearestFoe(t, x, z, R) { let b = 1e9; for (const e of M.ents) { if (e.dead || e.dwn || e.team === t) continue; const d = Math.hypot(e.p.x - x, e.p.z - z); if (d < b) b = d; } return b; }
+function hordeNear(x, z, R) { let n = 0; if (MX.zom) for (const z0 of MX.zom.list) { if (z0.dead || z0.st === 'dorm') continue; if (Math.hypot(z0.p.x - x, z0.p.z - z) < R && ++n >= 6) return true; } return false; }
+function evalLevels() {
+  for (let t = 0; t < 4; t++) { const r = rect(t); if (!r || REF.eliminated[t]) { DEF.level[t] = 0; continue; }
+    const df = nearestFoe(t, r.x, r.z), br = breachOf(t), L0 = DEF.level[t];
+    let L = 0; if (df < REF.alertRadius(t) || hordeNear(r.x, r.z, 80)) L = 1;
+    if (REF.attacked(t) || df < 45 || (br && nearestFoe(t, br.x, br.z) < 90)) L = 2;
+    if (L === 2) DEF.redT[t] = M.t; else if (L < L0 && M.t - DEF.redT[t] < 12) L = L0;                   // histéresis: de rojo no se baja de golpe
+    DEF.level[t] = L; if (L > L0) { if (L === 2) DEF.stats.red[t]++; else DEF.stats.amber[t]++; } }
+}
+const busy = e => e.lg || e.eng || e.clsWait || e.medCall || e.siege || e.stGo;
+function eligible(e, r) { return !e.isPlayer && !e.dead && !e.dwn && e.sqd && !e.sqd.playerLead && !busy(e) && e.hp >= 40 && M.t >= (e.garCool || 0) && Math.hypot(e.p.x - r.x, e.p.z - r.z) < 150; }
+function garrison() {
+  for (let t = 0; t < 4; t++) { const r = rect(t); if (!r || REF.eliminated[t] || REF.destroyed[t]) { for (const e of M.ents) if (e.team === t && e.gar) e.gar = null; continue; }
+    const want = DEF.want[DEF.level[t]]; DEF.size[t] = want; const G = M.ents.filter(e => e.team === t && e.gar && !e.dead && !e.dwn);
+    for (const e of M.ents) if (e.team === t && e.gar && (e.dead || e.dwn)) e.gar = null;
+    if (G.length < want) { const c = M.ents.filter(e => e.team === t && !e.gar && eligible(e, r)).sort((a, b) => dist(a.p, r) - dist(b.p, r)); for (let i = 0; i < c.length && G.length < want; i++) { c[i].gar = { t0: M.t, post: null }; G.push(c[i]); DEF.stats.shifts[t]++; } }
+    else if (G.length > want && DEF.level[t] === 0) { G.sort((a, b) => a.gar.t0 - b.gar.t0); for (let i = 0; i < G.length - want; i++) if (M.t - G[i].gar.t0 > 150) { G[i].garCool = M.t + 60; G[i].gar = null; } }
+    else if (DEF.level[t] === 0) for (const e of G) if (M.t - e.gar.t0 > 150 && M.ents.some(o => o.team === t && !o.gar && eligible(o, r))) { e.garCool = M.t + 60; e.gar = null; }   // relevo
+    /* reparto de puestos: con brecha, los más cercanos a ella primero; el exceso, segunda línea */
+    const live = M.ents.filter(e => e.team === t && e.gar && !e.dead && !e.dwn), P = posts(t).map(q => ({ x: q[0], z: q[1], yaw: q[2], by: null })), br = breachOf(t);
+    if (br) P.sort((a, b) => dist(a, br) - dist(b, br));
+    for (const e of live) { let pi = e.gar.post; if (pi && P.includes(pi) && !pi.by) { pi.by = e; continue; } e.gar.post = null; }
+    for (const e of live) { if (e.gar.post) continue; let b = null, bd = 1e9; for (const q of P) { if (q.by) continue; const d = dist(q, e.p); if (d < bd) { bd = d; b = q; } } if (b) { b.by = e; e.gar.post = b; } else { const k = live.indexOf(e); const a = k * 1.3; e.gar.post = { x: r.x + Math.cos(a) * 3.2, z: r.z - 3.8 + Math.sin(a) * 1.6, yaw: Math.PI * (1 + .5), deep: true }; } }
+  }
+}
+function throwAtBreach() {
+  for (let t = 0; t < 4; t++) { if (DEF.level[t] < 2 || M.t - DEF.lastG[t] < 12) continue; const br = breachOf(t); if (!br) continue;
+    let tgt = null, td = 1e9; for (const e of M.ents) { if (e.dead || e.dwn || e.team === t) continue; const d = Math.hypot(e.p.x - br.x, e.p.z - br.z); if (d < 14 && d < td) { td = d; tgt = e; } }
+    if (!tgt) continue; const g = M.ents.find(e => e.team === t && e.gar && !e.dead && !e.dwn && e.gCount > 0 && !e.wantThrow && e.reloadT < 0 && dist(e.p, tgt.p) > 5 && dist(e.p, tgt.p) < 26); if (!g) continue;
+    g.wantThrow = 'frag'; g.throwT = 0; g.vis = false; g.tgt = null; g.ls = { x: tgt.p.x, z: tgt.p.z }; DEF.lastG[t] = M.t; DEF.stats.grenades[t]++; }
+}
+const sqGoal = SQ.goalFor;
+SQ.goalFor = e => {
+  const g = e.gar; if (g && DEF.on && !e.isPlayer && g.post) { const q = g.post; return { x: q.x, z: q.z, speed: 6.4, hold: true, face: q.yaw !== undefined ? q.yaw : 0, crouch: false }; }
+  return sqGoal(e);
+};
+let t1 = 0, t2 = 0; const sqUpdate = SQ.update;
+SQ.update = dt => {
+  sqUpdate(dt); if (!MX.campaign || !DEF.on || !REF.built) return;
+  t1 += dt; if (t1 >= 1) { t1 = 0; evalLevels(); throwAtBreach(); } t2 += dt; if (t2 >= 2) { t2 = 0; garrison(); }
+};
+const rs = MX.restart; if (rs) MX.restart = function () { const r = rs.apply(this, arguments); for (let t = 0; t < 4; t++) { DEF.level[t] = 0; DEF.lastG[t] = -99; DEF.redT[t] = 0; for (const k in DEF.stats) DEF.stats[k][t] = 0; } for (const e of M.ents) { e.gar = null; e.garCool = 0; } return r; };
+})();
+</script>
+<script>"use strict";
+/* ===================== OFENSIVA Y ATAQUES AL REFUGIO (campaña) =====================
+   RIVAL ASIGNADO: cada facción elige el rival cuyo refugio tiene más cerca (se revisa cada 5 min). OLEADAS COORDINADAS: no antes del minuto 5, cada facción lanza una oleada de 1 escuadra
+   (2 desde el minuto 12; 3 si el rival es el líder) contra su puesto avanzado y, si ya no es suyo, contra su refugio. Mientras no hay oleada en curso pasa un mínimo de 150 s por facción.
+   ASEDIO: la escuadra elige el tramo de muro más cercano, se coloca a 8–12 m en abanico, y dispara al muro por tandas (balas reales: dan en el parapeto si no hay nadie de pie detrás); en cuanto
+   ve a un enemigo combate como siempre. Se retira si queda con menos de la mitad, si pasan 240 s desde que llegan (480 s en total), o si el refugio cae. Solo disparan al muro los fusiles/subfusiles/ametralladoras (las escopetas y pistolas dan cobertura); una oleada necesita ≥ 3 de ellos. INFECTADOS: el ruido junto a un refugio los atrae; los que quedan pegados al
+   muro con alguien dentro lo atacan (3 de daño por segundo cada uno; los pesados, 10). EVENTO DE HORDA: como mucho uno cada 5 min desde el minuto 6, contra un refugio por turnos, de 30 a 60 infectados.
+   No implementado todavía: reconocimiento previo con un explorador, humo y granadas contra el muro (el tope de explosivos ya existe en refugios.js). */
+(function () {
+const M = MX.M, SQ = MX.SQ, ECO = MX.ECO, REF = MX.REF, DEF = MX.DEF, dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const OFF = { rival: [-1, -1, -1, -1], rivalT: -999, next: [300, 330, 360, 390], siege: [], stats: { waves: [0, 0, 0, 0], sieges: [0, 0, 0, 0], retreats: [0, 0, 0, 0], shots: [0, 0, 0, 0], zomDmg: 0, hordes: 0, hordeSize: [] }, horde: { next: 360, k: 0 }, on: !/[?&]nooferiva\b/.test(location.search), t0: 300 };
+MX.OFF = OFF;
+const rect = t => { const r = MAPA.built && MAPA.built.info && MAPA.built.info.refugeRects; return r ? r.find(q => q.fac === t) : null; };
+const teamName = t => ['Azul', 'Rojo', 'Ámbar', 'Violeta'][t];
+const alive = e => !e.dead && !e.dwn;
+const breaker = e => e.w && e.w.kind === 'rifle' && !e.w.launch;                    // solo los fusiles, subfusiles y ametralladoras rompen muros; las escopetas y pistolas dan cobertura
+function pickRivals() {
+  for (let t = 0; t < 4; t++) { const a = rect(t); if (!a || REF.eliminated[t]) continue; let b = -1, bd = 1e9;
+    for (let q = 0; q < 4; q++) { if (q === t || REF.eliminated[q] || REF.destroyed[q] && !M.ents.some(e => e.team === q && !e.dead)) continue; const r = rect(q); if (!r) continue; const d = dist(a, r) - (SQ.score[q] > SQ.score[t] ? 80 : 0); if (d < bd) { bd = d; b = q; } }
+    OFF.rival[t] = b; }
+  OFF.rivalT = M.t;
+}
+const maxSq = t => (M.t > OFF.t0 + 420 ? 2 : 1) + (OFF.rival[t] >= 0 && SQ.score[OFF.rival[t]] === Math.max(...SQ.score) && M.t > OFF.t0 + 600 ? 1 : 0);
+function segTarget(rv, from) {                                                       // tramo vivo más cercano (a la posición de la escuadra); evita el portón
+  let b = null, bd = 1e9; for (const p of REF.seg[rv]) { if (p.dead || !p.ref || /^gate/.test(p.ref.spec.type)) continue; const d = dist(p.ref.spec, from); if (d < bd) { bd = d; b = p; } } return b;
+}
+function startWave(t) {
+  const rv = OFF.rival[t]; if (rv < 0) return false; const r = rect(rv); if (!r) return false;
+  const mine = OFF.siege.filter(w => w.team === t); if (mine.length >= maxSq(t)) return false;
+  const cands = SQ.list.filter(s => s.team === t && !s.playerLead && !s.siege && s.leader && !s.members.includes(MX.pl) && s.members.filter(alive).length >= 3 && s.members.filter(e => alive(e) && breaker(e)).length >= 3 && s.mission && s.mission.type !== 'defend' && s.kind !== 'guarnicion' && s.kind !== 'reserva')
+    .sort((a, b) => dist(a.leader.p, r) - dist(b.leader.p, r)); const s = cands[0]; if (!s) return false;
+  const pue = SQ.objs.find(o => o.id === 'PUE' && o.home === rv);
+  OFF.stats.waves[t]++;
+  if (pue && pue.owner === rv) {                                                    // 1.º el puesto avanzado
+    s.mission = { type: 'attack', x: pue.x, z: pue.z, name: 'oleada · ' + pue.name, role: 'wave' }; s.missionT = M.t; s.baseType = 'attack'; s.ap = null; s.wave = { t0: M.t, rv, phase: 'outpost', n0: s.members.filter(alive).length }; return true; }
+  const seg = segTarget(rv, s.leader.p); if (!seg) return false;
+  const w = { team: t, rv, s, seg, t0: M.t, n0: s.members.filter(alive).length, init: s.members.filter(alive), pos: new Map() }; OFF.siege.push(w); s.siege = w; OFF.stats.sieges[t]++;
+  s.mission = { type: 'attack', x: seg.ref.spec.x, z: seg.ref.spec.z, name: 'asedio · refugio ' + teamName(rv), role: 'siege' }; s.missionT = M.t; s.ap = null;
+  return true;
+}
+function endSiege(w, why) {
+  (OFF.stats.end || (OFF.stats.end = {}))[why] = ((OFF.stats.end || {})[why] || 0) + 1;
+  const i = OFF.siege.indexOf(w); if (i >= 0) OFF.siege.splice(i, 1); if (w.s) { w.s.siege = null; w.s.wave = null; w.s.mission = { type: 'hold' }; w.s.missionT = M.t - 999; w.s.ap = null; }
+  for (const e of w.init || []) e.siege = null; if (why === 'retirada') OFF.stats.retreats[w.team]++; OFF.next[w.team] = M.t + 150;
+}
+function sitePos(w, e, k, n) {                                                       // puesto de tiro de cada miembro: 8–12 m del tramo, hacia fuera del refugio, en abanico
+  const r = rect(w.rv), sp = w.seg.ref.spec, dx = sp.x - r.x, dz = sp.z - r.z, l = Math.hypot(dx, dz) || 1, ux = dx / l, uz = dz / l, lat = (k - (n - 1) / 2) * 2.2, d = 9 + (k % 3) * 1.4;
+  for (const dd of [d, d + 2, d - 2, d + 4]) { const x = sp.x + ux * dd - uz * lat, z = sp.z + uz * dd + ux * lat; if (!MX.inMainNav || MX.inMainNav(x, z)) return { x, z }; } return { x: sp.x + ux * d, z: sp.z + uz * d };
+}
+function siegeTick(dt) {
+  for (const w of OFF.siege.slice()) {
+    const s = w.s, rv = w.rv, mem = w.init.filter(alive);
+    if (REF.destroyed[rv] || REF.eliminated[rv]) { endSiege(w, 'fin'); continue; } if (!SQ.list.includes(s)) { endSiege(w, 'escuadra'); continue; }
+    if (mem.length * 2 < w.init.length) { endSiege(w, 'retirada'); continue; } const ready = mem.filter(e => breaker(e) && e.sitePos && dist(e.p, e.sitePos) < 3.5).length; if (ready >= 2 && !w.arr) w.arr = M.t; if ((w.arr && M.t - w.arr > 240) || M.t - w.t0 > 480) { endSiege(w, 'tiempo'); continue; }
+    if (w.seg.dead) { const nx = segTarget(rv, w.seg.ref.spec); if (!nx) { endSiege(w, 'fin'); continue; } w.seg = nx; w.pos.clear(); }
+    mem.forEach((e, k) => { if (e.isPlayer) return; let p = w.pos.get(e); if (!p) { p = sitePos(w, e, k, mem.length); w.pos.set(e, p); } e.siege = w; e.sitePos = p; });
+  }
+}
+function shootTick(dt) {                                                             // cadencia propia: ráfagas de 7 disparos y una pausa (≈ 65 % de actividad)
+  for (const w of OFF.siege) { const sp = w.seg.ref.spec; for (const e of w.init) {
+    if (!e.siege || e.siege !== w || e.isPlayer || !alive(e) || !breaker(e) || (e.vis && e.tgt) || e.st === 'fight' || !e.sitePos) continue; e.sgT = (e.sgT || 0) - dt;
+    if (dist(e.p, sp) > 22) continue;                                           // desde 22 m ya se dispara al muro aunque aún se esté colocando if (e.reloadT >= 0) continue; if (e.ammo <= 0) { e.reloadT = 0; e.rp = 0; e.burst = 0; continue; }
+    if (e.sgT > 0) continue; const yaw = Math.atan2(sp.x - e.p.x, sp.z - e.p.z); e.yaw = yaw; e.body = yaw; MX.shootBot(e); OFF.stats.shots[w.team]++;
+    e.sgN = (e.sgN || 0) + 1; e.sgT = e.w.cd * (e.w.auto ? 1.05 : 1.5) + (e.sgN % 7 === 0 ? .6 : 0); } }
+}
+/* infectados contra el muro */
+let zt = 0;
+function zombieSiege(dt) {
+  if (!MX.zom) return;
+  for (let t = 0; t < 4; t++) { const r = rect(t); if (!r || REF.destroyed[t]) continue; const inside = M.ents.some(e => e.team === t && alive(e) && Math.abs(e.p.x - r.x) < r.hx && Math.abs(e.p.z - r.z) < r.hz); if (!inside) continue;
+    for (const z of MX.zom.list) { if (z.dead || z.st === 'dorm' || z.st === 'dead') continue; if (Math.abs(z.p.x - r.x) > r.hx + 5 || Math.abs(z.p.z - r.z) > r.hz + 5) continue;
+      let b = null, bd = 2.6; for (const p of REF.seg[t]) { if (p.dead) continue; const sp = p.ref.spec, d = Math.hypot(sp.x - z.p.x, sp.z - z.p.z); if (d < bd) { bd = d; b = p; } }
+      if (!b) continue; const dmg = (z.type === 'brute' ? 10 : 3) * dt; b.by = null; damageProp(b, dmg, b.x, b.z, 0, 0, 'melee'); OFF.stats.zomDmg += dmg; z.st = z.st === 'invest' ? 'chase' : z.st; } }
+}
+/* evento de horda */
+function horde() {
+  if (M.t < OFF.horde.next) return; const order = [0, 1, 2, 3].filter(t => !REF.eliminated[t]); if (!order.length) return; const t = order[OFF.horde.k++ % order.length], r = rect(t); if (!r) return;
+  const dx = r.x, dz = r.z, l = Math.hypot(dx, dz) || 1, px = r.x - dx / l * 40, pz = r.z - dz / l * 40;                                 // punto del mapa visto desde el refugio hacia el centro (40 m)
+  const cand = MX.zom.list.filter(z => !z.dead && z.st !== 'dead' && z.st !== 'chase' && z.st !== 'attack').map(z => ({ z, d: Math.hypot(z.p.x - r.x, z.p.z - r.z) })).sort((a, b) => a.d - b.d), n = Math.min(60, Math.max(30, Math.round(45 + (Math.random() - .5) * 20)));
+  const pick = cand.slice(0, n); if (pick.length < 20) { OFF.horde.next = M.t + 60; return; }
+  pick.forEach((o, i) => { const z = o.z; z.st = 'invest'; z.hx = px + (Math.random() - .5) * 14; z.hz = pz + (Math.random() - .5) * 14; z.noiseDelay = Math.random() * 4 + o.d * .01; z.path = null; z.wait = 0; });
+  OFF.horde.next = M.t + 300 + Math.random() * 60; OFF.stats.hordes++; OFF.stats.hordeSize.push(pick.length);
+  SQ.toast(MX.pl && MX.pl.team === t ? '¡Horda de ' + pick.length + ' infectados hacia tu refugio!' : 'Una horda de infectados va hacia el refugio ' + teamName(t)); if (MX.combat) MX.combat('boom', px, pz);
+}
+const sqGoal = SQ.goalFor;
+SQ.goalFor = e => {
+  const w = e.siege; if (w && OFF.on && !e.isPlayer && e.sitePos && SQ.list.includes(w.s)) { const sp = w.seg.ref.spec; return { x: e.sitePos.x, z: e.sitePos.z, speed: 5.6, hold: true, face: Math.atan2(sp.x - e.sitePos.x, sp.z - e.sitePos.z), crouch: false }; }
+  return sqGoal(e);
+};
+let ta = 0, ts = 0; const sqUpdate = SQ.update;
+SQ.update = dt => {
+  sqUpdate(dt); if (!MX.campaign || !OFF.on || !REF.built) return;
+  if (M.t - OFF.rivalT > 300 || OFF.rival[0] < 0) pickRivals();
+  ta += dt; if (ta >= 2) { ta = 0; siegeTick(2); if (M.t >= OFF.t0) { for (let t = 0; t < 4; t++) { if (REF.eliminated[t] || M.t < OFF.next[t] || (DEF && DEF.level[t] >= 2)) continue; if (startWave(t)) OFF.next[t] = M.t + 150; } horde(); } }
+  shootTick(dt); zt += dt; if (zt >= .5) { zombieSiege(zt); zt = 0; }
+  for (const s of SQ.list) if (s.wave && s.wave.phase === 'outpost' && (M.t - s.wave.t0 > 200 || !SQ.objs.some(o => o.id === 'PUE' && o.home === s.wave.rv && o.owner === s.wave.rv))) s.wave = null;
+};
+const rs = MX.restart; if (rs) MX.restart = function () { const r = rs.apply(this, arguments); OFF.siege.length = 0; OFF.rivalT = -999; OFF.next = [300, 330, 360, 390]; OFF.horde.next = 360; OFF.horde.k = 0; for (const k of ['waves', 'sieges', 'retreats', 'shots']) OFF.stats[k] = [0, 0, 0, 0]; OFF.stats.zomDmg = 0; OFF.stats.hordes = 0; OFF.stats.hordeSize = []; for (const e of M.ents) e.siege = null; return r; };
 })();
 </script>
 <script>/* Efecto del dash (jugador y bots): marcas de viento. Unas pocas líneas finas, blancas y translúcidas que se quedan en el aire detrás del que corre,

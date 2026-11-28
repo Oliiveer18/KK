@@ -117,7 +117,7 @@ REF.enqueue = (team, k) => {
 /* el almacén reserva el coste al encolar? No: se gasta por tramo; las mejoras sin tramos se pagan al terminar */
 
 /* ---------- asignación de ingenieros ---------- */
-const eligible = e => !e.isPlayer && !e.dead && !e.dwn && e.sqd && !e.sqd.playerLead && !e.lg && !e.clsWait && !e.medCall && !(e.vis && e.tgt) && e.st !== 'fight' && M.t - e.lastHurt > 6 && M.t >= (e.engCool || 0) && e.hp >= 60
+const eligible = e => !e.isPlayer && !e.dead && !e.dwn && e.sqd && !e.sqd.playerLead && !e.lg && !e.gar && !e.siege && !e.clsWait && !e.medCall && !(e.vis && e.tgt) && e.st !== 'fight' && M.t - e.lastHurt > 6 && M.t >= (e.engCool || 0) && e.hp >= 60
   && (M.t - (e.lifeStart || -99) < 30 || M.t < (e.engRole || 0) || (e.cls || 'fus') === 'sup');
 function assign() {
   for (let t = 0; t < 4; t++) {

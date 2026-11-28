@@ -217,7 +217,7 @@ function stepZ(z, dt) {
     if (d < z.r + .75) {                                                            // a distancia de golpe
       z.st = 'attack'; z.v.x *= .8; z.v.z *= .8;
       if (z.atk < 0 && z.atkCd <= 0) { z.atk = 0; z.atkCd = T.atkCd; }
-      if (z.atk >= 0) { z.atk += dt / .6; if (z.atk >= .5 && !z.hitDone) { z.hitDone = true; if (d < z.r + 1.0) { MX.hit(t, T.dmg * ZDIF, null, dx, dz, null, 'ZOM'); playAt('ZOM_attack', z.p.x, z.p.z, { gap: 150 }); } } if (z.atk >= 1) { z.atk = -1; z.hitDone = false; } }
+      if (z.atk >= 0) { z.atk += dt / .6; if (z.atk >= .5 && !z.hitDone) { z.hitDone = true; if (d < z.r + 1.0) { MX.hit(t, T.dmg * ZDIF * (z.horde ? 1.3 : 1) * (nearZ > 8 ? 1.15 : 1), null, dx, dz, null, 'ZOM'); playAt('ZOM_attack', z.p.x, z.p.z, { gap: 150 }); } } if (z.atk >= 1) { z.atk = -1; z.hitDone = false; } }
       if (z.type === 'brute') bruteSmash(z);
     } else {
       if (z.noPath !== undefined && M.t - z.noPath < 6 && (z.stk || 0) >= 2) bruteSmash(z, 14);                 // sin ruta y pegado a algo: lo golpea hasta abrir paso
@@ -416,11 +416,12 @@ const farFromAll = (x, z, R) => M.ents.every(e => e.dead || Math.sqrt((e.p.x - x
 const ZTARGET = 1250;   // incluye las guarniciones de los puntos (~300)
 function restockDistrict() {
   const alive = MX.zom.count(); if (!ZPTS || !ZPTS.length) return;
-  if (alive < ZTARGET) for (let tries = 0; tries < 10; tries++) {                   // repone en grupos, siempre lejos de todos (nunca a la vista) y con el peso de cada zona
+  const lowK = alive < ZTARGET * .6 ? 2 : 1;                                       // v4 (F12): población baja → se repone el doble de rápido, en grupos mayores y más cerca de los combatientes (llegar a ≥ 50 % a los 14 min)
+  if (alive < ZTARGET) for (let tries = 0, made = 0; tries < 30 && made < lowK; tries++) {                   // repone en grupos, siempre lejos de todos (nunca a la vista) y con el peso de cada zona
     const q = ZPTS[(rnd() * ZPTS.length) | 0], k = q[3][(rnd() * q[3].length) | 0], [x, z] = ROT(k, q[0], q[1]);
-    if (!farFromAll(x, z, 70) || rnd() * 16 > q[2]) continue;
-    const c = 2 + ((rnd() * 3) | 0); for (let i = 0; i < c; i++) { const px = x + rr(-4, 4), pz = z + rr(-4, 4); if (navFree(px, pz)) newZ(mixPick(q[2] >= 13), px, pz, { st: rnd() < .5 ? 'dorm' : 'wander' }); }
-    break;
+    if (!farFromAll(x, z, 48) || rnd() * 16 > q[2]) continue;
+    const c = 3 + ((rnd() * 4) | 0); for (let i = 0; i < c; i++) { const px = x + rr(-4, 4), pz = z + rr(-4, 4); if (navFree(px, pz)) newZ(mixPick(q[2] >= 13), px, pz, { st: rnd() < .5 ? 'dorm' : 'wander' }); }
+    made++;
   }
   const liveH = HORDES.filter(h => h.members.some(m => !m.dead)).length;
   if (liveH < 12 && alive < ZTARGET + 100 && rnd() < .12) { const q = ZPTS[(rnd() * ZPTS.length) | 0], [x, z] = ROT(q[3][0], q[0], q[1]); if (farFromAll(x, z, 90)) { const h = newHorde(x, z, ['walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','walker','runner','runner','runner','runner','runner','runner','brute','brute','screamer','screamer']); h.migrate = true; h.roamPts = HORDES[0] && HORDES[0].roamPts; } }
@@ -553,7 +554,7 @@ MX.zom.update = dt => {
   ZGDIRTY = true;                                                                    // la rejilla de balas se rehace solo cuando alguien la consulta (a lo sumo una vez por fotograma)
   if (!MX.campaign || !M.built) return; dt = Math.min(dt, .05); zt += dt; astar = 3; extraA = 0;
   heatT -= dt; if (heatT <= 0) { heatT = .5; for (const [k, v] of HEAT) { const n = v * .95; if (n < .08) HEAT.delete(k); else HEAT.set(k, n); } }
-  popT -= dt; if (popT <= 0) { popT = 2; if (!MX.zom.noRestock) restock(); }
+  popT -= dt; if (popT <= 0) { popT = 1.2; if (!MX.zom.noRestock) restock(); }
   for (const h of HORDES) stepHorde(h, dt);
   for (const a of grid.values()) a.n = 0;                                            // rejilla: arrays reutilizados y CONTADOR (poner length = 0 libera el almacén del array y vuelve a reservarlo cada fotograma)
   for (let i_z = 0; i_z < Z.length; i_z++) { const z = Z[i_z]; if (z.dead) continue; const k = gk(z.p.x, z.p.z); let a = grid.get(k); if (!a) { a = []; a.n = 0; grid.set(k, a); } a[a.n++] = z; }

@@ -39,7 +39,7 @@ function enemiesNear(e, x, z, r) {
 }
 function calm(e) { return !(e.vis && e.tgt) && e.st !== 'fight' && M.t - e.lastHurt > 6 && !e.dwn && !e.dead && !e.clsWait && !e.medCall; }
 function eligible(e) {
-  if (e.isPlayer || e.dead || e.dwn || !e.sqd || e.sqd.playerLead || !calm(e)) return false;
+  if (e.isPlayer || e.dead || e.dwn || !e.sqd || e.sqd.playerLead || !calm(e) || e.gar || e.siege || e.eng) return false;
   if (e.stGo) return false; if (e.hp < 60) return false;
   return cls(e) === 'sup' || M.t - (e.lifeStart || -99) < 25;
 }
