@@ -1790,14 +1790,17 @@ function updatePicks(dt) {
   }
 }
 const BRKS = { crate: 'BRK_crate', crateS: 'BRK_crate', fence: 'BRK_fence', barrier: 'BRK_barrier', barrel: 'BRK_barrel', sandbags: 'BRK_sandbag', blocks: 'BRK_blocks' };
-let _scTex = null; const SCORCH = [];
+let _scTex = null; const SCORCH = [], SCPOOL = [];
+/* R2: las manchas de quemado salen de una reserva (malla y material ya creados, textura ya subida a la GPU): antes cada barril creaba una malla y un material nuevos en plena explosión */
+function scorchGet() { let m = SCPOOL.pop(); if (!m) { m = new THREE.Mesh(geoDisc, new THREE.MeshBasicMaterial({ color: 0xffffff, map: scorchTex(), transparent: true, opacity: .6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 })); m.rotation.x = -Math.PI / 2; } m.material.opacity = .6; return m; }
+setTimeout(() => { try { renderer.initTexture(scorchTex()); const a = []; for (let i = 0; i < 8; i++) a.push(scorchGet()); SCPOOL.push(...a); } catch (e) { } }, 1500);
 function scorchTex() {   // mancha de quemado con borde difuso e irregular (no un disco duro)
   if (_scTex) return _scTex; const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 4, 64, 64, 62);
   g.addColorStop(0, 'rgba(8,8,8,.95)'); g.addColorStop(.45, 'rgba(10,10,10,.7)'); g.addColorStop(.8, 'rgba(14,14,14,.2)'); g.addColorStop(1, 'rgba(14,14,14,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128);
   for (let i = 0; i < 40; i++) { const a = Math.random() * 6.28, r = 30 + Math.random() * 28; x.fillStyle = 'rgba(10,10,10,' + (.08 + Math.random() * .12) + ')'; x.beginPath(); x.arc(64 + Math.cos(a) * r, 64 + Math.sin(a) * r, 3 + Math.random() * 7, 0, 6.3); x.fill(); }
   _scTex = new THREE.CanvasTexture(c); return _scTex;
 }
-function updateScorch(dt) { for (let i = SCORCH.length - 1; i >= 0; i--) { const q = SCORCH[i]; q.t += dt; if (q.t > 32) q.m.material.opacity = Math.max(0, .6 * (1 - (q.t - 32) / 8)); if (q.t >= 40) { scene.remove(q.m); SCORCH.splice(i, 1); } } }
+function updateScorch(dt) { for (let i = SCORCH.length - 1; i >= 0; i--) { const q = SCORCH[i]; q.t += dt; if (q.t > 32) q.m.material.opacity = Math.max(0, .6 * (1 - (q.t - 32) / 8)); if (q.t >= 40) { scene.remove(q.m); SCPOOL.push(q.m); SCORCH.splice(i, 1); } } }
 function destroyProp(p, dx, dz, power) {
   if (p.dead) return; p.dead = true;
   if (!p.explosive && BRKS[p.type]) playAt(BRKS[p.type], p.x, p.z, { gap: 0 });
@@ -1807,7 +1810,7 @@ function destroyProp(p, dx, dz, power) {
   if (p.explosive) {
     barrelBurst(p, dx, dz, true, power);
     explode(new V3(p.x, .5, p.z), 4.2, .85, 'barrel', p.by); igniteZone(p.x, p.z, 1.6, 5);
-    const m = new THREE.Mesh(geoDisc, new THREE.MeshBasicMaterial({ color: 0xffffff, map: scorchTex(), transparent: true, opacity: .6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 })); m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6.28; m.position.set(p.x, .03, p.z); m.scale.setScalar(1.05); scene.add(m);
+    const m = scorchGet(); m.rotation.z = Math.random() * 6.28; m.position.set(p.x, .03, p.z); m.scale.setScalar(1.05); scene.add(m);
     SCORCH.push({ m, t: 0 });
   } else {
     const up = p.mat === 'metal' ? 3.5 : 2.5;

@@ -1798,14 +1798,17 @@ function updatePicks(dt) {
   }
 }
 const BRKS = { crate: 'BRK_crate', crateS: 'BRK_crate', fence: 'BRK_fence', barrier: 'BRK_barrier', barrel: 'BRK_barrel', sandbags: 'BRK_sandbag', blocks: 'BRK_blocks' };
-let _scTex = null; const SCORCH = [];
+let _scTex = null; const SCORCH = [], SCPOOL = [];
+/* R2: las manchas de quemado salen de una reserva (malla y material ya creados, textura ya subida a la GPU): antes cada barril creaba una malla y un material nuevos en plena explosión */
+function scorchGet() { let m = SCPOOL.pop(); if (!m) { m = new THREE.Mesh(geoDisc, new THREE.MeshBasicMaterial({ color: 0xffffff, map: scorchTex(), transparent: true, opacity: .6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 })); m.rotation.x = -Math.PI / 2; } m.material.opacity = .6; return m; }
+setTimeout(() => { try { renderer.initTexture(scorchTex()); const a = []; for (let i = 0; i < 8; i++) a.push(scorchGet()); SCPOOL.push(...a); } catch (e) { } }, 1500);
 function scorchTex() {   // mancha de quemado con borde difuso e irregular (no un disco duro)
   if (_scTex) return _scTex; const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 4, 64, 64, 62);
   g.addColorStop(0, 'rgba(8,8,8,.95)'); g.addColorStop(.45, 'rgba(10,10,10,.7)'); g.addColorStop(.8, 'rgba(14,14,14,.2)'); g.addColorStop(1, 'rgba(14,14,14,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128);
   for (let i = 0; i < 40; i++) { const a = Math.random() * 6.28, r = 30 + Math.random() * 28; x.fillStyle = 'rgba(10,10,10,' + (.08 + Math.random() * .12) + ')'; x.beginPath(); x.arc(64 + Math.cos(a) * r, 64 + Math.sin(a) * r, 3 + Math.random() * 7, 0, 6.3); x.fill(); }
   _scTex = new THREE.CanvasTexture(c); return _scTex;
 }
-function updateScorch(dt) { for (let i = SCORCH.length - 1; i >= 0; i--) { const q = SCORCH[i]; q.t += dt; if (q.t > 32) q.m.material.opacity = Math.max(0, .6 * (1 - (q.t - 32) / 8)); if (q.t >= 40) { scene.remove(q.m); SCORCH.splice(i, 1); } } }
+function updateScorch(dt) { for (let i = SCORCH.length - 1; i >= 0; i--) { const q = SCORCH[i]; q.t += dt; if (q.t > 32) q.m.material.opacity = Math.max(0, .6 * (1 - (q.t - 32) / 8)); if (q.t >= 40) { scene.remove(q.m); SCPOOL.push(q.m); SCORCH.splice(i, 1); } } }
 function destroyProp(p, dx, dz, power) {
   if (p.dead) return; p.dead = true;
   if (!p.explosive && BRKS[p.type]) playAt(BRKS[p.type], p.x, p.z, { gap: 0 });
@@ -1815,7 +1818,7 @@ function destroyProp(p, dx, dz, power) {
   if (p.explosive) {
     barrelBurst(p, dx, dz, true, power);
     explode(new V3(p.x, .5, p.z), 4.2, .85, 'barrel', p.by); igniteZone(p.x, p.z, 1.6, 5);
-    const m = new THREE.Mesh(geoDisc, new THREE.MeshBasicMaterial({ color: 0xffffff, map: scorchTex(), transparent: true, opacity: .6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 })); m.rotation.x = -Math.PI / 2; m.rotation.z = Math.random() * 6.28; m.position.set(p.x, .03, p.z); m.scale.setScalar(1.05); scene.add(m);
+    const m = scorchGet(); m.rotation.z = Math.random() * 6.28; m.position.set(p.x, .03, p.z); m.scale.setScalar(1.05); scene.add(m);
     SCORCH.push({ m, t: 0 });
   } else {
     const up = p.mat === 'metal' ? 3.5 : 2.5;
@@ -4274,9 +4277,11 @@ const _fr = new THREE.Frustum(), _pm = new THREE.Matrix4();
    (~1,5 KB de memoria, y trabajo para el recolector de basura): ~58.000 nodos de objetos. Un sector lejos de la cámara guarda sólo la RECETA de sus mallas (geometría, material, banderas;
    las geometrías y materiales ya se compartían) y de sus lotes instanciados (la matriz de cada copia); al acercarse la cámara se recrean idénticos. Los grupos de cada objeto se quedan
    (otros sistemas leen su posición), y despertar un objeto de un sector congelado funciona igual (su copia en el lote se oculta en los datos). ?nostream lo desactiva. ---- */
-const ST = { R_THAW: 3, R_FREEZE: 5, budget: 2, ci: 0, cj: 0, cand: [], off: /[?&]nostream\b/.test(location.search), on: false };
+const ST = { R_THAW: 3, R_FREEZE: 5, budget: 2, ci: 0, cj: 0, cand: [], off: /[?&]nostream\b/.test(location.search), on: false,
+  /* R1: los lotes instanciados de un sector congelado se CONSERVAN (con su búfer de GPU) para los últimos 120 sectores (~6 MB): al volver a descongelarlos no se crean mallas ni arrays nuevos ni se reservan búferes (basura y tirones al correr). ?nopool lo desactiva */
+  pool: !/[?&]nopool\b/.test(location.search), poolList: [], poolMax: 120, poolHit: 0, poolMiss: 0, thawMs: 0, thawN: 0, thawMax: 0, frzMs: 0, frzN: 0 };
 function freezeSector(S) {
-  if (S.__fz) return; S.__batches = [];
+  if (S.__fz) return; const t0f = performance.now(); S.__batches = [];
   for (const g of S.children.slice()) {
     const p = g.__prop;
     if (p && p.lz && !p.lz.frozen && p.lz.merged.length) {
@@ -4286,18 +4291,21 @@ function freezeSector(S) {
       const simple = L.kept.filter(o => o.isMesh && !o.isInstancedMesh && !o.children.length && o.parent === g && !o.userData.noFreeze);
       if (simple.length) { L.kdesc = simple.map(o => ({ geo: o.geometry, mat: o.material, cs: o.castShadow, rs: o.receiveShadow, fc: o.frustumCulled, vis: o.visible, ro: o.renderOrder, t: [o.position.x, o.position.y, o.position.z, o.quaternion.x, o.quaternion.y, o.quaternion.z, o.quaternion.w, o.scale.x, o.scale.y, o.scale.z] }));
         for (const o of simple) g.remove(o); L.kept = L.kept.filter(o => simple.indexOf(o) < 0); }
-    } else if (g.isInstancedMesh && g.userData.lzInst) { const bt = g.userData.b; bt.im = null; S.__batches.push(bt); S.remove(g); g.dispose(); }
+    } else if (g.isInstancedMesh && g.userData.lzInst) { const bt = g.userData.b; bt.im = null; S.__batches.push(bt); S.remove(g); if (ST.pool) bt.imPool = g; else g.dispose(); }
   }
-  S.__fz = true;
+  S.__fz = true; ST.frzMs += performance.now() - t0f; ST.frzN++;
+  if (ST.pool) { ST.poolList.push(S); while (ST.poolList.length > ST.poolMax) { const o = ST.poolList.shift(); if (o.__fz && o.__batches) for (const b of o.__batches) if (b.imPool) { b.imPool.dispose(); b.imPool = null; } } }
 }
 function thawSector(S) {
-  if (!S.__fz) return;
+  if (!S.__fz) return; const t0 = performance.now(); if (ST.pool) { const pi = ST.poolList.indexOf(S); if (pi >= 0) ST.poolList.splice(pi, 1); }
   if (typeof PERF !== 'undefined') PERF.tag('sectores');
   for (const g of S.children) { const p = g.__prop;
     if (p && p.lz && p.lz.frozen) { const L = p.lz; L.merged = L.mdesc.map(v => { const m = new THREE.Mesh(v.geo, v.mat); m.castShadow = v.cs; m.receiveShadow = v.rs; m.frustumCulled = v.fc; m.userData.lz = true; g.add(m); return m; }); L.frozen = false; L.mdesc = null;
       if (L.kdesc) { for (const v of L.kdesc) { const m = new THREE.Mesh(v.geo, v.mat); m.castShadow = v.cs; m.receiveShadow = v.rs; m.frustumCulled = v.fc; m.visible = v.vis; m.renderOrder = v.ro; const t = v.t; m.position.set(t[0], t[1], t[2]); m.quaternion.set(t[3], t[4], t[5], t[6]); m.scale.set(t[7], t[8], t[9]); g.add(m); L.kept.push(m); } L.kdesc = null; } } }
-  for (const bt of S.__batches) { const im = new THREE.InstancedMesh(bt.geo, bt.mat, bt.n); im.instanceMatrix.array.set(bt.arr); bt.arr = im.instanceMatrix.array; im.castShadow = bt.cs; im.receiveShadow = bt.rs; im.frustumCulled = false; im.userData.lzInst = true; im.userData.b = bt; bt.im = im; im.instanceMatrix.needsUpdate = true; S.add(im); }
-  S.__batches = null; S.__fz = false;
+  for (const bt of S.__batches) { let im = bt.imPool; bt.imPool = null;
+    if (im) ST.poolHit++; else { ST.poolMiss++; im = new THREE.InstancedMesh(bt.geo, bt.mat, bt.n); im.instanceMatrix.array.set(bt.arr); bt.arr = im.instanceMatrix.array; im.castShadow = bt.cs; im.receiveShadow = bt.rs; im.frustumCulled = false; im.userData.lzInst = true; im.userData.b = bt; }
+    bt.im = im; im.instanceMatrix.needsUpdate = true; S.add(im); }
+  S.__batches = null; S.__fz = false; const dt = performance.now() - t0; ST.thawMs += dt; ST.thawN++; if (dt > ST.thawMax) ST.thawMax = dt; if (typeof PERF !== 'undefined' && dt > 3) PERF.tag('descongelar ' + dt.toFixed(1) + ' ms');
 }
 MAPA.freezeAll = function () { const b = MAPA.built; if (!b || !b.sectors || ST.off) return 0; let n = 0; for (const S of b.sectors) if (!S.__fz) { freezeSector(S); n++; } ST.on = true; return n; };
 MAPA.thawAll = function () { const b = MAPA.built; if (!b || !b.sectors) return 0; let n = 0; for (const S of b.sectors) if (S.__fz) { thawSector(S); n++; } return n; };
@@ -9046,6 +9054,44 @@ const SOMBRA = (() => {
   for (const n of ['updateBullets', 'updateParts', 'updateCasings', 'updateMags', 'updateGrenades', 'updateSmoke', 'updateFlames', 'updateFires', 'updatePuddles', 'updateDebris', 'updateScorch', 'updatePicks', 'updateProps', 'popTick', 'loopTick', 'lightsSync', 'bulletEnd', 'damageProp', 'bulletHitProp', 'holeDecal', 'impactFx', 'spawnBullet', 'muzzleFx']) {
     try { if (typeof window[n] === 'function') window[n] = PERF.fn(window[n], n); } catch (e) { }
   }
+})();
+
+/* ---------- BANCO DE GPU (?bench) ----------
+   El panel de rendimiento no puede medir la GPU en el iPhone (sin temporizador de GPU) y el navegador limita el dibujo a la frecuencia de la pantalla, así que un fotograma de 12 ms de GPU y uno de 16 ms
+   se ven igual. El banco repite el dibujo N veces por fotograma (N sube hasta que el fotograma dura > 40 ms: entonces el intervalo entre fotogramas es el coste real de N dibujos) con la escena detenida
+   y mide, una por una, configuraciones que apagan una parte: sombras, viñeta, interfaz, humo, infectados, soldados, detalle del suelo y densidad de píxel. Una sola captura da el reparto de la GPU.
+   Uso: abrir con ?bench, colocar al personaje donde se note el problema (p. ej. la plaza en un tiroteo) y tocar el botón «BANCO GPU» (arriba a la izquierda). Tocar el resultado lo cierra. */
+(() => {
+  if (!/[?&]bench\b/.test(location.search)) return;
+  const btn = document.createElement('div'); btn.textContent = 'BANCO GPU'; btn.style.cssText = 'position:fixed;left:8px;top:150px;z-index:99998;font:700 12px system-ui;color:#fff;background:#8a2be2cc;padding:6px 10px;border-radius:8px'; document.body.appendChild(btn);
+  const out = document.createElement('pre'); out.style.cssText = 'position:fixed;left:8px;top:8px;z-index:99999;margin:0;font:600 11px/1.35 ui-monospace,monospace;color:#fff;background:#000d;padding:8px 10px;border-radius:8px;white-space:pre-wrap;max-width:94vw;display:none'; document.body.appendChild(out);
+  out.onclick = () => { out.style.display = 'none'; }; let run = false;
+  const hide = (list, on) => { for (const o of list) if (o) { if (o.style) o.style.visibility = on ? '' : 'hidden'; else o.visible = on; } };
+  const ids = () => ['hud', 'sqTags', 'sqPanel', 'miniMap', 'mxFeed'].map(i => document.getElementById(i)).concat([...document.querySelectorAll('#hud *')].slice(0, 0));
+  btn.onclick = async () => {
+    if (run) return; run = true; out.style.display = 'block'; out.textContent = 'Midiendo…'; const wasMenu = menuOpen; menuOpen = true;
+    const R = renderer.render.bind(renderer), px0 = renderer.getPixelRatio(); let N = 1, fullShadow = true;
+    renderer.render = (s, c) => { for (let i = 0; i < N; i++) { if (fullShadow) { renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true; } R(s, c); } };
+    const sleep = ms => new Promise(r => setTimeout(r, ms)), raf = () => new Promise(r => requestAnimationFrame(r));
+    const med = async (ms) => { const a = []; let t = await raf(), end = t + ms; while (t < end) { const n = await raf(); a.push(n - t); t = n; } a.sort((x, y) => x - y); return a[a.length >> 1] || 0; };
+    const vig = [...document.body.children].filter(e => e.style && e.style.cssText.includes('radial-gradient'));
+    const zom = MX.zom && MX.zom.IM ? Object.values(MX.zom.IM) : [], roots = MX.M.ents.map(e => e.root), smoke = [typeof PINST !== 'undefined' && PINST, typeof PFF !== 'undefined' && PFF.mesh, typeof SMK !== 'undefined' && SMK.mesh];
+    const C = [['base (todo encendido)', () => { }, () => { }],
+      ['sin pasada de sombra', () => { fullShadow = false; renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = false; }, () => { fullShadow = true; }],
+      ['sin viñeta', () => hide(vig, false), () => hide(vig, true)],
+      ['sin interfaz (HUD, etiquetas, minimapa)', () => hide(ids(), false), () => hide(ids(), true)],
+      ['sin humo ni partículas', () => hide(smoke, false), () => hide(smoke, true)],
+      ['sin infectados', () => hide(zom, false), () => hide(zom, true)],
+      ['sin soldados', () => hide(roots, false), () => hide(roots, true)],
+      ['sin detalle de suelo', () => { if (window.LOOK) LOOK.u.uG.value.w = 0; }, () => { if (window.LOOK) LOOK.u.uG.value.w = 1; }],
+      ['densidad de píxel 1,0 (en vez de ' + px0.toFixed(2) + ')', () => renderer.setPixelRatio(1), () => renderer.setPixelRatio(px0)],
+      ['densidad de píxel ×0,8', () => renderer.setPixelRatio(px0 * .8), () => renderer.setPixelRatio(px0)]];
+    const res = []; let base = 0;
+    for (let k = 0; k < C.length; k++) { const [nm, on, off] = C[k]; on(); await sleep(400); if (k === 0) { N = 1; let m = await med(1200); N = Math.max(2, Math.min(8, Math.ceil(45 / Math.max(m, 4)))); }
+      const m = await med(2500); const per = m / N; if (k === 0) base = per; res.push(nm + ': ' + per.toFixed(1) + ' ms por dibujo' + (k ? ' (' + (per - base >= 0 ? '+' : '') + (per - base).toFixed(1) + ')' : ' [N=' + N + ']')); off(); out.textContent = 'Midiendo… ' + (k + 1) + '/' + C.length + '\n' + res.join('\n'); }
+    renderer.render = R; renderer.setPixelRatio(px0); menuOpen = wasMenu; run = false;
+    out.textContent = 'BANCO GPU · ' + innerWidth + '×' + innerHeight + ' · ' + renderer.domElement.width + '×' + renderer.domElement.height + ' px · ' + renderer.info.render.calls + ' llamadas · ' + Math.round(renderer.info.render.triangles / 1000) + 'k tri\n(negativo = ahorra esa parte; tocar para cerrar)\n' + res.join('\n'); console.log(out.textContent);
+  };
 })();
 </script>
 </body>

@@ -170,3 +170,41 @@ const SOMBRA = (() => {
     try { if (typeof window[n] === 'function') window[n] = PERF.fn(window[n], n); } catch (e) { }
   }
 })();
+
+/* ---------- BANCO DE GPU (?bench) ----------
+   El panel de rendimiento no puede medir la GPU en el iPhone (sin temporizador de GPU) y el navegador limita el dibujo a la frecuencia de la pantalla, así que un fotograma de 12 ms de GPU y uno de 16 ms
+   se ven igual. El banco repite el dibujo N veces por fotograma (N sube hasta que el fotograma dura > 40 ms: entonces el intervalo entre fotogramas es el coste real de N dibujos) con la escena detenida
+   y mide, una por una, configuraciones que apagan una parte: sombras, viñeta, interfaz, humo, infectados, soldados, detalle del suelo y densidad de píxel. Una sola captura da el reparto de la GPU.
+   Uso: abrir con ?bench, colocar al personaje donde se note el problema (p. ej. la plaza en un tiroteo) y tocar el botón «BANCO GPU» (arriba a la izquierda). Tocar el resultado lo cierra. */
+(() => {
+  if (!/[?&]bench\b/.test(location.search)) return;
+  const btn = document.createElement('div'); btn.textContent = 'BANCO GPU'; btn.style.cssText = 'position:fixed;left:8px;top:150px;z-index:99998;font:700 12px system-ui;color:#fff;background:#8a2be2cc;padding:6px 10px;border-radius:8px'; document.body.appendChild(btn);
+  const out = document.createElement('pre'); out.style.cssText = 'position:fixed;left:8px;top:8px;z-index:99999;margin:0;font:600 11px/1.35 ui-monospace,monospace;color:#fff;background:#000d;padding:8px 10px;border-radius:8px;white-space:pre-wrap;max-width:94vw;display:none'; document.body.appendChild(out);
+  out.onclick = () => { out.style.display = 'none'; }; let run = false;
+  const hide = (list, on) => { for (const o of list) if (o) { if (o.style) o.style.visibility = on ? '' : 'hidden'; else o.visible = on; } };
+  const ids = () => ['hud', 'sqTags', 'sqPanel', 'miniMap', 'mxFeed'].map(i => document.getElementById(i)).concat([...document.querySelectorAll('#hud *')].slice(0, 0));
+  btn.onclick = async () => {
+    if (run) return; run = true; out.style.display = 'block'; out.textContent = 'Midiendo…'; const wasMenu = menuOpen; menuOpen = true;
+    const R = renderer.render.bind(renderer), px0 = renderer.getPixelRatio(); let N = 1, fullShadow = true;
+    renderer.render = (s, c) => { for (let i = 0; i < N; i++) { if (fullShadow) { renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true; } R(s, c); } };
+    const sleep = ms => new Promise(r => setTimeout(r, ms)), raf = () => new Promise(r => requestAnimationFrame(r));
+    const med = async (ms) => { const a = []; let t = await raf(), end = t + ms; while (t < end) { const n = await raf(); a.push(n - t); t = n; } a.sort((x, y) => x - y); return a[a.length >> 1] || 0; };
+    const vig = [...document.body.children].filter(e => e.style && e.style.cssText.includes('radial-gradient'));
+    const zom = MX.zom && MX.zom.IM ? Object.values(MX.zom.IM) : [], roots = MX.M.ents.map(e => e.root), smoke = [typeof PINST !== 'undefined' && PINST, typeof PFF !== 'undefined' && PFF.mesh, typeof SMK !== 'undefined' && SMK.mesh];
+    const C = [['base (todo encendido)', () => { }, () => { }],
+      ['sin pasada de sombra', () => { fullShadow = false; renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = false; }, () => { fullShadow = true; }],
+      ['sin viñeta', () => hide(vig, false), () => hide(vig, true)],
+      ['sin interfaz (HUD, etiquetas, minimapa)', () => hide(ids(), false), () => hide(ids(), true)],
+      ['sin humo ni partículas', () => hide(smoke, false), () => hide(smoke, true)],
+      ['sin infectados', () => hide(zom, false), () => hide(zom, true)],
+      ['sin soldados', () => hide(roots, false), () => hide(roots, true)],
+      ['sin detalle de suelo', () => { if (window.LOOK) LOOK.u.uG.value.w = 0; }, () => { if (window.LOOK) LOOK.u.uG.value.w = 1; }],
+      ['densidad de píxel 1,0 (en vez de ' + px0.toFixed(2) + ')', () => renderer.setPixelRatio(1), () => renderer.setPixelRatio(px0)],
+      ['densidad de píxel ×0,8', () => renderer.setPixelRatio(px0 * .8), () => renderer.setPixelRatio(px0)]];
+    const res = []; let base = 0;
+    for (let k = 0; k < C.length; k++) { const [nm, on, off] = C[k]; on(); await sleep(400); if (k === 0) { N = 1; let m = await med(1200); N = Math.max(2, Math.min(8, Math.ceil(45 / Math.max(m, 4)))); }
+      const m = await med(2500); const per = m / N; if (k === 0) base = per; res.push(nm + ': ' + per.toFixed(1) + ' ms por dibujo' + (k ? ' (' + (per - base >= 0 ? '+' : '') + (per - base).toFixed(1) + ')' : ' [N=' + N + ']')); off(); out.textContent = 'Midiendo… ' + (k + 1) + '/' + C.length + '\n' + res.join('\n'); }
+    renderer.render = R; renderer.setPixelRatio(px0); menuOpen = wasMenu; run = false;
+    out.textContent = 'BANCO GPU · ' + innerWidth + '×' + innerHeight + ' · ' + renderer.domElement.width + '×' + renderer.domElement.height + ' px · ' + renderer.info.render.calls + ' llamadas · ' + Math.round(renderer.info.render.triangles / 1000) + 'k tri\n(negativo = ahorra esa parte; tocar para cerrar)\n' + res.join('\n'); console.log(out.textContent);
+  };
+})();

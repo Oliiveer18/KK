@@ -458,3 +458,8 @@ Medido (bots sanos a 2 m de un jugador agachado tras una cobertura): racha media
 
 ## F3 — Puntuación (plan v4)
 El refugio ya no puntúa por existir (sigue dando reaparición, armería y suministros); los puntos comunes dan 2 por tick de 5 s (0,4/s) y los puestos avanzados 1 (0,2/s); cada baja a un rival suma 1 punto de campaña (los infectados y los aliados no). Sin bonus de captura ni ayuda al que va por detrás. Objetivo 1.000. Test: `puntuacion.py`.
+
+## R0–R2 — Rendimiento (plan v4)
+- **R0 `?bench`:** botón «BANCO GPU» (arriba a la izquierda). Repite el dibujo N veces por fotograma con la escena detenida y mide, una por una, configuraciones que apagan una parte (pasada de sombra, viñeta, interfaz, humo, infectados, soldados, detalle de suelo, densidad de píxel 1,0 y ×0,8). Una captura da el reparto real de la GPU del iPhone. En mi entorno (render por software) sólo se comprobó que funciona, no los números.
+- **R1 sectores sin tirones:** los lotes instanciados de los últimos 120 sectores congelados se conservan con su búfer de GPU (≈ 6 MB); al volver no se crean mallas, arrays ni búferes. Segunda vuelta de un circuito: 0 fallos, descongelar 72 → 15 ms, peor fotograma de `cull` 1,6 ms. Telemetría: etiquetas «descongelar N ms» en los tirones. `?nopool` lo desactiva. Test `streaming_pool.py`.
+- **R2 explosiones:** las manchas de quemado salen de una reserva (antes, una malla y un material nuevos por barril); la textura se sube a la GPU al cargar. Test `explosiones_picos.py` (ráfaga de 24 explosiones y 24 objetos rotos: máx. 11,5 ms).
