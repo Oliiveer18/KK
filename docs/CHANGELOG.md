@@ -468,3 +468,8 @@ El refugio ya no puntúa por existir (sigue dando reaparición, armería y sumin
 - Nuevo `src/interactuar.js` (`MX.INT`): registro de interactuables (`reg(id, scan)`), el más cercano al frente (≤ 2 m) se trabaja mientras se mantiene □ (mando), E/R (teclado) o RECARG. (táctil). Aro de progreso con etiqueta sobre el objetivo; soltar retrocede el progreso, recibir daño lo detiene; reanimar a un aliado abatido tiene prioridad. Tocar □ sigue recargando.
 - Inventario: sección **Herramientas** (hacha, mazo, palanca) en la mochila de todos; la adecuada se elige sola al trabajar.
 - `tools/build.py` incrusta los módulos nuevos (`MODULOS_EXTRA`). Test `interactuar.py`.
+
+## F5 — Materiales, mochila, depósito y almacén (plan v4)
+- Nuevo `src/economia.js` (`MX.ECO`): madera, piedra y hierro; un almacén por facción (tope 600; inicio 60/30/20); mochila por unidades 20/20/35/50 según el nivel de mochila; tabla `ECO.yield` con el material y las unidades de cada tipo de objeto (coche 12 hierro, caja 5 madera, bloques 6 piedra…).
+- **Zona de depósito** en cada refugio (`D.info.depositZones`, junto a la entrada interior, marca amarilla en el suelo y cartel «DEPÓSITO»): pisarla descarga todo en el almacén (jugador y bots), con aviso «+12 hierro al almacén». El sobrante por el tope se queda en la mochila.
+- HUD (arriba en el centro, bajo el marcador): «llevas 8/20» y «Almacén N 🪵 🪨 ⛓». Test `deposito.py`.
