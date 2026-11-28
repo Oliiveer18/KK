@@ -8,7 +8,7 @@
 (function () {
 const M = MX.M, SQ = MX.SQ, ECO = MX.ECO, REF = MX.REF, INT = MX.INT, MATS = ECO.MATS;
 ECO.wallHpLv = [0, 14000, 22400, 35000]; ECO.gateHpLv = [0, 11000, 17600, 27500];
-ECO.rep = { hpps: 450, rebuildT: 12, hitEvery: .5, maxEng: 2, near: 50 };
+ECO.rep = { hpps: 450, rebuildT: 12, hitEvery: .5, maxEng: 3, near: 50 };
 ECO.cost = { reparar: { madera: 1.2, piedra: .5 }, reconstruir: { madera: 18, piedra: 6 } };       // reparar: por cada 1.000 de vida; reconstruir: base (luego se repara)
 ECO.mej = {
   muros: [null, null, { piedra: 70, madera: 30 }, { hierro: 110, piedra: 50 }],                       // coste TOTAL del nivel (se reparte entre los tramos)
@@ -132,7 +132,7 @@ function assign() {
 /* decisión de los bots: encolan mejoras cuando les sobra material (la prioridad: muros, portón, enfermería, armería, torre) */
 function botPlan() {
   for (let t = 0; t < 4; t++) { if (REF.destroyed[t] || t === (MX.pl && MX.pl.team && 0)) continue; if (MX.pl && MX.pl.team === t && !MX.REF.autoPlayer) continue;
-    for (const k of ['muros', 'enfermeria', 'porton', 'armeria', 'torre']) { const c = REF.canQueue(t, k); if (!c) continue; const reserve = 80; if (MATS.every(m => ECO.stock[t][m] >= Math.ceil(c.cost[m] || 0) + (c.cost[m] ? reserve : 0))) { REF.enqueue(t, k); break; } } }
+    for (const k of ['muros', 'enfermeria', 'porton', 'armeria', 'torre']) { const c = REF.canQueue(t, k); if (!c) continue; const reserve = 30; if (MATS.every(m => ECO.stock[t][m] >= Math.ceil(c.cost[m] || 0) + (c.cost[m] ? reserve : 0))) { REF.enqueue(t, k); break; } } }
 }
 const sqGoal = SQ.goalFor;
 SQ.goalFor = e => {

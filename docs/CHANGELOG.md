@@ -508,3 +508,9 @@ El refugio ya no puntúa por existir (sigue dando reaparición, armería y sumin
 
 ## F12 — Ecosistema de infectados, clases y arranque (plan v4)
 - Reposición de infectados el doble de rápida cuando quedan < 60 % del objetivo (hasta 2 grupos por pasada, grupos de 3–6, a ≥ 48 m de cualquier combatiente en vez de 70, cada 1,2 s); los infectados de horda hacen ×1,3 de daño y ×1,15 si hay > 8 persiguiendo; los bots ya no malgastan munición en infectados lejanos (> 14 m) que no los persiguen; el asalto espera a 6–10 m del punto (antes 3–6) y las escopetas de los bots dispersan un 25 % menos. Se mide en la calibración final (F13).
+
+## R4 — Resolución dinámica prudente (plan v4)
+- `rendimiento.js`: la resolución dinámica ya no decide con el p90 de 90 fotogramas sino con el **fotograma típico** (media del tramo central de los últimos 120) y el **p95**; «mal» = típico > 17,2 ms y p95 > 22 ms durante 3 s; baja un 5 % cada vez con **suelo ×0,9** (antes ×0,8); «bien» = típico < 15,2 ms y p95 < 19 ms durante 4 s sube otro 5 % (recuperación rápida); registra el tiempo bajo ×1,0 (`MX.DR.below/tot`, visible en el panel). No baja por tirones sueltos ni por dos tipos de fotograma alternados cuya media ya da 60 fps. Test `resolucion_dinamica.py` (alimenta series sintéticas). R3 no se aplica: depende de tu captura `?bench`.
+
+## Barras de vida de los tramos dañados (F8, complemento)
+- Los tramos de refugio con menos del 98 % de vida a < 30 m del jugador muestran una barra fina (máx. 4, elementos DOM reutilizados, verde/ámbar/rojo).

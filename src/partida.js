@@ -804,7 +804,7 @@ function botLaunch(e, mx, mz, dx, dz) {                                         
 function shoot(e) {
   const w = e.w, dx = Math.sin(e.yaw), dz = Math.cos(e.yaw), y = e.crouch > .5 ? .86 : 1.12, mx = e.p.x + dx * .62, mz = e.p.z + dz * .62, sp = Math.sqrt((e.v.x) * (e.v.x) + (e.v.z) * (e.v.z));
   if (w.launch) botLaunch(e, mx, mz, dx, dz);
-  else for (let n = 0; n < w.pellets; n++) { const yw = e.yaw + (rnd() - .5) * (w.spr * .8 * (w.kind === 'shot' ? .75 : 1) + (e.spread * .06 + Math.min(sp, 8) * .006) * (1 - e.crouch * .35)); spawnBullet(mx, y, mz, Math.sin(yw), Math.cos(yw), w, e); }
+  else for (let n = 0; n < w.pellets; n++) { const yw = e.yaw + (rnd() - .5) * (w.spr * .8 * (w.kind === 'shot' ? .6 : 1) + (e.spread * .06 + Math.min(sp, 8) * .006) * (1 - e.crouch * .35)); spawnBullet(mx, y, mz, Math.sin(yw), Math.cos(yw), w, e); }
   if (MX.campaign) heardShot(e);
   e.ammo--; e.spread = Math.min(1, e.spread + .14); e.kick = 1; e.flashT = .05; e.firing = true; const zomT = !!(e.tgt && e.tgt.team === -1 && e.vis);                               // contra infectados cerca: fuego continuo (sin ráfagas ni pausas); contra otra facción, ráfagas y pausas tácticas
   e.fireCd = w.cd * (w.auto ? 1 : (zomT ? rr(1, 1.2) : rr(1.1, 1.7)));

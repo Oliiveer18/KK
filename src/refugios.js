@@ -66,9 +66,19 @@ const onResp = SQ.onRespawn; SQ.onRespawn = e => { onResp(e); if (MX.campaign &&
 const sqUpdate = SQ.update; let ts = 0;
 SQ.update = dt => {
   sqUpdate(dt); if (!MX.campaign) return; if (REF.key !== (MAPA.built || null) || (!REF.seg[0].length && !REF.built)) { build(); REF.built = true; }
-  ts += dt; if (ts >= .25) { ts = 0; tick(); }
+  ts += dt; if (ts >= .25) { ts = 0; tick(); } wallBars();
   const pl = MX.pl; if (pl && pl.dead && REF.eliminated[pl.team]) {                                // eliminado: observa a una facción viva
     let tgt = REF.spec; if (!tgt || tgt.dead) { tgt = REF.spec = M.ents.find(e => !e.dead && !e.isPlayer && !REF.eliminated[e.team]) || null; } if (tgt) { P.pos.x = tgt.p.x; P.pos.z = tgt.p.z; } }
 };
+/* barras de vida de los tramos dañados (solo los de menos del 98 %, a < 30 m del jugador, como mucho 4): elementos DOM reutilizados, sin coste si no hay daño */
+const WB = { el: [], box: null };
+function wallBars() {
+  if (!WB.box) { const st = document.createElement('style'); st.textContent = '#refBars{position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden}#refBars i{position:absolute;left:0;top:0;width:44px;height:5px;border-radius:3px;background:#000a;box-shadow:0 0 0 1px #ffffff2a;overflow:hidden;display:none;will-change:transform}#refBars i b{display:block;height:100%}'; document.head.appendChild(st); WB.box = document.createElement('div'); WB.box.id = 'refBars'; document.body.appendChild(WB.box); for (let i = 0; i < 4; i++) { const e = document.createElement('i'); e.innerHTML = '<b></b>'; WB.box.appendChild(e); WB.el.push(e); } WB.v = new THREE.Vector3(); }
+  const pl = MX.pl, on = MX.on && pl && !pl.dead && !menuOpen && typeof camera !== 'undefined'; let n = 0;
+  if (on) { const cand = []; for (let t = 0; t < 4; t++) for (const p of REF.seg[t]) { if (p.dead || p.hp >= p.maxHp * .98) continue; const d = Math.hypot(p.x - P.pos.x, p.z - P.pos.z); if (d < 30) cand.push([d, p]); } cand.sort((a, b) => a[0] - b[0]);
+    for (let i = 0; i < Math.min(4, cand.length); i++) { const p = cand[i][1], e = WB.el[n++]; WB.v.set(p.x, 1.6, p.z).project(camera); if (WB.v.z > 1) { n--; continue; } const f = Math.max(0, p.hp / p.maxHp);
+      e.style.display = 'block'; e.style.transform = 'translate(' + ((WB.v.x * .5 + .5) * innerWidth - 22).toFixed(0) + 'px,' + ((-WB.v.y * .5 + .5) * innerHeight).toFixed(0) + 'px)'; const b = e.firstChild; b.style.width = (f * 100).toFixed(0) + '%'; b.style.background = f < .3 ? '#ff5a48' : f < .6 ? '#ffb020' : '#6dff9a'; } }
+  for (let i = n; i < 4; i++) WB.el[i].style.display = 'none';
+}
 const rs = MX.restart; if (rs) MX.restart = function () { const r = rs.apply(this, arguments); REF.key = null; REF.built = false; REF.spec = null; for (let t = 0; t < 4; t++) { REF.wave[t].t = -99; REF.wave[t].n = 0; } return r; };
 })();

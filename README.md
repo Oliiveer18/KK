@@ -26,7 +26,9 @@ Prototipo jugable en el navegador, **sin modelos ni animaciones prefabricadas**:
 | `docs/CATALOGO_OBJETOS.md` | Catálogo de objetos y ubicaciones de la campaña, con su implementación |
 | `docs/HANDOFF.md` | Traspaso a una nueva sesión: reglas, flujo y estado |
 | `docs/ARQUITECTURA.md` | Cómo está hecho el código |
-| `tests/` | Scripts de prueba (Playwright / simulación) |
+| `docs/PLAN_V4_ECONOMIA_Y_REFUGIOS.md` | Plan v4 (economía, refugios destruibles, rendimiento) y tabla de estado por fase |
+| `docs/INFORME_EJECUCION.md` | Informe de la ejecución autónoma del plan v4: qué se hizo, qué se midió y qué falta |
+| `tests/` | Scripts de prueba (Playwright / simulación); `tests/partida_simulada.py` y `tests/calibracion.py` miden la partida completa |
 
 ## Regenerar `index.html` desde el fuente
 Ejecutar `python3 tools/build.py` desde la raíz del proyecto (necesita `ffmpeg` y `numpy`). Procesa los sonidos de `assets/audio/`, genera `src/sonidos.js` y sustituye en `src/prototipo.html` las etiquetas de Three.js y `sonidos.js` por su contenido para crear `index.html`.
@@ -35,3 +37,6 @@ Ejecutar `python3 tools/build.py` desde la raíz del proyecto (necesita `ffmpeg`
 - Sonidos: solo los que el usuario genera y aprueba (arma por arma, uno a uno). Mientras falte una muestra, el juego usa el sonido sintético de respaldo; no se añaden sonidos inventados.
 - Controles táctiles: invisibles pero funcionales.
 - Sin dependencias externas ni assets.
+
+## Interruptores de URL del plan v4
+`?nologistica` (sin bots recicladores), `?nodefensa` (sin guarnición por alertas), `?nooferiva` (sin oleadas, asedios ni hordas), `?norefugios` (refugios indestructibles), `?nodinres` (sin resolución dinámica), `?bench` (banco de GPU: botón «BANCO GPU» arriba a la izquierda).

@@ -6371,7 +6371,7 @@ function botLaunch(e, mx, mz, dx, dz) {                                         
 function shoot(e) {
   const w = e.w, dx = Math.sin(e.yaw), dz = Math.cos(e.yaw), y = e.crouch > .5 ? .86 : 1.12, mx = e.p.x + dx * .62, mz = e.p.z + dz * .62, sp = Math.sqrt((e.v.x) * (e.v.x) + (e.v.z) * (e.v.z));
   if (w.launch) botLaunch(e, mx, mz, dx, dz);
-  else for (let n = 0; n < w.pellets; n++) { const yw = e.yaw + (rnd() - .5) * (w.spr * .8 * (w.kind === 'shot' ? .75 : 1) + (e.spread * .06 + Math.min(sp, 8) * .006) * (1 - e.crouch * .35)); spawnBullet(mx, y, mz, Math.sin(yw), Math.cos(yw), w, e); }
+  else for (let n = 0; n < w.pellets; n++) { const yw = e.yaw + (rnd() - .5) * (w.spr * .8 * (w.kind === 'shot' ? .6 : 1) + (e.spread * .06 + Math.min(sp, 8) * .006) * (1 - e.crouch * .35)); spawnBullet(mx, y, mz, Math.sin(yw), Math.cos(yw), w, e); }
   if (MX.campaign) heardShot(e);
   e.ammo--; e.spread = Math.min(1, e.spread + .14); e.kick = 1; e.flashT = .05; e.firing = true; const zomT = !!(e.tgt && e.tgt.team === -1 && e.vis);                               // contra infectados cerca: fuego continuo (sin ráfagas ni pausas); contra otra facción, ráfagas y pausas tácticas
   e.fireCd = w.cd * (w.auto ? 1 : (zomT ? rr(1, 1.2) : rr(1.1, 1.7)));
@@ -9303,10 +9303,20 @@ const onResp = SQ.onRespawn; SQ.onRespawn = e => { onResp(e); if (MX.campaign &&
 const sqUpdate = SQ.update; let ts = 0;
 SQ.update = dt => {
   sqUpdate(dt); if (!MX.campaign) return; if (REF.key !== (MAPA.built || null) || (!REF.seg[0].length && !REF.built)) { build(); REF.built = true; }
-  ts += dt; if (ts >= .25) { ts = 0; tick(); }
+  ts += dt; if (ts >= .25) { ts = 0; tick(); } wallBars();
   const pl = MX.pl; if (pl && pl.dead && REF.eliminated[pl.team]) {                                // eliminado: observa a una facción viva
     let tgt = REF.spec; if (!tgt || tgt.dead) { tgt = REF.spec = M.ents.find(e => !e.dead && !e.isPlayer && !REF.eliminated[e.team]) || null; } if (tgt) { P.pos.x = tgt.p.x; P.pos.z = tgt.p.z; } }
 };
+/* barras de vida de los tramos dañados (solo los de menos del 98 %, a < 30 m del jugador, como mucho 4): elementos DOM reutilizados, sin coste si no hay daño */
+const WB = { el: [], box: null };
+function wallBars() {
+  if (!WB.box) { const st = document.createElement('style'); st.textContent = '#refBars{position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden}#refBars i{position:absolute;left:0;top:0;width:44px;height:5px;border-radius:3px;background:#000a;box-shadow:0 0 0 1px #ffffff2a;overflow:hidden;display:none;will-change:transform}#refBars i b{display:block;height:100%}'; document.head.appendChild(st); WB.box = document.createElement('div'); WB.box.id = 'refBars'; document.body.appendChild(WB.box); for (let i = 0; i < 4; i++) { const e = document.createElement('i'); e.innerHTML = '<b></b>'; WB.box.appendChild(e); WB.el.push(e); } WB.v = new THREE.Vector3(); }
+  const pl = MX.pl, on = MX.on && pl && !pl.dead && !menuOpen && typeof camera !== 'undefined'; let n = 0;
+  if (on) { const cand = []; for (let t = 0; t < 4; t++) for (const p of REF.seg[t]) { if (p.dead || p.hp >= p.maxHp * .98) continue; const d = Math.hypot(p.x - P.pos.x, p.z - P.pos.z); if (d < 30) cand.push([d, p]); } cand.sort((a, b) => a[0] - b[0]);
+    for (let i = 0; i < Math.min(4, cand.length); i++) { const p = cand[i][1], e = WB.el[n++]; WB.v.set(p.x, 1.6, p.z).project(camera); if (WB.v.z > 1) { n--; continue; } const f = Math.max(0, p.hp / p.maxHp);
+      e.style.display = 'block'; e.style.transform = 'translate(' + ((WB.v.x * .5 + .5) * innerWidth - 22).toFixed(0) + 'px,' + ((-WB.v.y * .5 + .5) * innerHeight).toFixed(0) + 'px)'; const b = e.firstChild; b.style.width = (f * 100).toFixed(0) + '%'; b.style.background = f < .3 ? '#ff5a48' : f < .6 ? '#ffb020' : '#6dff9a'; } }
+  for (let i = n; i < 4; i++) WB.el[i].style.display = 'none';
+}
 const rs = MX.restart; if (rs) MX.restart = function () { const r = rs.apply(this, arguments); REF.key = null; REF.built = false; REF.spec = null; for (let t = 0; t < 4; t++) { REF.wave[t].t = -99; REF.wave[t].n = 0; } return r; };
 })();
 </script>
@@ -9320,7 +9330,7 @@ const rs = MX.restart; if (rs) MX.restart = function () { const r = rs.apply(thi
 (function () {
 const M = MX.M, SQ = MX.SQ, ECO = MX.ECO, REF = MX.REF, INT = MX.INT, MATS = ECO.MATS;
 ECO.wallHpLv = [0, 14000, 22400, 35000]; ECO.gateHpLv = [0, 11000, 17600, 27500];
-ECO.rep = { hpps: 450, rebuildT: 12, hitEvery: .5, maxEng: 2, near: 50 };
+ECO.rep = { hpps: 450, rebuildT: 12, hitEvery: .5, maxEng: 3, near: 50 };
 ECO.cost = { reparar: { madera: 1.2, piedra: .5 }, reconstruir: { madera: 18, piedra: 6 } };       // reparar: por cada 1.000 de vida; reconstruir: base (luego se repara)
 ECO.mej = {
   muros: [null, null, { piedra: 70, madera: 30 }, { hierro: 110, piedra: 50 }],                       // coste TOTAL del nivel (se reparte entre los tramos)
@@ -9444,7 +9454,7 @@ function assign() {
 /* decisión de los bots: encolan mejoras cuando les sobra material (la prioridad: muros, portón, enfermería, armería, torre) */
 function botPlan() {
   for (let t = 0; t < 4; t++) { if (REF.destroyed[t] || t === (MX.pl && MX.pl.team && 0)) continue; if (MX.pl && MX.pl.team === t && !MX.REF.autoPlayer) continue;
-    for (const k of ['muros', 'enfermeria', 'porton', 'armeria', 'torre']) { const c = REF.canQueue(t, k); if (!c) continue; const reserve = 80; if (MATS.every(m => ECO.stock[t][m] >= Math.ceil(c.cost[m] || 0) + (c.cost[m] ? reserve : 0))) { REF.enqueue(t, k); break; } } }
+    for (const k of ['muros', 'enfermeria', 'porton', 'armeria', 'torre']) { const c = REF.canQueue(t, k); if (!c) continue; const reserve = 30; if (MATS.every(m => ECO.stock[t][m] >= Math.ceil(c.cost[m] || 0) + (c.cost[m] ? reserve : 0))) { REF.enqueue(t, k); break; } } }
 }
 const sqGoal = SQ.goalFor;
 SQ.goalFor = e => {
@@ -9850,18 +9860,22 @@ const PERF = (() => {
   }
   /* se llama una vez por fotograma desde frame(): now = marca de rAF, u = ms de lógica, p = ms de preparación (luces, recorte por sectores), r = ms de dibujo en CPU */
   function tag(nm) { if (off) return; const t = performance.now(); tags.push([t, nm]); if (tags.length > 40) tags.shift(); }
-  /* RESOLUCIÓN DINÁMICA DE SEGURIDAD (solo si no se llega a 60 fps de forma sostenida): el 90 % de los últimos 90 fotogramas > 18,5 ms durante 2 s baja la resolución un 10 % (mínimo 80 %); con el 90 % < 15,5 ms
-     durante 8 s sube otro 10 %. Un cambio como máximo cada 4 s (cada cambio recrea los búferes). No actúa a 30 Hz (ahorro de energía), con la pestaña oculta ni en los primeros 6 s. ?nodinres la desactiva. */
-  const DR = { on: !/[?&]nodinres\b/.test(location.search) && !navigator.webdriver, /* desactivada en navegadores automatizados: las pruebas comparan imágenes píxel a píxel */ base: 0, cur: 0, buf: new Float32Array(90), i: 0, n: 0, bad: 0, good: 0, t: 0, last: 0 };
+  /* RESOLUCIÓN DINÁMICA DE SEGURIDAD (R4, v4): solo baja si el fotograma TÍPICO es lento de forma sostenida; no por tirones sueltos ni por dos tipos de fotograma alternados. Se decide con el fotograma típico (media del tramo central, «p50») y el
+     p95 de los últimos 120 fotogramas, cada segundo: «mal» = p50 > 17,2 ms y p95 > 22 ms durante 3 s seguidos → baja un 5 % (suelo ×0,9); «bien» = p50 < 15,2 ms y p95 < 19 ms durante 4 s → sube otro 5 %
+     (recuperación rápida). Un cambio como máximo cada 3 s (cada cambio recrea los búferes). Se registra cuánto tiempo pasa por debajo de ×1,0 (DR.below / DR.tot, visible en el panel de rendimiento).
+     No actúa a 30 Hz (ahorro de energía), con la pestaña oculta ni en los primeros 6 s. Desactivada en navegadores automatizados (las pruebas comparan imágenes píxel a píxel); ?nodinres la desactiva. */
+  const DR = { on: !/[?&]nodinres\b/.test(location.search) && !navigator.webdriver, /* desactivada en navegadores automatizados: las pruebas comparan imágenes píxel a píxel */ base: 0, cur: 0, buf: new Float32Array(120), i: 0, n: 0, bad: 0, good: 0, t: 0, last: 0, floor: .9, below: 0, tot: 0, lastT: 0, p50: 0, p95: 0 };
   function dinRes(now, d) {
     if (!DR.on || typeof renderer === 'undefined') return; if (!DR.base) DR.base = DR.cur = renderer.getPixelRatio();
-    DR.buf[DR.i] = d; DR.i = (DR.i + 1) % 90; if (DR.n < 90) DR.n++; if (DR.n < 90 || now - started < 6000 || lowPower) return;
-    if (now - DR.t < 1000) return; DR.t = now; const a = Array.from(DR.buf).sort((x, y) => x - y), p90 = a[Math.floor(89 * .9)];
-    if (p90 > 18.5) { DR.bad++; DR.good = 0; } else if (p90 < 15.5) { DR.good++; DR.bad = 0; } else { DR.bad = 0; DR.good = 0; }
-    if (now - DR.last < 4000) return;
-    if (DR.bad >= 2 && DR.cur > DR.base * .8 + 1e-3) { DR.cur = Math.max(DR.base * .8, DR.cur - DR.base * .1); renderer.setPixelRatio(DR.cur); DR.last = now; DR.bad = 0; DR.n = 0; }
-    else if (DR.good >= 8 && DR.cur < DR.base - 1e-3) { DR.cur = Math.min(DR.base, DR.cur + DR.base * .1); renderer.setPixelRatio(DR.cur); DR.last = now; DR.good = 0; DR.n = 0; }
+    { const dt = now - DR.lastT; if (DR.lastT && dt > 0 && dt < 1000) { DR.tot += dt; if (DR.cur < DR.base - 1e-3) DR.below += dt; } DR.lastT = now; }
+    DR.buf[DR.i] = d; DR.i = (DR.i + 1) % 120; if (DR.n < 120) DR.n++; if (DR.n < 120 || now - started < 6000 || lowPower) return;
+    if (now - DR.t < 1000) return; DR.t = now; const a = Array.from(DR.buf).sort((x, y) => x - y); let m = 0; for (let k = 30; k < 90; k++) m += a[k]; const p50 = m / 60, p95 = a[113]; DR.p50 = p50; DR.p95 = p95;     // p50 = media del tramo central (cuartiles 25–75): el fotograma TÍPICO, sin que dos tipos de fotograma alternados lo falseen
+    if (p50 > 17.2 && p95 > 22) { DR.bad++; DR.good = 0; } else if (p50 < 15.2 && p95 < 19) { DR.good++; DR.bad = 0; } else { DR.bad = 0; DR.good = 0; }
+    if (now - DR.last < 3000) return;
+    if (DR.bad >= 3 && DR.cur > DR.base * DR.floor + 1e-3) { DR.cur = Math.max(DR.base * DR.floor, DR.cur - DR.base * .05); renderer.setPixelRatio(DR.cur); DR.last = now; DR.bad = 0; DR.n = 0; }
+    else if (DR.good >= 4 && DR.cur < DR.base - 1e-3) { DR.cur = Math.min(DR.base, DR.cur + DR.base * .05); renderer.setPixelRatio(DR.cur); DR.last = now; DR.good = 0; DR.n = 0; }
   }
+  MX.DR = DR; MX.dinRes = dinRes;
   function frame(now, u, p, r) {
     if (off) return;
     if (document.hidden) { hidden = true; last = 0; return; }
@@ -9893,7 +9907,7 @@ const PERF = (() => {
   function texto(compacto) {
     const s = resumen(), f = x => x.toFixed(1);
     let t = 'p50 ' + f(s.p50) + ' · p95 ' + f(s.p95) + ' · p99 ' + f(s.p99) + ' · máx ' + f(s.max) + ' ms · >20 ms ' + f(s.pctOver20) + ' % · >33 ms ' + f(s.pctOver33) + ' %' + (s.lowPower ? ' · ¡mediana > 28 ms: pantalla a 30 Hz (modo ahorro de iOS) o equipo lento!' : '');
-    if (DR.base && DR.cur < DR.base - 1e-3) t += ' · res ×' + (DR.cur / DR.base).toFixed(1);
+    if (DR.base && DR.cur < DR.base - 1e-3) t += ' · res ×' + (DR.cur / DR.base).toFixed(2) + (DR.tot ? ' (' + Math.round(100 * DR.below / DR.tot) + ' % del tiempo)' : '');
     if (compacto) return t;
     t += '\nlógica p95 ' + f(s.u95) + ' · prep. p95 ' + f(s.p95p) + ' · dibujo CPU p95 ' + f(s.r95) + ' ms';
     const ks = Object.keys(part).sort((a, b) => part[b].s - part[a].s).slice(0, 8);
