@@ -433,3 +433,10 @@ El estilo D (mezcla de C «noche fría» y A «gris militar») se aplica por def
 - El ruido del suelo ya no se calcula en cada píxel (~25 evaluaciones de ruido por píxel en el asfalto): se hornea una vez al cargar en 5 texturas periódicas con mipmaps (≈ 4,5 MB) y el shader del suelo sólo hace 3 lecturas. Mismo aspecto (se comparó con el cálculo anterior en carretera, bosque y plaza). Los mipmaps filtran el detalle fino con la distancia: se acaba el parpadeo del empedrado y las juntas (diferencia entre fotogramas con la cámara moviéndose: −28 %). Los adoquines se hornean como 10 × 20 con tono propio cada uno.
 - Los infectados llevan un tinte verdoso enfermizo (se multiplica sobre sus colores, que conservan su variedad) para destacar sobre el suelo gris.
 - `?novig` quita la viñeta (para comparar FPS).
+
+## Bots: nadie se queda clavado como una torreta
+Reproducido: un bot de campaña con una cobertura baja pegada y el enemigo a la vista se quedaba agachado con velocidad 0 todo el tiempo que lo veía (20 s medidos, a 2 m del jugador). Arreglos en `src/partida.js`:
+- Reposicionamiento por tiempo: tras 1,5 s (a < 5 m), 2,5 s (a < 7 m) o 3–5 s (más lejos) quieto tras la cobertura, sale de lado rodeando y ajustando la distancia, y se cubre en otro sitio. Francotiradores (F2) y heridos de gravedad (< 40) se quedan.
+- Sin línea de tiro y sin ruta (el enemigo está tras una cobertura): rodea de lado buscando un ángulo en vez de quedarse parado.
+- Estado «cubrirse»: con el enemigo a la vista a < 7 m y salud > 50 sale a pelear a los 3 s (antes aguantaba 9–12 s escondido).
+Medido (bots sanos a 2 m de un jugador agachado tras una cobertura): racha media sin moverse 2,5 s → 1,0–1,8 s; bots con > 6 s quietos 2 de 12 → 1 de 16. `tests/bots_cuerpo_a_cuerpo.py`.

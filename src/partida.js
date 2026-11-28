@@ -726,6 +726,7 @@ function think(e) {
   const lowHp = e.hp < 36;
   if (e.st === 'cover') {
     if (((e.hp > 72 && M.t - e.coverStart > 2) || M.t - e.coverStart > 9) && e.reloadT < 0 && e.ammo > e.w.max * .25 && !((e.foesNear || 0) >= 2 && M.t - e.coverStart < 12)) { e.st = e.vis ? 'fight' : 'push'; e.path = null; e.goal = null; }   // no sale de la cobertura hasta tener el cargador listo
+    else if (e.vis && e.dT < 7 && e.hp > 50 && M.t - e.coverStart > 3 && e.reloadT < 0 && e.ammo > e.w.max * .25) { e.st = 'fight'; e.path = null; e.goal = null; }   // con el enemigo encima no se esconde 9–12 s: sale a pelear (y reposiciona)
   } else if ((lowHp || (MX.campaign && (e.foesNear || 0) >= 3 && e.hp < 65)) && (e.vis || M.t - e.lastHurt < 3)) {
     const th = e.vis ? e.tgt.p : (e.hitSrc || null);
     if (th) { const cp = coverPoint(e, th.x, th.z) || retreatPoint(e, th.x, th.z); if (cp) { e.st = 'cover'; e.coverStart = M.t; e.coverPt = cp; setGoal(e, cp.x, cp.z); } }
@@ -850,11 +851,26 @@ function moveBot(e, dt) {
     else if (!e.canShoot || d > e.ideal * 1.35 || d > e.maxEng * .9) {
       if (!e.goal || M.t - e.pathT > .7 || Math.sqrt((e.goal.x - t.p.x) * (e.goal.x - t.p.x) + (e.goal.z - t.p.z) * (e.goal.z - t.p.z)) > 3) setGoal(e, t.p.x, t.p.z);
       const r = steerPath(e); if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = tac ? (e.canShoot ? 2.6 : 3.4) : e.canShoot ? 3.6 : 5.4; }
+      else if (!e.canShoot && d < e.ideal * 1.35) {                                      // sin línea de tiro y sin ruta (el enemigo está tras una cobertura): no se queda clavado, rodea de lado buscando un ángulo
+        e.strafeT -= dt; if (e.strafeT <= 0) { e.strafeT = rr(1.2, 2.4); e.strafeDir = rnd() < .5 ? -1 : 1; }
+        let lx = uz * e.strafeDir, lz = -ux * e.strafeDir; if (!navAt(e.p.x + lx, e.p.z + lz)) { e.strafeDir *= -1; lx = -lx; lz = -lz; }
+        dx = lx; dz = lz; spd = tac ? 2.6 : 3.4; crT = 0;
+      }
     } else if (e.keepAway && d < e.ideal * .5) { dx = -ux; dz = -uz; spd = 3.6; }
     else {
       e.strafeT -= dt; if (e.strafeT <= 0) { e.strafeT = rr(.8, 2.2); e.strafeDir = rnd() < .5 ? -1 : 1; }
       let lx = uz * e.strafeDir, lz = -ux * e.strafeDir; if (!navAt(e.p.x + lx, e.p.z + lz)) { e.strafeDir *= -1; lx = -lx; lz = -lz; }
-      dx = lx; dz = lz; spd = e.cover && (e.hp < 80 || tac) ? 0 : tac ? 1.8 : 3; if (e.cover && (e.hp < 80 || e.w.sid === 'F2' || tac)) crT = 1; if (tac && e.supp > .3) crT = 1;
+      dx = lx; dz = lz; const stay = e.cover && (e.hp < 80 || tac); spd = stay ? 0 : tac ? 1.8 : 3; if (e.cover && (e.hp < 80 || e.w.sid === 'F2' || tac)) crT = 1; if (tac && e.supp > .3) crT = 1;
+      /* NADIE SE QUEDA CLAVADO COMO UNA TORRETA: tras unos segundos quieto tras una cobertura con el enemigo a la vista, REPOSICIONA (sale de lado, rodeando, y vuelve a cubrirse en otro sitio); en cuerpo a cuerpo (< 5 m) el
+         plazo es de ~1,5 s (a 2 m un bot parado, agachado, disparando era un blanco fácil y una estatua). Los francotiradores (F2) y los heridos de gravedad (< 40) se quedan: su papel es aguantar. */
+      if (stay && e.w.sid !== 'F2' && e.hp >= 40) {
+        e.coverT = (e.coverT || 0) + dt; const close = d < 7; if (!e.peekAt) e.peekAt = rr(3, 5);
+        if (!(e.reposT > M.t) && e.coverT > (d < 5 ? 1.5 : close ? 2.5 : e.peekAt)) { e.reposT = M.t + (close ? rr(1.4, 2.4) : rr(1.8, 3)); e.coverT = 0; e.peekAt = rr(3, 5); e.strafeDir = rnd() < .5 ? -1 : 1; }
+      } else if (!stay) e.coverT = 0;
+      if (e.reposT > M.t) {                                                              // reposicionando: de pie, lateral y ajustando la distancia (acerca si está lejos del ideal, aleja si está encima)
+        const adj = d > e.ideal * 1.0 ? .45 : d < e.ideal * .35 ? -.6 : 0, ax2 = lx + ux * adj, az2 = lz + uz * adj, ll = Math.sqrt(ax2 * ax2 + az2 * az2) || 1; dx = ax2 / ll; dz = az2 / ll;
+        if (navAt(e.p.x + dx * 1.2, e.p.z + dz * 1.2)) { spd = tac ? 3.4 : 4; crT = 0; } else { e.strafeDir *= -1; e.reposT = 0; }
+      }
     }
   } else if (e.st === 'search') {
     const r = steerPath(e); if (r === 'ok') { dx = e.sdx; dz = e.sdz; spd = 5.2; } else if (r === 'arrived' || r === 'none') { e.st = 'push'; e.goal = null; }
