@@ -350,7 +350,10 @@ SQ.goalFor = e => {                                                             
     if (dp) { const i = (e === L ? 0 : slotOf(s, e) + 1) % dp.length, q = dp[i]; return { x: q[0], z: q[1], speed: dist(e.p, { x: q[0], z: q[1] }) > 10 ? 5 : 3.2, hold: true, face: q[2], crouch: false }; }
   }
   if (s.contact && s.contact.foe && s.contact.foe.dead) s.contact = null;
-  if (s.contact && M.t - s.contact.t < 10 && e.st !== 'fight') {                       // contacto: posición de apoyo cerca de quien lo ve, mirando a la amenaza
+  /* Escuadra del jugador en «Seguirme» o «Reagrupar»: un avistamiento NO la detiene (antes cualquier contacto, p. ej. un infectado a 40 m, mandaba a todos a posiciones de apoyo durante 10 s aunque el jugador
+     siguiera corriendo, y con avistamientos seguidos se quedaban atrás sin parar). Sólo se pliegan al contacto si está cerca del jugador (< 25 m) y el jugador está parado; los que ya combaten siguen combatiendo. */
+  const plSq = s.playerLead && L && L.isPlayer, ordF = plSq ? (s.order || { type: 'follow' }).type : '', ignoraContacto = plSq && (ordF === 'follow' || ordF === 'regroup') && s.contact && (ordF === 'regroup' || dist(P.pos, s.contact) > 25 || Math.hypot(P.vel.x, P.vel.z) > 1.5);
+  if (s.contact && M.t - s.contact.t < 10 && e.st !== 'fight' && !ignoraContacto) {     // contacto: posición de apoyo cerca de quien lo ve, mirando a la amenaza
     const c = s.contact, anchor = c.by && alive(c.by) && c.by !== e ? c.by.p : e.p, face = Math.atan2(c.x - anchor.x, c.z - anchor.z);
     const side = (slotOf(s, e) % 2 ? 1 : -1) * (3 + (slotOf(s, e) % 3) * 2), px = anchor.x + Math.cos(face) * side - Math.sin(face) * 2.5, pz = anchor.z - Math.sin(face) * side - Math.cos(face) * 2.5;
     const key = Math.round(px / 2) + ',' + Math.round(pz / 2); let q;

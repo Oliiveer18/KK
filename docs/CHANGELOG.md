@@ -440,3 +440,8 @@ Reproducido: un bot de campaña con una cobertura baja pegada y el enemigo a la 
 - Sin línea de tiro y sin ruta (el enemigo está tras una cobertura): rodea de lado buscando un ángulo en vez de quedarse parado.
 - Estado «cubrirse»: con el enemigo a la vista a < 7 m y salud > 50 sale a pelear a los 3 s (antes aguantaba 9–12 s escondido).
 Medido (bots sanos a 2 m de un jugador agachado tras una cobertura): racha media sin moverse 2,5 s → 1,0–1,8 s; bots con > 6 s quietos 2 de 12 → 1 de 16. `tests/bots_cuerpo_a_cuerpo.py`.
+
+## Revisión tras la prueba en el iPhone
+- **Mapa con la mochila al lado (Share) en móvil apaisado:** el diseño apaisado nuevo del mapa dejaba el lienzo detrás del panel de la mochila. Ahora, con la mochila al lado, el mapa ocupa todo el hueco de la izquierda (cabecera y leyenda ocultas). Los puestos de curación del minimapa son discretos (sólo los activos destacan; los inactivos de > 1 camilla, pequeños y tenues). Test en `tests/mapa_marcas.py` (844×390 con mochila).
+- **«Seguirme»:** un avistamiento de un compañero (p. ej. un infectado a 40 m) mandaba a toda la escuadra a posiciones de apoyo durante 10 s aunque el jugador siguiera corriendo; con avistamientos seguidos se quedaban atrás hasta 235 m. Ahora, en «Seguirme» y «Reagrupar», el contacto sólo los detiene si está a < 25 m del jugador y éste está parado. Medido: máx. 235 m → 18 m; > 14 m el 96–99 % del tiempo → 0–3 %. `tests/escuadra_seguir.py`.
+- **Escopetas:** E2 (semiautomática) de 0,34 a 0,6 s entre disparos (9 de daño por perdigón), E1 (corredera) de 0,85 a 1,0 s (12 por perdigón). La pegada por disparo sube y el ritmo baja ~25 %.

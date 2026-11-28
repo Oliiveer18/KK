@@ -422,7 +422,7 @@ const WP = [
     rear: [0, -.12, -.04], fore: [0, -.08, .4], well: [0, -.14, .18], charge: [.05, .06, 0], magSize: [.06, .2, .09], rs: 1 },
   { name: 'PISTOLA', sid: 'P1', cs: 'C_9mm', mg: 'MAG_pistol', kind: 'pistol', max: 12, cd: .2, auto: false, pellets: 1, spr: .012, dmg: 25, kick: 1.5, shake: .06, muz: .34, tr: .5, ta: .35, rec: 1, push: .3, hap: [55, .55, .85],
     rear: [0, -.1, -.02], fore: [.02, -.12, 0], well: [0, -.14, -.02], charge: [0, .05, -.04], magSize: [.045, .13, .06], rs: 1.3 },
-  { name: 'ESCOPETA', sid: 'E1', cs: 'C_12ga', kind: 'shot', max: 6, cd: .85, auto: false, pellets: 8, spr: .16, dmg: 11, kick: 3, shake: .2, muz: .88, tr: .8, ta: .6, rec: 2, push: 1.3, hap: [130, 1, .7],
+  { name: 'ESCOPETA', sid: 'E1', cs: 'C_12ga', kind: 'shot', max: 6, cd: 1.0, auto: false, pellets: 8, spr: .16, dmg: 12, kick: 3, shake: .2, muz: .88, tr: .8, ta: .6, rec: 2, push: 1.3, hap: [130, 1, .7],
     rear: [0, -.1, -.04], fore: [0, -.07, .42], well: [0, -.1, .14], charge: [0, .04, .3], magSize: [.05, .05, .16], rs: 1, pump: true },
   /* ---- armas nuevas (valores PROVISIONALES de equilibrio; los sonidos son los definitivos) ---- */
   { name: 'REVÓLVER', sid: 'P2', look: 'revolver', kind: 'pistol', max: 6, cd: .5, auto: false, pellets: 1, spr: .008, dmg: 50, kick: 2.6, shake: .14, muz: .32, tr: .5, ta: .35, rec: 1.8, push: .7, hap: [90, .85, .8],
@@ -433,7 +433,7 @@ const WP = [
     rear: [0, -.1, -.03], fore: [0, -.08, .3], well: [0, -.14, .08], charge: [.05, .05, 0], magSize: [.045, .22, .07], rs: 1.05 },
   { name: 'PRECISIÓN', sid: 'F2', look: 'sniper', cs: 'C_762', mg: 'MAG_battle', kind: 'rifle', max: 10, cd: .7, auto: false, pellets: 1, spr: .004, dmg: 90, kick: 3.2, shake: .2, muz: 1.12, tr: .5, ta: .35, rec: 1.5, push: .6, hap: [110, 1, .6],
     rear: [0, -.12, -.06], fore: [0, -.08, .5], well: [0, -.14, .12], charge: [.05, .06, 0], magSize: [.055, .16, .08], rs: .8 },
-  { name: 'ESCOPETA SEMI', sid: 'E2', look: 'shot2', cs: 'C_12ga', kind: 'shot', max: 8, cd: .34, auto: false, pellets: 8, spr: .18, dmg: 7, kick: 2.4, shake: .17, muz: .9, tr: .6, ta: .45, rec: 1.5, push: 1, hap: [110, .9, .6],
+  { name: 'ESCOPETA SEMI', sid: 'E2', look: 'shot2', cs: 'C_12ga', kind: 'shot', max: 8, cd: .6, auto: false, pellets: 8, spr: .18, dmg: 9, kick: 2.4, shake: .17, muz: .9, tr: .6, ta: .45, rec: 1.5, push: 1, hap: [110, .9, .6],
     rear: [0, -.1, -.04], fore: [0, -.07, .4], well: [0, -.1, .14], charge: [0, .06, .1], magSize: [.05, .05, .16], rs: .95, act: true },
   { name: 'AMETRALLADORA', sid: 'H1', look: 'lmg', cs: 'C_556', mg: 'MAG_box', links: 'C_links', kind: 'rifle', max: 100, cd: .08, auto: true, pellets: 1, spr: .05, dmg: 15, kick: .9, shake: .09, muz: 1, tr: .18, ta: .15, rec: .45, push: 0, hap: [30, .15, .6],
     rear: [0, -.12, -.06], fore: [0, -.08, .5], well: [0, -.14, .12], charge: [.05, .08, 0], magSize: [.14, .14, .12], rs: .65 },
@@ -7735,7 +7735,10 @@ SQ.goalFor = e => {                                                             
     if (dp) { const i = (e === L ? 0 : slotOf(s, e) + 1) % dp.length, q = dp[i]; return { x: q[0], z: q[1], speed: dist(e.p, { x: q[0], z: q[1] }) > 10 ? 5 : 3.2, hold: true, face: q[2], crouch: false }; }
   }
   if (s.contact && s.contact.foe && s.contact.foe.dead) s.contact = null;
-  if (s.contact && M.t - s.contact.t < 10 && e.st !== 'fight') {                       // contacto: posición de apoyo cerca de quien lo ve, mirando a la amenaza
+  /* Escuadra del jugador en «Seguirme» o «Reagrupar»: un avistamiento NO la detiene (antes cualquier contacto, p. ej. un infectado a 40 m, mandaba a todos a posiciones de apoyo durante 10 s aunque el jugador
+     siguiera corriendo, y con avistamientos seguidos se quedaban atrás sin parar). Sólo se pliegan al contacto si está cerca del jugador (< 25 m) y el jugador está parado; los que ya combaten siguen combatiendo. */
+  const plSq = s.playerLead && L && L.isPlayer, ordF = plSq ? (s.order || { type: 'follow' }).type : '', ignoraContacto = plSq && (ordF === 'follow' || ordF === 'regroup') && s.contact && (ordF === 'regroup' || dist(P.pos, s.contact) > 25 || Math.hypot(P.vel.x, P.vel.z) > 1.5);
+  if (s.contact && M.t - s.contact.t < 10 && e.st !== 'fight' && !ignoraContacto) {     // contacto: posición de apoyo cerca de quien lo ve, mirando a la amenaza
     const c = s.contact, anchor = c.by && alive(c.by) && c.by !== e ? c.by.p : e.p, face = Math.atan2(c.x - anchor.x, c.z - anchor.z);
     const side = (slotOf(s, e) % 2 ? 1 : -1) * (3 + (slotOf(s, e) % 3) * 2), px = anchor.x + Math.cos(face) * side - Math.sin(face) * 2.5, pz = anchor.z - Math.sin(face) * side - Math.cos(face) * 2.5;
     const key = Math.round(px / 2) + ',' + Math.round(pz / 2); let q;
