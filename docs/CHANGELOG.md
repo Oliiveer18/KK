@@ -428,3 +428,8 @@ Tres estilos intercambiables, activables con `?look=a|b|c` (sin parámetro el ju
 
 ## Estilo D, por defecto en el juego
 El estilo D (mezcla de C «noche fría» y A «gris militar») se aplica por defecto en los navegadores reales; `?look=off` deja el aspecto original, `?look=a|b|c` los otros estilos. Las pruebas automatizadas (navigator.webdriver) no lo aplican salvo con `?look=x`, para que sus comparaciones de imagen no cambien. Se aplica en la carga justo antes de precompilar los shaders (más una malla de prueba por tipo de suelo), de modo que no hay compilaciones durante la partida: 102 programas (presupuesto ≤ 110), 0 nuevos jugando. `tests/presupuesto.py` ahora prueba la carga progresiva con el estilo D.
+
+## Estilo D: detalle de suelo horneado, empedrado estable y zombis visibles
+- El ruido del suelo ya no se calcula en cada píxel (~25 evaluaciones de ruido por píxel en el asfalto): se hornea una vez al cargar en 5 texturas periódicas con mipmaps (≈ 4,5 MB) y el shader del suelo sólo hace 3 lecturas. Mismo aspecto (se comparó con el cálculo anterior en carretera, bosque y plaza). Los mipmaps filtran el detalle fino con la distancia: se acaba el parpadeo del empedrado y las juntas (diferencia entre fotogramas con la cámara moviéndose: −28 %). Los adoquines se hornean como 10 × 20 con tono propio cada uno.
+- Los infectados llevan un tinte verdoso enfermizo (se multiplica sobre sus colores, que conservan su variedad) para destacar sobre el suelo gris.
+- `?novig` quita la viñeta (para comparar FPS).
