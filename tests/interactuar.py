@@ -15,7 +15,7 @@ with sync_playwright() as p:
       window.done=0; window.item={x:-340,z:-328.5,label:'Prueba',time:2,tool:'palanca',key:'t1',done:()=>{window.done++}};
       MX.INT.reg('test',(pl,out)=>{ if(window.item) out.push(window.item) }); MX.INT.scanners.splice(0,MX.INT.scanners.length,MX.INT.scanners.find(s=>s.id==='test'));
       window.run=(s,held)=>{ for(let i=0;i<60*s;i++){ MX.rev=held; time+=1/60; update(1/60); } }; }''')
-    ev('()=>{MX.pl.yaw=0;P.aim=0}')
+    ev('()=>{MX.pl.yaw=0;P.aim=0}'); ev('()=>run(1.5,false)')   # calentamiento: los primeros fotogramas de una partida recién empezada no cuentan
     ev('()=>run(.5,true)'); r = ev('()=>({p:MX.INT.state.prog,tool:MX.INT.state.tool,busy:MX.INT.state.busy,d:window.done})')
     chk(.15 < r['p'] < .4 and r['busy'] and r['tool'] == 'palanca' and r['d'] == 0, 'a 0,5 s el progreso ronda 25 %% con la palanca (%s)' % r)
     box = ev('()=>{const e=document.getElementById("intRing");const r=e.getBoundingClientRect();return {d:getComputedStyle(e).display,l:r.left,t:r.top,r:r.right,b:r.bottom}}')
