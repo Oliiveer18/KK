@@ -1,6 +1,6 @@
 # Plan de implementación v4 — Economía, refugios destruibles y facciones competitivas
 
-Estado: **plan cerrado con el usuario, sin implementar** (27-11-2026). Se empieza cuando lo diga el usuario. Cada fase se prueba con tests y con la partida simulada, y se sube a `main` al terminarla.
+Estado: **plan cerrado con el usuario, sin implementar** (27-11-2026; bloque R añadido con la captura del iPhone del mismo día). Se empieza cuando lo diga el usuario. Cada fase se prueba con tests y con la partida simulada, y se sube a `main` al terminarla.
 
 ## 0. Principios (no negociables)
 - **Calidad visual:** nunca se baja. Todo lo nuevo es adición (el estilo D y el detalle de suelo se mantienen).
@@ -50,6 +50,41 @@ Estado: **plan cerrado con el usuario, sin implementar** (27-11-2026). Se empiez
 - **Orden de archivos:** `escuadras.js` (misiones/objetivos/HUD de facciones), `partida.js` (bots, daño, reaparición), `clases.js` (médicos, puestos, ingenieros), `zombis.js` (horda y muros), `objetos.js` (props, piezas, desguace), `inventario.js` (herramientas, mochila, depósito), `mapa_distrito.js`/`composiciones.js` (refugio, almacén, depósito), nuevo `economia.js` (tabla y stock) y `refugios.js` (muros, integridad, daño). Cada módulo nuevo se registra en `tools/build.py`.
 
 ## 3. Fases
+
+### Bloque R — Rendimiento en el iPhone (captura del 27-11, antes de las fases de juego)
+**Lo que dice la captura (partida larga, 456 llamadas, 157 k triángulos, 1012×468 con `res ×0,8`):**
+
+| | captura 1 (antes del estilo D) | captura con estilo D sin hornear | **esta captura** |
+|---|---|---|---|
+| p50 / p95 / p99 | 18 / 23 / 24 ms | 19 / 24 / 28 ms | **18,0 / 23,0 / 24,0 ms** |
+| fotogramas > 20 ms | 7,0 % | 23,3 % | **1,6 %** |
+| fotogramas > 33 ms | 0,1 % | 0,5 % | **0,1 %** |
+| máximo | 27 ms | 74 ms | **28 ms** |
+| llamadas | 540 | 692 | **456** |
+| resolución | ×0,8 | ×0,8 | **×0,8** |
+
+- El suelo horneado y el recorte de sombras **resolvieron la regresión** del estilo D (de 23,3 % a 1,6 % de fotogramas largos).
+- **CPU por fotograma ≈ 12 ms** (lógica 7,1 + dibujo 4,9): sobra margen. El límite es la **GPU** (≥ 18 ms): por eso la resolución dinámica sigue en ×0,8. **Objetivo del bloque: mantener ×1,0 con p50 ≤ 16,7 ms** (sin bajar calidad).
+- p50 18 frente a p95 23 sugiere dos tipos de fotograma (con y sin pasada de sombra): hipótesis a confirmar, no un hecho.
+- **Tirones** (6 en ~100 s: 35, 35, 71, 66, 35 y 83 ms): **todos con `explode`**; 3 con `destroyProp`; 2 de los 3 mayores (66 y 83 ms) coinciden con **`sectores`** (carga o descarga de sectores). El panel los clasifica como "GPU / basura / navegador": la lógica no es la causa.
+- Partes del coste de lógica (media/máx por llamada): MX.update 2,89/11,0 ms, updateProps 0,67, zombis 0,60, updateBullets 0,58, escuadras 0,18, updateDebris 0,08. Suman ~5 de los 7,1 ms: hay ~2 ms de lógica sin desglosar.
+- Comprobado en el código: la interfaz siempre visible **no** usa `backdrop-filter` (solo el mapa y el menú, que se muestran en pausa); el lienzo usa MSAA (`antialias: true`) con densidad de píxel tope 1,5.
+
+**R0 — Medir donde hoy no se puede (primero).**
+- Banco de GPU `?bench` en el panel: repite el dibujo N veces por fotograma (para superar el límite de 60 Hz) y mide, con la escena detenida, el coste de cada configuración: base, sin sombras, sombra básica, sin viñeta, sin etiquetas de escuadra, sin humo/bocanadas, sin detalle de suelo, densidad de píxel 1,0 frente a 1,5. Una sola captura da el reparto real de la GPU.
+- Telemetría de tirones ampliada: separar `sectores` en carga/descarga con milisegundos y nº de lotes, contar subidas de búferes instanciados por fotograma, y variaciones de geometrías, texturas y programas.
+- Desglose de los ~2 ms de lógica sin atribuir (HUD, sonido, cámara, granadas).
+
+**R1 — Sectores sin tirones.** Reutilizar los búferes y matrices de los lotes (hoy cada carga crea `InstancedMesh` y arrays nuevos: basura y reservas de GPU), subir por rangos, cargar por lotes con presupuesto de tiempo por fotograma, anticipar con mayor radio y no cargar justo cuando hay una explosión. Test: tirones al correr por el mapa (`streaming_sectores` + máximo por fotograma).
+
+**R2 — Explosiones y objetos rotos sin tirones.** Preparar al cargar todo lo que hoy se crea al vuelo (material y textura de la quemadura, trozos, humo), reutilizar una sola malla instanciada de marcas de quemado en vez de una malla y un material nuevos por barril, repartir el lanzamiento de piezas entre fotogramas y limitar los despertados por explosión por fotograma. Test: ráfaga de explosiones con el máximo por fotograma de lógica ≤ 16 ms.
+
+**R3 — Presupuesto de GPU a ×1,0 (según lo que diga R0).** Candidatos por orden de riesgo visual: (a) pasada de sombra (distribución de la caja, coste del filtrado `PCFSoft`; permitido por ti profesionalizarla si hace falta, comprobando con comparación de imágenes); (b) MSAA frente a suavizado barato con la misma calidad percibida; (c) normales de cara precalculadas en vez de derivadas por píxel (idéntico); (d) solapes de transparencias (humo, bocanadas, anillos); (e) capas de la interfaz (viñeta, etiquetas con `will-change`). Cada cambio con comparación de imágenes antes/después y medida con el banco.
+
+**R4 — Política de resolución dinámica.** Que no baje por dos tipos de fotograma ni por tirones puntuales: decidir con p50 y p95, suelo en ×0,9, recuperación rápida y registro de cuánto tiempo pasa por debajo de ×1,0. Objetivo: ≥ 95 % del tiempo a ×1,0.
+
+**Aceptación del bloque (medido en el iPhone):** p50 ≤ 16,7 ms a ×1,0; fotogramas > 20 ms ≤ 1 %; a lo sumo 1 tirón > 33 ms cada 2 min; sin cambios visibles (comparación de imágenes). En mi entorno solo se pueden comprobar la lógica y las comparaciones de imagen; el resto exige tu captura con `?bench`.
+
 
 ### F0 — Infraestructura de medición
 - Convertir `match.py` en `tests/partida_simulada.py` con jugador que recorre el mapa, KPIs y umbrales (informativo, no bloqueante).
@@ -150,7 +185,7 @@ Estado: **plan cerrado con el usuario, sin implementar** (27-11-2026). Se empiez
 - Informe final con lo probado y lo no probado (iPhone).
 
 ## 4. Dependencias y orden
-F0 → F1 → F2 → F3 → F4 → F5 → F6 → F7 → F8 → F9 → F10 → F11 → F12 → F13.
+**R0 → R1 → R2 → R3 → R4** (rendimiento; R0 y R1–R2 se pueden hacer ya), después F0 → F1 → F2 → F3 → F4 → F5 → F6 → F7 → F8 → F9 → F10 → F11 → F12 → F13.
 Dependen especialmente: F6 y F7 de F4 y F5; F9 de F5 y F8; F10 de F8 y F9; F11 de F8 y F10; F13 de todo. F1–F3 se pueden entregar ya y son independientes del resto.
 
 ## 5. Riesgos y mitigación
@@ -165,7 +200,7 @@ Dependen especialmente: F6 y F7 de F4 y F5; F9 de F5 y F8; F10 de F8 y F9; F11 d
 `partida_simulada`, `pedir_medico`, `mapa_bolsas`, `escuadra_reaparece`, `puntuacion`, `interactuar`, `deposito`, `almacen`, `desguace`, `tala`, `goteo`, `refugio_dano`, `refugio_destruccion`, `refugio_hud`, `ingenieros`, `mejoras`, `defensa_refugio`, `ofensiva`, `zombis_refugio`; ampliar `puestos_curacion`, `hud_iphone`, `presupuesto`.
 
 ## 7. Medidas que solo pueden hacerse en el iPhone
-FPS con desguaces, árboles talados y refugios con muros; coste de las barras y del HUD en vivo; legibilidad del aro de progreso y de los porcentajes de refugio.
+FPS con desguaces, árboles talados y refugios con muros; reparto real de la GPU (`?bench`); tirones de explosiones y sectores; coste de las barras y del HUD en vivo; legibilidad del aro de progreso y de los porcentajes de refugio.
 
 ## 8. KPIs de aceptación de la partida simulada
 - 0 errores JS; ningún NaN ni bot fuera del mapa; bots atrapados ≤ 3 por partida.
@@ -174,3 +209,4 @@ FPS con desguaces, árboles talados y refugios con muros; coste de las barras y 
 - Economía equilibrada: ingreso ≈ gasto ± 20 %; reciclaje y goteo aportan lo previsto.
 - ≥ 15 curaciones en puesto por partida; infectados ≥ 50 % del inicio a los 14 min.
 - Lógica p50 ≤ 5 ms y p99 ≤ 11 ms en la simulación.
+- En el iPhone: p50 ≤ 16,7 ms a ×1,0, fotogramas > 20 ms ≤ 1 %, tirones > 33 ms ≤ 1 cada 2 min (bloque R).
