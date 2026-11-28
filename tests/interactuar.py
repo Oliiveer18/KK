@@ -13,7 +13,7 @@ with sync_playwright() as p:
     ev('''()=>{menuOpen=true;MX.zom.noRestock=true;for(const z of MX.zom.list){z.dead=true;z.st='dead';z.deadT=99};MX.pl.inv=1e9;
       for(const e of MX.ents){ if(e!==MX.pl){ e.p.set(-600,0,-600); e.inv=1e9; } } MX.pl.p.set(-340,0,-330); P.pos.set(-340,0,-330);
       window.done=0; window.item={x:-340,z:-328.5,label:'Prueba',time:2,tool:'palanca',key:'t1',done:()=>{window.done++}};
-      MX.INT.reg('test',(pl,out)=>{ if(window.item) out.push(window.item) });
+      MX.INT.reg('test',(pl,out)=>{ if(window.item) out.push(window.item) }); MX.INT.scanners.splice(0,MX.INT.scanners.length,MX.INT.scanners.find(s=>s.id==='test'));
       window.run=(s,held)=>{ for(let i=0;i<60*s;i++){ MX.rev=held; time+=1/60; update(1/60); } }; }''')
     ev('()=>{MX.pl.yaw=0;P.aim=0}')
     ev('()=>run(.5,true)'); r = ev('()=>({p:MX.INT.state.prog,tool:MX.INT.state.tool,busy:MX.INT.state.busy,d:window.done})')

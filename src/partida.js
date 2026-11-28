@@ -493,7 +493,7 @@ function poseBot(e, dt) {
   R.head.position.copy(_sh).addScaledVector(_yA, .27); R.visor.position.copy(R.head.position).addScaledVector(_fa, .1); R.visor.rotation.y = a;
   const w = e.w, env = e.reloadT < 0 ? 0 : e.reloadT < .25 ? smooth(e.reloadT / .25) : e.reloadT < 1.3 ? 1 : 1 - smooth((e.reloadT - 1.3) / .25);
   e.gun.position.copy(_sh).addScaledVector(_fa, .44 - e.kick * .05 - e.run * .08).addScaledVector(_sa, -.13 + env * .04); e.gun.position.y -= .14 + e.run * .1;
-  e.gun.rotation.set(-e.kick * .12 - env * .55 + e.run * .45, a, env * .5); e.gun.updateMatrixWorld(true);
+  e.gun.rotation.set(-e.kick * .12 - env * .55 + e.run * .45, a, env * .5); if (e.work || e.toolG) MX.toolBot(e); e.gun.updateMatrixWorld(true);
   e.gun.localToWorld(_r1.set(w.rear[0], w.rear[1], w.rear[2])); e.gun.localToWorld(_r2.set(w.fore[0], w.fore[1], w.fore[2])); e.gun.localToWorld(_r3.set(w.well[0], w.well[1], w.well[2])); _r2.lerp(_r3, env);
   for (let i = 0; i < 2; i++) {
     const sg = i === 0 ? 1 : -1; _shd[i].copy(_sh).addScaledVector(_sa, .22 * sg).addScaledVector(_yA, -.05);

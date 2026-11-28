@@ -32,7 +32,7 @@ TAG_EFECTOS = '<script src="efectos.js"></script>'
 TAG_CLASES = '<script src="clases.js"></script>'
 TAG_ESTILO = '<script src="estilo.js"></script>'
 
-MODULOS_EXTRA = ['interactuar.js', 'economia.js', 'refugios.js']
+MODULOS_EXTRA = ['interactuar.js', 'economia.js', 'desguace.js', 'logistica.js', 'refugios.js']
 
 def leer_wav(p):
     with wave.open(str(p)) as w:

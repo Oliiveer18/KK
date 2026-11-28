@@ -36,7 +36,7 @@ const INTERACT = (() => {
     x = Math.max(60, Math.min(innerWidth - 60, x)); y = Math.max(50, Math.min(innerHeight - 70, y));
     el.style.transform = 'translate(' + (x - 40).toFixed(0) + 'px,' + (y - 30).toFixed(0) + 'px)';
     ring.style.strokeDashoffset = (131.9 * (1 - Math.max(0, Math.min(1, p)))).toFixed(1); ring.style.opacity = held || p > 0 ? 1 : .35;
-    const t = c.label + (held ? '' : ' · mantén ' + (typeof mode !== 'undefined' && mode === 'pad' ? '□' : 'E')); if (lab.textContent !== t) lab.textContent = t;
+    const t = c.label + (held || c.blocked ? '' : ' · mantén ' + (typeof mode !== 'undefined' && mode === 'pad' ? '□' : 'E')); if (lab.textContent !== t) lab.textContent = t;
   }
   function chooseTool(c) { return c.tool && TOOLS[c.tool] ? c.tool : null; }
   /* tick del jugador. Devuelve el mensaje de estado (vacío si no hay nada que hacer). */
@@ -47,6 +47,7 @@ const INTERACT = (() => {
     if (!c) { S.cur = null; S.prog = Math.max(0, S.prog - dt * 3); S.tool = null; if (el) show(null); return ''; }
     if (S.cur && S.cur.key !== c.key) S.prog = 0; S.cur = c; S.ctx = true;
     const hurt = MX.M.t - pl.lastHurt < .5;
+    if (c.blocked) { S.prog = 0; S.tool = null; show(c, 0, false); return ''; }
     if (held && !hurt && !MX.M.over) {
       S.busy = true; S.tool = chooseTool(c); S.prog += dt / Math.max(.2, c.time || 2);
       if (c.work) c.work(pl, dt, S.prog);

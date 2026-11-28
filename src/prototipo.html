@@ -2445,6 +2445,7 @@ function update(dt) {
   weapon.position.copy(shC).addScaledVector(fwdA, .44 + P.ads * .06 - W.kick - P.sprint * .08).addScaledVector(sideA, -.13 + P.ads * .07 + env * .04);
   weapon.position.y -= .14 + P.sprint * .1 - hs * .12 - P.ads * .03 + sw * .35 + P.gw * .08; weapon.position.add(W.sway); weapon.position.addScaledVector(sideA, (feet[0].h - feet[1].h) * .12);
   weapon.rotation.set(-W.kick * 2.5 - env * .55 + P.sprint * .45 + sw * .9 + P.gw * .5, a, env * .5);
+  if (MX.toolPlayer) MX.toolPlayer(dt);
   weapon.updateMatrixWorld(true);
   weapon.localToWorld(K.rear.set(...cur.rear)); weapon.localToWorld(K.fore.set(...cur.fore));
   weapon.localToWorld(K.well.set(...cur.well)); weapon.localToWorld(K.charge.set(...cur.charge));
@@ -2556,6 +2557,7 @@ if (document.readyState === 'complete') requestAnimationFrame(frame); else windo
 <script src="escuadras.js"></script>
 <script src="clases.js"></script>
 <script src="economia.js"></script>
+<script src="desguace.js"></script>
 <script src="efectos.js"></script>
 <script src="estilo.js"></script>
 <script src="rendimiento.js"></script>

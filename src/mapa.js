@@ -164,7 +164,7 @@ MAPA.build = function (D) {
    tocan lo que ve la cámara (con margen para sombras y objetos grandes), así Three.js no recorre ni calcula matrices ni recorta las ~80.000 piezas del resto
    del mapa. No cambia nada de lo que se ve: lo que está en pantalla se dibuja igual. scene.remove sigue funcionando para lo que cuelga de un sector. ---------- */
 /* bosques: árboles instanciados (3 mallas por lote) con caja de colisión sólo en el tronco */
-const TREE_GEO = {};
+const TREE_GEO = {}; MAPA.TREE_GEO = TREE_GEO;
 /* Árboles instanciados por sector y especie: 0 conífera (tronco y dos conos), 1 frondoso (tronco y copa redonda), 2 seco (tronco y ramas, sin copa). Las copas se desvanecen
    (tramado) cerca del jugador para que un bosque denso no tape la acción desde la cámara cenital: uniform MAPA.canopy = (x, z, radio) que actualiza MAPA.cull. */
 MAPA.canopy = { value: new V3(0, 0, -1) };
@@ -198,7 +198,7 @@ function treeMeshes(list, out) {
       if (sp === 0) { M4.compose(ps.set(t[0], 3.7 * k, t[1]), q, sc.set(k, k, k)); a.setMatrixAt(i, M4); M4.compose(ps.set(t[0], 5.3 * k, t[1]), q, sc.set(k, k, k)); b.setMatrixAt(i, M4); }
       else if (sp === 1) { M4.compose(ps.set(t[0], 4.2 * k, t[1]), q, sc.set(k, k * .9, k)); a.setMatrixAt(i, M4); }
       else { M4.compose(ps.set(t[0], 0, t[1]), q, sc.set(k, k, k)); a.setMatrixAt(i, M4); }
-      const bx = { x: t[0], z: t[1], hx: .32 * k, hz: .32 * k, h: 3, wall: true, tree: true }; boxes.push(bx); out.walls.push(bx); });
+      const bx = { x: t[0], z: t[1], hx: .32 * k, hz: .32 * k, h: 3, wall: true, tree: true, ti: { tr, a, b, i, sp, k, ry } }; boxes.push(bx); out.walls.push(bx); });
     for (const m of [tr, a, b]) if (m) m.instanceMatrix.needsUpdate = true;
   });
   return res;
@@ -307,7 +307,7 @@ function lzMerge(list) {                                                        
   out.setIndex(new THREE.BufferAttribute(idx, 1)); return out;
 }
 function lzIntact(p) {
-  return !p.dead && !p.lz && !p.stage && !(p.decals && p.decals.length) && !p.burning && !(p.burnT > 0) && !(p.holes && p.holes.length) && !p.charred
+  return !p.dead && !p.lz && !p.stage && !p.rec && !(p.decals && p.decals.length) && !p.burning && !(p.burnT > 0) && !(p.holes && p.holes.length) && !p.charred
     && p.wob < .001 && p.v.lengthSq() < 1e-8 && !p.alarmOn && p.g.scale.y === 1 && p.g.parent && (!p.o || !p.o.leaves || p.oT === 0 || p.oT === 1) && PSPEC[p.type] && p.seed !== undefined;
 }
 const lzPKey = v => v && typeof v === 'object' ? (v.uuid || Object.keys(v).sort().map(k => k + ':' + lzPKey(v[k])).join(';')) : String(v);
@@ -446,7 +446,7 @@ MAPA.resleep = function () {
   const now = performance.now(); let n = 0, tmp = null;
   for (const p of AWAKE) {
     if (n >= 16) break; if (p.lz || p.dead || !p._wk || now - p._wk < 10000) continue;
-    if (p.stage || p.smk || p.fuse >= 0 || p.burning || p.burnT > 0 || p.charred || (p.decals && p.decals.length) || (p.holes && p.holes.length) || p.explosive && p.fuse !== undefined && p.fuse >= 0) continue;
+    if (p.rec || p.stage || p.smk || p.fuse >= 0 || p.burning || p.burnT > 0 || p.charred || (p.decals && p.decals.length) || (p.holes && p.holes.length) || p.explosive && p.fuse !== undefined && p.fuse >= 0) continue;
     if (!(p.wob < .001) || p.v.lengthSq() > 1e-8 || (p.o && (p.o.lamp || p.o.leaves))) continue;
     (tmp || (tmp = [])).push(p); n++;
   }
