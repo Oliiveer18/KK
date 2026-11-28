@@ -1066,10 +1066,10 @@ MX.explosion = (p, R, sc, own, grenade) => {
     const dx = e.p.x - p.x, dz = e.p.z - p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)); if (d >= R) continue;
     let dmg = 150 * sc * (1 - d / R); if (wallBetween(p.x, p.z, e.p.x, e.p.z)) dmg *= .15; if (dmg < 1) continue;
     if (!e.isPlayer) { e.v.x += dx / (d || 1) * 6; e.v.z += dz / (d || 1) * 6; }
-    MX.hit(e, dmg, killer, dx / (d || 1), dz / (d || 1));
+    MX.hit(e, dmg, killer, dx / (d || 1), dz / (d || 1), undefined, grenade ? 'GRANADA' : 'EXPLOSIVO');   // causa registrada: antes salían bajas «sin arma» (8 %)
   }
 };
-MX.fireDmg = (f, dt) => { for (const e of M.ents) if (!e.dead && e.inv <= 0 && Math.sqrt((e.p.x - f.x) * (e.p.x - f.x) + (e.p.z - f.z) * (e.p.z - f.z)) < f.r) MX.hit(e, 16 * dt, null, 0, 0); };
+MX.fireDmg = (f, dt) => { for (const e of M.ents) if (!e.dead && e.inv <= 0 && Math.sqrt((e.p.x - f.x) * (e.p.x - f.x) + (e.p.z - f.z) * (e.p.z - f.z)) < f.r) MX.hit(e, 16 * dt, null, 0, 0, undefined, 'FUEGO'); };
 MX.propGone = p => { const i = M.props.indexOf(p); if (i >= 0) M.props.splice(i, 1); M.propQ.push({ t: M.t + 40, spec: p.spec }); };
 MX.frozen = () => M.built && (M.ents[0].dead || M.ents[0].dwn || M.over);
 
