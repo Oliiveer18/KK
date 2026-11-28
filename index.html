@@ -8325,7 +8325,8 @@ function label(text, col) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 64; const x = c.getContext('2d');
   x.fillStyle = 'rgba(10,14,22,.82)'; x.beginPath(); x.roundRect ? x.roundRect(2, 8, 252, 48, 24) : x.rect(2, 8, 252, 48); x.fill();
   x.fillStyle = '#' + col.toString(16).padStart(6, '0'); x.beginPath(); x.arc(30, 32, 9, 0, 6.3); x.fill();
-  x.fillStyle = '#fff'; x.font = '700 26px system-ui,Arial,sans-serif'; x.textBaseline = 'middle'; x.fillText(text.toUpperCase(), 50, 33);
+  x.fillStyle = '#fff'; x.textBaseline = 'middle'; const T = text.toUpperCase(); let fs = 26; x.font = '700 ' + fs + 'px system-ui,Arial,sans-serif'; while (x.measureText(T).width > 192 && fs > 14) { fs--; x.font = '700 ' + fs + 'px system-ui,Arial,sans-serif'; }   /* «FRANCOTIRADOR» se cortaba en el borde de la chapa */
+  x.fillText(T, 50, 33);
   const t = new THREE.CanvasTexture(c); t.minFilter = THREE.LinearFilter; return t;
 }
 function build() {
@@ -8451,7 +8452,7 @@ MX.medicHeal = e => e && e.healT && M.t - e.healT < .6;
 /* ---------- indicador sobre los compañeros de tu escuadra: chip con la inicial de la clase (color de la clase), número, estrella si lidera y barra de vida fina.
    Ámbar y ⚠ si están abatidos; ✚ verde mientras un médico los cura. Se oculta a > 70 m, detrás de la cámara y en cuanto mueren. ---------- */
 { const st = document.createElement('style'); st.textContent = `
-#sqTags{position:fixed;inset:0;pointer-events:none;z-index:6;overflow:hidden}
+#sqTags{position:fixed;inset:0;pointer-events:none;z-index:2;overflow:hidden}   /* por debajo del panel de escuadra (z 3): las etiquetas de los soldados ya no tapan su cabecera */
 #sqTags .t{position:absolute;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:2px;will-change:transform;transition:opacity .15s}
 #sqTags .c{display:flex;align-items:center;gap:4px;padding:2px 7px 2px 3px;border-radius:999px;background:rgba(9,13,20,.78);border:1px solid rgba(255,255,255,.16);font:700 10.5px system-ui,-apple-system,sans-serif;color:#fff;letter-spacing:.03em;box-shadow:0 2px 6px rgba(0,0,0,.45)}
 #sqTags .c b{display:flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;font-size:9.5px;color:#0b0f18;font-weight:800}
