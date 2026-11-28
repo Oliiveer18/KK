@@ -4,7 +4,7 @@
    ZONA DE DEPÓSITO, junto a la entrada interior del refugio. El stock sobrevive a la caída de los muros; solo se pierde si cae el almacén (refugios.js).
    Fuentes: desguace de objetos neutrales (rendimiento por tipo, ver YIELD), tala, montones de goteo de los puntos y botín de los caídos. Todos los costes y ritmos están en ECO. */
 (function () {
-const M = MX.M, SQ = MX.SQ, MATS = ['madera', 'piedra', 'hierro'], ICON = { madera: '🪵', piedra: '🪨', hierro: '⛓' };
+const M = MX.M, SQ = MX.SQ, INT = MX.INT, MATS = ['madera', 'piedra', 'hierro'], ICON = { madera: '🪵', piedra: '🪨', hierro: '⛓' };
 const ECO = {
   MATS, ICON, stockCap: 600, packCap: [20, 20, 35, 50], start: { madera: 60, piedra: 30, hierro: 20 },
   matOf: { wood: 'madera', metal: 'hierro', block: 'piedra', sand: 'piedra' },
@@ -40,7 +40,7 @@ ECO.deposit = e => {
   return tot;
 };
 ECO.stat = { deposited: [0, 0, 0, 0], gained: [0, 0, 0, 0], spent: [0, 0, 0, 0] };
-ECO.reset = () => { for (let t = 0; t < 4; t++) { Object.assign(ECO.stock[t], ECO.start); ECO.stat.deposited[t] = ECO.stat.gained[t] = ECO.stat.spent[t] = 0; } ECO.feed.length = 0; for (const e of M.ents) if (e.mat) e.mat = null; };
+ECO.reset = () => { for (const o of (SQ.objs || [])) if (o.pile) o.pile = null; for (let t = 0; t < 4; t++) { Object.assign(ECO.stock[t], ECO.start); ECO.stat.deposited[t] = ECO.stat.gained[t] = ECO.stat.spent[t] = 0; } ECO.feed.length = 0; for (const e of M.ents) if (e.mat) e.mat = null; };
 
 /* ---------- zona de depósito: marca en el suelo + cartel ---------- */
 let grp = null;
@@ -80,13 +80,54 @@ function hud() {
   const det = L ? ' <small>' + MATS.filter(k => m[k]).map(k => ICON[k] + m[k]).join(' ') + '</small>' : '';
   chip.innerHTML = '<span class="' + (L >= ECO.cap(pl) ? 'w' : '') + '">llevas ' + L + '/' + ECO.cap(pl) + det + '</span><span>Almacén ' + ECO.total(pl.team) + ' <small>' + ICON.madera + s.madera + ' ' + ICON.piedra + s.piedra + ' ' + ICON.hierro + s.hierro + '</small></span>';
 }
-let t4 = 0, seen = null;
+/* ---------- GOTEO de los puntos: cada punto mantenido va dejando una pila de material (tope 60) que hay que RECOGER (■ mantenido) y llevar al depósito; se vacía al cambiar de dueño ---------- */
+ECO.pileCap = 60;
+ECO.drip = { A: { madera: 2, piedra: 2, hierro: 2 }, B: { hierro: 6 }, C: { hierro: 6 }, D: { madera: 6 }, E: { madera: 6 }, out: { madera: 3, piedra: 2, hierro: 2 } };   // unidades por minuto
+const dripOf = o => o.refuge ? null : ECO.drip[o.code] || (o.name && /Puesto avanzado/.test(o.name) ? ECO.drip.out : null);
+function pilePos(o) {                                                               // un hueco libre de navegación junto al punto, hacia fuera del centro
+  const a0 = Math.atan2(o.x, o.z) + 1.2; for (let r = 3; r <= 9; r += 1.5) for (let k = 0; k < 12; k++) { const a = a0 + k * .5236, x = o.x + Math.sin(a) * r, z = o.z + Math.cos(a) * r; if (!MX.inMainNav || MX.inMainNav(x, z)) return { x, z }; }
+  return { x: o.x + 3, z: o.z };
+}
+ECO.pileOf = o => { let q = o.pile; if (!q) { q = o.pile = { madera: 0, piedra: 0, hierro: 0, n: 0, acc: { madera: 0, piedra: 0, hierro: 0 }, own: -1, pos: pilePos(o) }; } return q; };
+ECO.collect = (e, o) => {                                                          // vacía la pila en la mochila de e (lo que quepa); devuelve las unidades
+  const q = o.pile; if (!q || !q.n) return 0; let room = ECO.cap(e) - ECO.load(e), got = 0; const parts = [];
+  while (room > 0 && q.n > 0) { let k = null; for (const t of MATS) if (q[t] > 0 && (!k || q[t] > q[k])) k = t; if (!k) break; const n = Math.min(q[k], room); q[k] -= n; q.n -= n; room -= n; ECO.mat(e)[k] += n; got += n; parts.push('+' + n + ' ' + k); }
+  if (got) { ECO.stat.gained[e.team] += got; if (e.isPlayer) MX.SQ.toast(parts.join(' · ')); } return got;
+};
+function dripTick(dt) {
+  for (const o of SQ.objs) { const rate = dripOf(o); if (!rate) continue; const q = ECO.pileOf(o);
+    if (q.own !== o.owner) { q.madera = q.piedra = q.hierro = q.n = 0; q.acc.madera = q.acc.piedra = q.acc.hierro = 0; q.own = o.owner; }
+    if (o.owner < 0 || o.contested || q.n >= ECO.pileCap) continue;
+    for (const t in rate) { q.acc[t] += rate[t] / 60 * dt; if (q.acc[t] >= 1 && q.n < ECO.pileCap) { const a = Math.floor(q.acc[t]); q.acc[t] -= a; q[t] += a; q.n += a; } } }
+}
+let pg = null; const PV = [];
+function pileVis() {
+  if (!pg) { pg = new THREE.Group(); scene.add(pg); } const pl = MX.pl; if (!pl) return;
+  for (const o of SQ.objs) { if (!dripOf(o)) continue; const q = o.pile; let v = PV[SQ.objs.indexOf(o)];
+    if (!q) continue;
+    if (!v) { v = PV[SQ.objs.indexOf(o)] = { g: new THREE.Group(), box: [], sp: null, last: '' }; const cols = [0x9c6b3a, 0x8d9096, 0x5e7388];
+      for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(geoBox, matStd(cols[i], .8)); m.castShadow = true; v.g.add(m); v.box.push(m); }
+      const c = document.createElement('canvas'); c.width = 128; c.height = 40; v.cv = c; v.tex = new THREE.CanvasTexture(c); v.tex.minFilter = THREE.LinearFilter; v.sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: v.tex, transparent: true, depthWrite: false })); v.sp.scale.set(2.4, .75, 1); v.g.add(v.sp); pg.add(v.g); }
+    const d = Math.hypot(q.pos.x - P.pos.x, q.pos.z - P.pos.z); v.g.visible = q.n > 0 && d < 75; if (!v.g.visible) continue;
+    const key = q.madera + ',' + q.piedra + ',' + q.hierro + ',' + o.owner;
+    if (key !== v.last) { v.last = key; const x = v.cv.getContext('2d'); x.clearRect(0, 0, 128, 40); x.fillStyle = 'rgba(10,14,22,.82)'; x.fillRect(0, 4, 128, 32); x.strokeStyle = o.owner >= 0 ? '#' + ['4aa0ff', 'ff5a48', 'ffb020', 'b07cff'][o.owner] : '#ffc828'; x.lineWidth = 3; x.strokeRect(1.5, 5.5, 125, 29); x.fillStyle = '#fff'; x.font = '700 22px system-ui,Arial,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(q.n + '/' + ECO.pileCap, 64, 21); v.tex.needsUpdate = true;
+      const f = [q.madera, q.piedra, q.hierro]; v.box.forEach((m, i) => { const h = .12 + f[i] / ECO.pileCap * 1.1; m.visible = f[i] > 0; m.scale.set(.5, h, .5); m.position.set((i - 1) * .62, h / 2, 0); }); }
+    v.g.position.set(q.pos.x, 0, q.pos.z); v.sp.position.set(0, 1.9, 0); }
+}
+MX.INT.reg('pila', (pl, out) => {
+  if (!MX.campaign) return; for (const o of SQ.objs) { const q = o.pile; if (!q || !q.n || o.owner !== pl.team) continue; const dx = q.pos.x - pl.p.x, dz = q.pos.z - pl.p.z; if (dx * dx + dz * dz > 25) continue;
+    const room = ECO.cap(pl) - ECO.load(pl);
+    out.push({ x: q.pos.x, z: q.pos.z, y: .6, r: .6, key: 'pila' + o.id + ':' + q.n, time: 1.4, tool: null, blocked: room < 1, label: room < 1 ? 'Mochila llena · deposita en el refugio' : 'Recoger material · ' + q.n + '/' + ECO.pileCap, done: e => ECO.collect(e, o) }); }
+});
+let t4 = 0, seen = null, t1 = 0;
 const sqUpdate = SQ.update;
 SQ.update = dt => {
   sqUpdate(dt); if (!MX.campaign) return;
   if (ECO.key !== (MAPA.built || null)) build();
   if (seen !== M) { seen = M; }
   t4 += dt; if (t4 >= .25) { t4 = 0; for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.mat && !e.dead && !e.dwn && ECO.load(e) && ECO.inZone(e)) ECO.deposit(e); } }
+  t1 += dt; if (t1 >= 1) { dripTick(t1); t1 = 0; }
+  pileVis();
   hud();
 };
 ECO.reset();

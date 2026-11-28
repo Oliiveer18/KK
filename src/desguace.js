@@ -91,6 +91,11 @@ DESG.botWork = (e, p, dt) => {                                                  
   return false;
 };
 DESG.stopWork = e => { e.work = null; };
+DESG.botFell = (e, b, dt) => {                                                    // un bot tala el árbol b; devuelve true al terminar
+  if (b.felled) { e.work = null; return true; } const w = b._bw || (b._bw = { t: 0, h: 0, n: 0 }); e.work = { tool: 'hacha', t: M.t }; w.t += dt; w.h -= dt; w.n -= dt;
+  if (w.h <= 0) { w.h = .5; hitFx({ x: b.x, z: b.z, hx: .3, hz: .3, h: 2, mat: 'wood' }, e, false); } if (w.n <= 0) { w.n = 1.4; noiseAt(b.x, b.z, 30); }
+  if (w.t >= 3.4) { e.work = null; w.t = 0; return DESG.fell(e, b) || true; } return false;
+};
 function toolFor(mat) { return mat === 'wood' ? 'palanca' : mat === 'metal' ? 'palanca' : 'mazo'; }
 const NAME = p => (p.meta && p.meta.name) || p.type;
 DESG.ok = p => { ensure(); return !!ECO.yield[p.type] && eligible(p); };

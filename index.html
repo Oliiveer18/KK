@@ -8401,6 +8401,7 @@ function mapDraw() {
   /* objetivos con el color del dueño y su progreso de captura */
   for (const o of SQ.objs) { const cx = P2(o.x), cz = P2(o.z), r = Math.max(4, o.r * g.k); x.lineWidth = 2.2; x.strokeStyle = o.owner >= 0 ? col(o.owner) : '#e8e8e8'; x.globalAlpha = o.contested ? .5 + .5 * pulse : 1; x.beginPath(); x.arc(cx, cz, r, 0, 6.283); x.stroke(); x.globalAlpha = 1;
     if (o.capBy >= 0 && o.cap > 0) { x.strokeStyle = col(o.capBy); x.lineWidth = 3; x.beginPath(); x.arc(cx, cz, r + 3, -1.571, -1.571 + 6.283 * o.cap); x.stroke(); }
+    if (o.pile && o.pile.n > 0 && o.owner === MX.pl.team) { x.save(); x.fillStyle = '#ffd86a'; x.font = '700 11px system-ui,sans-serif'; x.textAlign = 'left'; x.fillText('▣ ' + o.pile.n + '/60', cx + r + 4, cz + 4); x.restore(); }
     if (o.code) { x.globalAlpha = 1; x.fillStyle = o.owner >= 0 ? col(o.owner) : '#0c1018'; x.font = '800 ' + Math.max(11, Math.round(r * 1.1)) + 'px system-ui,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(o.code, cx, cz); } }
   /* aliados (los enemigos no se ven): tu escuadra suelta con la clase de cada uno; el resto agrupado por zonas con su número; cada escuadra dibuja una línea suave a su objetivo */
   const ps = pl && pl.sqd;
@@ -8797,7 +8798,7 @@ MX.placeBars = function () {
    ZONA DE DEPÓSITO, junto a la entrada interior del refugio. El stock sobrevive a la caída de los muros; solo se pierde si cae el almacén (refugios.js).
    Fuentes: desguace de objetos neutrales (rendimiento por tipo, ver YIELD), tala, montones de goteo de los puntos y botín de los caídos. Todos los costes y ritmos están en ECO. */
 (function () {
-const M = MX.M, SQ = MX.SQ, MATS = ['madera', 'piedra', 'hierro'], ICON = { madera: '🪵', piedra: '🪨', hierro: '⛓' };
+const M = MX.M, SQ = MX.SQ, INT = MX.INT, MATS = ['madera', 'piedra', 'hierro'], ICON = { madera: '🪵', piedra: '🪨', hierro: '⛓' };
 const ECO = {
   MATS, ICON, stockCap: 600, packCap: [20, 20, 35, 50], start: { madera: 60, piedra: 30, hierro: 20 },
   matOf: { wood: 'madera', metal: 'hierro', block: 'piedra', sand: 'piedra' },
@@ -8833,7 +8834,7 @@ ECO.deposit = e => {
   return tot;
 };
 ECO.stat = { deposited: [0, 0, 0, 0], gained: [0, 0, 0, 0], spent: [0, 0, 0, 0] };
-ECO.reset = () => { for (let t = 0; t < 4; t++) { Object.assign(ECO.stock[t], ECO.start); ECO.stat.deposited[t] = ECO.stat.gained[t] = ECO.stat.spent[t] = 0; } ECO.feed.length = 0; for (const e of M.ents) if (e.mat) e.mat = null; };
+ECO.reset = () => { for (const o of (SQ.objs || [])) if (o.pile) o.pile = null; for (let t = 0; t < 4; t++) { Object.assign(ECO.stock[t], ECO.start); ECO.stat.deposited[t] = ECO.stat.gained[t] = ECO.stat.spent[t] = 0; } ECO.feed.length = 0; for (const e of M.ents) if (e.mat) e.mat = null; };
 
 /* ---------- zona de depósito: marca en el suelo + cartel ---------- */
 let grp = null;
@@ -8873,13 +8874,54 @@ function hud() {
   const det = L ? ' <small>' + MATS.filter(k => m[k]).map(k => ICON[k] + m[k]).join(' ') + '</small>' : '';
   chip.innerHTML = '<span class="' + (L >= ECO.cap(pl) ? 'w' : '') + '">llevas ' + L + '/' + ECO.cap(pl) + det + '</span><span>Almacén ' + ECO.total(pl.team) + ' <small>' + ICON.madera + s.madera + ' ' + ICON.piedra + s.piedra + ' ' + ICON.hierro + s.hierro + '</small></span>';
 }
-let t4 = 0, seen = null;
+/* ---------- GOTEO de los puntos: cada punto mantenido va dejando una pila de material (tope 60) que hay que RECOGER (■ mantenido) y llevar al depósito; se vacía al cambiar de dueño ---------- */
+ECO.pileCap = 60;
+ECO.drip = { A: { madera: 2, piedra: 2, hierro: 2 }, B: { hierro: 6 }, C: { hierro: 6 }, D: { madera: 6 }, E: { madera: 6 }, out: { madera: 3, piedra: 2, hierro: 2 } };   // unidades por minuto
+const dripOf = o => o.refuge ? null : ECO.drip[o.code] || (o.name && /Puesto avanzado/.test(o.name) ? ECO.drip.out : null);
+function pilePos(o) {                                                               // un hueco libre de navegación junto al punto, hacia fuera del centro
+  const a0 = Math.atan2(o.x, o.z) + 1.2; for (let r = 3; r <= 9; r += 1.5) for (let k = 0; k < 12; k++) { const a = a0 + k * .5236, x = o.x + Math.sin(a) * r, z = o.z + Math.cos(a) * r; if (!MX.inMainNav || MX.inMainNav(x, z)) return { x, z }; }
+  return { x: o.x + 3, z: o.z };
+}
+ECO.pileOf = o => { let q = o.pile; if (!q) { q = o.pile = { madera: 0, piedra: 0, hierro: 0, n: 0, acc: { madera: 0, piedra: 0, hierro: 0 }, own: -1, pos: pilePos(o) }; } return q; };
+ECO.collect = (e, o) => {                                                          // vacía la pila en la mochila de e (lo que quepa); devuelve las unidades
+  const q = o.pile; if (!q || !q.n) return 0; let room = ECO.cap(e) - ECO.load(e), got = 0; const parts = [];
+  while (room > 0 && q.n > 0) { let k = null; for (const t of MATS) if (q[t] > 0 && (!k || q[t] > q[k])) k = t; if (!k) break; const n = Math.min(q[k], room); q[k] -= n; q.n -= n; room -= n; ECO.mat(e)[k] += n; got += n; parts.push('+' + n + ' ' + k); }
+  if (got) { ECO.stat.gained[e.team] += got; if (e.isPlayer) MX.SQ.toast(parts.join(' · ')); } return got;
+};
+function dripTick(dt) {
+  for (const o of SQ.objs) { const rate = dripOf(o); if (!rate) continue; const q = ECO.pileOf(o);
+    if (q.own !== o.owner) { q.madera = q.piedra = q.hierro = q.n = 0; q.acc.madera = q.acc.piedra = q.acc.hierro = 0; q.own = o.owner; }
+    if (o.owner < 0 || o.contested || q.n >= ECO.pileCap) continue;
+    for (const t in rate) { q.acc[t] += rate[t] / 60 * dt; if (q.acc[t] >= 1 && q.n < ECO.pileCap) { const a = Math.floor(q.acc[t]); q.acc[t] -= a; q[t] += a; q.n += a; } } }
+}
+let pg = null; const PV = [];
+function pileVis() {
+  if (!pg) { pg = new THREE.Group(); scene.add(pg); } const pl = MX.pl; if (!pl) return;
+  for (const o of SQ.objs) { if (!dripOf(o)) continue; const q = o.pile; let v = PV[SQ.objs.indexOf(o)];
+    if (!q) continue;
+    if (!v) { v = PV[SQ.objs.indexOf(o)] = { g: new THREE.Group(), box: [], sp: null, last: '' }; const cols = [0x9c6b3a, 0x8d9096, 0x5e7388];
+      for (let i = 0; i < 3; i++) { const m = new THREE.Mesh(geoBox, matStd(cols[i], .8)); m.castShadow = true; v.g.add(m); v.box.push(m); }
+      const c = document.createElement('canvas'); c.width = 128; c.height = 40; v.cv = c; v.tex = new THREE.CanvasTexture(c); v.tex.minFilter = THREE.LinearFilter; v.sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: v.tex, transparent: true, depthWrite: false })); v.sp.scale.set(2.4, .75, 1); v.g.add(v.sp); pg.add(v.g); }
+    const d = Math.hypot(q.pos.x - P.pos.x, q.pos.z - P.pos.z); v.g.visible = q.n > 0 && d < 75; if (!v.g.visible) continue;
+    const key = q.madera + ',' + q.piedra + ',' + q.hierro + ',' + o.owner;
+    if (key !== v.last) { v.last = key; const x = v.cv.getContext('2d'); x.clearRect(0, 0, 128, 40); x.fillStyle = 'rgba(10,14,22,.82)'; x.fillRect(0, 4, 128, 32); x.strokeStyle = o.owner >= 0 ? '#' + ['4aa0ff', 'ff5a48', 'ffb020', 'b07cff'][o.owner] : '#ffc828'; x.lineWidth = 3; x.strokeRect(1.5, 5.5, 125, 29); x.fillStyle = '#fff'; x.font = '700 22px system-ui,Arial,sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(q.n + '/' + ECO.pileCap, 64, 21); v.tex.needsUpdate = true;
+      const f = [q.madera, q.piedra, q.hierro]; v.box.forEach((m, i) => { const h = .12 + f[i] / ECO.pileCap * 1.1; m.visible = f[i] > 0; m.scale.set(.5, h, .5); m.position.set((i - 1) * .62, h / 2, 0); }); }
+    v.g.position.set(q.pos.x, 0, q.pos.z); v.sp.position.set(0, 1.9, 0); }
+}
+MX.INT.reg('pila', (pl, out) => {
+  if (!MX.campaign) return; for (const o of SQ.objs) { const q = o.pile; if (!q || !q.n || o.owner !== pl.team) continue; const dx = q.pos.x - pl.p.x, dz = q.pos.z - pl.p.z; if (dx * dx + dz * dz > 25) continue;
+    const room = ECO.cap(pl) - ECO.load(pl);
+    out.push({ x: q.pos.x, z: q.pos.z, y: .6, r: .6, key: 'pila' + o.id + ':' + q.n, time: 1.4, tool: null, blocked: room < 1, label: room < 1 ? 'Mochila llena · deposita en el refugio' : 'Recoger material · ' + q.n + '/' + ECO.pileCap, done: e => ECO.collect(e, o) }); }
+});
+let t4 = 0, seen = null, t1 = 0;
 const sqUpdate = SQ.update;
 SQ.update = dt => {
   sqUpdate(dt); if (!MX.campaign) return;
   if (ECO.key !== (MAPA.built || null)) build();
   if (seen !== M) { seen = M; }
   t4 += dt; if (t4 >= .25) { t4 = 0; for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.mat && !e.dead && !e.dwn && ECO.load(e) && ECO.inZone(e)) ECO.deposit(e); } }
+  t1 += dt; if (t1 >= 1) { dripTick(t1); t1 = 0; }
+  pileVis();
   hud();
 };
 ECO.reset();
@@ -8979,6 +9021,11 @@ DESG.botWork = (e, p, dt) => {                                                  
   return false;
 };
 DESG.stopWork = e => { e.work = null; };
+DESG.botFell = (e, b, dt) => {                                                    // un bot tala el árbol b; devuelve true al terminar
+  if (b.felled) { e.work = null; return true; } const w = b._bw || (b._bw = { t: 0, h: 0, n: 0 }); e.work = { tool: 'hacha', t: M.t }; w.t += dt; w.h -= dt; w.n -= dt;
+  if (w.h <= 0) { w.h = .5; hitFx({ x: b.x, z: b.z, hx: .3, hz: .3, h: 2, mat: 'wood' }, e, false); } if (w.n <= 0) { w.n = 1.4; noiseAt(b.x, b.z, 30); }
+  if (w.t >= 3.4) { e.work = null; w.t = 0; return DESG.fell(e, b) || true; } return false;
+};
 function toolFor(mat) { return mat === 'wood' ? 'palanca' : mat === 'metal' ? 'palanca' : 'mazo'; }
 const NAME = p => (p.meta && p.meta.name) || p.type;
 DESG.ok = p => { ensure(); return !!ECO.yield[p.type] && eligible(p); };
@@ -9065,6 +9112,117 @@ MX.toolBot = e => {                                                             
 
 const sqUpdate = SQ.update;
 SQ.update = dt => { sqUpdate(dt); if (!MX.campaign) return; if (FLY.length) flyTick(dt); if (FALL.length) fallTick(dt); };
+})();
+</script>
+<script>"use strict";
+/* ===================== LOGÍSTICA (campaña): botín de los caídos y bots que reciclan =====================
+   BOTÍN: al morir, un soldado suelta su mochila (munición, botiquines, kits) y ahora también el MATERIAL que llevaba; cualquier facción puede cogerlo manteniendo □ junto a ella.
+   BOTS RECICLADORES: hasta 2–3 por facción (apoyo y recién reaparecidos que no van con el jugador) buscan, SOLO si están a salvo, objetos neutrales para desguazar, árboles o pilas de goteo
+   cerca de su refugio (máx. 80 m; 140 m las pilas), trabajan con la misma mecánica que el jugador, y cuando la mochila está al 70 % o no queda nada a mano vuelven a la zona de depósito.
+   Dejan el trabajo en cuanto hay contacto, daño, un infectado a < 25 m, o el objetivo lo ha cogido otro. No desguazan cobertura crítica (la exclusión de puntos y refugio de desguace.js). */
+(function () {
+const M = MX.M, SQ = MX.SQ, ECO = MX.ECO, DESG = MX.DESG, INT = MX.INT, dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const LG = { stats: { jobs: [0, 0, 0, 0], aborts: [0, 0, 0, 0], carried: [0, 0, 0, 0], bots: 0 }, on: !/[?&]nologistica\b/.test(location.search) };
+MX.LG = LG;
+
+/* ---------- botín de los caídos ---------- */
+const death0 = INVENTARIO.death;
+INVENTARIO.death = function (e) {
+  const mats = e.mat && ECO.load(e) ? Object.assign({}, e.mat) : null; if (e.mat) e.mat = null;
+  const n0 = OBJ.pickups.length; death0.apply(this, arguments);
+  if (!mats) return; let k = OBJ.pickups.length > n0 ? OBJ.pickups[OBJ.pickups.length - 1] : null; if (!k || k.ownerId !== e.id) { k = OBJ.pickup('pack1', e.p.x, e.p.z); if (!k) return; k.stock = {}; k.ownerId = e.id; }
+  k.mats = mats; k.dropT = M.t;
+};
+const total = m => m ? (m.madera || 0) + (m.piedra || 0) + (m.hierro || 0) : 0;
+INT.reg('botin', (pl, out) => {
+  if (!MX.campaign) return; for (const k of OBJ.pickups) {
+    if (!k.ownerId) continue; const dx = k.x - pl.p.x, dz = k.z - pl.p.z; if (dx * dx + dz * dz > 6.25) continue;
+    const st = k.stock || {}, items = Object.keys(st).filter(q => st[q] > 0 && !/^(helmet|vest|pack)/.test(q)).reduce((a, q) => a + st[q], 0), mt = total(k.mats); if (!items && !mt) continue;
+    out.push({ x: k.x, z: k.z, y: .3, r: .4, key: 'botin' + k.ownerId + ':' + items + ':' + mt, tool: null, time: 1.2, label: 'Botín de ' + k.ownerId + ' · ' + [mt ? mt + ' material' : '', items ? items + ' objetos' : ''].filter(Boolean).join(' · '),
+      done: e => {
+        if (k.mats) for (const t of ECO.MATS) { const n = k.mats[t] || 0; if (!n) continue; const a = ECO.addCarry(e, t, n); k.mats[t] -= a; ECO.stat.gained[e.team] += a; }
+        if (!total(k.mats)) { k.mats = null; for (const q of Object.keys(k.stock || {})) if (!/^(helmet|vest|pack)/.test(q)) for (let i = 0; i < 12 && INVENTARIO.transfer(e, k, q); i++); }
+        if (e.isPlayer) MX.SQ.toast('Botín recogido'); if (!total(k.mats) && OBJ.pickups.includes(k) && !Object.values(k.stock || {}).some(v => v > 0)) OBJ.removePickup(k); } }); }
+});
+
+/* ---------- bots recicladores ---------- */
+const TA = [], TB = [], BLOCK = new Map();
+const cls = e => e.cls || 'fus';
+function enemiesNear(e, x, z, r) {
+  for (const o of M.ents) if (!o.dead && !o.dwn && o.team !== e.team && (o.p.x - x) * (o.p.x - x) + (o.p.z - z) * (o.p.z - z) < r * r) return true;
+  if (MX.zom) for (const z0 of MX.zom.list) if (!z0.dead && z0.st !== 'dorm' && (z0.p.x - x) * (z0.p.x - x) + (z0.p.z - z) * (z0.p.z - z) < r * r) return true;
+  return false;
+}
+function calm(e) { return !(e.vis && e.tgt) && e.st !== 'fight' && M.t - e.lastHurt > 6 && !e.dwn && !e.dead && !e.clsWait && !e.medCall; }
+function eligible(e) {
+  if (e.isPlayer || e.dead || e.dwn || !e.sqd || e.sqd.playerLead || !calm(e)) return false;
+  if (e.stGo) return false; if (e.hp < 60) return false;
+  return cls(e) === 'sup' || M.t - (e.lifeStart || -99) < 25;
+}
+function maxFor(team) { const t = ECO.total(team); return t < 150 ? 3 : t > 450 ? 1 : 2; }
+function cooled(e) { return M.t < (e.lgCool || 0); }
+function approach(e, ref, kind) {                                                  // un punto libre junto al objeto, por el lado del bot
+  const hx = kind === 'tree' ? .3 : ref.hx, hz = kind === 'tree' ? .3 : ref.hz, rad = Math.max(hx, hz) + 1.05; let best = null, bd = 1e9;
+  for (let k = 0; k < 8; k++) { const a = k * .785, x = ref.x + Math.sin(a) * rad, z = ref.z + Math.cos(a) * rad; if (MX.inMainNav && !MX.inMainNav(x, z)) continue; const d = Math.hypot(x - e.p.x, z - e.p.z); if (d < bd) { bd = d; best = { x, z }; } }
+  return best;
+}
+function claimed(ref) { const c = BLOCK.get(ref); return c && c.e && !c.e.dead && M.t - c.t < 25 && c.e.lg && c.e.lg.ref === ref; }
+function pick(e) {                                                                // el trabajo más cercano y seguro
+  const z = ECO.zoneOf(e.team); if (!z) return null; const room = ECO.cap(e) - ECO.load(e); if (room < 3) return null;
+  let best = null, bs = 1e9;
+  const consider = (kind, ref, x, z0, bonus) => { if (claimed(ref)) return; const d = Math.hypot(x - e.p.x, z0 - e.p.z) + Math.hypot(x - z.x, z0 - z.z) * .5 - (bonus || 0); if (d < bs) { bs = d; best = { kind, ref, x, z: z0 }; } };
+  for (const p of DESG.near(z.x, z.z, 80, TA)) { if (p.dead || (p.rec && p.rec.done) || !DESG.canWork(e, p)) continue; consider('prop', p, p.x, p.z, ECO.yieldOf(p).n * 1.2); }
+  for (const b of DESG.trees(z.x, z.z, 80, TB)) consider('tree', b, b.x, b.z, 4);
+  for (const o of SQ.objs) { const q = o.pile; if (!q || q.n < 16 || o.owner !== e.team || o.contested || dist(o, z) > 140 || claimed(o)) continue; consider('pile', o, q.pos.x, q.pos.z, q.n * .8 + 10); }
+  if (best && enemiesNear(e, best.x, best.z, 28)) return null; return best;
+}
+function startJob(e, j) {
+  const ap = j.kind === 'pile' ? { x: j.x + 1.1, z: j.z } : approach(e, j.ref, j.kind); if (!ap) return false;
+  e.lg = { st: 'go', kind: j.kind, ref: j.ref, ax: ap.x, az: ap.z, t0: M.t, tw: 0, chk: 0 }; BLOCK.set(j.ref, { e, t: M.t }); LG.stats.jobs[e.team]++; return true;
+}
+function endJob(e, abort, depot, why) {
+  if (abort) { const w = LG.stats.why || (LG.stats.why = {}); w[why || '?'] = (w[why || '?'] || 0) + 1; }
+  const l = e.lg; if (l && l.ref) BLOCK.delete(l.ref); DESG.stopWork(e);
+  if (abort) { LG.stats.aborts[e.team]++; e.lgCool = M.t + 25; }
+  e.lg = ECO.load(e) > 0 && depot !== false ? { st: 'depot', t0: M.t, chk: 0 } : null;
+}
+function stepBot(e, dt) {
+  const l = e.lg; if (!l) return;
+  if (e.dead || e.dwn || !calm(e) || M.t - l.t0 > 150) { if (e.lg) { if (!e.dead) endJob(e, true, true, e.dwn ? 'abatido' : M.t - l.t0 > 150 ? 'tiempo' : e.vis && e.tgt ? 'contacto' : e.st === 'fight' ? 'combate' : M.t - e.lastHurt <= 6 ? 'herido' : e.clsWait ? 'chapa' : 'otro'); else { if (l.ref) BLOCK.delete(l.ref); e.lg = null; } } return; }
+  l.chk -= dt;
+  if (l.chk <= 0) { l.chk = 1; const x = l.st === 'depot' ? e.p.x : l.ax, z = l.st === 'depot' ? e.p.z : l.az; if (enemiesNear(e, x, z, 25) && (l.st !== 'depot' || e.lg.t0 < M.t - 1)) { endJob(e, true, true, 'peligro'); return; } }
+  if (l.st === 'depot') { const z = ECO.zoneOf(e.team); if (!z || (ECO.load(e) === 0) || M.t - l.t0 > 90) { e.lg = null; if (ECO.load(e) === 0) LG.stats.carried[e.team]++; } return; }
+  if (l.st === 'go') { if (Math.hypot(e.p.x - l.ax, e.p.z - l.az) < 1.7 || M.t - l.t0 > 40) { if (M.t - l.t0 > 40) { endJob(e, true, true, 'ruta'); return; } l.st = 'work'; l.tw = 0; } return; }
+  if (l.st === 'work') {
+    e.v.set(0, 0, 0); let done = false;
+    if (l.kind === 'prop') { const rec = DESG.record(l.ref); done = DESG.botWork(e, l.ref, dt); if (!done && !DESG.canWork(e, l.ref)) done = true; if (rec.done) done = true; }
+    else if (l.kind === 'tree') done = DESG.botFell(e, l.ref, dt);
+    else { l.tw += dt; if (l.tw >= 1.4) { ECO.collect(e, l.ref); done = true; } }
+    if (done) { const full = ECO.load(e) >= ECO.cap(e) * .7; DESG.stopWork(e); BLOCK.delete(l.ref); if (full || !ECO.zoneOf(e.team)) { e.lg = { st: 'depot', t0: M.t, chk: 0 }; return; } const j = pick(e); if (j && startJob(e, j)) return; e.lg = ECO.load(e) > 0 ? { st: 'depot', t0: M.t, chk: 0 } : null; }
+  }
+}
+function assign(dt) {
+  for (let t = 0; t < 4; t++) {
+    let n = 0; for (const e of M.ents) if (e.lg && e.team === t) n++; const want = maxFor(t); if (n >= want) continue;
+    for (const e of M.ents) { if (e.team !== t || e.lg || !eligible(e) || cooled(e)) continue; const j = pick(e); if (j && startJob(e, j)) { n++; if (n >= want) break; } }
+  }
+}
+const g0 = SQ.goalFor;
+SQ.goalFor = e => {
+  const l = e.lg; if (l && !e.isPlayer && LG.on) {
+    if (l.st === 'depot') { const z = ECO.zoneOf(e.team); if (z) return { x: z.x, z: z.z, speed: 5.4, hold: true, face: 0, crouch: false }; }
+    else if (l.st === 'go' || l.st === 'work') return { x: l.ax, z: l.az, speed: 5.4, hold: true, face: Math.atan2((l.ref.x !== undefined ? l.ref.x : l.ref.pile.pos.x) - l.ax, (l.ref.z !== undefined ? l.ref.z : l.ref.pile.pos.z) - l.az), crouch: false }; }
+  return g0(e);
+};
+const restart = MX.restart; if (restart) MX.restart = function () { const r = restart.apply(this, arguments); LG.reset(); return r; };
+let ta = 0;
+const sqUpdate = SQ.update;
+SQ.update = dt => {
+  sqUpdate(dt); if (!MX.campaign || !LG.on) return;
+  for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.lg) stepBot(e, dt); }
+  ta += dt; if (ta >= 2) { ta = 0; assign(2); }
+};
+LG.reset = () => { for (const e of M.ents) { e.lg = null; e.lgCool = 0; e.work = null; } BLOCK.clear(); for (let t = 0; t < 4; t++) { LG.stats.jobs[t] = LG.stats.aborts[t] = LG.stats.carried[t] = 0; } };
 })();
 </script>
 <script>/* Efecto del dash (jugador y bots): marcas de viento. Unas pocas líneas finas, blancas y translúcidas que se quedan en el aire detrás del que corre,
