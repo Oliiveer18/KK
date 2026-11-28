@@ -30,6 +30,7 @@ TAG_ESCUADRAS = '<script src="escuadras.js"></script>'
 TAG_RENDIMIENTO = '<script src="rendimiento.js"></script>'
 TAG_EFECTOS = '<script src="efectos.js"></script>'
 TAG_CLASES = '<script src="clases.js"></script>'
+TAG_ESTILO = '<script src="estilo.js"></script>'
 
 def leer_wav(p):
     with wave.open(str(p)) as w:
@@ -186,6 +187,9 @@ def main():
     clases = (RAIZ / 'src' / 'clases.js').read_text(encoding='utf-8')
     if '</script' in clases:
         raise SystemExit('src/clases.js no puede contener </script')
+    estilo = (RAIZ / 'src' / 'estilo.js').read_text(encoding='utf-8')
+    if '</script' in estilo:
+        raise SystemExit('src/estilo.js no puede contener </script')
     efectos = (RAIZ / 'src' / 'efectos.js').read_text(encoding='utf-8')
     if '</script' in efectos:
         raise SystemExit('src/efectos.js no puede contener </script')
@@ -201,7 +205,7 @@ def main():
         raise SystemExit('src/partida.js no puede contener </script')
     inventario = (RAIZ / "src" / "inventario.js").read_text(encoding="utf-8")
     obras = (RAIZ / "src" / "obras.js").read_text(encoding="utf-8")
-    salida = fuente.replace(TAG_OBRAS, "<script>" + obras + "</script>").replace(TAG_INV, "<script>" + inventario + "</script>").replace(TAG_THREE, '<script>' + three + '</script>').replace(TAG_SONIDOS, '<script>' + js + '</script>').replace(TAG_OBJETOS, '<script>' + objetos + '</script>').replace(TAG_MAPA, '<script>' + mapa + '</script>').replace(TAG_COMP, '<script>' + comp + '</script>').replace(TAG_MAPAD, '<script>' + mapad + '</script>').replace(TAG_PARTIDA, '<script>' + partida + '</script>').replace(TAG_ZOMBIS, '<script>' + zombis + '</script>').replace(TAG_ESCUADRAS, '<script>' + escuadras + '</script>').replace(TAG_RENDIMIENTO, '<script>' + rendimiento + '</script>').replace(TAG_EFECTOS, '<script>' + efectos + '</script>').replace(TAG_CLASES, '<script>' + clases + '</script>')
+    salida = fuente.replace(TAG_OBRAS, "<script>" + obras + "</script>").replace(TAG_INV, "<script>" + inventario + "</script>").replace(TAG_THREE, '<script>' + three + '</script>').replace(TAG_SONIDOS, '<script>' + js + '</script>').replace(TAG_OBJETOS, '<script>' + objetos + '</script>').replace(TAG_MAPA, '<script>' + mapa + '</script>').replace(TAG_COMP, '<script>' + comp + '</script>').replace(TAG_MAPAD, '<script>' + mapad + '</script>').replace(TAG_PARTIDA, '<script>' + partida + '</script>').replace(TAG_ZOMBIS, '<script>' + zombis + '</script>').replace(TAG_ESCUADRAS, '<script>' + escuadras + '</script>').replace(TAG_RENDIMIENTO, '<script>' + rendimiento + '</script>').replace(TAG_EFECTOS, '<script>' + efectos + '</script>').replace(TAG_CLASES, '<script>' + clases + '</script>').replace(TAG_ESTILO, '<script>' + estilo + '</script>')
     (RAIZ / 'index.html').write_text(salida, encoding='utf-8')
     print(f'sonidos.js {len(js)/1024:.0f} KB, index.html {len(salida)/1024:.0f} KB')
 

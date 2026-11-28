@@ -422,3 +422,6 @@ Camillas + médico = curación hasta 100 a 12 puntos/s; el médico a pie baja su
 - Marcar un punto: tocar el mapa pone una marca con ruta desde tu posición, distancia y tiempo; si la ruta cruza una zona caliente busca un rodeo (aviso «rodea la zona caliente» / «cruza zona caliente»). «Enviar escuadra» da la orden de avanzar (hace falta el mando) y «Borrar marca» la quita. Tocar fuera del mapa lo cierra.
 - Apaisado en móvil: el mapa ocupa casi toda la altura y cabecera, marca y leyenda van en una columna a su lado.
 - Test: `tests/mapa_marcas.py`.
+
+## Prueba de dirección de arte (`src/estilo.js`)
+Tres estilos intercambiables, activables con `?look=a|b|c` (sin parámetro el juego se ve como siempre): A gris militar, B polvo, C noche fría. Gradúan colores del mundo (no personajes ni infectados), luz, niebla y viñeta, y añaden detalle procedural al suelo en su shader (asfalto con grietas y manchas, hierba y bosque con hojarasca y barro, juntas en aceras, adoquines, pintura vial gastada). Sin llamadas de dibujo ni texturas nuevas. También `LOOK.set('a'|'b'|'c'|'')` desde la consola. Pendiente de elegir dirección y de medir en el iPhone.
