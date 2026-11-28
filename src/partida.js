@@ -1086,7 +1086,7 @@ function kill(v, killer, dx, dz) {
   v.dead = true; v.deaths++; v.hp = 0; v.tgp.hp = 0; if (MX.SQ && MX.campaign) MX.SQ.onDeath(v); v.respT = (MX.campaign && MX.SQ && MX.SQ.respawnTime(v)) || RESPAWN + (v.isPlayer ? 0 : rnd() * .8); v.respMax = v.respT; v.inv = 0;   // campaña: la reaparición depende de los objetivos comunes que tiene la facción
   if (MX.campaign) INVENTARIO.death(v);
   addFeed(killer && killer !== v ? killer : null, v, wasDown && killer && killer !== v && killer.team !== v.team && v.lastSrc ? v.lastSrc + ' · remate' : v.lastSrc);
-  if (killer && killer !== v && killer.team !== v.team) { killer.kills++; M.score[killer.team]++; if (killer.isPlayer) playSnd('HIT_kill') || playSnd('HIT_marker'); }          // bajas a compañeros y suicidios no puntúan
+  if (killer && killer !== v && killer.team !== v.team) { killer.kills++; M.score[killer.team]++; if (MX.campaign && MX.SQ && killer.team >= 0 && v.team >= 0) MX.SQ.score[killer.team]++;   /* campaña: +1 punto por baja a un rival (los infectados no cuentan: no son ents) */ if (killer.isPlayer) playSnd('HIT_kill') || playSnd('HIT_marker'); }          // bajas a compañeros y suicidios no puntúan
   for (let i = 0; i < 8; i++) spawn('red', _kp.set(v.p.x, .9, v.p.z), _kv.set((Math.random() - .5) * 4 + dx * 2, 1 + Math.random() * 3, (Math.random() - .5) * 4 + dz * 2), .5, .04, .04, .04, true, 8);
   if (v.isPlayer) { P.dead = true; if (!corpseP) playerCorpse(dx, dz); for (const m of playerBodyMeshes) m.visible = false; weapon.visible = false; handMag.visible = false; flashMesh.visible = false; W.flash = 0; P.vel.set(0, 0, 0); rumble(200, .8, .6); }
   else { if (wasDown) v.deadT = .55; else bake(v, dx, dz); v.ring.visible = false; v.flash.visible = false; v.wantThrow = null; }

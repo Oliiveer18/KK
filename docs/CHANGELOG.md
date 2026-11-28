@@ -455,3 +455,6 @@ Medido (bots sanos a 2 m de un jugador agachado tras una cobertura): racha media
 - Componentes conectados del mapa de navegación (`MX.navComp`, `MX.inMainNav`): un bot con destino que no avanza en 8 s se replanifica y, al segundo aviso, se recoloca en la celda libre de la zona principal más cercana (sólo a > 30 m del jugador); un bot dentro de una bolsa aislada se recoloca al momento. Simulación de 8 min: 17 avisos de atasco (antes ~3,7/min → 2,1/min).
 - La escuadra del jugador recupera el mando y se reagrupa con él al **reaparecer o ser reanimado** (antes se quedaba en «mantener posición» lejos); después vuelve a «Seguirme». Si cedió el mando a propósito, no.
 - Tests: `mapa_bolsas.py`, `escuadra_reaparece.py`.
+
+## F3 — Puntuación (plan v4)
+El refugio ya no puntúa por existir (sigue dando reaparición, armería y suministros); los puntos comunes dan 2 por tick de 5 s (0,4/s) y los puestos avanzados 1 (0,2/s); cada baja a un rival suma 1 punto de campaña (los infectados y los aliados no). Sin bonus de captura ni ayuda al que va por detrás. Objetivo 1.000. Test: `puntuacion.py`.

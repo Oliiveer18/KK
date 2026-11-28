@@ -635,7 +635,7 @@ function objTick(dt) {
       e.supT = M.t; if (e.isPlayer) { if (MX.refill) MX.refill(); e.kits = 1; if (MX.syncKit) MX.syncKit(e); toast('Reabastecido en ' + o.name); } else { e.ammo = e.w.max; e.gCount = Math.min(3, e.gCount + 1); e.kits = 1; } }
   }
   /* puntuación de dominio */
-  SQ.scoreT += dt; while (SQ.scoreT >= TICK) { SQ.scoreT -= TICK; for (const o of SQ.objs) if (o.owner >= 0) SQ.score[o.owner] += o.shared || o.refuge ? 2 : 1; }
+  SQ.scoreT += dt; while (SQ.scoreT >= TICK) { SQ.scoreT -= TICK; for (const o of SQ.objs) if (o.owner >= 0 && !o.refuge) SQ.score[o.owner] += o.shared ? 2 : 1; }   /* el refugio ya no puntúa por existir (sigue dando reaparición, armería y suministros); puntúan los comunes (0,4/s) y los puestos avanzados (0,2/s) */
   const w = SQ.score.findIndex(v => v >= META); if (w >= 0) endCampaign(w);
 }
 /* tonos cortos sintetizados para el dominio (sin muestras): capturado, neutralizado, aviso, perdido */
