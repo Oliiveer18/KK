@@ -3,7 +3,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 with sync_playwright() as pw:
-    browser = pw.chromium.launch(args=['--use-angle=swiftshader', '--enable-unsafe-swiftshader'])
+    browser = pw.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--use-angle=swiftshader', '--enable-unsafe-swiftshader'])
     page = browser.new_page()
     page.goto((Path(__file__).resolve().parents[1] / 'index.html').as_uri() + '?mapa=3')
     page.evaluate('begin()')

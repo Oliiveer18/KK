@@ -5,7 +5,7 @@ from playwright.sync_api import sync_playwright
 
 root = Path(__file__).resolve().parents[1]
 with sync_playwright() as pw:
-    browser = pw.chromium.launch(args=['--use-angle=swiftshader','--enable-unsafe-swiftshader'])
+    browser = pw.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--use-angle=swiftshader','--enable-unsafe-swiftshader'])
     page = browser.new_page(viewport={'width':844,'height':390}, has_touch=True)
     errors = []
     page.on('pageerror', lambda e: errors.append(str(e)))

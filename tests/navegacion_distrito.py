@@ -79,7 +79,7 @@ def simulate(browser, html):
 
 
 with sync_playwright() as pw:
-    browser = pw.chromium.launch(args=['--use-angle=swiftshader','--enable-unsafe-swiftshader'])
+    browser = pw.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--use-angle=swiftshader','--enable-unsafe-swiftshader'])
     actual = simulate(browser, current)
     if args.referencia:
         baseline = simulate(browser, args.referencia)

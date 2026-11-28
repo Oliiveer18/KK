@@ -8624,6 +8624,7 @@ function roleGoal(e) {
     if (f.ph === 'wait') return { x: q.x, z: q.z, speed: 3, hold: true, face: Math.atan2(m.x - q.x, m.z - q.z), crouch: true }; }
   return null;
 }
+const NOASA = /[?&]noasalto\b/.test(location.search);
 function classGoal(e) {
   const rgl = roleGoal(e); if (rgl) return rgl; if (e.sqd && e.sqd.mission && e.sqd.mission.role === 'flank') return null;
   const s = e.sqd, c = e.cls; if (!s || s.playerLead || !s.leader || !s.mission || s.mission.x === undefined || (c !== 'apo' && c !== 'fra' && c !== 'asa' && c !== 'fla')) return null;
@@ -8631,7 +8632,18 @@ function classGoal(e) {
   const m = s.mission, L = s.leader, dm = dm2(L.p.x, L.p.z, m.x, m.z), face = Math.atan2(m.x - e.p.x, m.z - e.p.z);
   if (c === 'fra' && dm < 110) { const q = overwatch(e, s, m, 62); if (!q) return null; return { x: q.x, z: q.z, speed: 5.4, hold: true, face: Math.atan2(m.x - q.x, m.z - q.z), crouch: dm2(e.p.x, e.p.z, q.x, q.z) < 3 }; }
   if (c === 'apo' && dm < 95) { const q = overwatch(e, s, m, 38); if (!q) return null; return { x: q.x, z: q.z, speed: 5.4, hold: true, face: Math.atan2(m.x - q.x, m.z - q.z), crouch: dm2(e.p.x, e.p.z, q.x, q.z) < 3 }; }
-  if (c === 'asa' && s.mission.type === 'attack' && dm < 70) { const a = face + 3.14159 + ((e.slot || 0) % 3 - 1) * .7, r = 10 + ((e.slot || 0) % 2) * 4, q = MX.navAt(m.x + Math.sin(a) * r, m.z + Math.cos(a) * r) ? { x: m.x + Math.sin(a) * r, z: m.z + Math.cos(a) * r } : m; return { x: q.x, z: q.z, speed: 6.4, hold: true, face, crouch: false }; }
+  if (c === 'asa' && s.mission.type === 'attack' && dm < 70) {                      // ASALTO táctico (v4): espera en la última cobertura a 10–14 m (la escopeta rinde a < 6 m), con humo entra corto y rápido cuando la escuadra ya fija al enemigo, y si va mal de vida vuelve a cubrirse
+    const a = face + 3.14159 + ((e.slot || 0) % 3 - 1) * .7, r = 10 + ((e.slot || 0) % 2) * 4, ring = MX.navAt(m.x + Math.sin(a) * r, m.z + Math.cos(a) * r) ? { x: m.x + Math.sin(a) * r, z: m.z + Math.cos(a) * r } : m;
+    if (NOASA) return { x: ring.x, z: ring.z, speed: 6.4, hold: true, face, crouch: false };
+    const A = s._asa || (s._asa = { ph: 'ring', t: 0, k: '' }), key = Math.round(m.x) + ',' + Math.round(m.z); if (A.k !== key) { A.k = key; A.ph = 'ring'; A.t = M.t; }
+    const near = dm < 22, fixing = s.contact && M.t - s.contact.t < 8;
+    if (A.ph === 'ring' && near && (fixing || M.t - A.t > 14) && M.t - A.t > 4) { A.ph = 'rush'; A.t0 = M.t; }
+    else if (A.ph === 'rush' && (M.t - A.t0 > 14 || (e.hp < 45))) { A.ph = 'ring'; A.t = M.t; }
+    if (A.ph === 'rush' && e.hp >= 45) { const q = MX.navAt(m.x + Math.sin(a) * 3.5, m.z + Math.cos(a) * 3.5) ? { x: m.x + Math.sin(a) * 3.5, z: m.z + Math.cos(a) * 3.5 } : m;
+      if (e.sCount > 0 && e.sCd <= 0 && !e.wantThrow && e.reloadT < 0 && !e.sThrown !== false && M.t - A.t0 < 1.5 && dist(e.p, m) < 20) { e.wantThrow = 'smoke'; e.throwT = 0; e.vis = false; e.ls = { x: m.x, z: m.z }; }
+      return { x: q.x, z: q.z, speed: 7.4, hold: true, face, crouch: false, catchUp: true }; }
+    return { x: ring.x, z: ring.z, speed: 6.2, hold: true, face, crouch: dist(e.p, ring) < 4 };
+  }
   if (c === 'fla' && s.mission.type === 'attack' && dm > 24 && dm < 120) { const q = flank(e, s, m); if (dm2(e.p.x, e.p.z, q.x, q.z) > 6) return { x: q.x, z: q.z, speed: 6, hold: false }; }
   return null;
 }
@@ -8888,7 +8900,7 @@ function hud() {
 }
 /* ---------- GOTEO de los puntos: cada punto mantenido va dejando una pila de material (tope 60) que hay que RECOGER (■ mantenido) y llevar al depósito; se vacía al cambiar de dueño ---------- */
 ECO.pileCap = 60;
-ECO.drip = { A: { madera: 2, piedra: 2, hierro: 2 }, B: { hierro: 6 }, C: { hierro: 6 }, D: { madera: 6 }, E: { madera: 6 }, out: { madera: 3, piedra: 2, hierro: 2 } };   // unidades por minuto
+ECO.drip = { A: { madera: 1, piedra: 1, hierro: 1 }, B: { hierro: 3 }, C: { hierro: 3 }, D: { madera: 3 }, E: { madera: 3 }, out: { madera: 1.5, piedra: 1, hierro: 1 } };   // unidades por minuto
 const dripOf = o => o.refuge ? null : ECO.drip[o.code] || (o.name && /Puesto avanzado/.test(o.name) ? ECO.drip.out : null);
 function pilePos(o) {                                                               // un hueco libre de navegación junto al punto, hacia fuera del centro
   const a0 = Math.atan2(o.x, o.z) + 1.2; for (let r = 3; r <= 9; r += 1.5) for (let k = 0; k < 12; k++) { const a = a0 + k * .5236, x = o.x + Math.sin(a) * r, z = o.z + Math.cos(a) * r; if (!MX.inMainNav || MX.inMainNav(x, z)) return { x, z }; }
@@ -9171,7 +9183,7 @@ function eligible(e) {
   if (e.stGo) return false; if (e.hp < 60) return false;
   return cls(e) === 'sup' || M.t - (e.lifeStart || -99) < 25;
 }
-function maxFor(team) { const t = ECO.total(team); return t < 150 ? 3 : t > 450 ? 1 : 2; }
+function maxFor(team) { const t = ECO.total(team); return t < 120 ? 2 : t < 260 ? 1 : 0; }   // calibración v4: el material debe costar; con el almacén medio lleno se deja de reciclar
 function cooled(e) { return M.t < (e.lgCool || 0); }
 function approach(e, ref, kind) {                                                  // un punto libre junto al objeto, por el lado del bot
   const hx = kind === 'tree' ? .3 : ref.hx, hz = kind === 'tree' ? .3 : ref.hz, rad = Math.max(hx, hz) + 1.05; let best = null, bd = 1e9;
@@ -9333,7 +9345,7 @@ const rs = MX.restart; if (rs) MX.restart = function () { const r = rs.apply(thi
 const M = MX.M, SQ = MX.SQ, ECO = MX.ECO, REF = MX.REF, INT = MX.INT, MATS = ECO.MATS;
 ECO.wallHpLv = [0, 14000, 22400, 35000]; ECO.gateHpLv = [0, 11000, 17600, 27500];
 ECO.rep = { hpps: 450, rebuildT: 12, hitEvery: .5, maxEng: 3, near: 50 };
-ECO.cost = { reparar: { madera: 1.2, piedra: .5 }, reconstruir: { madera: 18, piedra: 6 } };       // reparar: por cada 1.000 de vida; reconstruir: base (luego se repara)
+ECO.cost = { reparar: { madera: 2.4, piedra: 1 }, reconstruir: { madera: 36, piedra: 12 } };       // reparar: por cada 1.000 de vida; reconstruir: base (luego se repara)
 ECO.mej = {
   muros: [null, null, { piedra: 70, madera: 30 }, { hierro: 110, piedra: 50 }],                       // coste TOTAL del nivel (se reparte entre los tramos)
   porton: [null, null, { hierro: 40, madera: 20 }, { hierro: 80, piedra: 30 }],
@@ -9341,7 +9353,7 @@ ECO.mej = {
   enfermeria: [null, { madera: 40, hierro: 20 }, { hierro: 50, piedra: 20 }],
   armeria: [null, { hierro: 50, piedra: 20 }, { hierro: 90, piedra: 40 }],
 };
-for (const k in ECO.mej) for (const lv of ECO.mej[k]) if (lv) for (const m in lv) lv[m] = Math.round(lv[m] * 2.5);   // calibración F13: el gasto quedaba en ≈ 30 % del ingreso
+for (const k in ECO.mej) for (const lv of ECO.mej[k]) if (lv) for (const m in lv) lv[m] = Math.round(lv[m] * 4);   // calibración F13: el gasto quedaba en ≈ 30 % del ingreso
 ECO.mejMax = { muros: 3, porton: 3, torre: 2, enfermeria: 2, armeria: 2 };
 ECO.mejName = { muros: 'Muros', porton: 'Portón', torre: 'Torre de vigilancia', enfermeria: 'Enfermería', armeria: 'Armería' };
 const teamName = t => ['Azul', 'Rojo', 'Ámbar', 'Violeta'][t];
@@ -9416,7 +9428,7 @@ function stepEng(e, dt) {
     p.hp += add; REF.stats.repaired[team] += add; if (p.hp >= p.maxHp - .5) { p.hp = p.maxHp; stopJob(e); } return; }
   if (j.k === 'upgrade') {
     const q = j.q; if (!q || q.left <= 0 || !q.todo.has(p)) { stopJob(e); return; }
-    j.prog += dt / 6; if (j.prog >= 1) { if (!canAfford(team, q.per)) { REF.stats.waits[team]++; stopJob(e); e.engCool = M.t + 20; return; } for (const k of MATS) if (q.per[k]) { ECO.stock[team][k] -= Math.ceil(q.per[k]); ECO.stat.spent[team] += Math.ceil(q.per[k]); REF.stats.spent[team] += Math.ceil(q.per[k]); }
+    j.prog += dt / 10; if (j.prog >= 1) { if (!canAfford(team, q.per)) { REF.stats.waits[team]++; stopJob(e); e.engCool = M.t + 20; return; } for (const k of MATS) if (q.per[k]) { ECO.stock[team][k] -= Math.ceil(q.per[k]); ECO.stat.spent[team] += Math.ceil(q.per[k]); REF.stats.spent[team] += Math.ceil(q.per[k]); }
       const frac = p.hp / p.maxHp, type = (q.k === 'porton' ? 'gate' : 'wallLow') + q.to; const nq = replace(team, p, type, Math.max(.3, frac)); q.todo.delete(p); q.left--; REF.stats.upgraded[team]++;
       if (q.left <= 0) { REF.up[team][q.k] = q.to; REF.queue[team] = REF.queue[team].filter(x => x !== q); if (team === (MX.pl && MX.pl.team)) SQ.toast(ECO.mejName[q.k] + ' nivel ' + q.to + ' terminado'); }
       stopJob(e); } }
@@ -9457,7 +9469,7 @@ function assign() {
 /* decisión de los bots: encolan mejoras cuando les sobra material (la prioridad: muros, portón, enfermería, armería, torre) */
 function botPlan() {
   for (let t = 0; t < 4; t++) { if (REF.destroyed[t] || t === (MX.pl && MX.pl.team && 0)) continue; if (MX.pl && MX.pl.team === t && !MX.REF.autoPlayer) continue;
-    for (const k of ['muros', 'enfermeria', 'porton', 'armeria', 'torre']) { const c = REF.canQueue(t, k); if (!c) continue; const reserve = 30; if (MATS.every(m => ECO.stock[t][m] >= Math.ceil(c.cost[m] || 0) + (c.cost[m] ? reserve : 0))) { REF.enqueue(t, k); break; } } }
+    for (const k of ['muros', 'enfermeria', 'porton', 'armeria', 'torre']) { const c = REF.canQueue(t, k); if (!c) continue; const reserve = 60; if (MATS.every(m => ECO.stock[t][m] >= Math.ceil(c.cost[m] || 0) + (c.cost[m] ? reserve : 0))) { REF.enqueue(t, k); break; } } }
 }
 const sqGoal = SQ.goalFor;
 SQ.goalFor = e => {

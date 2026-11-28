@@ -5,7 +5,7 @@ def chk(c,m):
     print(('  OK  ' if c else '  FALLA ')+m)
     if not c: fails.append(m)
 with sync_playwright() as p:
-    b=p.chromium.launch(args=['--use-gl=swiftshader','--enable-unsafe-swiftshader','--no-sandbox'])
+    b=p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--use-gl=swiftshader','--enable-unsafe-swiftshader','--no-sandbox'])
     pg=b.new_page(viewport={'width':1100,'height':700}); pg.on('pageerror',lambda e:errs.append(str(e)))
     pg.goto('file://'+os.path.abspath('index.html')); pg.wait_for_timeout(1500)
     pg.evaluate("""window.__b=new Array(18).fill(0); window.__a=[0,0,0,0];

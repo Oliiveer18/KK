@@ -84,7 +84,7 @@ function hud() {
 }
 /* ---------- GOTEO de los puntos: cada punto mantenido va dejando una pila de material (tope 60) que hay que RECOGER (■ mantenido) y llevar al depósito; se vacía al cambiar de dueño ---------- */
 ECO.pileCap = 60;
-ECO.drip = { A: { madera: 2, piedra: 2, hierro: 2 }, B: { hierro: 6 }, C: { hierro: 6 }, D: { madera: 6 }, E: { madera: 6 }, out: { madera: 3, piedra: 2, hierro: 2 } };   // unidades por minuto
+ECO.drip = { A: { madera: 1, piedra: 1, hierro: 1 }, B: { hierro: 3 }, C: { hierro: 3 }, D: { madera: 3 }, E: { madera: 3 }, out: { madera: 1.5, piedra: 1, hierro: 1 } };   // unidades por minuto
 const dripOf = o => o.refuge ? null : ECO.drip[o.code] || (o.name && /Puesto avanzado/.test(o.name) ? ECO.drip.out : null);
 function pilePos(o) {                                                               // un hueco libre de navegación junto al punto, hacia fuera del centro
   const a0 = Math.atan2(o.x, o.z) + 1.2; for (let r = 3; r <= 9; r += 1.5) for (let k = 0; k < 12; k++) { const a = a0 + k * .5236, x = o.x + Math.sin(a) * r, z = o.z + Math.cos(a) * r; if (!MX.inMainNav || MX.inMainNav(x, z)) return { x, z }; }

@@ -43,7 +43,7 @@ function eligible(e) {
   if (e.stGo) return false; if (e.hp < 60) return false;
   return cls(e) === 'sup' || M.t - (e.lifeStart || -99) < 25;
 }
-function maxFor(team) { const t = ECO.total(team); return t < 150 ? 3 : t > 450 ? 1 : 2; }
+function maxFor(team) { const t = ECO.total(team); return t < 120 ? 2 : t < 260 ? 1 : 0; }   // calibración v4: el material debe costar; con el almacén medio lleno se deja de reciclar
 function cooled(e) { return M.t < (e.lgCool || 0); }
 function approach(e, ref, kind) {                                                  // un punto libre junto al objeto, por el lado del bot
   const hx = kind === 'tree' ? .3 : ref.hx, hz = kind === 'tree' ? .3 : ref.hz, rad = Math.max(hx, hz) + 1.05; let best = null, bd = 1e9;
