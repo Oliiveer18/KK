@@ -1,6 +1,6 @@
 # Plan de implementación v4 — Economía, refugios destruibles y facciones competitivas
 
-Estado: **plan cerrado con el usuario, sin implementar** (27-11-2026; bloque R añadido con la captura del iPhone del mismo día). Se empieza cuando lo diga el usuario. Cada fase se prueba con tests y con la partida simulada, y se sube a `main` al terminarla.
+Estado: **plan cerrado y ajustado para ejecución desatendida; sin implementar hasta la confirmación del usuario** (27-11-2026; bloque R añadido con la captura del iPhone del mismo día). Se empieza cuando lo diga el usuario. Cada fase se prueba con tests y con la partida simulada, y se sube a `main` al terminarla.
 
 ## 0. Principios (no negociables)
 - **Calidad visual:** nunca se baja. Todo lo nuevo es adición (el estilo D y el detalle de suelo se mantienen).
@@ -9,6 +9,37 @@ Estado: **plan cerrado con el usuario, sin implementar** (27-11-2026; bloque R a
 - **Controles táctiles invisibles:** los gestos nuevos no añaden botones fijos; teclado y táctil tienen su equivalente.
 - **Verificación honesta:** cada entrega dice qué se probó y qué no (en especial lo que solo se puede medir en el iPhone).
 - **Cada sistema tiene interruptor** de URL para desactivarlo y comparar (`?nodesguace`, `?norefugiohp`…).
+
+## 0b. Protocolo de ejecución desatendida (arranca solo con la palabra «confirmado» del usuario)
+**Objetivo:** implementar todo sin intervención, sin romper nada y dejando constancia. Nada de esto se ejecuta hasta la confirmación.
+
+**Ciclo de cada fase (siempre el mismo):**
+1. Implementar con interruptor de URL (`?no<sistema>`), siguiendo las decisiones de la tabla del apartado 1.
+2. Pasar los tests nuevos de la fase **y** los anteriores relacionados (`escuadras`, `conciencia`, `bots_pro`, `bots_defensa`, `clases`, `estrategia`, `remate`, `zombis_tiroteo`, `mapa_tactico`, `share_mapa`, `sombra_cull`, `granadas_equipo`…).
+3. Pasar `tests/presupuesto.py` y repetir la partida simulada (0 errores JS, 0 NaN, sin bots fuera del mapa).
+4. Si hay cambio visual: comparación de imágenes antes/después en carretera, bosque, plaza, aldea y refugio; sin pérdida de calidad.
+5. Anotar en `docs/CHANGELOG.md` y en la tabla de estado de este documento (qué se probó y qué no).
+6. `git pull --rebase origin main` y `git push origin main` (nunca `--force`). Un commit por fase con el mensaje de la fase.
+
+**Si algo falla:**
+- Hasta **3 intentos** de arreglo razonados por cada test o presupuesto que falle.
+- Si no se resuelve: **revertir el commit de esa fase con `git revert`** (el historial queda), marcarla `BLOQUEADA` con la causa en el registro, y continuar con la siguiente fase que no dependa de ella.
+- Un test que ya fallaba antes (los conocidos: `fusion_identico`, `rendimiento` mapa 3, los de Chromium ausente) no cuenta como regresión.
+- Jamás se borran ni se debilitan tests para que pasen. Los umbrales solo se cambian con justificación escrita y medida.
+- Nada de cambios destructivos fuera del repositorio; nada que dependa de red externa.
+
+**Decisiones por defecto cuando falte información:** la opción más conservadora y reversible, escrita en el registro. Los números de equilibrio van en `ECO` y se calibran con simulación (F13).
+
+**Control de contexto:** al terminar cada fase se actualiza la tabla de estado de este documento para poder retomar sin perder nada.
+
+**Salida:** al terminar (o al agotar lo que se puede hacer sin el iPhone) se escribe `docs/INFORME_EJECUCION.md`: fases hechas, bloqueadas, medidas (simulación y presupuesto), lo no probado y qué captura necesitas hacer (`?bench`).
+
+**Límites duros:** calidad visual intacta, sin sonidos inventados, controles táctiles invisibles, presupuesto de rendimiento respetado, nada de `?look` ni estilos modificados sin comparación de imágenes.
+
+### Tabla de estado (se actualiza en cada fase)
+| Fase | Estado | Commit | Probado | No probado |
+|---|---|---|---|---|
+| R0–R4, F0–F13 | pendiente | — | — | — |
 
 ## 1. Decisiones cerradas
 | Tema | Decisión |
@@ -185,7 +216,12 @@ Estado: **plan cerrado con el usuario, sin implementar** (27-11-2026; bloque R a
 - Informe final con lo probado y lo no probado (iPhone).
 
 ## 4. Dependencias y orden
-**R0 → R1 → R2 → R3 → R4** (rendimiento; R0 y R1–R2 se pueden hacer ya), después F0 → F1 → F2 → F3 → F4 → F5 → F6 → F7 → F8 → F9 → F10 → F11 → F12 → F13.
+**Orden de ejecución desatendida** (primero lo que puede verificarse por completo en simulación; lo que necesita el iPhone, al final y en versión segura):
+F0 → F1 → F2 → F3 → R0 → R1 → R2 → F4 → F5 → F6 → F7 → F8 → F9 → F10 → F11 → F12 → F13 → **R3 → R4**.
+- **R0** (banco `?bench` y telemetría) va pronto porque deja listo lo que tú medirás por la mañana.
+- **R1–R2** se verifican con métricas de CPU y máximos por fotograma en simulación.
+- **R3–R4** se dejan para el final y **solo se aplican los cambios que se puedan demostrar idénticos con comparación de imágenes** (por ejemplo normales precalculadas, política de resolución más prudente, y las partes del suelo y la sombra que no alteren la imagen); lo que dependa de la GPU real queda detrás de interruptor y descrito en el informe para decidir con tu captura.
+- Esquema anterior (referencia): R0 → R1 → R2 → R3 → R4, después F0 → F1 → F2 → F3 → F4 → F5 → F6 → F7 → F8 → F9 → F10 → F11 → F12 → F13.
 Dependen especialmente: F6 y F7 de F4 y F5; F9 de F5 y F8; F10 de F8 y F9; F11 de F8 y F10; F13 de todo. F1–F3 se pueden entregar ya y son independientes del resto.
 
 ## 5. Riesgos y mitigación
