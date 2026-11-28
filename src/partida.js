@@ -203,6 +203,41 @@ function refreshNav() {
 if (window.OBJ && OBJ.on) OBJ.on.push(() => { M.navT = 0; });                    // puertas, brechas y objetos nuevos: la malla se rehace en el siguiente fotograma
 const navAt = (x, z) => { const ix = Math.floor((x - NV.ox) / NV.cs), iz = Math.floor((z - NV.oz) / NV.cs); return ix < 0 || iz < 0 || ix >= NV.w || iz >= NV.h ? false : !NV.bl[iz * NV.w + ix]; };
 const cellOf = (x, z) => { const ix = clamp(Math.floor((x - NV.ox) / NV.cs), 0, NV.w - 1), iz = clamp(Math.floor((z - NV.oz) / NV.cs), 0, NV.h - 1); return iz * NV.w + ix; };
+/* ---- ANTI-ATASCO (F2): componentes conectados del mapa de navegación (8 vecinos sin cortar esquinas, igual que la búsqueda de rutas); la mayor es la «principal». Un bot con destino que no avanza en 8 s, o que
+   está dentro de una bolsa aislada, se recoloca en la celda libre de la principal más cercana (sólo fuera de la vista del jugador); antes se quedaba parado minutos (torres con sacos, edificios sin salida). ---- */
+const NC2 = { ver: -1, comp: null, main: -1, t: -99, sizes: null };
+function navComp(force) {
+  if (!force && NC2.ver === navVer && NC2.comp) return NC2; if (!force && performance.now() - NC2.t < 20000 && NC2.comp) return NC2;
+  const W_ = NV.w, H_ = NV.h, N = NV.n, comp = new Int32Array(N).fill(-1), q = new Int32Array(N), sizes = []; let nc = 0;
+  for (let s0 = 0; s0 < N; s0++) { if (NV.bl[s0] || comp[s0] >= 0) continue; let h = 0, t = 0, n = 0; q[t++] = s0; comp[s0] = nc;
+    while (h < t) { const c = q[h++]; n++; const cx = c % W_, cz = (c / W_) | 0;
+      for (let k = 0; k < 8; k++) { const nx = cx + DX8[k], nz = cz + DZ8[k]; if (nx < 0 || nz < 0 || nx >= W_ || nz >= H_) continue; const ni = nz * W_ + nx; if (NV.bl[ni] || comp[ni] >= 0) continue;
+        if (k >= 4 && (NV.bl[cz * W_ + nx] || NV.bl[nz * W_ + cx])) continue; comp[ni] = nc; q[t++] = ni; } }
+    sizes.push(n); nc++; }
+  let main = -1, bm = 0; for (let i = 0; i < sizes.length; i++) if (sizes[i] > bm) { bm = sizes[i]; main = i; }
+  NC2.ver = navVer; NC2.comp = comp; NC2.main = main; NC2.sizes = sizes; NC2.t = performance.now(); return NC2;
+}
+MX.navComp = navComp; MX.inMainNav = (x, z) => { const C = navComp(), c = cellOf(x, z); return c >= 0 && C.comp[c] === C.main; };
+function relocate(e) {                                                               // a la celda libre de la componente principal más cercana (≤ 14 celdas)
+  const C = navComp(), c0 = cellOf(e.p.x, e.p.z); if (c0 < 0) return false; const cx = c0 % NV.w, cz = (c0 / NV.w) | 0;
+  for (let r = 1; r <= 14; r++) for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+    if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue; const nx = cx + dx, nz = cz + dz; if (nx < 0 || nz < 0 || nx >= NV.w || nz >= NV.h) continue; const ni = nz * NV.w + nx;
+    if (NV.bl[ni] || C.comp[ni] !== C.main) continue; e.p.set(NV.ox + (nx + .5) * NV.cs, 0, NV.oz + (nz + .5) * NV.cs); e.v.set(0, 0, 0); e.goal = null; e.path = null; e.needPath = true; e.pj = false; e.stuckN = 0; e._sk = null; MX.stuckFixed = (MX.stuckFixed | 0) + 1; return true; }
+  return false;
+}
+let stuckT = 0;
+function stuckTick(dt) {
+  stuckT -= dt; if (stuckT > 0) return; stuckT = 1; const C = navComp(), px = P.pos.x, pz = P.pos.z;
+  for (let i = 0; i < M.ents.length; i++) { const e = M.ents[i]; if (e.dead || e.isPlayer || e.dwn || e.clsWait) continue;
+    const far = (e.p.x - px) * (e.p.x - px) + (e.p.z - pz) * (e.p.z - pz) > 900;                                    // sólo se recoloca fuera de la vista (> 30 m del jugador)
+    const c = cellOf(e.p.x, e.p.z); if (c >= 0 && C.comp[c] >= 0 && C.comp[c] !== C.main) { if (far) relocate(e); continue; }   // dentro de una bolsa aislada
+    let k = e._sk; if (!k) k = e._sk = { x: e.p.x, z: e.p.z, t: M.t, n: 0 };
+    if (!e.goal || e.holdT > 0 || e.st === 'cover' || (e.st === 'fight' && e.vis) || Math.hypot(e.p.x - k.x, e.p.z - k.z) > 1.5) { k.x = e.p.x; k.z = e.p.z; k.t = M.t; if (!e.goal) k.n = 0; continue; }
+    if (M.t - k.t > 8) { k.t = M.t; k.n++; e.stuckN = (e.stuckN | 0) + 1;
+      if (k.n >= 2 && far && relocate(e)) { k.n = 0; continue; }                                                     // 2.º aviso: recolocación
+      e.path = null; e.goal = null; e.needPath = true; e.pj = false; }                                                // 1.er aviso: replanificar
+  }
+}
 function nearestFree(c) {
   if (!NV.bl[c]) return c;
   const cx = c % NV.w, cz = (c / NV.w) | 0;
@@ -1231,7 +1266,7 @@ MX.update = dt => {
   if (!GRID.off) { gridFill(GRID.E, M.ents, true); if (MX.zom) gridFill(GRID.Z, MX.zom.list); }
   MX.pathPump(2.5);                                                                  // rutas pendientes: ~2,5 ms por fotograma en total
   for (let i = M.propQ.length - 1; i >= 0; i--) { const q = M.propQ[i]; if (M.t >= q.t) { if (placeProp(q.spec, true)) M.propQ.splice(i, 1); else q.t = M.t + 4; } }
-  armoryTick(dt);
+  armoryTick(dt); stuckTick(dt);
   if (MX.campaign) INVENTARIO.tick(dt);
   if (MX.zom && MX.campaign) MX.zom.update(dt);
   if (MX.SQ && MX.campaign) MX.SQ.update(dt);

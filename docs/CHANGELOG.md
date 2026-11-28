@@ -450,3 +450,8 @@ Medido (bots sanos a 2 m de un jugador agachado tras una cobertura): racha media
 - Arreglado el bloqueo: los heridos (< 55, sin combate) eligen el puesto del bando aunque no esté activo y esperan hasta 25 s a que llegue un médico; el médico libre acude al puesto con demanda y se queda mientras haya heridos dentro (`medStay` tiene prioridad sobre otras tareas); los médicos ociosos de la zona del refugio van a la enfermería.
 - **Pedir médico:** mantener ✕ 0,4 s (mando), tecla Y o pulsación larga sobre el minimapa; el médico libre más cercano viene; sin médico, aviso; enfriamiento de 8 s. Aviso si hay un puesto activo a < 25 m.
 - Tests: `puestos_demanda.py` (nuevo), `puestos_curacion.py`.
+
+## F2 — Anti-atasco y escuadra del jugador (plan v4)
+- Componentes conectados del mapa de navegación (`MX.navComp`, `MX.inMainNav`): un bot con destino que no avanza en 8 s se replanifica y, al segundo aviso, se recoloca en la celda libre de la zona principal más cercana (sólo a > 30 m del jugador); un bot dentro de una bolsa aislada se recoloca al momento. Simulación de 8 min: 17 avisos de atasco (antes ~3,7/min → 2,1/min).
+- La escuadra del jugador recupera el mando y se reagrupa con él al **reaparecer o ser reanimado** (antes se quedaba en «mantener posición» lejos); después vuelve a «Seguirme». Si cedió el mando a propósito, no.
+- Tests: `mapa_bolsas.py`, `escuadra_reaparece.py`.

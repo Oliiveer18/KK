@@ -95,7 +95,7 @@ const merit = e => e.kills * 6 + (e.vet || 0) * 3 + Math.min(M.t - (e.lifeStart 
 function electLeader(s, quiet) {
   const pl = MX.pl, prev = s.leader;
   if (s.playerLead && pl && pl.sqd === s && (pl.dead || pl.dwn)) {                   // el jugador líder cae: el mejor vivo toma el mando y la escuadra se queda donde está
-    s.playerLead = false; s.order = null; let x = 0, z = 0, n = 0; for (const m of s.members) if (alive(m)) { x += m.p.x; z += m.p.z; n++; }
+    s.playerLead = false; s.plLost = M.t; s.order = null; let x = 0, z = 0, n = 0; for (const m of s.members) if (alive(m)) { x += m.p.x; z += m.p.z; n++; }
     s.mission = n ? { type: 'hold', x: x / n, z: z / n, name: 'posición' } : { type: 'hold' }; s.baseType = 'hold'; s.missionT = M.t; }
   let L = null;
   if (s.playerLead) L = pl;
@@ -558,6 +558,7 @@ addEventListener('keydown', ev => {
 });
 SQ.pm = {};                                                                           // diagnóstico: máximo (ms) de cada sección de SQ.update
 SQ.update = dt => {
+  restorePlayerLead();
   HPN = 0; if (!MX.campaign || !SQ.list.length) return;
   const t0 = performance.now(); padTick(dt); fpTick(); SQ.pm.pad = Math.max(SQ.pm.pad || 0, performance.now() - t0);
   for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e]; if (e.supp) e.supp = Math.max(0, e.supp - dt * (M.t - (e.suppT || 0) > 1.2 ? .35 : .08)); }
@@ -578,7 +579,12 @@ SQ.update = dt => {
   tB = performance.now(); SQ.pm.obj = Math.max(SQ.pm.obj || 0, tB - tA); tA = tB; hudTick(dt); SQ.pm.hud = Math.max(SQ.pm.hud || 0, performance.now() - tA);
 };
 SQ.onDeath = e => { const s = e.sqd; if (s && s.leader === e) electLeader(s); };
-SQ.onRespawn = e => { e.lifeStart = M.t; e.supp = 0; };
+function restorePlayerLead() {                                                          // al reaparecer O al ser reanimado, el jugador que era líder recupera el mando y su escuadra se reagrupa con él (antes: «mantener» a 100–470 m); si cedió el mando a propósito, no
+  const e = MX.pl; if (!e || e.dead || e.dwn || !e.sqd || !e.sqd.plLost || M.t - e.sqd.plLost < 1) return; const s = e.sqd; if (!s.members.some(m => !m.isPlayer && !m.dead)) return;
+  s.plLost = 0; s.playerLead = true; s.order = { type: 'regroup', t: M.t, fin: M.t + 14 }; s.mission = { type: 'free' }; electLeader(s, true);
+  for (const m of s.members) if (m.bot) { m.goal = null; m.path = null; } toast('Tu escuadra se reagrupa contigo');
+}
+SQ.onRespawn = e => { e.lifeStart = M.t; e.supp = 0; if (e.isPlayer && e.sqd && e.sqd.plLost) e.sqd.plLost = Math.min(e.sqd.plLost, M.t - 1); restorePlayerLead(); };
 
 /* ---------- OBJETIVOS (capa estratégica, distrito): se capturan quedándose dentro sin enemigos; dan suministros y refuerzos ----------
    Propios de cada facción (puesto avanzado, farmacia, tienda, clínica, 2 granjas) empiezan siendo suyos; los comunes (2 Fábricas, 2 Estaciones, Plaza Mayor), de nadie.
@@ -978,6 +984,7 @@ function hudTick(dt) {
   const o = s && s.playerLead && s.order; SQ.marker.visible = !!(o && (o.type === 'hold' || o.type === 'move' || o.type === 'cover'));
   if (SQ.marker.visible) { const tx = o.type === 'cover' ? o.tx : o.x, tz = o.type === 'cover' ? o.tz : o.z; SQ.marker.position.x = tx; SQ.marker.position.z = tz; SQ.marker.material.color.setHex(o.type === 'cover' ? 0xff7a3a : o.type === 'move' ? 0x4aa0ff : 0x6dff9a); }
   if (hudAcc < .25) return; hudAcc = 0;
+  if (s && s.playerLead && s.order && s.order.type === 'regroup' && s.order.fin && M.t > s.order.fin) s.order = { type: 'follow' };   // tras reagruparse vuelven a «Seguirme»
   if (!s || !MX.on) { panel.style.display = 'none'; return; }
   panel.style.display = 'block';
   const L = s.leader, what = s.playerLead ? ORDER_N[(s.order || { type: 'follow' }).type] : (MISSION_N[s.mission.type] || '') + (s.mission.name ? ' · ' + s.mission.name : '');
