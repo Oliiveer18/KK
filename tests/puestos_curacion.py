@@ -20,7 +20,7 @@ with sync_playwright() as p:
       const run=(s)=>{ for(let i=0;i<60*s;i++){ park(); time+=1/60; update(1/60); } };
       const setup=()=>{ pl.p.set(-500,0,-500); P.pos.set(-500,0,-500); for(const e of [med,...hurt]){ e.dead=false; e.dwn=false; e.inv=1e9; e.hp=100; e.clsWait=null; e.stGo=null; e.vis=false; } hurt.forEach((e,i)=>{ e.p.set(st.x+1+i,0,st.z+1); e.hp=40; e.v.set(0,0,0); e.holdT=99; }); };
       const out={}; 
-      setup(); med.p.set(st.x-1,0,st.z); run(7); out.activeHp=hurt.map(e=>Math.round(e.hp)); 
+      setup(); med.p.set(st.x-1,0,st.z); run(9); out.activeHp=hurt.map(e=>Math.round(e.hp)); 
       setup(); med.p.set(st.x+st.r+9,0,st.z); hurt.forEach(e=>e.holdT=99); run(4); out.noMedHp=hurt.map(e=>Math.round(e.hp));
       setup(); med.p.set(st.x-1,0,st.z); const f=foes[0]; f.dead=false; f.dwn=false; f.p.set(st.x+2,0,st.z+2); f.inv=1e9; for(let i=0;i<60*3;i++){ park(); f.p.set(st.x+2,0,st.z+2); time+=1/60; update(1/60); } out.blockedHp=hurt.map(e=>Math.round(e.hp)); f.p.set(-600,0,-600);
       setup(); med.p.set(st.x+10+st.r,0,st.z); hurt.forEach(e=>{ e.p.set(st.x+st.r+9,0,st.z+2); e.hp=100; }); hurt[0].hp=30; hurt[0].p.set(st.x+st.r+12,0,st.z+2); med.hp=100; out.aura=0; run(5); out.auraHp=Math.round(hurt[0].hp);

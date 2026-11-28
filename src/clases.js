@@ -132,11 +132,13 @@ function classGoal(e) {
 /* ---------- objetivo de los bots: la chapa; el médico, el herido ---------- */
 const sqGoal = SQ.goalFor;
 SQ.goalFor = e => {
+  const ms = medStay(e); if (ms) return ms;
   const w = e.clsWait; if (w && !e.isPlayer) return { x: w.x, z: w.z, speed: 5, hold: true, face: w.fx !== undefined ? w.fx : 0, crouch: false };
   if (e.cls === 'med' && !e.isPlayer && e.sqd && !e.dwn && !(e.vis && e.st === 'fight')) {
     let best = null, bd = 1e9; for (const m of e.sqd.members) { if (m === e || m.dead || m.dwn || m.hp >= 70) continue; const d = dist(m.p, e.p); if (d < 32 && d < bd) { bd = d; best = m; } }
     if (best) { const a = Math.atan2(best.p.x - e.p.x, best.p.z - e.p.z); return { x: best.p.x - Math.sin(a) * 2.4, z: best.p.z - Math.cos(a) * 2.4, speed: 5.8, hold: true, face: a, crouch: false }; }
   }
+  const mg = medCallGoal(e); if (mg) return mg;
   const sg = stGoal(e); if (sg) return sg;
   const cg = classGoal(e); if (cg) return cg;
   return sqGoal(e);
@@ -191,26 +193,57 @@ function stVisual(dt) {
     st.m.material.opacity = on ? .42 + Math.sin(ST.t * 3.2) * .12 : .16; st.m.material.color.setHex(on ? 0x6dff9a : 0xaab8c4); }
 }
 /* destino de curación de un bot: el puesto ACTIVO más cercano de su facción (herido), o, para un médico, un puesto con heridos esperando y sin médico */
+function medStay(e) {                                                                                         // médico dentro de un puesto con heridos de su facción dentro: se queda atendiendo (antes de cualquier otra tarea)
+  if (e.cls !== 'med' || e.isPlayer || e.dead || e.dwn || (e.vis && e.tgt) || e.st === 'fight' || M.t - (e.lastHurt || -99) < 5 || (e.sqd && e.sqd.playerLead)) return null;
+  for (const st of ST.list) { if (dist(e.p, st) > st.r) continue; for (const m of M.ents) if (m !== e && !m.dead && !m.dwn && m.team === e.team && m.hp < ST_FULL && dist(m.p, st) < st.r) return { x: e.p.x, z: e.p.z, speed: 0, hold: true, face: e.yaw, crouch: false }; break; }
+  return null;
+}
 function stGoal(e) {
   if (!ST.list.length || e.isPlayer || e.dwn || e.dead || (e.sqd && e.sqd.playerLead) || (e.vis && e.tgt) || e.st === 'fight' || e.clsWait) { e.stGo = null; return null; }
   const hit = M.t - (e.lastHurt || -99) < 5; let g = e.stGo;
-  if (g && !g.medic) { if (stActive(g.st, e.team)) g.i = 0; else if (!g.i) g.i = M.t; else if (M.t - g.i > 6) g.t = -99; }   /* el puesto se queda sin médico: no esperan más de 6 s */
-  if (g && (e.hp >= ST_FULL || M.t - g.t > 28 || hit)) { e.stGo = g = null; if (e.hp < ST_FULL) e.stCd = M.t + 12; }
+  /* el herido elige el puesto esté o no activo (antes sólo los activos y el médico sólo iba a donde había heridos que lo hubieran elegido: se esperaban el uno al otro y nunca se activaba ninguno).
+     Espera hasta 25 s a que llegue un médico desde su llegada; el médico acude al puesto con demanda y se queda mientras haya heridos dentro o en camino. */
+  if (g && !g.medic && !g.home) { if (stActive(g.st, e.team) || dist(e.p, g.st) > g.st.r) g.i = 0; else if (!g.i) g.i = M.t; else if (M.t - g.i > 25) g.t = -99; }
+  if (g && g.medic && !(g.st.want[e.team] > 0) && M.t - g.t > 8) g.t = -99;                                  // ya no hay heridos esperando: el médico vuelve a lo suyo
+  if (g && (e.hp >= ST_FULL && !g.medic && !g.home || M.t - g.t > (g.home ? 90 : 60) || hit)) { e.stGo = g = null; if (e.hp < ST_FULL) e.stCd = M.t + 12; }
   if (!g && e.stCd > M.t) return null;
   if (!g) {
-    if (e.hp < ST_WANT && !hit) { let best = null, bd = 150; for (const st of ST.list) { if (!stActive(st, e.team)) continue; const d = dist(e.p, st); if (d < bd) { bd = d; best = st; } } if (best) g = e.stGo = { st: best, t: M.t }; }
-    else if (e.cls === 'med' && !hit && e.hp > 50) { let best = null, bd = 160; for (const st of ST.list) { if (!st.want[e.team] || stActive(st, e.team) || st.blocked) continue; const d = dist(e.p, st); if (d < bd) { bd = d; best = st; } } if (best) g = e.stGo = { st: best, t: M.t, medic: true }; }
+    if (e.hp < ST_WANT && !hit) { let best = null, bd = 150; for (const st of ST.list) { const d = dist(e.p, st) - (stActive(st, e.team) ? 60 : 0); if (d < bd) { bd = d; best = st; } } if (best) g = e.stGo = { st: best, t: M.t }; }
+    else if (e.cls === 'med' && !hit && e.hp > 50) {
+      let best = null, bd = 160; for (const st of ST.list) { if (!st.want[e.team] || stActive(st, e.team) || st.blocked) continue; const d = dist(e.p, st); if (d < bd) { bd = d; best = st; } }
+      if (best) g = e.stGo = { st: best, t: M.t, medic: true };
+      else if (e.sqd && e.sqd.mission && e.sqd.mission.type !== 'attack') {                                  // médico ocioso en la zona de su refugio: a la enfermería (para que el puesto sea real)
+        const rf = MX.SQ.objs.find(o => o.refuge && o.owner === e.team); if (rf && dist(e.p, rf) < 40) { let b2 = null, d2 = 45; for (const st of ST.list) { const d = dist(e.p, st); if (d < d2 && dist(st, rf) < 40) { d2 = d; b2 = st; } } if (b2) g = e.stGo = { st: b2, t: M.t, home: true, medic: true }; } }
+    }
   }
   if (!g) return null; const st = g.st, a = ((e.slot || 0) + 1) * 1.7, rr = Math.min(st.r * .6, 2.6);
   return { x: st.x + Math.sin(a) * rr, z: st.z + Math.cos(a) * rr, speed: 5.6, hold: true, face: a + 3.14, crouch: false };
 }
+/* PEDIR MÉDICO: mantener ✕ (mando, 0,4 s), tecla Y o pulsación larga sobre el minimapa. El médico libre más cercano de la facción viene hacia ti (curación de campo, hasta 75); si hay un puesto activo a < 25 m se te avisa. */
+MX.callMedic = () => {
+  const pl = MX.pl; if (!pl || pl.dead || !MX.campaign || !MX.on || M.over) return false; if (M.t - (pl._medCallT || -99) < 8) return false; pl._medCallT = M.t;
+  let best = null, bd = 1e9; for (const e of M.ents) { if (e.isPlayer || e.dead || e.dwn || e.team !== pl.team || e.cls !== 'med' || e.clsWait || (e.vis && e.tgt) || e.st === 'fight') continue; const d = dist(e.p, pl.p); if (d < bd) { bd = d; best = e; } }
+  if (!best) { toast('No hay médico disponible'); return false; }
+  best.medCall = { t: M.t }; best.stGo = null; toast('Médico solicitado · ' + best.id + ' en camino (' + Math.round(bd) + ' m)');
+  const near = ST.list.find(q => dist(q, P.pos) < 25 && stActive(q, pl.team)); if (near) toast('Puesto de curación activo a ' + Math.round(dist(near, P.pos)) + ' m');
+  return true;
+};
+function medCallGoal(e) {
+  const c = e.medCall; if (!c) return null; const pl = MX.pl;
+  if (!pl || pl.dead || e.dead || e.dwn || M.t - c.t > 40 || (pl.hp >= MX.regenCap(pl) + 1 && M.t - c.t > 3) || (e.vis && e.tgt) || e.st === 'fight') { e.medCall = null; return null; }
+  const a = Math.atan2(pl.p.x - e.p.x, pl.p.z - e.p.z); return { x: pl.p.x - Math.sin(a) * 1.8, z: pl.p.z - Math.cos(a) * 1.8, speed: 6.4, hold: true, face: a, crouch: false };
+}
+{ let hold = 0; const key = ev => { if (ev.code === 'KeyY' && !ev.repeat && MX.on && !menuOpen) MX.callMedic(); }; addEventListener('keydown', key);
+  let lp = null; const bind = () => { const m = document.getElementById('miniMap'); if (!m || m._mc) return; m._mc = 1; m.style.pointerEvents = 'auto'; m.addEventListener('pointerdown', () => { clearTimeout(lp); lp = setTimeout(() => MX.callMedic(), 700); }); for (const t of ['pointerup', 'pointercancel', 'pointerleave']) m.addEventListener(t, () => clearTimeout(lp)); };
+  MX.medInput = dt => { bind(); const gp = (navigator.getGamepads ? navigator.getGamepads() : [])[0] || [].find.call(navigator.getGamepads ? navigator.getGamepads() : [], g => g && g.connected); const b0 = gp && gp.buttons && gp.buttons[0];
+    if (b0 && b0.pressed && MX.on && !menuOpen && !MX.mapOpen && !M.over && !document.querySelector('dialog[open]')) { hold += dt; if (hold >= .4 && hold < 1e8) { hold = 1e9; MX.callMedic(); } } else hold = 0; }; }
 MX.stations = ST;
 
 /* ---------- actualización ---------- */
 let healT = 0, tpl = 0, stT = 0;
 const sqUpdate = SQ.update;
 SQ.update = dt => {
-  owN = 0; sqUpdate(dt); if (MX.campaign) { stT += dt; if (stT >= .25) { stT = 0; stTick(.25); } stVisual(dt); } if (!MX.campaign || !pads.length) return;
+  owN = 0; sqUpdate(dt); if (MX.campaign) { stT += dt; if (stT >= .25) { stT = 0; stTick(.25); } stVisual(dt); MX.medInput(dt); } if (!MX.campaign || !pads.length) return;
   const pl = MX.pl;
   for (const q of pads) {                                                             // jugador: pisar la chapa de su facción cambia la clase
     const d = pl && !pl.dead ? dist(q, P.pos) : 99;
