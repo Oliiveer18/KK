@@ -1042,11 +1042,12 @@ function kill(v, killer, dx, dz) {
   if (!MX.campaign && (M.score[0] >= GOAL || M.score[1] >= GOAL)) endMatch(M.score[0] >= GOAL ? 0 : 1);
 }
 const _kp = new V3(), _kv = new V3();
-MX.explosion = (p, R, sc, own) => {
+MX.explosion = (p, R, sc, own, grenade) => {
   if (MX.zom) MX.zom.blast(p, R, own === undefined ? null : (own || MX.pl));
   const killer = own === undefined ? null : (own || MX.pl);
   for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e];
-    if (e.dead || e.inv > 0) continue; const dx = e.p.x - p.x, dz = e.p.z - p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)); if (d >= R) continue;
+    if (e.dead || e.inv > 0) continue; if (grenade && killer && e !== killer && e.team === killer.team) continue;   /* granadas: los compañeros de equipo no sufren daño ni empujón (el lanzador sí se hiere con la suya) */
+    const dx = e.p.x - p.x, dz = e.p.z - p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)); if (d >= R) continue;
     let dmg = 150 * sc * (1 - d / R); if (wallBetween(p.x, p.z, e.p.x, e.p.z)) dmg *= .15; if (dmg < 1) continue;
     if (!e.isPlayer) { e.v.x += dx / (d || 1) * 6; e.v.z += dz / (d || 1) * 6; }
     MX.hit(e, dmg, killer, dx / (d || 1), dz / (d || 1));

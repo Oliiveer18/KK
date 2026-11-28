@@ -1173,7 +1173,7 @@ function boomTick() {                                                           
   while (BOOM.q.length && (n++ === 0 || performance.now() < tEnd)) { const h = BOOM.q.shift(); boomHit(h.pr, h.x, h.z, h.R, h.sc, h.own); }
 }
 function explode(p, R, sc, kind, own) {
-  R = R || R_FRAG; sc = sc || 1; if (MX.on) MX.explosion(p, R, sc, own); if (MX.on && MX.combat) MX.combat('boom', p.x, p.z);
+  R = R || R_FRAG; sc = sc || 1; if (MX.on) MX.explosion(p, R, sc, own, kind !== 'barrel'); if (MX.on && MX.combat) MX.combat('boom', p.x, p.z);
   for (let i = 0; i < 36; i++) spawn('spark', p, new V3((Math.random() - .5) * 16, Math.random() * 9, (Math.random() - .5) * 16), .5 + Math.random() * .5, .06, .06, .06, true, 10);
   for (let i = 0; i < 12; i++) spawn('smoke', p, new V3((Math.random() - .5) * 3, 1 + Math.random() * 3, (Math.random() - .5) * 3), 1.2 + Math.random() * .6, .3, .3, .3, false, 2, -1.5);
   const b = booms.find(q => q.t < 0); if (b) { b.t = 0; b.R = R; b.ring.position.set(p.x, .06, p.z); b.fire.position.set(p.x, .5, p.z); b.ring.visible = b.fire.visible = true; }
@@ -6532,11 +6532,12 @@ function kill(v, killer, dx, dz) {
   if (!MX.campaign && (M.score[0] >= GOAL || M.score[1] >= GOAL)) endMatch(M.score[0] >= GOAL ? 0 : 1);
 }
 const _kp = new V3(), _kv = new V3();
-MX.explosion = (p, R, sc, own) => {
+MX.explosion = (p, R, sc, own, grenade) => {
   if (MX.zom) MX.zom.blast(p, R, own === undefined ? null : (own || MX.pl));
   const killer = own === undefined ? null : (own || MX.pl);
   for (let i_e = 0; i_e < M.ents.length; i_e++) { const e = M.ents[i_e];
-    if (e.dead || e.inv > 0) continue; const dx = e.p.x - p.x, dz = e.p.z - p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)); if (d >= R) continue;
+    if (e.dead || e.inv > 0) continue; if (grenade && killer && e !== killer && e.team === killer.team) continue;   /* granadas: los compañeros de equipo no sufren daño ni empujón (el lanzador sí se hiere con la suya) */
+    const dx = e.p.x - p.x, dz = e.p.z - p.z, d = Math.sqrt((dx) * (dx) + (dz) * (dz)); if (d >= R) continue;
     let dmg = 150 * sc * (1 - d / R); if (wallBetween(p.x, p.z, e.p.x, e.p.z)) dmg *= .15; if (dmg < 1) continue;
     if (!e.isPlayer) { e.v.x += dx / (d || 1) * 6; e.v.z += dz / (d || 1) * 6; }
     MX.hit(e, dmg, killer, dx / (d || 1), dz / (d || 1));
