@@ -39,7 +39,8 @@ Estado: **plan cerrado y ajustado para ejecución desatendida; sin implementar h
 ### Tabla de estado (se actualiza en cada fase)
 | Fase | Estado | Commit | Probado | No probado |
 |---|---|---|---|---|
-| R0–R4, F0–F13 | pendiente | — | — | — |
+| F0–F4, R0–R2 | hecho | — | tests propios + presupuesto | — |
+| F5–F13, R3–R4 | pendiente | — | — | — |
 
 ## 1. Decisiones cerradas
 | Tema | Decisión |

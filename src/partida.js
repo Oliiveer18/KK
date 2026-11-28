@@ -1284,6 +1284,7 @@ MX.update = dt => {
   let msg = '';
   if (MX.campaign) {
     msg = rescuePlayer(pl, dt);
+    if (MX.INT) { const held = !!(MX.rev || keys.KeyE || keys.KeyR); if (msg) MX.INT.tick(null, dt, false); else msg = MX.INT.tick(pl, dt, held); }
     if (pl.dwn) {                                                                  // abatido: espera ayuda o mantén □ (R) para volver a tu refugio sin esperar
       const held = !!(MX.rev || keys.KeyE || keys.KeyR); pl.surT = held ? (pl.surT || 0) + dt : Math.max(0, (pl.surT || 0) - dt * 2);
       msg = pl.surT > .05 ? 'Reapareciendo en tu refugio… ' + Math.min(100, Math.round(pl.surT / SUR_T * 100)) + ' %' : 'ABATIDO · ' + Math.max(0, Math.ceil(DWN_T - pl.dwT)) + ' s · espera ayuda o mantén ' + KEYN() + ' para reaparecer';

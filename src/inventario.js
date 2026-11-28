@@ -225,6 +225,9 @@ dialog.inv[open]{animation:invIn .14s ease-out}
     box.append(vit); vit.title='La vida se recupera sola hasta '+cap+' (marca ┆); por encima solo curan botiquines y médicos.';
     /* equipo puesto: casco, chaleco, mochila */
     section('Equipo'); const sl=mk('div','slots'); for(const k of Object.keys(slots)){ const lv=gear(e.bag,k), w=e.worn[k]; sl.append(mk('div','slot'+(w||lv&&k==='pack'?' on':''),ico(k)+'<div><em>'+slots[k]+'</em><strong>'+(lv?'Nivel '+lv:'—')+'</strong></div>')); } box.append(sl);
+    /* herramientas: siempre en la mochila de todos; la adecuada se elige sola al trabajar (mantener □) */
+    if (MX.INT) { section('Herramientas'); const ch=mk('div','chips'); const act=MX.INT.state.tool;
+      for(const [k,t] of Object.entries(MX.INT.TOOLS)) { const c=mk('div','chip',ico('repair')+'<span>'+t.n+'</span><b>'+(act===k?'en uso':'lista')+'</b>'); c.title=t.d; ch.append(c); } box.append(ch); }
     /* en la mochila */
     const bagItems=Object.entries(e.bag).filter(([k,n])=>n>0 && !limits[k] && !/^pack/.test(k)); if(bagItems.length){ section('En la mochila'); const ch=mk('div','chips'); for(const [k,n] of bagItems) ch.append(mk('div','chip',ico(k)+'<span>'+names[k]+'</span><b>×'+n+'</b>')); box.append(ch); }
     /* obras (construcción), si las hay */

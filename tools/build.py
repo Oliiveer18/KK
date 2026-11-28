@@ -32,6 +32,8 @@ TAG_EFECTOS = '<script src="efectos.js"></script>'
 TAG_CLASES = '<script src="clases.js"></script>'
 TAG_ESTILO = '<script src="estilo.js"></script>'
 
+MODULOS_EXTRA = ['interactuar.js', 'economia.js', 'refugios.js']
+
 def leer_wav(p):
     with wave.open(str(p)) as w:
         n, sr, ch, sw = w.getnframes(), w.getframerate(), w.getnchannels(), w.getsampwidth()
@@ -206,6 +208,13 @@ def main():
     inventario = (RAIZ / "src" / "inventario.js").read_text(encoding="utf-8")
     obras = (RAIZ / "src" / "obras.js").read_text(encoding="utf-8")
     salida = fuente.replace(TAG_OBRAS, "<script>" + obras + "</script>").replace(TAG_INV, "<script>" + inventario + "</script>").replace(TAG_THREE, '<script>' + three + '</script>').replace(TAG_SONIDOS, '<script>' + js + '</script>').replace(TAG_OBJETOS, '<script>' + objetos + '</script>').replace(TAG_MAPA, '<script>' + mapa + '</script>').replace(TAG_COMP, '<script>' + comp + '</script>').replace(TAG_MAPAD, '<script>' + mapad + '</script>').replace(TAG_PARTIDA, '<script>' + partida + '</script>').replace(TAG_ZOMBIS, '<script>' + zombis + '</script>').replace(TAG_ESCUADRAS, '<script>' + escuadras + '</script>').replace(TAG_RENDIMIENTO, '<script>' + rendimiento + '</script>').replace(TAG_EFECTOS, '<script>' + efectos + '</script>').replace(TAG_CLASES, '<script>' + clases + '</script>').replace(TAG_ESTILO, '<script>' + estilo + '</script>')
+    for nombre in MODULOS_EXTRA:                                   # módulos nuevos (v4): se incrustan igual que el resto
+        f = RAIZ / 'src' / nombre
+        if f.exists():
+            txt = f.read_text(encoding='utf-8')
+            if '</script' in txt:
+                raise SystemExit(f'src/{nombre} no puede contener </script')
+            salida = salida.replace(f'<script src="{nombre}"></script>', '<script>' + txt + '</script>')
     (RAIZ / 'index.html').write_text(salida, encoding='utf-8')
     print(f'sonidos.js {len(js)/1024:.0f} KB, index.html {len(salida)/1024:.0f} KB')
 
