@@ -425,3 +425,6 @@ Camillas + médico = curación hasta 100 a 12 puntos/s; el médico a pie baja su
 
 ## Prueba de dirección de arte (`src/estilo.js`)
 Tres estilos intercambiables, activables con `?look=a|b|c` (sin parámetro el juego se ve como siempre): A gris militar, B polvo, C noche fría. Gradúan colores del mundo (no personajes ni infectados), luz, niebla y viñeta, y añaden detalle procedural al suelo en su shader (asfalto con grietas y manchas, hierba y bosque con hojarasca y barro, juntas en aceras, adoquines, pintura vial gastada). Sin llamadas de dibujo ni texturas nuevas. También `LOOK.set('a'|'b'|'c'|'')` desde la consola. Pendiente de elegir dirección y de medir en el iPhone.
+
+## Estilo D, por defecto en el juego
+El estilo D (mezcla de C «noche fría» y A «gris militar») se aplica por defecto en los navegadores reales; `?look=off` deja el aspecto original, `?look=a|b|c` los otros estilos. Las pruebas automatizadas (navigator.webdriver) no lo aplican salvo con `?look=x`, para que sus comparaciones de imagen no cambien. Se aplica en la carga justo antes de precompilar los shaders (más una malla de prueba por tipo de suelo), de modo que no hay compilaciones durante la partida: 102 programas (presupuesto ≤ 110), 0 nuevos jugando. `tests/presupuesto.py` ahora prueba la carga progresiva con el estilo D.

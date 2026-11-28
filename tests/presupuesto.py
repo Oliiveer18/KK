@@ -2,8 +2,9 @@
 Presupuestos (equipo de pruebas de escritorio; en el iPhone la lógica cuesta ~2–3 veces más, de ahí los márgenes ajustados):
   · lógica por fotograma: p50 ≤ 5 ms, p95 ≤ 8,5 ms, p99 ≤ 11 ms; ningún fotograma > 120 ms y a lo sumo 4 de > 30 ms en 2 min
   · basura: ≤ 330 KB por fotograma (mediana de 3 mediciones) (recolecciones de 16–20 ms cada ~0,5 s si se pasa)
-  · dibujo: ≤ 370 llamadas en la pasada principal (varía ±40 según los soldados a la vista) y ≤ 400 con la pasada de sombras (3 zonas), ≤ 85 programas de shader y ninguno nuevo durante el juego
+  · dibujo: ≤ 370 llamadas en la pasada principal (varía ±40 según los soldados a la vista) y ≤ 400 con la pasada de sombras (3 zonas), ≤ 110 programas de shader y ninguno nuevo durante el juego
   · memoria tras la carga ≤ 190 MB (con recogida de basura) y crecimiento ≤ 6 MB/min tras 1 min de calentamiento; objetos despiertos a los 2 min ≤ 600; nodos de escena ≤ 40.000
+(Se prueba con la carga progresiva y el estilo D, que es lo que usa el juego en un navegador real.)
 Uso: python3 tests/presupuesto.py [minutos=2]"""
 import os, sys, json
 from playwright.sync_api import sync_playwright
@@ -15,7 +16,7 @@ def chk(c, m):
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--js-flags=--expose-gc', '--enable-precise-memory-info'])
     pg = b.new_page(viewport={'width': 844, 'height': 390}); errs = []; pg.on('pageerror', lambda e: errs.append(str(e))); ev = pg.evaluate
-    pg.goto('file://' + os.path.abspath('index.html') + '?mapa=6'); pg.wait_for_timeout(1500); ev('begin()'); pg.wait_for_timeout(3500)
+    pg.goto('file://' + os.path.abspath('index.html') + '?mapa=6&look=d&progresivo=1'); pg.wait_for_timeout(1500); ev('begin()'); pg.wait_for_function('()=>!document.getElementById("loadUI")', timeout=120000); pg.wait_for_timeout(1500)
     prog0 = ev('()=>renderer.info.programs.length')
     heap0 = ev('()=>{ gc(); return Math.round(performance.memory.usedJSHeapSize/1e6) }')
     # dibujo en tres zonas (refugio, calle, plaza)
@@ -39,7 +40,7 @@ with sync_playwright() as p:
     chk(r['max'] <= 120 and r['over30'] <= 4, 'sin tirones de lógica: máx %.0f ms, %d fotogramas > 30 ms en %g min' % (r['max'], r['over30'], MIN))
     chk(r['awake'] <= 600, 'objetos despiertos ≤ 600 (%d)' % r['awake'])
     chk(r['nodos'] <= 40000, 'nodos de escena ≤ 40.000 (%d)' % r['nodos'])
-    chk(ev('()=>renderer.info.programs.length') <= 85 and ev('()=>renderer.info.programs.length') == prog0, 'shaders: ≤ 85 programas y ninguno nuevo durante el juego (%d → %d)' % (prog0, ev('()=>renderer.info.programs.length')))
+    chk(ev('()=>renderer.info.programs.length') <= 110 and ev('()=>renderer.info.programs.length') == prog0, 'shaders: ≤ 110 programas y ninguno nuevo durante el juego (%d → %d)' % (prog0, ev('()=>renderer.info.programs.length')))
     # basura por fotograma y memoria
     kbs = sorted(ev('''()=>{ const o=[]; for(let r=0;r<3;r++){ gc(); const a=performance.memory.usedJSHeapSize; for(let i=0;i<30;i++){ time+=1/60; update(1/60); } o.push(Math.round((performance.memory.usedJSHeapSize-a)/30/1024)); } return o }'''))
     kb = kbs[1]

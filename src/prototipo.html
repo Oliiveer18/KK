@@ -627,7 +627,7 @@ function beginProgressive() {
   const paint = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
   const steps = [[2, 'Trazando calles, manzanas y edificios…', () => { MAPA.defer = true; try { MX.start(); } finally { MAPA.defer = false; } }],
     [62, 'Compartiendo materiales y texturas…', () => MAPA.post('dedupe')], [67, 'Uniendo las piezas de cada objeto…', () => MAPA.post('lazify')],
-    [84, 'Agrupando objetos iguales…', () => MAPA.post('instance')], [89, 'Preparando luces, sombras y sombreados…', () => warmAll()]];
+    [84, 'Agrupando objetos iguales…', () => MAPA.post('instance')], [89, 'Preparando luces, sombras y sombreados…', () => { if (window.LOOK && LOOK.boot) LOOK.boot(); warmAll(); }]];
   return (async () => {
     try { for (const [p, t, f] of steps) { set(p, t); await paint(); f(); } set(100, 'Listo'); await paint(); }
     catch (e) { const el = $('err'); el.style.display = 'block'; el.textContent = 'Error al cargar: ' + e.message; }
@@ -984,7 +984,7 @@ function chooseMap(n) {
   if (n === curMap()) { closeMenu(); return; }
   if (MX.on) { location.href = location.pathname + '?mapa=' + n; return; }              // el mapa 3 transforma la escena: para salir se recarga la página
   closeMenu();
-  if (n >= 3 && n <= 6) { MX.campaign = n >= 4; MX.district = n >= 5; MX.dataId = n === 6 ? 'M2' : 'M1'; if (RANGE.on) rangeToggle(); MX.want = true; if (MX.district && PROGRESIVO()) beginProgressive(); else { MX.start(); warmAll(); } }
+  if (n >= 3 && n <= 6) { MX.campaign = n >= 4; MX.district = n >= 5; MX.dataId = n === 6 ? 'M2' : 'M1'; if (RANGE.on) rangeToggle(); MX.want = true; if (MX.district && PROGRESIVO()) beginProgressive(); else { MX.start(); if (window.LOOK && LOOK.boot) LOOK.boot(); warmAll(); } }
   else if ((n === 2) !== RANGE.on) rangeToggle();
 }
 function renderMenu() {

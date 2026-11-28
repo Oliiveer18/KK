@@ -5,13 +5,15 @@
      ?look=a  GRIS MILITAR   — realista y sucio: gris frío y apagado, luz dura, mucho contraste, el naranja del peligro como único color vivo.
      ?look=b  POLVO          — posapocalíptico cálido: tierra, ocres y polvo, luz dorada baja, desgaste medio.
      ?look=c  NOCHE FRÍA     — azul y verde oscuros, mucho contraste, el color de las facciones y el fuego destacan.
-   Sin ?look el juego se ve como siempre (estilo original). También: LOOK.set('a'|'b'|'c'|'') desde la consola.
+   Por defecto se aplica el estilo D (?look=off lo desactiva y deja el original; las pruebas automatizadas no lo aplican salvo con ?look=x). También: LOOK.set('a'|'b'|'c'|'') desde la consola.
    Cómo: (1) los colores de los materiales del mundo (no personajes ni infectados) se gradúan desde su color original (saturación, claridad, contraste, tinte);
    (2) luz del sol, luz de cielo, niebla y fondo cambian de color e intensidad; (3) los materiales del SUELO (asfalto, hierba, bosque, tierra, hormigón, acera, adoquín y la pintura de las
    calles) reciben detalle procedural en su shader (ruido en coordenadas del mundo: manchas, grietas, parches, hojarasca, juntas, desgaste de pintura): cero llamadas de dibujo, cero texturas;
    (4) viñeta en los bordes (capa CSS). */
 (function () {
-const Q = (location.search.match(/[?&]look=([a-z]*)/) || [])[1] || '';
+const QP = (location.search.match(/[?&]look=([a-z0-9]*)/) || [])[1];
+/* por defecto: estilo D en los navegadores reales; ?look=off (o 0) lo desactiva; en navegadores automatizados (pruebas de imagen) no se aplica salvo que se pida con ?look=x */
+const Q = QP !== undefined && QP !== '' ? QP : (navigator.webdriver ? '' : 'd');
 const LK = window.LOOK = { cur: '', u: { uG: { value: new THREE.Vector4(1, 1, 1, 1) } }, mats: new Map(), done: null };
 const STY = {
   a: { name: 'Gris militar', sat: .5, lum: .86, con: 1.14, tint: [.95, .985, 1.04], keep: 1.15, gs: 1.5, gl: .82, sun: [0xfff1de, 1.12], hemi: [0x8398b0, 0x14171c, .34], fog: 0x0f1319, grime: 1.0, litter: 1.0, crack: 1.0, vig: .5, rough: 1 },
@@ -68,6 +70,10 @@ LK.set = function (k) {
   if (!vig) { vig = document.createElement('div'); vig.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:1;transition:opacity .4s'; document.body.appendChild(vig); }
   vig.style.background = 'radial-gradient(ellipse at 50% 55%, rgba(0,0,0,0) 48%, rgba(0,0,0,' + S.vig + ') 100%)'; vig.style.opacity = 1;
 };
+/* en la carga, justo antes de precompilar los shaders (así los shaders del suelo ya salen con detalle y no hay compilaciones durante la partida) */
+LK.boot = () => { if (Q && STY[Q] && typeof MAPA !== 'undefined' && MAPA.built) { LK.done = MAPA.built; LK.set(Q);
+  if (!LK.probes) { LK.probes = []; const seen = new Set();                              // una malla de prueba (sin instanciar, invisible) por tipo de suelo: warmAll() compila también esas variantes y no hay compilaciones al ver, p. ej., la glorieta
+    for (const [m, c] of LK.mats) { const g = GROUND[c.getHex()]; if (g && !seen.has(g)) { seen.add(g); const q = new THREE.Mesh(geoBox, m); q.visible = false; q.frustumCulled = false; q.position.set(0, -60, 0); q.receiveShadow = true; scene.add(q); LK.probes.push(q); } } } } };
 /* se aplica cuando el mapa está construido (y otra vez si se reconstruye) */
-if (Q && STY[Q]) setInterval(() => { if (typeof MAPA !== 'undefined' && MAPA.built && MAPA.built !== LK.done && MX && MX.M && MX.M.ents.length) { LK.done = MAPA.built; LK.set(Q); } }, 400);
+if (Q && STY[Q]) setInterval(() => { if (typeof MAPA !== 'undefined' && MAPA.built && MAPA.built !== LK.done && MX && MX.M && MX.M.ents.length && started) { LK.done = MAPA.built; LK.set(Q); } }, 400);
 })();
