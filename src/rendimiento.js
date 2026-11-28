@@ -123,19 +123,32 @@ const PERF = (() => {
    Se rehace cada 2 fotogramas (30 Hz): el desfase de un fotograma (16 ms) en la sombra de alguien que corre no se aprecia. Además la cámara de sombra se
    ancla a la cuadrícula de texels del mapa de sombra, así que el borde de las sombras estáticas deja de «bailar» al moverse. Interruptor: ?nosombra2 */
 const SOMBRA = (() => {
-  const off = /[?&]nosombra2\b/.test(location.search);
+  const off = /[?&]nosombra2\b/.test(location.search), noCull = /[?&]nosombracull\b/.test(location.search);
   let k = 0;
-  const _d = new THREE.Vector3(), _x = new THREE.Vector3(), _y = new THREE.Vector3(), _UP = new THREE.Vector3(0, 1, 0);
+  const _d = new THREE.Vector3(), _x = new THREE.Vector3(), _y = new THREE.Vector3(), _UP = new THREE.Vector3(0, 1, 0), _pm = new THREE.Matrix4(), _fr = new THREE.Frustum(), hid = [];
   function anclar() {                                                                // desplaza sol y objetivo, en el plano del sol, a un múltiplo del tamaño de texel
     const sh = sun.shadow, cam = sh.camera, texel = (cam.right - cam.left) / sh.mapSize.x;
     _d.copy(sun.position).sub(sun.target.position).normalize(); _x.crossVectors(_UP, _d).normalize(); _y.crossVectors(_d, _x);
     const t = sun.target.position, cx = t.dot(_x), cy = t.dot(_y), dx = Math.round(cx / texel) * texel - cx, dy = Math.round(cy / texel) * texel - cy;
     t.addScaledVector(_x, dx).addScaledVector(_y, dy); sun.position.addScaledVector(_x, dx).addScaledVector(_y, dy);
   }
+  /* SECTORES RECORTADOS EN LA PASADA DE SOMBRA. Los lotes instanciados de cada sector no se recortan por cámara (three r128 no recorta instancias), así que la pasada de sombra los dibujaba TODOS (~20 lotes
+     por sector a la vista) aunque casi todos quedan fuera de la caja de ±14 m del sol. Antes de una pasada de sombra se calcula el volumen de la cámara de sombra y, en los sectores que no lo cortan, se
+     apaga castShadow (sólo afecta a la sombra: la imagen principal no lo mira) hasta terminar el fotograma. Un objeto fuera de la caja (en el plano perpendicular al sol) no puede proyectar sombra dentro de
+     ella, así que el mapa de sombra resultante es EXACTAMENTE el mismo. Interruptor: ?nosombracull. */
+  const off2 = [];
+  function apagar(o) { if (o.castShadow) { o.castShadow = false; off2.push(o); } for (let i = 0; i < o.children.length; i++) apagar(o.children[i]); }
+  function recortar() {
+    const sh = sun.shadow, cam = sh.camera; sun.updateMatrixWorld(); sun.target.updateMatrixWorld(); sh.updateMatrices(sun);
+    _pm.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse); _fr.setFromProjectionMatrix(_pm);
+    const secs = typeof MAPA !== 'undefined' && MAPA.built && MAPA.built.sectors; if (!secs) return; let n = 0;
+    for (let i = 0; i < secs.length; i++) { const g = secs[i]; if (g.visible && g.box && !_fr.intersectsBox(g.box)) { apagar(g); n++; } }
+    SOMBRA.hidden = n;
+  }
   return {
-    get activo() { return !off; },
-    pre() { if (off) return; const sm = renderer.shadowMap; k ^= 1; sm.autoUpdate = false; sm.needsUpdate = k === 0; if (k === 0) anclar(); },
-    post() { if (off) return; renderer.shadowMap.autoUpdate = true; }
+    get activo() { return !off; }, hidden: 0,
+    pre() { if (off) return; const sm = renderer.shadowMap; k ^= 1; sm.autoUpdate = false; sm.needsUpdate = k === 0; if (k === 0) { anclar(); if (!noCull) recortar(); } },
+    post() { if (off) return; renderer.shadowMap.autoUpdate = true; for (let i = 0; i < off2.length; i++) off2[i].castShadow = true; off2.length = 0; }
   };
 })();
 
