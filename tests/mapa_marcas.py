@@ -38,4 +38,16 @@ with sync_playwright() as p:
     r = ev('''()=>{ const st=MX.stations.list.length; const sup=0; return {st} }''')
     chk(r['st'] >= 8, 'puestos de curación para el mapa (%d)' % r['st'])
     chk(not errs, 'sin errores JS ' + str(errs[:2]))
+
+# móvil apaisado con Share (mapa + mochila al lado): el mapa se ve entero y no queda bajo el panel de la mochila
+with sync_playwright() as p:
+    b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--no-sandbox', '--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])
+    pg = b.new_page(viewport={'width': 844, 'height': 390}, has_touch=True, is_mobile=True); errs = []; pg.on('pageerror', lambda e: errs.append(str(e))); ev = pg.evaluate
+    pg.goto('file://' + os.path.abspath('index.html') + '?mapa=6'); pg.wait_for_timeout(1000); ev('begin()'); pg.wait_for_timeout(500)
+    ev('()=>{ MX.mapDock(true); MX.mapToggle(); document.getElementById("invBtn").click(); }'); pg.wait_for_timeout(600)
+    r = ev("""()=>{ const c=[...document.querySelectorAll('canvas')].find(c=>c.parentElement&&c.parentElement.style.zIndex==='12'); const m=c.getBoundingClientRect(), d=document.querySelector('dialog[open]').getBoundingClientRect(); return {mw:m.width, mr:m.right, ml:m.left, mt:m.top, mb:m.bottom, dl:d.left, h:innerHeight} }""")
+    print(r)
+    chk(r['mr'] <= r['dl'] + 1, 'con la mochila al lado, el mapa no queda bajo el panel (derecha del mapa %d, izquierda del panel %d)' % (r['mr'], r['dl']))
+    chk(r['mw'] >= 300 and r['mt'] >= 0 and r['mb'] <= r['h'], 'y es grande y entra entero en pantalla (%d px)' % r['mw'])
+    chk(not errs, 'sin errores JS en el móvil ' + str(errs[:2]))
 sys.exit(1 if bad else 0)
