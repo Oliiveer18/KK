@@ -40,7 +40,8 @@ Estado: **plan cerrado y ajustado para ejecución desatendida; sin implementar h
 | Fase | Estado | Commit | Probado | No probado |
 |---|---|---|---|---|
 | F0–F12, R0–R2 | hecho | ver `git log` | tests propios + presupuesto + partida simulada de 8 min (0 errores JS) | rendimiento de GPU real (iPhone); calibración de ritmos (F13) |
-| F13, R3–R4 | pendiente | — | — | — |
+| F13, R4 | hecho (con carencias, ver informe) | ver `git log` | 6 partidas simuladas | asedios en partida, economía, asalto |
+| R3 | no aplicada | — | — | depende de tu captura `?bench` |
 
 ## 1. Decisiones cerradas
 | Tema | Decisión |
