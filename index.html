@@ -5706,7 +5706,7 @@ const cellOf = (x, z) => { const ix = clamp(Math.floor((x - NV.ox) / NV.cs), 0, 
 const NC2 = { ver: -1, comp: null, main: -1, t: -99, sizes: null };
 function navComp(force) {
   if (!force && NC2.ver === navVer && NC2.comp) return NC2; if (!force && performance.now() - NC2.t < 20000 && NC2.comp) return NC2;
-  const W_ = NV.w, H_ = NV.h, N = NV.n, comp = new Int32Array(N).fill(-1), q = new Int32Array(N), sizes = []; let nc = 0;
+  const W_ = NV.w, H_ = NV.h, N = NV.n; if (!NC2.q || NC2.q.length !== N) { NC2.q = new Int32Array(N); NC2.buf = new Int32Array(N); } const comp = NC2.buf.fill(-1), q = NC2.q, sizes = []; let nc = 0;   /* búferes reutilizados: 4,5 MB de basura cada 20 s se notaban en el presupuesto de basura */
   for (let s0 = 0; s0 < N; s0++) { if (NV.bl[s0] || comp[s0] >= 0) continue; let h = 0, t = 0, n = 0; q[t++] = s0; comp[s0] = nc;
     while (h < t) { const c = q[h++]; n++; const cx = c % W_, cz = (c / W_) | 0;
       for (let k = 0; k < 8; k++) { const nx = cx + DX8[k], nz = cz + DZ8[k]; if (nx < 0 || nz < 0 || nx >= W_ || nz >= H_) continue; const ni = nz * W_ + nx; if (NV.bl[ni] || comp[ni] >= 0) continue;
